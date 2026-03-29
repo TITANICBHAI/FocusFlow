@@ -4,6 +4,7 @@ import React, {
   useEffect,
   useReducer,
   useCallback,
+  useRef,
 } from 'react';
 import { Alert } from 'react-native';
 import type { Task, AppSettings, FocusSession } from '@/data/types';
@@ -24,6 +25,7 @@ import {
 } from '@/services/taskService';
 import {
   rebalanceAfterOverrun,
+  getUnfinishedOverdueTasks,
 } from '@/services/schedulerEngine';
 import {
   scheduleTaskReminders,
@@ -36,7 +38,10 @@ import {
 import {
   startFocusMode as _startFocusMode,
   stopFocusMode as _stopFocusMode,
+  isFocusActive,
 } from '@/services/focusService';
+
+// ─── State ────────────────────────────────────────────────────────────────────
 
 interface AppState {
   tasks: Task[];
@@ -114,56 +119,99 @@ const initialState: AppState = {
   isDbReady: false,
 };
 
+// ─── Context ──────────────────────────────────────────────────────────────────
+
 interface AppContextValue {
   state: AppState;
   todayTasks: Task[];
   activeTask: Task | null;
+
   addTask: (task: Task) => Promise<void>;
   updateTask: (task: Task) => Promise<void>;
   deleteTask: (taskId: string) => Promise<void>;
   completeTask: (taskId: string) => Promise<void>;
   skipTask: (taskId: string) => Promise<void>;
   extendTaskTime: (taskId: string, extraMinutes: number) => Promise<void>;
+
   startFocusMode: (taskId: string) => Promise<void>;
   stopFocusMode: () => Promise<void>;
+
   updateSettings: (settings: AppSettings) => Promise<void>;
   refreshTasks: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
 
+// ─── Provider ─────────────────────────────────────────────────────────────────
+
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // ── Initialize ──────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    async function init() {
-      try {
-        await setupNotificationChannels();
-        await requestPermissions();
-        const settings = await dbGetSettings();
-        dispatch({ type: 'SET_SETTINGS', payload: settings });
-        dispatch({ type: 'SET_DB_READY' });
-
-        const today = new Date().toISOString();
-        const tasks = await dbGetTasksForDate(today);
-        dispatch({ type: 'SET_TASKS', payload: tasks });
-
-        const activeSession = await dbGetActiveFocusSession();
-        if (activeSession) {
-          dispatch({ type: 'SET_FOCUS_SESSION', payload: activeSession });
-        }
-      } catch (e) {
-        console.warn('[AppContext] init error', e);
-      } finally {
-        dispatch({ type: 'SET_LOADING', payload: false });
-      }
-    }
     void init();
+    return () => {
+      if (tickRef.current) clearInterval(tickRef.current);
+    };
   }, []);
 
+  async function init() {
+    dispatch({ type: 'SET_LOADING', payload: true });
+    try {
+      await setupNotificationChannels();
+      await requestPermissions();
+
+      const settings = await dbGetSettings();
+      dispatch({ type: 'SET_SETTINGS', payload: settings });
+      dispatch({ type: 'SET_DB_READY' });
+
+      await refreshTasks();
+
+      // Recover tasks that were still "scheduled" when the app was killed/restarted
+      const allTasks = await dbGetTasksForDate(new Date().toISOString());
+      const overdue = getUnfinishedOverdueTasks(allTasks);
+      for (const t of overdue) {
+        const marked = updateTaskStatus(t, 'overdue');
+        await dbUpdateTask(marked);
+      }
+      if (overdue.length > 0) await refreshTasks();
+
+      const activeSession = await dbGetActiveFocusSession();
+      if (activeSession) {
+        dispatch({ type: 'SET_FOCUS_SESSION', payload: activeSession });
+      }
+    } catch (e) {
+      console.error('[AppContext] init error', e);
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
+    }
+  }
+
+  // ── Tick: check active tasks every 30s ──────────────────────────────────────
+
+  useEffect(() => {
+    if (!state.isDbReady) return;
+    tickRef.current = setInterval(() => {
+      const active = getActiveTask(state.tasks);
+      if (active && state.settings.notificationsEnabled) {
+        void showPersistentTaskNotification(active);
+      }
+      if (!active && isFocusActive()) {
+        void _stopFocusMode();
+        dispatch({ type: 'SET_FOCUS_SESSION', payload: null });
+      }
+    }, 30000);
+    return () => {
+      if (tickRef.current) clearInterval(tickRef.current);
+    };
+  }, [state.isDbReady, state.tasks, state.settings]);
+
+  // ── Tasks ───────────────────────────────────────────────────────────────────
+
   const refreshTasks = useCallback(async () => {
-    const today = new Date().toISOString();
-    const tasks = await dbGetTasksForDate(today);
+    const tasks = await dbGetTasksForDate(new Date().toISOString());
     dispatch({ type: 'SET_TASKS', payload: tasks });
   }, []);
 
@@ -177,9 +225,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await dbUpdateTask(task);
     dispatch({ type: 'UPDATE_TASK', payload: task });
     await cancelTaskReminders(task.id);
-    if (task.status !== 'skipped') {
-      await scheduleTaskReminders(task);
-    }
+    await scheduleTaskReminders(task);
   }, []);
 
   const deleteTask = useCallback(async (taskId: string) => {
@@ -188,51 +234,95 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'DELETE_TASK', payload: taskId });
   }, []);
 
-  const completeTask = useCallback(async (taskId: string) => {
-    const task = state.tasks.find((t) => t.id === taskId);
-    if (!task) return;
-    const updated = updateTaskStatus(task, 'completed');
-    await dbUpdateTask(updated);
-    await cancelTaskReminders(taskId);
-    dispatch({ type: 'UPDATE_TASK', payload: updated });
-  }, [state.tasks]);
+  const completeTask = useCallback(
+    async (taskId: string) => {
+      const task = state.tasks.find((t) => t.id === taskId);
+      if (!task) return;
+      const updated = updateTaskStatus(task, 'completed');
+      await dbUpdateTask(updated);
+      await cancelTaskReminders(taskId);
+      dispatch({ type: 'UPDATE_TASK', payload: updated });
+      if (state.focusSession?.taskId === taskId) {
+        await stopFocusMode();
+      }
+    },
+    [state.tasks, state.focusSession],
+  );
 
-  const skipTask = useCallback(async (taskId: string) => {
-    const task = state.tasks.find((t) => t.id === taskId);
-    if (!task) return;
-    const updated = updateTaskStatus(task, 'skipped');
-    await dbUpdateTask(updated);
-    await cancelTaskReminders(taskId);
-    dispatch({ type: 'UPDATE_TASK', payload: updated });
-  }, [state.tasks]);
+  const skipTask = useCallback(
+    async (taskId: string) => {
+      const task = state.tasks.find((t) => t.id === taskId);
+      if (!task) return;
+      const updated = updateTaskStatus(task, 'skipped');
+      await dbUpdateTask(updated);
+      await cancelTaskReminders(taskId);
+      dispatch({ type: 'UPDATE_TASK', payload: updated });
+    },
+    [state.tasks],
+  );
 
-  const extendTaskTime = useCallback(async (taskId: string, extraMinutes: number) => {
-    const task = state.tasks.find((t) => t.id === taskId);
-    if (!task) return;
-    const extended = extendTask(task, extraMinutes);
-    const { updatedSchedule } = rebalanceAfterOverrun(extended, 0, state.tasks);
-    for (const t of updatedSchedule) {
-      await dbUpdateTask(t);
-      await cancelTaskReminders(t.id);
-      if (t.status !== 'skipped') await scheduleTaskReminders(t);
-      dispatch({ type: 'UPDATE_TASK', payload: t });
-    }
-  }, [state.tasks]);
+  const extendTaskTime = useCallback(
+    async (taskId: string, extraMinutes: number) => {
+      const task = state.tasks.find((t) => t.id === taskId);
+      if (!task) return;
 
-  const startFocusMode = useCallback(async (taskId: string) => {
-    const task = state.tasks.find((t) => t.id === taskId);
-    if (!task) return;
-    await _startFocusMode(task, state.settings.allowedInFocus, (appName) => {
-      dispatch({ type: 'SET_FOCUS_VIOLATION', payload: appName });
-    });
-    const session: FocusSession = {
-      taskId: task.id,
-      startedAt: new Date().toISOString(),
-      isActive: true,
-      allowedPackages: state.settings.allowedInFocus,
-    };
-    dispatch({ type: 'SET_FOCUS_SESSION', payload: session });
-  }, [state.tasks, state.settings.allowedInFocus]);
+      const extended = extendTask(task, extraMinutes);
+
+      const { updatedSchedule, needsUserConfirm, skipped } = rebalanceAfterOverrun(extended, extraMinutes, state.tasks);
+
+      await dbUpdateTask(extended);
+      for (const t of updatedSchedule) {
+        if (t.id !== extended.id) await dbUpdateTask(t);
+      }
+
+      const finalTasks = updatedSchedule.map((t) => (t.id === extended.id ? extended : t));
+      dispatch({ type: 'SET_TASKS', payload: finalTasks });
+
+      await cancelTaskReminders(taskId);
+      await scheduleTaskReminders(extended);
+
+      if (needsUserConfirm.length > 0) {
+        const names = needsUserConfirm.map((t) => `• ${t.title}`).join('\n');
+        Alert.alert(
+          '⚠️ Critical Tasks Affected',
+          `These high-priority tasks overlap with your extension and need your attention:\n\n${names}\n\nPlease review and reschedule them manually.`,
+          [{ text: 'OK' }],
+        );
+      }
+      if (skipped.length > 0) {
+        const names = skipped.map((t) => `• ${t.title}`).join('\n');
+        Alert.alert(
+          'Tasks Auto-Skipped',
+          `These lower-priority tasks were skipped to protect your schedule:\n\n${names}`,
+          [{ text: 'OK' }],
+        );
+      }
+    },
+    [state.tasks],
+  );
+
+  // ── Focus Mode ──────────────────────────────────────────────────────────────
+
+  const startFocusMode = useCallback(
+    async (taskId: string) => {
+      const task = state.tasks.find((t) => t.id === taskId);
+      if (!task) return;
+
+      await _startFocusMode(task, state.settings.allowedInFocus, (app) => {
+        dispatch({ type: 'SET_FOCUS_VIOLATION', payload: app });
+        setTimeout(() => dispatch({ type: 'SET_FOCUS_VIOLATION', payload: null }), 4000);
+      });
+
+      const session: FocusSession = {
+        taskId: task.id,
+        startedAt: new Date().toISOString(),
+        isActive: true,
+        allowedPackages: state.settings.allowedInFocus,
+      };
+      dispatch({ type: 'SET_FOCUS_SESSION', payload: session });
+    },
+    [state.tasks, state.settings.allowedInFocus],
+  );
 
   const stopFocusMode = useCallback(async () => {
     await _stopFocusMode();
@@ -240,10 +330,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'SET_FOCUS_SESSION', payload: null });
   }, []);
 
+  // ── Settings ─────────────────────────────────────────────────────────────────
+
   const updateSettings = useCallback(async (settings: AppSettings) => {
     await dbSaveSettings(settings);
     dispatch({ type: 'SET_SETTINGS', payload: settings });
   }, []);
+
+  // ── Derived ──────────────────────────────────────────────────────────────────
 
   const todayTasks = getTodayTasks(state.tasks);
   const activeTask = getActiveTask(state.tasks);
