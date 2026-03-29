@@ -58,8 +58,12 @@
           "androidCollapsedTitle": "FocusFlow"
         }
       ],
-      ["expo-background-fetch"],
-      ["expo-task-manager"],
+      [
+        "expo-background-fetch"
+      ],
+      [
+        "expo-task-manager"
+      ],
       [
         "expo-build-properties",
         {
@@ -74,6 +78,11 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "eaf373b8-f5a8-42ea-a105-ea120de0b4ec"
+      }
     }
   }
 }
