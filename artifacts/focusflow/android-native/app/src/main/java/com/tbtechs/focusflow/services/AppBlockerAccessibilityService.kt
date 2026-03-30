@@ -69,7 +69,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event?.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
 
-        val focusActive = prefs.getString(PREF_FOCUS_ON, "false") == "true"
+        val focusActive = prefs.getBoolean(PREF_FOCUS_ON, false)
         if (!focusActive) return
 
         // Native time authority: validate the session window independently of JS.
@@ -77,7 +77,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         // or killed), Kotlin self-corrects here — clears the stale flag and stops blocking.
         val endTimeMs = prefs.getLong("task_end_ms", 0L)
         if (endTimeMs > 0L && System.currentTimeMillis() > endTimeMs) {
-            prefs.edit().putString(PREF_FOCUS_ON, "false").apply()
+            prefs.edit().putBoolean(PREF_FOCUS_ON, false).apply()
             lastBlockedPkg = null
             return
         }

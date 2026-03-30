@@ -172,7 +172,7 @@ class ForegroundTaskService : Service() {
     private fun clearFocusActive() {
         getSharedPreferences(AppBlockerAccessibilityService.PREFS_NAME, Context.MODE_PRIVATE)
             .edit()
-            .putString("focus_active", "false")
+            .putBoolean("focus_active", false)
             .apply()
     }
 }

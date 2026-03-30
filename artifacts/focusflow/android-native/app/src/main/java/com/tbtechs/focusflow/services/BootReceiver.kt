@@ -32,7 +32,7 @@ class BootReceiver : BroadcastReceiver() {
             AppBlockerAccessibilityService.PREFS_NAME, Context.MODE_PRIVATE
         )
 
-        val focusActive = prefs.getString("focus_active", "false") == "true"
+        val focusActive = prefs.getBoolean("focus_active", false)
         if (!focusActive) return
 
         val taskName  = prefs.getString("task_name", "Focus Task") ?: "Focus Task"
@@ -41,7 +41,7 @@ class BootReceiver : BroadcastReceiver() {
 
         // Don't bother restarting if the task already ended while the phone was off
         if (endTimeMs > 0L && endTimeMs < System.currentTimeMillis()) {
-            prefs.edit().putString("focus_active", "false").apply()
+            prefs.edit().putBoolean("focus_active", false).apply()
             return
         }
 

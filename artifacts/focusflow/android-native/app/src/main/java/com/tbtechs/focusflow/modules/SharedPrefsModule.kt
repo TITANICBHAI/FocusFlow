@@ -35,7 +35,7 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
      */
     @ReactMethod
     fun setFocusActive(active: Boolean, promise: Promise) {
-        prefs().edit().putString("focus_active", if (active) "true" else "false").apply()
+        prefs().edit().putBoolean("focus_active", active).apply()
         promise.resolve(null)
     }
 
