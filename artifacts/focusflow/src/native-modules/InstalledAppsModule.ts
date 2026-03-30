@@ -1,19 +1,14 @@
 /**
- * Android InstalledApps Native Module
+ * Android InstalledApps Native Module — Old Architecture (NativeModules bridge)
  *
- * Returns all apps that appear in the device's app drawer — including user-installed
- * apps AND pre-installed/updated system apps that have a launcher icon (Chrome, YouTube,
- * Gmail, Samsung apps, etc.). Uses getLaunchIntentForPackage() as the filter, which is
- * exactly the signal the Android launcher uses to populate the app drawer.
+ * Returns all apps visible in the device app drawer, including user-installed apps
+ * and system apps that have a launcher icon. Uses getLaunchIntentForPackage() filter.
  *
- * ─── Kotlin Implementation ────────────────────────────────────────────────────
- * File: android-native/app/src/main/java/com/tbtechs/focusflow/modules/InstalledAppsModule.kt
- *
- * Exposes one method to JS:
- *   - getInstalledApps(): Array<InstalledApp>
+ * Kotlin: android-native/app/.../modules/InstalledAppsModule.kt
+ * Registered via: FocusDayPackage → createNativeModules()
  */
 
-import { TurboModuleRegistry, TurboModule } from 'react-native';
+import { NativeModules, Platform } from 'react-native';
 
 export interface InstalledApp {
   packageName: string;
@@ -21,19 +16,15 @@ export interface InstalledApp {
   iconBase64?: string;
 }
 
-interface InstalledAppsSpec extends TurboModule {
-  getInstalledApps(): Promise<InstalledApp[]>;
-}
+const InstalledApps = Platform.OS === 'android' ? NativeModules.InstalledApps : null;
 
-const InstalledApps = TurboModuleRegistry.get<InstalledAppsSpec>('InstalledApps');
-console.log('[InstalledAppsModule] resolved:', !!InstalledApps);
+if (Platform.OS === 'android' && !InstalledApps) {
+  console.error('[InstalledAppsModule] NativeModules.InstalledApps not found. Ensure an EAS build is used — Expo Go does not include custom native modules.');
+}
 
 export const InstalledAppsModule = {
   async getInstalledApps(): Promise<InstalledApp[]> {
-    if (!InstalledApps) {
-      console.error('[InstalledAppsModule] Native module "InstalledApps" not found. Ensure FocusDayPackage is registered and an EAS build was used.');
-      return [];
-    }
+    if (!InstalledApps) return [];
     return InstalledApps.getInstalledApps();
   },
 };

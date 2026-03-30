@@ -1,68 +1,40 @@
-import { TurboModuleRegistry, TurboModule } from 'react-native';
-
-interface SharedPrefsSpec extends TurboModule {
-  setFocusActive(active: boolean): Promise<void>;
-  setAllowedPackages(packages: string[]): Promise<void>;
-  setActiveTask(name: string, endMs: number, nextName: string | null): Promise<void>;
-  setStandaloneBlock(active: boolean, packages: string[], untilMs: number): Promise<void>;
-}
-
-const SharedPrefs = TurboModuleRegistry.get<SharedPrefsSpec>('SharedPrefs');
-console.log('[SharedPrefsModule] resolved:', !!SharedPrefs);
-
 /**
- * SharedPrefsModule
+ * SharedPrefsModule — Old Architecture (NativeModules bridge)
  *
  * Writes focus-mode and standalone-block state into Android SharedPreferences so:
  *   - AppBlockerAccessibilityService knows which apps to block even when JS is not running
- *   - BootReceiver can restart the foreground service after a reboot
+ *   - BootReceiver can restore the foreground service state after device reboot
+ *
+ * Kotlin: android-native/app/.../modules/SharedPrefsModule.kt
+ * Registered via: FocusDayPackage → createNativeModules()
  */
+
+import { NativeModules, Platform } from 'react-native';
+
+const SharedPrefs = Platform.OS === 'android' ? NativeModules.SharedPrefs : null;
+
+if (Platform.OS === 'android' && !SharedPrefs) {
+  console.error('[SharedPrefsModule] NativeModules.SharedPrefs not found. Ensure an EAS build is used — Expo Go does not include custom native modules.');
+}
+
 export const SharedPrefsModule = {
   async setFocusActive(active: boolean): Promise<void> {
-    if (!SharedPrefs) {
-      console.error('[SharedPrefsModule] Native module "SharedPrefs" not found. Ensure FocusDayPackage is registered and an EAS build was used.');
-      return;
-    }
+    if (!SharedPrefs) return;
     return SharedPrefs.setFocusActive(active);
   },
 
-  /**
-   * Write the list of ALLOWED Android package names (for task-based blocking).
-   * The AccessibilityService blocks any foreground app NOT in this list during a task.
-   */
   async setAllowedPackages(packages: string[]): Promise<void> {
-    if (!SharedPrefs) {
-      console.error('[SharedPrefsModule] Native module "SharedPrefs" not found. Ensure FocusDayPackage is registered and an EAS build was used.');
-      return;
-    }
+    if (!SharedPrefs) return;
     return SharedPrefs.setAllowedPackages(packages);
   },
 
   async setActiveTask(name: string, endMs: number, nextName: string | null): Promise<void> {
-    if (!SharedPrefs) {
-      console.error('[SharedPrefsModule] Native module "SharedPrefs" not found. Ensure FocusDayPackage is registered and an EAS build was used.');
-      return;
-    }
+    if (!SharedPrefs) return;
     return SharedPrefs.setActiveTask(name, endMs, nextName ?? null);
   },
 
-  /**
-   * Controls standalone app blocking — independent of any scheduled task.
-   *
-   * When active = true, the AccessibilityService blocks every package in the list
-   * until untilMs is reached, even if no task focus session is running.
-   *
-   * Collision with task-based blocking: additive (both block lists enforced simultaneously).
-   *
-   * @param active    Whether standalone blocking is currently enabled
-   * @param packages  Package names to block
-   * @param untilMs   Epoch ms when standalone blocking expires (0 = no time limit)
-   */
   async setStandaloneBlock(active: boolean, packages: string[], untilMs: number): Promise<void> {
-    if (!SharedPrefs) {
-      console.error('[SharedPrefsModule] Native module "SharedPrefs" not found. Ensure FocusDayPackage is registered and an EAS build was used.');
-      return;
-    }
+    if (!SharedPrefs) return;
     return SharedPrefs.setStandaloneBlock(active, packages, untilMs);
   },
 };

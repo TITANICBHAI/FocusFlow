@@ -1,5 +1,5 @@
 /**
- * Android Foreground Service Module
+ * Android Foreground Service Module — Old Architecture (NativeModules bridge)
  *
  * The ForegroundTaskService runs PERSISTENTLY at all times — not only during focus.
  * This keeps the process alive so Android cannot kill the AccessibilityService.
@@ -8,70 +8,41 @@
  *   IDLE   — Quiet "FocusFlow is monitoring" notification shown at all times.
  *   ACTIVE — Focus session running: shows task name + live countdown.
  *
- * ─── Android Implementation ──────────────────────────────────────────────────
- * File: android-native/app/.../services/ForegroundTaskService.kt
+ * Kotlin: android-native/app/.../services/ForegroundTaskService.kt
+ * Registered via: FocusDayPackage → createNativeModules()
  */
 
-import { TurboModuleRegistry, TurboModule } from 'react-native';
+import { NativeModules, Platform } from 'react-native';
 
-interface ForegroundServiceSpec extends TurboModule {
-  startIdleService(): Promise<void>;
-  startService(taskName: string, endTimeMs: number, nextTaskName: string | null): Promise<void>;
-  stopService(): Promise<void>;
-  updateNotification(taskName: string, endTimeMs: number, nextTaskName: string | null): Promise<void>;
-  requestBatteryOptimizationExemption(): Promise<void>;
+const ForegroundService = Platform.OS === 'android' ? NativeModules.ForegroundService : null;
+
+if (Platform.OS === 'android' && !ForegroundService) {
+  console.error('[ForegroundServiceModule] NativeModules.ForegroundService not found. Ensure an EAS build is used — Expo Go does not include custom native modules.');
 }
 
-const ForegroundService = TurboModuleRegistry.get<ForegroundServiceSpec>('ForegroundService');
-console.log('[ForegroundServiceModule] resolved:', !!ForegroundService);
-
 export const ForegroundServiceModule = {
-  /**
-   * Ensures the foreground service is running in idle mode.
-   * Call on every app startup to guarantee the persistent notification always exists.
-   * Safe to call if the service is already running in active mode — it will stay active.
-   */
   async startIdleService(): Promise<void> {
-    if (!ForegroundService) {
-      console.error('[ForegroundServiceModule] Native module "ForegroundService" not found. Ensure FocusDayPackage is registered and an EAS build was used.');
-      return;
-    }
+    if (!ForegroundService) return;
     return ForegroundService.startIdleService();
   },
 
   async startService(taskName: string, endTimeMs: number, nextTaskName: string | null): Promise<void> {
-    if (!ForegroundService) {
-      console.error('[ForegroundServiceModule] Native module "ForegroundService" not found. Ensure FocusDayPackage is registered and an EAS build was used.');
-      return;
-    }
+    if (!ForegroundService) return;
     return ForegroundService.startService(taskName, endTimeMs, nextTaskName);
   },
 
-  /**
-   * Switches the service to idle mode (persistent notification stays, countdown stops).
-   * Does NOT stop the service — it remains alive to keep the process running.
-   */
   async stopService(): Promise<void> {
-    if (!ForegroundService) {
-      console.error('[ForegroundServiceModule] Native module "ForegroundService" not found. Ensure FocusDayPackage is registered and an EAS build was used.');
-      return;
-    }
+    if (!ForegroundService) return;
     return ForegroundService.stopService();
   },
 
   async updateNotification(taskName: string, endTimeMs: number, nextTaskName: string | null): Promise<void> {
-    if (!ForegroundService) {
-      console.error('[ForegroundServiceModule] Native module "ForegroundService" not found. Ensure FocusDayPackage is registered and an EAS build was used.');
-      return;
-    }
+    if (!ForegroundService) return;
     return ForegroundService.updateNotification(taskName, endTimeMs, nextTaskName);
   },
 
   async requestBatteryOptimizationExemption(): Promise<void> {
-    if (!ForegroundService) {
-      console.error('[ForegroundServiceModule] Native module "ForegroundService" not found. Ensure FocusDayPackage is registered and an EAS build was used.');
-      return;
-    }
+    if (!ForegroundService) return;
     return ForegroundService.requestBatteryOptimizationExemption();
   },
 };

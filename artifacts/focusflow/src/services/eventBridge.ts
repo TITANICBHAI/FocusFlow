@@ -13,7 +13,7 @@
  *   - JS handlers registered per-event-type via subscribe()
  */
 
-import { NativeEventEmitter, TurboModuleRegistry, TurboModule, EmitterSubscription } from 'react-native';
+import { NativeEventEmitter, NativeModules, Platform, EmitterSubscription } from 'react-native';
 
 export type NativeEventType =
   | 'TASK_ENDED'        // foreground service: task timer reached zero
@@ -37,23 +37,17 @@ export interface NativeEvent {
 
 type EventHandler = (event: NativeEvent) => void;
 
-interface FocusDayBridgeSpec extends TurboModule {
-  addListener(eventName: string): void;
-  removeListeners(count: number): void;
-}
-
 class EventBridgeClass {
   private emitter: NativeEventEmitter | null = null;
   private subscription: EmitterSubscription | null = null;
   private handlers = new Map<NativeEventType, Set<EventHandler>>();
 
   init(): void {
-    // Use TurboModuleRegistry.get for correct resolution under RN 0.76 New Architecture
-    // bridgeless mode. NativeModules.FocusDayBridge may return an empty proxy that is
-    // truthy but whose methods are no-ops; TurboModuleRegistry.get returns null if unlinked.
-    const bridge = TurboModuleRegistry.get<FocusDayBridgeSpec>('FocusDayBridge');
+    if (Platform.OS !== 'android') return;
+
+    const bridge = NativeModules.FocusDayBridge;
     if (!bridge) {
-      console.error('[EventBridge] FocusDayBridge native module not found. Ensure FocusDayPackage is registered and an EAS build was used. Running in stub mode — native events will not fire.');
+      console.error('[EventBridge] NativeModules.FocusDayBridge not found. Ensure an EAS build is used — Expo Go does not include custom native modules. Native events will not fire.');
       return;
     }
 
