@@ -35,7 +35,7 @@ class ForegroundTaskService : Service() {
 
     companion object {
         const val CHANNEL_ID        = "focusday_foreground"
-        const val CHANNEL_NAME      = "FocusDay Active Task"
+        const val CHANNEL_NAME      = "FocusFlow Active Task"
         const val NOTIFICATION_ID   = 1001
         const val ACTION_STOP       = "com.tbtechs.focusflow.STOP_SERVICE"
         const val ACTION_SET_IDLE   = "com.tbtechs.focusflow.SET_IDLE"

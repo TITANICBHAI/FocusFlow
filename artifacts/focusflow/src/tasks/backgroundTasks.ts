@@ -31,7 +31,6 @@ import {
   scheduleTaskReminders,
   fireLateStartWarning,
   dismissPersistentNotification,
-  showPersistentTaskNotification,
 } from '@/services/notificationService';
 import { navigateToTask } from '@/navigation/navigationRef';
 
@@ -58,17 +57,6 @@ TaskManager.defineTask(TASK_OVERRUN_CHECK, async ({ data, error }: any) => {
       type?: string;
       taskId?: string;
     } | undefined;
-
-    // Handle task-start: show persistent notification in background
-    if (notifData?.type === 'task-start' && notifData.taskId) {
-      const today = new Date().toISOString().slice(0, 10);
-      const tasks = await dbGetTasksForDate(today);
-      const task  = tasks.find((t) => t.id === notifData.taskId);
-      if (task) {
-        await showPersistentTaskNotification(task);
-      }
-      return;
-    }
 
     // Handle persistent-dismiss: dismiss the persistent notification in background
     if (notifData?.type === 'persistent-dismiss') {

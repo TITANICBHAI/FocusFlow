@@ -22,9 +22,7 @@ type AndroidContent = Notifications.NotificationContentInput & {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-export const FOCUS_CHANNEL_ID      = 'focus-ongoing';
 export const REMINDER_CHANNEL_ID   = 'task-reminders';
-export const PERSISTENT_NOTIF_ID   = 'focusday-persistent';
 
 // ─── Permissions ──────────────────────────────────────────────────────────────
 
@@ -39,20 +37,15 @@ export async function requestPermissions(): Promise<boolean> {
 // ─── Android notification channels ───────────────────────────────────────────
 
 export async function setupNotificationChannels(): Promise<void> {
+  // Task reminder channel — used for pre-start alerts, mid-session check-ins, and end notifications.
+  // The persistent focus notification is owned entirely by the native ForegroundTaskService
+  // (IMPORTANCE_LOW, setOngoing(true)) — no JS channel is needed for it.
   await Notifications.setNotificationChannelAsync(REMINDER_CHANNEL_ID, {
     name: 'Task Reminders',
     importance: Notifications.AndroidImportance.HIGH,
     vibrationPattern: [0, 250, 250, 250],
     lightColor: '#6366f1',
     sound: 'default',
-  });
-
-  await Notifications.setNotificationChannelAsync(FOCUS_CHANNEL_ID, {
-    name: 'Focus Mode (Ongoing)',
-    importance: Notifications.AndroidImportance.MAX,
-    vibrationPattern: [0, 100],
-    lightColor: '#f59e0b',
-    sound: null,
   });
 }
 
@@ -79,10 +72,6 @@ export async function scheduleTaskReminders(task: Task): Promise<void> {
   for (const r of preStart) {
     const fireAt = startMs + r.offsetMs;
     if (fireAt - now < 1000) {
-      // If start time is in the past, show persistent notification immediately
-      if (r.isStart && startMs <= now && now < endMs) {
-        await showPersistentTaskNotification(task);
-      }
       continue;
     }
 
@@ -98,10 +87,6 @@ export async function scheduleTaskReminders(task: Task): Promise<void> {
       } as AndroidContent,
       trigger: { type: SchedulableTriggerInputTypes.DATE, date: new Date(fireAt) },
     });
-
-    // The 'task-start' notification fires at start time; the foreground listener
-    // and background task handler both call showPersistentTaskNotification(task)
-    // when they receive a notification with type === 'task-start'.
   }
 
   // Schedule persistent notification dismissal when the task ends
@@ -192,33 +177,18 @@ export async function cancelAllReminders(): Promise<void> {
 }
 
 // ─── Persistent "in-progress" notification ───────────────────────────────────
-// Backed by the native ForegroundTaskService on Android.
-// The persistent notification lives in the Android notification tray
-// until dismissPersistentNotification() is called.
+// The persistent notification is owned entirely by the native ForegroundTaskService.
+// It uses setOngoing(true) + IMPORTANCE_LOW so Samsung One UI does not flag it.
+// JS must NOT post a duplicate ongoing notification — doing so with IMPORTANCE_MAX
+// causes Samsung to show a "This app might have a bug — clear cache?" dialog.
+//
+// dismissPersistentNotification is kept as a no-op shim so callers don't need
+// to be updated. The native service manages its own notification lifecycle.
 
-export async function showPersistentTaskNotification(task: Task): Promise<void> {
-  const remaining     = getRemainingMinutes(task.endTime);
-  const remainingText = remaining > 0 ? `${remaining}m remaining` : `Time's up!`;
-
-  await Notifications.scheduleNotificationAsync({
-    identifier: PERSISTENT_NOTIF_ID,
-    content: {
-      title: `🟢 In Progress: ${task.title}`,
-      body:  `${formatTime(task.startTime)} – ${formatTime(task.endTime)} · ${remainingText}`,
-      data:  { taskId: task.id, type: 'focus-persistent' },
-      sticky:      true,
-      autoDismiss: false,
-      categoryIdentifier: 'task-active',
-      priority: Notifications.AndroidNotificationPriority.MAX,
-      channelId: FOCUS_CHANNEL_ID,
-      ongoing: true,
-    } as AndroidContent,
-    trigger: null,
-  });
-}
-
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function dismissPersistentNotification(): Promise<void> {
-  await Notifications.dismissNotificationAsync(PERSISTENT_NOTIF_ID);
+  // No-op: the native ForegroundTaskService owns the persistent notification.
+  // It clears automatically when the service goes idle or is stopped.
 }
 
 // ─── Late-start warning ───────────────────────────────────────────────────────
