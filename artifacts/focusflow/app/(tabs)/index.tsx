@@ -7,7 +7,6 @@ import {
   StyleSheet,
   Alert,
   RefreshControl,
-  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,6 +17,7 @@ import TimelineView from '@/components/TimelineView';
 import QuickAddModal from '@/components/QuickAddModal';
 import ExtendModal from '@/components/ExtendModal';
 import EditTaskModal from '@/components/EditTaskModal';
+import TaskDetailModal from '@/components/TaskDetailModal';
 import { COLORS, FONT, RADIUS, SPACING, SHADOW } from '@/styles/theme';
 import type { Task } from '@/data/types';
 import { formatTime } from '@/services/taskService';
@@ -235,104 +235,6 @@ export default function ScheduleScreen() {
   );
 }
 
-// ─── Task Detail Modal ────────────────────────────────────────────────────────
-
-function TaskDetailModal({
-  task,
-  onClose,
-  onComplete,
-  onSkip,
-  onExtend,
-  onStartFocus,
-  onEdit,
-}: {
-  task: Task;
-  onClose: () => void;
-  onComplete: (id: string) => void;
-  onSkip: (id: string) => void;
-  onExtend: (id: string) => void;
-  onStartFocus: (id: string) => void;
-  onEdit: (task: Task) => void;
-}) {
-  const isActive =
-    task.status !== 'completed' &&
-    task.status !== 'skipped' &&
-    dayjs(task.startTime).isBefore(dayjs()) &&
-    dayjs(task.endTime).isAfter(dayjs());
-
-  return (
-    <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <SafeAreaView style={detailStyles.safe}>
-        <View style={detailStyles.header}>
-          <View style={[detailStyles.colorDot, { backgroundColor: task.color }]} />
-          <Text style={detailStyles.title} numberOfLines={2}>{task.title}</Text>
-          <TouchableOpacity onPress={onClose}>
-            <Ionicons name="close" size={24} color={COLORS.muted} />
-          </TouchableOpacity>
-        </View>
-
-        <ScrollView style={detailStyles.body}>
-          {task.description && (
-            <View style={detailStyles.section}>
-              <Text style={detailStyles.label}>Notes</Text>
-              <Text style={detailStyles.desc}>{task.description}</Text>
-            </View>
-          )}
-
-          <View style={detailStyles.section}>
-            <Text style={detailStyles.label}>Schedule</Text>
-            <Text style={detailStyles.value}>{formatTime(task.startTime)} – {formatTime(task.endTime)}</Text>
-            <Text style={detailStyles.subvalue}>{dayjs(task.startTime).format('dddd, MMMM D')}</Text>
-          </View>
-
-          <View style={detailStyles.section}>
-            <Text style={detailStyles.label}>Priority</Text>
-            <Text style={[detailStyles.value, { textTransform: 'capitalize' }]}>{task.priority}</Text>
-          </View>
-
-          {task.tags.length > 0 && (
-            <View style={detailStyles.section}>
-              <Text style={detailStyles.label}>Tags</Text>
-              <Text style={detailStyles.value}>{task.tags.map((t) => `#${t}`).join(' ')}</Text>
-            </View>
-          )}
-
-          <View style={detailStyles.section}>
-            <Text style={detailStyles.label}>Status</Text>
-            <Text style={[detailStyles.value, { textTransform: 'capitalize' }]}>{task.status}</Text>
-          </View>
-        </ScrollView>
-
-        {/* Actions */}
-        <View style={detailStyles.actions}>
-          <ActionBtn label="Edit" icon="create-outline" color={COLORS.blue} onPress={() => onEdit(task)} />
-          {task.status !== 'completed' && task.status !== 'skipped' && (
-            <>
-              <ActionBtn label="Complete" icon="checkmark-circle" color={COLORS.green} onPress={() => { onComplete(task.id); onClose(); }} />
-              <ActionBtn label="Skip" icon="close-circle" color={COLORS.muted} onPress={() => { onSkip(task.id); onClose(); }} />
-              <ActionBtn label="Extend" icon="alarm-outline" color={COLORS.orange} onPress={() => onExtend(task.id)} />
-              {task.focusMode && (
-                <ActionBtn label="Focus" icon="shield-checkmark" color={COLORS.primary} onPress={() => { onStartFocus(task.id); onClose(); }} />
-              )}
-            </>
-          )}
-        </View>
-      </SafeAreaView>
-    </Modal>
-  );
-}
-
-function ActionBtn({ label, icon, color, onPress }: { label: string; icon: keyof typeof Ionicons.glyphMap; color: string; onPress: () => void }) {
-  return (
-    <TouchableOpacity style={detailStyles.actionBtn} onPress={onPress}>
-      <View style={[detailStyles.actionIcon, { backgroundColor: color + '22' }]}>
-        <Ionicons name={icon} size={22} color={color} />
-      </View>
-      <Text style={[detailStyles.actionLabel, { color }]}>{label}</Text>
-    </TouchableOpacity>
-  );
-}
-
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.background },
   header: {
@@ -421,35 +323,3 @@ const styles = StyleSheet.create({
   },
 });
 
-const detailStyles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: COLORS.background },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    padding: SPACING.lg,
-    gap: SPACING.sm,
-    backgroundColor: COLORS.card,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: COLORS.border,
-  },
-  colorDot: { width: 12, height: 12, borderRadius: 6, marginTop: 4 },
-  title: { flex: 1, fontSize: FONT.xl, fontWeight: '700', color: COLORS.text },
-  body: { flex: 1, padding: SPACING.lg },
-  section: { marginBottom: SPACING.lg },
-  label: { fontSize: FONT.xs, fontWeight: '700', color: COLORS.muted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: SPACING.xs },
-  desc: { fontSize: FONT.md, color: COLORS.text, lineHeight: 22 },
-  value: { fontSize: FONT.md, fontWeight: '600', color: COLORS.text },
-  subvalue: { fontSize: FONT.sm, color: COLORS.muted, marginTop: 2 },
-  actions: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingVertical: SPACING.lg,
-    paddingHorizontal: SPACING.md,
-    backgroundColor: COLORS.card,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: COLORS.border,
-  },
-  actionBtn: { alignItems: 'center', gap: SPACING.xs },
-  actionIcon: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
-  actionLabel: { fontSize: FONT.xs, fontWeight: '600' },
-});

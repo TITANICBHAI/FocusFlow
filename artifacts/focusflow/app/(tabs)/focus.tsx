@@ -25,6 +25,7 @@ export default function FocusScreen() {
 
   useEffect(() => {
     if (!isFocusing) return;
+    pulseAnim.setValue(1);
     const pulse = Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, { toValue: 1.08, duration: 1200, useNativeDriver: true }),
@@ -33,7 +34,7 @@ export default function FocusScreen() {
     );
     pulse.start();
     return () => pulse.stop();
-  }, [isFocusing]);
+  }, [isFocusing, task?.id]);
 
   if (!task) {
     return (

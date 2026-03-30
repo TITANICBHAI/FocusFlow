@@ -29,6 +29,19 @@ export default function SettingsScreen() {
   const [appsModalVisible, setAppsModalVisible] = useState(false);
   const [blockModalVisible, setBlockModalVisible] = useState(false);
 
+  if (!state.isDbReady) {
+    return (
+      <SafeAreaView style={styles.safe} edges={['top']}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Settings</Text>
+        </View>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading…</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   const update = async (partial: Partial<typeof settings>) => {
     await updateSettings({ ...settings, ...partial });
   };
@@ -420,4 +433,6 @@ const styles = StyleSheet.create({
   },
   footer: { alignItems: 'center', paddingTop: SPACING.xl, gap: SPACING.xs },
   footerText: { fontSize: FONT.xs, color: COLORS.border },
+  loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  loadingText: { fontSize: FONT.md, color: COLORS.muted },
 });
