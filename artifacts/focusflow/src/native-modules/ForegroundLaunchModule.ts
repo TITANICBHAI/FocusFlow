@@ -31,6 +31,7 @@ interface ForegroundLaunchSpec extends TurboModule {
 }
 
 const ForegroundLaunch = TurboModuleRegistry.get<ForegroundLaunchSpec>('ForegroundLaunch');
+console.log('[ForegroundLaunchModule] resolved:', !!ForegroundLaunch);
 
 export const ForegroundLaunchModule = {
   /**

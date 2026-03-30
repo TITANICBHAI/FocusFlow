@@ -8,6 +8,7 @@ interface SharedPrefsSpec extends TurboModule {
 }
 
 const SharedPrefs = TurboModuleRegistry.get<SharedPrefsSpec>('SharedPrefs');
+console.log('[SharedPrefsModule] resolved:', !!SharedPrefs);
 
 /**
  * SharedPrefsModule

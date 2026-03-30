@@ -23,6 +23,7 @@ interface ForegroundServiceSpec extends TurboModule {
 }
 
 const ForegroundService = TurboModuleRegistry.get<ForegroundServiceSpec>('ForegroundService');
+console.log('[ForegroundServiceModule] resolved:', !!ForegroundService);
 
 export const ForegroundServiceModule = {
   /**

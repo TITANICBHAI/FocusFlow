@@ -23,6 +23,7 @@ interface InstalledAppsSpec extends TurboModule {
 }
 
 const InstalledApps = TurboModuleRegistry.get<InstalledAppsSpec>('InstalledApps');
+console.log('[InstalledAppsModule] resolved:', !!InstalledApps);
 
 export const InstalledAppsModule = {
   async getInstalledApps(): Promise<InstalledApp[]> {

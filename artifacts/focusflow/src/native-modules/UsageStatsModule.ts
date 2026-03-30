@@ -27,6 +27,7 @@ interface UsageStatsSpec extends TurboModule {
 }
 
 const UsageStats = TurboModuleRegistry.get<UsageStatsSpec>('UsageStats');
+console.log('[UsageStatsModule] resolved:', !!UsageStats);
 
 export const UsageStatsModule = {
   async getForegroundApp(): Promise<string | null> {
