@@ -16,13 +16,15 @@ import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 import { cancelAllReminders, requestPermissions } from '@/services/notificationService';
 import { UsageStatsModule } from '@/native-modules/UsageStatsModule';
 import { formatDuration } from '@/services/taskService';
+import { AllowedAppsModal } from '@/components/AllowedAppsModal';
+import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
 
 const DURATION_OPTIONS = [30, 45, 60, 90, 120];
 
 export default function SettingsScreen() {
   const { state, updateSettings, refreshTasks } = useApp();
   const { settings } = state;
-  const [allowedText, setAllowedText] = useState(settings.allowedInFocus.join(', '));
+  const [appsModalVisible, setAppsModalVisible] = useState(false);
 
   const update = async (partial: Partial<typeof settings>) => {
     await updateSettings({ ...settings, ...partial });
@@ -71,6 +73,13 @@ export default function SettingsScreen() {
 
   const openAppSettings = () => {
     Linking.openSettings();
+  };
+
+  const handleSaveAllowedApps = async (packages: string[]) => {
+    await update({ allowedInFocus: packages });
+    if (state.focusSession?.isActive) {
+      await SharedPrefsModule.setAllowedPackages(packages);
+    }
   };
 
   return (
@@ -130,18 +139,12 @@ export default function SettingsScreen() {
               thumbColor={settings.focusModeEnabled ? COLORS.primary : COLORS.muted}
             />
           </SettingRow>
-          <SettingRow label="Allowed in Focus" description="Apps that won't be blocked">
-            <Text style={styles.valueText} numberOfLines={1}>
-              {settings.allowedInFocus.length} apps
-            </Text>
-          </SettingRow>
-          <View style={styles.descCard}>
-            <Text style={styles.descText}>
-              Allowed: {settings.allowedInFocus.join(', ')}
-              {'\n'}Add Android package names (e.g. com.whatsapp) separated by commas.
-            </Text>
-          </View>
-
+          <SettingButton
+            icon="apps-outline"
+            label="Manage Allowed Apps"
+            description={`${settings.allowedInFocus.length} app${settings.allowedInFocus.length !== 1 ? 's' : ''} won't be blocked during Focus Mode`}
+            onPress={() => setAppsModalVisible(true)}
+          />
           <SettingButton
             icon="analytics-outline"
             label="Grant Usage Access"
@@ -194,6 +197,13 @@ export default function SettingsScreen() {
           <Text style={styles.footerText}>All data stored locally on device</Text>
         </View>
       </ScrollView>
+
+      <AllowedAppsModal
+        visible={appsModalVisible}
+        allowedPackages={settings.allowedInFocus}
+        onSave={handleSaveAllowedApps}
+        onClose={() => setAppsModalVisible(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -314,13 +324,6 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   chipText: { fontSize: FONT.sm, color: COLORS.text },
   chipTextActive: { color: '#fff', fontWeight: '700' },
-  descCard: {
-    margin: SPACING.md,
-    padding: SPACING.md,
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.md,
-  },
-  descText: { fontSize: FONT.xs, color: COLORS.muted, lineHeight: 18 },
   footer: { alignItems: 'center', paddingTop: SPACING.xl, gap: SPACING.xs },
   footerText: { fontSize: FONT.xs, color: COLORS.border },
 });

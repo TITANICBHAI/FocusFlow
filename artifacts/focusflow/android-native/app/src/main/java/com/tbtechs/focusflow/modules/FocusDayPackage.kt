@@ -27,6 +27,7 @@ class FocusDayPackage : ReactPackage {
             ForegroundLaunchModule(reactContext),
             FocusDayBridgeModule(reactContext),
             SharedPrefsModule(reactContext),
+            InstalledAppsModule(reactContext),
         )
 
     override fun createViewManagers(reactContext: ReactApplicationContext): List<ViewManager<*, *>> =
