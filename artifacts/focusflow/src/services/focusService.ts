@@ -57,7 +57,7 @@ export async function startFocusMode(
   const nextTask = getUpcomingTask([task]);
   const endMs = new Date(task.endTime).getTime();
 
-  await ForegroundServiceModule.startService(task.title, endMs, nextTask?.title ?? '');
+  await ForegroundServiceModule.startService(task.title, endMs, nextTask?.title ?? null);
   await showPersistentTaskNotification(task).catch(() => {});
   await ForegroundServiceModule.requestBatteryOptimizationExemption();
 

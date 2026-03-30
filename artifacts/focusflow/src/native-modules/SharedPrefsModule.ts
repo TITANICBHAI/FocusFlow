@@ -1,6 +1,6 @@
-import { TurboModuleRegistry } from 'react-native';
+import { TurboModuleRegistry, TurboModule } from 'react-native';
 
-interface SharedPrefsSpec {
+interface SharedPrefsSpec extends TurboModule {
   setFocusActive(active: boolean): Promise<void>;
   setAllowedPackages(packages: string[]): Promise<void>;
   setActiveTask(name: string, endMs: number, nextName: string | null): Promise<void>;

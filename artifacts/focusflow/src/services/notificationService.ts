@@ -9,6 +9,7 @@
  */
 
 import * as Notifications from 'expo-notifications';
+import { SchedulableTriggerInputTypes } from 'expo-notifications';
 import type { Task } from '@/data/types';
 import { formatTime, formatDuration, getRemainingMinutes } from './taskService';
 
@@ -95,7 +96,7 @@ export async function scheduleTaskReminders(task: Task): Promise<void> {
         categoryIdentifier: 'task-reminder',
         channelId: REMINDER_CHANNEL_ID,
       } as AndroidContent,
-      trigger: { date: new Date(fireAt) },
+      trigger: { type: SchedulableTriggerInputTypes.DATE, date: new Date(fireAt) },
     });
 
     // The 'task-start' notification fires at start time; the foreground listener
@@ -111,10 +112,9 @@ export async function scheduleTaskReminders(task: Task): Promise<void> {
         title: `Task ended: ${task.title}`,
         body:  `Focus session complete.`,
         data:  { taskId: task.id, type: 'persistent-dismiss' },
-        sound: null,
         channelId: REMINDER_CHANNEL_ID,
       } as AndroidContent,
-      trigger: { date: new Date(endMs) },
+      trigger: { type: SchedulableTriggerInputTypes.DATE, date: new Date(endMs) },
     });
   }
 
@@ -138,7 +138,7 @@ export async function scheduleTaskReminders(task: Task): Promise<void> {
         categoryIdentifier: 'task-active',
         channelId: REMINDER_CHANNEL_ID,
       } as AndroidContent,
-      trigger: { date: new Date(fireAt) },
+      trigger: { type: SchedulableTriggerInputTypes.DATE, date: new Date(fireAt) },
     });
   }
 
@@ -155,7 +155,7 @@ export async function scheduleTaskReminders(task: Task): Promise<void> {
         categoryIdentifier: 'task-active',
         channelId: REMINDER_CHANNEL_ID,
       } as AndroidContent,
-      trigger: { date: new Date(almostDone) },
+      trigger: { type: SchedulableTriggerInputTypes.DATE, date: new Date(almostDone) },
     });
   }
 
@@ -171,7 +171,7 @@ export async function scheduleTaskReminders(task: Task): Promise<void> {
         categoryIdentifier: 'task-active',
         channelId: REMINDER_CHANNEL_ID,
       } as AndroidContent,
-      trigger: { date: new Date(endMs) },
+      trigger: { type: SchedulableTriggerInputTypes.DATE, date: new Date(endMs) },
     });
   }
 }

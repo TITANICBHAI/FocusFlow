@@ -15,9 +15,9 @@
  *   - isIgnoringBatteryOptimizations(): Boolean — checks battery optimization exemption
  */
 
-import { TurboModuleRegistry } from 'react-native';
+import { TurboModuleRegistry, TurboModule } from 'react-native';
 
-interface UsageStatsSpec {
+interface UsageStatsSpec extends TurboModule {
   getForegroundApp(): Promise<string | null>;
   hasPermission(): Promise<boolean>;
   openUsageAccessSettings(): Promise<void>;

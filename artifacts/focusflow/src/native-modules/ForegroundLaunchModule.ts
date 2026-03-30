@@ -20,9 +20,9 @@
  * ──────────────────────────────────────────────────────────────────────────────
  */
 
-import { TurboModuleRegistry } from 'react-native';
+import { TurboModuleRegistry, TurboModule } from 'react-native';
 
-interface ForegroundLaunchSpec {
+interface ForegroundLaunchSpec extends TurboModule {
   goHome(): Promise<void>;
   bringToFront(): Promise<void>;
   showOverlay(message: string): Promise<void>;

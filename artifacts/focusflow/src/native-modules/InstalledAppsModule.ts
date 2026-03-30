@@ -10,7 +10,7 @@
  *   - getInstalledApps(): Array<InstalledApp>
  */
 
-import { TurboModuleRegistry } from 'react-native';
+import { TurboModuleRegistry, TurboModule } from 'react-native';
 
 export interface InstalledApp {
   packageName: string;
@@ -18,7 +18,7 @@ export interface InstalledApp {
   iconBase64?: string;
 }
 
-interface InstalledAppsSpec {
+interface InstalledAppsSpec extends TurboModule {
   getInstalledApps(): Promise<InstalledApp[]>;
 }
 

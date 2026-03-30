@@ -12,13 +12,13 @@
  * File: android-native/app/.../services/ForegroundTaskService.kt
  */
 
-import { TurboModuleRegistry } from 'react-native';
+import { TurboModuleRegistry, TurboModule } from 'react-native';
 
-interface ForegroundServiceSpec {
+interface ForegroundServiceSpec extends TurboModule {
   startIdleService(): Promise<void>;
-  startService(taskName: string, endTimeMs: number, nextTaskName: string): Promise<void>;
+  startService(taskName: string, endTimeMs: number, nextTaskName: string | null): Promise<void>;
   stopService(): Promise<void>;
-  updateNotification(taskName: string, endTimeMs: number, nextTaskName: string): Promise<void>;
+  updateNotification(taskName: string, endTimeMs: number, nextTaskName: string | null): Promise<void>;
   requestBatteryOptimizationExemption(): Promise<void>;
 }
 
@@ -38,7 +38,7 @@ export const ForegroundServiceModule = {
     return ForegroundService.startIdleService();
   },
 
-  async startService(taskName: string, endTimeMs: number, nextTaskName: string): Promise<void> {
+  async startService(taskName: string, endTimeMs: number, nextTaskName: string | null): Promise<void> {
     if (!ForegroundService) {
       console.error('[ForegroundServiceModule] Native module "ForegroundService" not found. Ensure FocusDayPackage is registered and an EAS build was used.');
       return;
@@ -58,7 +58,7 @@ export const ForegroundServiceModule = {
     return ForegroundService.stopService();
   },
 
-  async updateNotification(taskName: string, endTimeMs: number, nextTaskName: string): Promise<void> {
+  async updateNotification(taskName: string, endTimeMs: number, nextTaskName: string | null): Promise<void> {
     if (!ForegroundService) {
       console.error('[ForegroundServiceModule] Native module "ForegroundService" not found. Ensure FocusDayPackage is registered and an EAS build was used.');
       return;

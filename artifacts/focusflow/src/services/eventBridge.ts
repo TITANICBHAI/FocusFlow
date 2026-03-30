@@ -13,7 +13,7 @@
  *   - JS handlers registered per-event-type via subscribe()
  */
 
-import { NativeEventEmitter, TurboModuleRegistry, EmitterSubscription } from 'react-native';
+import { NativeEventEmitter, TurboModuleRegistry, TurboModule, EmitterSubscription } from 'react-native';
 
 export type NativeEventType =
   | 'TASK_ENDED'        // foreground service: task timer reached zero
@@ -37,7 +37,7 @@ export interface NativeEvent {
 
 type EventHandler = (event: NativeEvent) => void;
 
-interface FocusDayBridgeSpec {
+interface FocusDayBridgeSpec extends TurboModule {
   addListener(eventName: string): void;
   removeListeners(count: number): void;
 }
