@@ -51,7 +51,10 @@ class ForegroundTaskService : Service() {
         override fun run() {
             val remaining = endTimeMs - System.currentTimeMillis()
             if (remaining <= 0) {
-                // Task ended — broadcast to JS bridge
+                // Kotlin owns this — clear focus state before telling JS.
+                // This guarantees the AccessibilityService stops blocking even if
+                // JS is dead, slow, or never receives the TASK_ENDED broadcast.
+                clearFocusActive()
                 sendBroadcast(Intent(ACTION_TASK_ENDED).apply {
                     `package` = applicationContext.packageName
                 })
@@ -71,6 +74,9 @@ class ForegroundTaskService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
             handler.removeCallbacks(tickRunnable)
+            // Safety net: clear the flag so the AccessibilityService stops immediately.
+            // JS calls setFocusActive(false) too, but a race can exist between the two.
+            clearFocusActive()
             // minSdkVersion = 26 (>= Android N/24), so STOP_FOREGROUND_REMOVE is always available.
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
@@ -155,5 +161,18 @@ class ForegroundTaskService : Service() {
         val notification = buildNotification(remainingMs)
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         nm.notify(NOTIFICATION_ID, notification)
+    }
+
+    /**
+     * Authoritatively clears the focus_active flag in SharedPreferences.
+     * Called by Kotlin on natural expiry and manual stop — before JS is notified.
+     * Ensures the AccessibilityService stops blocking immediately, regardless of
+     * whether JS is alive to call SharedPrefs.setFocusActive(false).
+     */
+    private fun clearFocusActive() {
+        getSharedPreferences(AppBlockerAccessibilityService.PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putString("focus_active", "false")
+            .apply()
     }
 }
