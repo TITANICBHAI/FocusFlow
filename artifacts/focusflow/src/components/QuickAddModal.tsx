@@ -10,7 +10,9 @@ import {
   KeyboardAvoidingView,
   Switch,
   Alert,
+  Platform,
 } from 'react-native';
+import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import dayjs from 'dayjs';
 import { createTask, parseQuickInput, formatDuration } from '@/services/taskService';
@@ -27,13 +29,20 @@ interface Props {
 const DURATION_OPTIONS = [15, 30, 45, 60, 90, 120];
 const PRIORITY_OPTIONS: TaskPriority[] = ['low', 'medium', 'high', 'critical'];
 
+function initialDate(hhmm?: string): Date {
+  if (hhmm) {
+    const [h, m] = hhmm.split(':').map(Number);
+    return dayjs().hour(h).minute(m).second(0).toDate();
+  }
+  return dayjs().add(5, 'minute').second(0).toDate();
+}
+
 export default function QuickAddModal({ visible, onClose, onSave, initialStartTime }: Props) {
   const [quickText, setQuickText] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [startTime, setStartTime] = useState(
-    initialStartTime ?? dayjs().add(5, 'minute').format('HH:mm'),
-  );
+  const [startDate, setStartDate] = useState<Date>(() => initialDate(initialStartTime));
+  const [showPicker, setShowPicker] = useState(false);
   const [duration, setDuration] = useState(60);
   const [priority, setPriority] = useState<TaskPriority>('medium');
   const [tags, setTags] = useState('');
@@ -48,7 +57,7 @@ export default function QuickAddModal({ visible, onClose, onSave, initialStartTi
     setTitle(parsed.title);
     setDuration(parsed.durationMinutes);
     if (parsed.startTime) {
-      setStartTime(dayjs(parsed.startTime).format('HH:mm'));
+      setStartDate(new Date(parsed.startTime));
     }
     setIsAdvanced(true);
   }, [quickText]);
@@ -60,8 +69,7 @@ export default function QuickAddModal({ visible, onClose, onSave, initialStartTi
       return;
     }
 
-    const [hours, mins] = startTime.split(':').map(Number);
-    const startISO = dayjs().hour(hours).minute(mins).second(0).toISOString();
+    const startISO = dayjs(startDate).second(0).toISOString();
 
     const task = createTask({
       title: finalTitle.trim(),
@@ -83,13 +91,14 @@ export default function QuickAddModal({ visible, onClose, onSave, initialStartTi
     } finally {
       setSaving(false);
     }
-  }, [title, quickText, description, startTime, duration, priority, tags, color, focusMode, onSave]);
+  }, [title, quickText, description, startDate, duration, priority, tags, color, focusMode, onSave]);
 
   const handleClose = () => {
     setQuickText('');
     setTitle('');
     setDescription('');
-    setStartTime(initialStartTime ?? dayjs().add(5, 'minute').format('HH:mm'));
+    setStartDate(initialDate(initialStartTime));
+    setShowPicker(false);
     setDuration(60);
     setPriority('medium');
     setTags('');
@@ -167,14 +176,28 @@ export default function QuickAddModal({ visible, onClose, onSave, initialStartTi
 
                 {/* Time */}
                 <Field label="Start Time">
-                  <TextInput
-                    style={styles.input}
-                    placeholder="HH:MM"
-                    placeholderTextColor={COLORS.muted}
-                    value={startTime}
-                    onChangeText={setStartTime}
-                    keyboardType="numbers-and-punctuation"
-                  />
+                  <TouchableOpacity
+                    style={[styles.input, styles.timePickerRow]}
+                    onPress={() => setShowPicker(true)}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="time-outline" size={18} color={COLORS.muted} />
+                    <Text style={styles.timePickerText}>
+                      {dayjs(startDate).format('h:mm A')}
+                    </Text>
+                  </TouchableOpacity>
+                  {showPicker && (
+                    <DateTimePicker
+                      value={startDate}
+                      mode="time"
+                      is24Hour={false}
+                      display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                      onChange={(_event: DateTimePickerEvent, selected?: Date) => {
+                        setShowPicker(false);
+                        if (selected) setStartDate(selected);
+                      }}
+                    />
+                  )}
                 </Field>
 
                 {/* Duration */}
@@ -321,6 +344,8 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
   },
   multiline: { height: 80, textAlignVertical: 'top', paddingTop: SPACING.sm },
+  timePickerRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  timePickerText: { fontSize: FONT.md, color: COLORS.text },
   chipScroll: { flexGrow: 0 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.xs },
   chip: {

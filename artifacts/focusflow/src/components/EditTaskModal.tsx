@@ -8,7 +8,9 @@ import {
   ScrollView,
   StyleSheet,
   Alert,
+  Platform,
 } from 'react-native';
+import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import dayjs from 'dayjs';
@@ -38,8 +40,8 @@ const COLORS_OPTIONS = [
 export default function EditTaskModal({ task, visible, onClose, onSave, onDelete }: Props) {
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description ?? '');
-  const [startHour, setStartHour] = useState(dayjs(task.startTime).format('HH'));
-  const [startMin, setStartMin] = useState(dayjs(task.startTime).format('mm'));
+  const [startDate, setStartDate] = useState<Date>(new Date(task.startTime));
+  const [showPicker, setShowPicker] = useState(false);
   const [durationStr, setDurationStr] = useState(String(task.durationMinutes));
   const [priority, setPriority] = useState<TaskPriority>(task.priority);
   const [tags, setTags] = useState(task.tags.join(', '));
@@ -53,24 +55,14 @@ export default function EditTaskModal({ task, visible, onClose, onSave, onDelete
       return;
     }
 
-    const hour = parseInt(startHour, 10);
-    const min = parseInt(startMin, 10);
     const duration = parseInt(durationStr, 10);
 
-    if (isNaN(hour) || hour < 0 || hour > 23) {
-      Alert.alert('Invalid time', 'Hour must be 0–23.');
-      return;
-    }
-    if (isNaN(min) || min < 0 || min > 59) {
-      Alert.alert('Invalid time', 'Minutes must be 0–59.');
-      return;
-    }
     if (isNaN(duration) || duration < 5) {
       Alert.alert('Invalid duration', 'Duration must be at least 5 minutes.');
       return;
     }
 
-    const newStart = dayjs(task.startTime).hour(hour).minute(min).second(0).millisecond(0);
+    const newStart = dayjs(startDate).second(0).millisecond(0);
     const newEnd = newStart.add(duration, 'minute');
 
     const updated: Task = {
@@ -165,27 +157,28 @@ export default function EditTaskModal({ task, visible, onClose, onSave, onDelete
           {/* Start time */}
           <View style={styles.field}>
             <Text style={styles.label}>Start Time</Text>
-            <View style={styles.timeRow}>
-              <TextInput
-                style={[styles.input, styles.timeInput]}
-                value={startHour}
-                onChangeText={setStartHour}
-                placeholder="HH"
-                placeholderTextColor={COLORS.muted}
-                keyboardType="number-pad"
-                maxLength={2}
+            <TouchableOpacity
+              style={[styles.input, styles.timePickerRow]}
+              onPress={() => setShowPicker(true)}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="time-outline" size={18} color={COLORS.muted} />
+              <Text style={styles.timePickerText}>
+                {dayjs(startDate).format('h:mm A')}
+              </Text>
+            </TouchableOpacity>
+            {showPicker && (
+              <DateTimePicker
+                value={startDate}
+                mode="time"
+                is24Hour={false}
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                onChange={(_event: DateTimePickerEvent, selected?: Date) => {
+                  setShowPicker(false);
+                  if (selected) setStartDate(selected);
+                }}
               />
-              <Text style={styles.timeSep}>:</Text>
-              <TextInput
-                style={[styles.input, styles.timeInput]}
-                value={startMin}
-                onChangeText={setStartMin}
-                placeholder="MM"
-                placeholderTextColor={COLORS.muted}
-                keyboardType="number-pad"
-                maxLength={2}
-              />
-            </View>
+            )}
           </View>
 
           {/* Duration */}
@@ -304,9 +297,8 @@ const styles = StyleSheet.create({
     color: COLORS.text,
   },
   textArea: { minHeight: 80, textAlignVertical: 'top', paddingTop: SPACING.sm },
-  timeRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs },
-  timeInput: { width: 70, textAlign: 'center' },
-  timeSep: { fontSize: FONT.xl, fontWeight: '700', color: COLORS.text },
+  timePickerRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  timePickerText: { fontSize: FONT.md, color: COLORS.text },
   chipRow: { flexDirection: 'row', gap: SPACING.xs, flexWrap: 'wrap' },
   chip: {
     paddingHorizontal: SPACING.md,

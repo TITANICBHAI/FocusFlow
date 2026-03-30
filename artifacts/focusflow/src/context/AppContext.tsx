@@ -40,6 +40,7 @@ import {
   stopFocusMode as _stopFocusMode,
   isFocusActive,
 } from '@/services/focusService';
+import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
@@ -335,7 +336,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const updateSettings = useCallback(async (settings: AppSettings) => {
     await dbSaveSettings(settings);
     dispatch({ type: 'SET_SETTINGS', payload: settings });
-  }, []);
+    if (state.focusSession !== null) {
+      await SharedPrefsModule.setAllowedPackages(
+        settings.allowedInFocus.filter((p) => p.includes('.')),
+      );
+    }
+  }, [state.focusSession]);
 
   // ── Derived ──────────────────────────────────────────────────────────────────
 

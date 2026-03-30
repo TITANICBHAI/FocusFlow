@@ -26,16 +26,6 @@ let appStateSubscription: ReturnType<typeof AppState.addEventListener> | null = 
 let pollInterval: ReturnType<typeof setInterval> | null = null;
 let onFocusViolation: ((appName: string) => void) | null = null;
 
-// ─── Allowed apps (Android package names) ────────────────────────────────────
-
-const DEFAULT_ALLOWED = [
-  'com.android.phone',
-  'com.android.dialer',
-  'com.google.android.dialer',
-  'com.whatsapp',
-  'com.samsung.android.incallui',
-];
-
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 export async function startFocusMode(
@@ -53,7 +43,7 @@ export async function startFocusMode(
     taskId: task.id,
     startedAt: new Date().toISOString(),
     isActive: true,
-    allowedPackages: [...DEFAULT_ALLOWED, ...allowedExtras],
+    allowedPackages: allowedExtras,
   };
 
   await dbStartFocusSession(session);
