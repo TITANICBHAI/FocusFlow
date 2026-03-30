@@ -70,8 +70,7 @@ class ForegroundTaskService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
             handler.removeCallbacks(tickRunnable)
-            // minSdkVersion = 26 (>= N/24), so the deprecated else-branch is unreachable.
-            // Using the modern API directly. (fixes NEW-015)
+            // minSdkVersion = 26 (>= Android N/24), so STOP_FOREGROUND_REMOVE is always available.
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
             return START_NOT_STICKY
@@ -144,7 +143,8 @@ class ForegroundTaskService : Service() {
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setContentIntent(tapPending)
-            // Icon 0 = no icon; stock android.R.drawable icons violate Play Store guidelines (fixes NEW-016)
+            // Icon 0 = no icon. Stock android.R.drawable icons should not appear in
+            // published APKs; a custom monochrome drawable can be substituted later.
             .addAction(0, "Stop Focus", stopPending)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()

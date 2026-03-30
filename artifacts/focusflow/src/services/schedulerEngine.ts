@@ -304,7 +304,8 @@ export function analyzeScheduleHealth(tasks: Task[]): ScheduleHealth {
   const totalScheduledMinutes = tasks.reduce((s, t) => s + t.durationMinutes, 0);
 
   // Check hour-by-hour overload — distribute only actual minutes per hour
-  // (fixes NEW-012: slot boundaries now anchored to task's calendar day, not task.startTime)
+  // Slot boundaries are anchored to the task's calendar-day midnight so that
+  // multi-hour tasks spanning several hours compute correct per-hour minutes.
   const hourLoad: Record<number, number> = {};
   for (const task of tasks) {
     const taskStart = dayjs(task.startTime);

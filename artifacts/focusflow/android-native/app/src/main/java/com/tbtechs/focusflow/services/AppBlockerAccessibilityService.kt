@@ -130,9 +130,9 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     }
 
     /**
-     * Parse a JSON array string using org.json.JSONArray for correctness.
-     * Replaces the hand-rolled parser that split on "," and failed on escaped
-     * or unusual characters. (fixes NEW-023)
+     * Parse a JSON array string using org.json.JSONArray.
+     * Handles all valid JSON including escaped characters; returns an empty
+     * list on any parse failure so enforcement degrades gracefully.
      */
     private fun parseJsonArray(json: String): List<String> {
         return try {
