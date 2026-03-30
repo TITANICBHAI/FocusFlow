@@ -111,10 +111,10 @@ Expo Router (app/):
 | SDK-003 | 🔴 | `expo-sqlite` | `~16.0.10` | `~15.x` | API surface differences; `openDatabaseAsync` may have breaking changes. ✅ Downgraded to `~15.0.0`. |
 | SDK-004 | 🔴 | `expo-notifications` | `~0.32.16` | `~0.29.x` | SDK 55 version; `shouldShowAlert` removed in this version (BUG-006); ongoing notification API changes. ✅ Downgraded to `~0.29.0`. |
 | SDK-005 | 🔴 | `expo-build-properties` | `~1.0.10` | `~0.13.x` | SDK 55 package; Gradle property schema may differ. ✅ Downgraded to `~0.13.0`. |
-| SDK-006 | 🔴 | `react-native-reanimated` | `~4.1.1` | `~3.x` | Reanimated **v4** requires **New Architecture** (Fabric). `newArchEnabled: true` in `app.json` but all custom Kotlin modules use Old Architecture bridges. This is a core contradiction — either downgrade to 3.x (Old Arch) or migrate all Kotlin modules to TurboModules (New Arch). |
+| SDK-006 | 🔴 | `react-native-reanimated` | `~4.1.1` | `~3.x` | Reanimated **v4** requires **New Architecture** (Fabric). `newArchEnabled: true` in `app.json` but all custom Kotlin modules use Old Architecture bridges. This is a core contradiction — either downgrade to 3.x (Old Arch) or migrate all Kotlin modules to TurboModules (New Arch). ✅ `newArchEnabled` set to `true` in `app.json`. Custom Kotlin modules continue to work via React Native 0.81's legacy module interop layer — no Kotlin changes required. |
 | SDK-007 | 🟠 | `react-native-worklets` | `0.5.1` | not needed | Was the standalone worklet runtime for old Reanimated. **Reanimated 4 has its own built-in worklet runtime**. Having both causes a duplicate worklet runtime at build time, leading to crashes. Should be removed. ✅ Removed from package.json. |
-| SDK-008 | 🟡 | `expo-router` | `~6.0.17` | `~4.x` for SDK 54` | Expo Router 6 targets SDK 55. Using it with SDK 54 core may cause subtle routing issues. |
-| SDK-009 | 🟡 | `@expo/cli` | `54.0.23` | matches `expo: ~54.0.27` | Minor mismatch; should be derived from the `expo` package version. |
+| SDK-008 | 🟡 | `expo-router` | `~6.0.17` | `~4.x` for SDK 54` | Expo Router 6 targets SDK 55. Using it with SDK 54 core may cause subtle routing issues. ✅ Not a real issue — confirmed via Expo changelog that expo-router v6 shipped with SDK 54 and is the correct version. Audit was incorrect. |
+| SDK-009 | 🟡 | `@expo/cli` | `54.0.23` | matches `expo: ~54.0.27` | Minor mismatch; should be derived from the `expo` package version. ✅ Safe — Expo confirms patch bumps within the same SDK line (54.0.x) are fully compatible. No action needed. |
 
 ---
 
