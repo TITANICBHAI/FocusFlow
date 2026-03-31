@@ -10,6 +10,7 @@ import android.os.Looper
 import androidx.core.app.NotificationCompat
 import com.tbtechs.focusflow.R
 import com.tbtechs.focusflow.MainActivity
+import java.util.Calendar
 
 /**
  * ForegroundTaskService
@@ -19,17 +20,19 @@ import com.tbtechs.focusflow.MainActivity
  *
  * Two modes:
  *   IDLE   — No active task. Shows a quiet "FocusFlow is monitoring" notification.
- *   ACTIVE — Focus session running. Shows task name + live countdown.
+ *   ACTIVE — Focus session running. Shows task name + live countdown + action buttons.
  *
- * Actions:
- *   ACTION_SET_IDLE  — Switch to idle mode (called by JS stopService / on session end).
- *   ACTION_STOP      — Truly stop the service (not called in normal flow, kept for emergencies).
- *   ACTION_TASK_ENDED — Broadcast fired when countdown reaches zero (caught by JS bridge).
+ * Notification action buttons (ACTIVE mode only):
+ *   ✓ Done   → NotificationActionReceiver → JS completeTask()
+ *   +15m     → NotificationActionReceiver → JS extendTaskTime(15)
+ *   +30m     → NotificationActionReceiver → JS extendTaskTime(30)
+ *   Skip     → NotificationActionReceiver → JS skipTask()
  *
  * Intent extras for ACTIVE mode:
- *   "taskName"   String  — display name of the active task
- *   "endTimeMs"  Long    — absolute epoch ms when the task ends
- *   "nextName"   String? — name of the next task (shown as sub-text)
+ *   "taskId"   String  — DB id of the active task (for action buttons)
+ *   "taskName" String  — display name of the active task
+ *   "endTimeMs" Long   — absolute epoch ms when the task ends
+ *   "nextName"  String? — name of the next task (shown as sub-text)
  */
 class ForegroundTaskService : Service() {
 
@@ -41,11 +44,20 @@ class ForegroundTaskService : Service() {
         const val ACTION_SET_IDLE   = "com.tbtechs.focusflow.SET_IDLE"
         const val ACTION_TASK_ENDED = "com.tbtechs.focusflow.TASK_ENDED"
 
+        const val EXTRA_TASK_ID     = "taskId"
         const val EXTRA_TASK_NAME   = "taskName"
         const val EXTRA_END_MS      = "endTimeMs"
         const val EXTRA_NEXT_NAME   = "nextName"
+
+        // PendingIntent request codes (must be unique per action)
+        private const val PI_TAP      = 0
+        private const val PI_COMPLETE = 2
+        private const val PI_EXTEND15 = 3
+        private const val PI_EXTEND30 = 4
+        private const val PI_SKIP     = 5
     }
 
+    private var taskId: String    = ""
     private var taskName: String  = ""
     private var endTimeMs: Long   = 0L
     private var nextName: String? = null
@@ -56,7 +68,6 @@ class ForegroundTaskService : Service() {
         override fun run() {
             val remaining = endTimeMs - System.currentTimeMillis()
             if (remaining <= 0) {
-                // Kotlin owns session end — clear flag before telling JS.
                 clearFocusActive()
                 sendBroadcast(Intent(ACTION_TASK_ENDED).apply {
                     `package` = applicationContext.packageName
@@ -65,21 +76,20 @@ class ForegroundTaskService : Service() {
                 return
             }
             updateNotification(remaining)
-            handler.postDelayed(this, 1_000)
+            // Tick every 30 s — smooth enough for a minute countdown, easy on battery.
+            handler.postDelayed(this, 30_000)
         }
     }
 
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
-        // Start immediately in idle mode so the process is kept alive from the first launch.
         startForeground(NOTIFICATION_ID, buildIdleNotification())
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP -> {
-                // Emergency hard-stop — not called in normal flow.
                 handler.removeCallbacks(tickRunnable)
                 clearFocusActive()
                 stopForeground(STOP_FOREGROUND_REMOVE)
@@ -87,19 +97,19 @@ class ForegroundTaskService : Service() {
                 return START_NOT_STICKY
             }
             ACTION_SET_IDLE -> {
-                // JS called stopService() or session ended — go idle but keep running.
                 handler.removeCallbacks(tickRunnable)
                 clearFocusActive()
                 goIdle()
                 return START_STICKY
             }
             else -> {
-                // Start or update an active focus session.
-                val name    = intent?.getStringExtra(EXTRA_TASK_NAME)
-                val endMs   = intent?.getLongExtra(EXTRA_END_MS, 0L) ?: 0L
-                val next    = intent?.getStringExtra(EXTRA_NEXT_NAME)
+                val id   = intent?.getStringExtra(EXTRA_TASK_ID)
+                val name = intent?.getStringExtra(EXTRA_TASK_NAME)
+                val endMs = intent?.getLongExtra(EXTRA_END_MS, 0L) ?: 0L
+                val next  = intent?.getStringExtra(EXTRA_NEXT_NAME)
 
                 if (name != null && endMs > 0L) {
+                    taskId       = id ?: ""
                     taskName     = name
                     endTimeMs    = endMs
                     nextName     = next
@@ -111,7 +121,6 @@ class ForegroundTaskService : Service() {
                     handler.removeCallbacks(tickRunnable)
                     handler.post(tickRunnable)
                 } else {
-                    // No task extras — stay/go idle.
                     goIdle()
                 }
             }
@@ -130,6 +139,7 @@ class ForegroundTaskService : Service() {
 
     private fun goIdle() {
         isActiveMode = false
+        taskId       = ""
         taskName     = ""
         endTimeMs    = 0L
         nextName     = null
@@ -160,7 +170,7 @@ class ForegroundTaskService : Service() {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
         }
         val tapPending = PendingIntent.getActivity(
-            this, 0, tapIntent,
+            this, PI_TAP, tapIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
@@ -175,35 +185,92 @@ class ForegroundTaskService : Service() {
     }
 
     private fun buildActiveNotification(remainingMs: Long): Notification {
-        val mins    = (remainingMs / 60_000).coerceAtLeast(0)
-        val secs    = ((remainingMs % 60_000) / 1_000).coerceAtLeast(0)
-        val timeStr = String.format("%d:%02d remaining", mins, secs)
+        // Remaining time label — round to nearest minute, show "< 1m" when almost done
+        val remainingMins = ((remainingMs + 30_000) / 60_000).coerceAtLeast(0)
+        val timeStr = when {
+            remainingMs <= 0       -> "Ending now"
+            remainingMins < 1      -> "< 1m remaining"
+            remainingMins == 1L    -> "1m remaining"
+            else                   -> "${remainingMins}m remaining"
+        }
 
+        // End time label — "ends at 2:30 AM"
+        val cal = Calendar.getInstance().apply { timeInMillis = endTimeMs }
+        val hour = cal.get(Calendar.HOUR_OF_DAY)
+        val min  = cal.get(Calendar.MINUTE)
+        val amPm = if (hour < 12) "AM" else "PM"
+        val hour12 = when {
+            hour == 0  -> 12
+            hour > 12  -> hour - 12
+            else       -> hour
+        }
+        val endLabel = String.format("%d:%02d %s", hour12, min, amPm)
+
+        val fullText = "$timeStr · ends $endLabel"
+
+        // ── Tap: open app ──
         val tapIntent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
         }
         val tapPending = PendingIntent.getActivity(
-            this, 0, tapIntent,
+            this, PI_TAP, tapIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val stopIntent = Intent(this, ForegroundTaskService::class.java).apply {
-            action = ACTION_SET_IDLE
+        // ── Action: ✓ Done ──
+        val completeIntent = Intent(NotificationActionReceiver.ACTION_COMPLETE).apply {
+            `package` = packageName
+            putExtra(NotificationActionReceiver.EXTRA_TASK_ID, taskId)
         }
-        val stopPending = PendingIntent.getService(
-            this, 1, stopIntent,
+        val completePending = PendingIntent.getBroadcast(
+            this, PI_COMPLETE, completeIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        // ── Action: +15m ──
+        val extend15Intent = Intent(NotificationActionReceiver.ACTION_EXTEND).apply {
+            `package` = packageName
+            putExtra(NotificationActionReceiver.EXTRA_TASK_ID, taskId)
+            putExtra(NotificationActionReceiver.EXTRA_MINUTES, 15)
+        }
+        val extend15Pending = PendingIntent.getBroadcast(
+            this, PI_EXTEND15, extend15Intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        // ── Action: +30m ──
+        val extend30Intent = Intent(NotificationActionReceiver.ACTION_EXTEND).apply {
+            `package` = packageName
+            putExtra(NotificationActionReceiver.EXTRA_TASK_ID, taskId)
+            putExtra(NotificationActionReceiver.EXTRA_MINUTES, 30)
+        }
+        val extend30Pending = PendingIntent.getBroadcast(
+            this, PI_EXTEND30, extend30Intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        // ── Action: Skip ──
+        val skipIntent = Intent(NotificationActionReceiver.ACTION_SKIP).apply {
+            `package` = packageName
+            putExtra(NotificationActionReceiver.EXTRA_TASK_ID, taskId)
+        }
+        val skipPending = PendingIntent.getBroadcast(
+            this, PI_SKIP, skipIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("🎯 $taskName")
-            .setContentText(timeStr)
+            .setContentText(fullText)
             .setSubText(nextName?.let { "Next: $it" })
             .setSmallIcon(R.mipmap.ic_launcher)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setContentIntent(tapPending)
-            .addAction(0, "Stop Focus", stopPending)
+            .addAction(0, "✓ Done",  completePending)
+            .addAction(0, "+15m",    extend15Pending)
+            .addAction(0, "+30m",    extend30Pending)
+            .addAction(0, "Skip",    skipPending)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
     }
@@ -214,10 +281,6 @@ class ForegroundTaskService : Service() {
         nm.notify(NOTIFICATION_ID, notification)
     }
 
-    /**
-     * Authoritatively clears the focus_active flag in SharedPreferences.
-     * Called by Kotlin on natural expiry and when going idle — before JS is notified.
-     */
     private fun clearFocusActive() {
         getSharedPreferences(AppBlockerAccessibilityService.PREFS_NAME, Context.MODE_PRIVATE)
             .edit()

@@ -26,9 +26,9 @@ export const ForegroundServiceModule = {
     return ForegroundService.startIdleService();
   },
 
-  async startService(taskName: string, endTimeMs: number, nextTaskName: string | null): Promise<void> {
+  async startService(taskId: string, taskName: string, endTimeMs: number, nextTaskName: string | null): Promise<void> {
     if (!ForegroundService) return;
-    return ForegroundService.startService(taskName, endTimeMs, nextTaskName);
+    return ForegroundService.startService(taskId, taskName, endTimeMs, nextTaskName);
   },
 
   async stopService(): Promise<void> {
@@ -36,9 +36,9 @@ export const ForegroundServiceModule = {
     return ForegroundService.stopService();
   },
 
-  async updateNotification(taskName: string, endTimeMs: number, nextTaskName: string | null): Promise<void> {
+  async updateNotification(taskId: string, taskName: string, endTimeMs: number, nextTaskName: string | null): Promise<void> {
     if (!ForegroundService) return;
-    return ForegroundService.updateNotification(taskName, endTimeMs, nextTaskName);
+    return ForegroundService.updateNotification(taskId, taskName, endTimeMs, nextTaskName);
   },
 
   async requestBatteryOptimizationExemption(): Promise<void> {

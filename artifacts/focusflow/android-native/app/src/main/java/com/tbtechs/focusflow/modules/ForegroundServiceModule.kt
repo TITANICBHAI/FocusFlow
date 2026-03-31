@@ -64,11 +64,12 @@ class ForegroundServiceModule(private val reactContext: ReactApplicationContext)
      * @param nextName  (nullable) Display name of the next task shown in sub-text
      */
     @ReactMethod
-    fun startService(taskName: String, endTimeMs: Double, nextName: String?, promise: Promise) {
+    fun startService(taskId: String, taskName: String, endTimeMs: Double, nextName: String?, promise: Promise) {
         try {
             val intent = Intent(reactContext, ForegroundTaskService::class.java).apply {
+                putExtra(ForegroundTaskService.EXTRA_TASK_ID,   taskId)
                 putExtra(ForegroundTaskService.EXTRA_TASK_NAME, taskName)
-                putExtra(ForegroundTaskService.EXTRA_END_MS, endTimeMs.toLong())
+                putExtra(ForegroundTaskService.EXTRA_END_MS,    endTimeMs.toLong())
                 nextName?.let { putExtra(ForegroundTaskService.EXTRA_NEXT_NAME, it) }
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -105,11 +106,12 @@ class ForegroundServiceModule(private val reactContext: ReactApplicationContext)
      * Sends a new start command directly — the service handles it in onStartCommand.
      */
     @ReactMethod
-    fun updateNotification(taskName: String, endTimeMs: Double, nextName: String?, promise: Promise) {
+    fun updateNotification(taskId: String, taskName: String, endTimeMs: Double, nextName: String?, promise: Promise) {
         try {
             val intent = Intent(reactContext, ForegroundTaskService::class.java).apply {
+                putExtra(ForegroundTaskService.EXTRA_TASK_ID,   taskId)
                 putExtra(ForegroundTaskService.EXTRA_TASK_NAME, taskName)
-                putExtra(ForegroundTaskService.EXTRA_END_MS, endTimeMs.toLong())
+                putExtra(ForegroundTaskService.EXTRA_END_MS,    endTimeMs.toLong())
                 nextName?.let { putExtra(ForegroundTaskService.EXTRA_NEXT_NAME, it) }
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
