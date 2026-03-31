@@ -296,29 +296,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  // ── Notification action buttons (Done / +15m / +30m / Skip) ─────────────────
-  // The native ForegroundTaskService fires NOTIF_ACTION when the user taps a
-  // button on the persistent focus notification. We handle it here so the app
-  // does not need to be open for task state to update.
-
-  useEffect(() => {
-    const unsubNotifAction = EventBridge.subscribe('NOTIF_ACTION', (event) => {
-      const { notifAction, taskId, minutes } = event;
-      if (!taskId || !notifAction) return;
-      if (notifAction === 'COMPLETE') {
-        void completeTask(taskId);
-      } else if (notifAction === 'EXTEND') {
-        void extendTaskTime(taskId, minutes ?? 15);
-      } else if (notifAction === 'SKIP') {
-        void skipTask(taskId);
-      }
-    });
-    return () => {
-      unsubNotifAction();
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [completeTask, extendTaskTime, skipTask]);
-
   // ── Tasks ───────────────────────────────────────────────────────────────────
 
   const refreshTasks = useCallback(async () => {
@@ -432,6 +409,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     },
     [],
   );
+
+  // The native ForegroundTaskService fires NOTIF_ACTION when the user taps a
+  // button on the persistent focus notification. We handle it here so the app
+  // does not need to be open for task state to update.
+  // NOTE: must live after completeTask / extendTaskTime / skipTask declarations
+  // to avoid a const-TDZ error when the dependency array is evaluated.
+  useEffect(() => {
+    const unsubNotifAction = EventBridge.subscribe('NOTIF_ACTION', (event) => {
+      const { notifAction, taskId, minutes } = event;
+      if (!taskId || !notifAction) return;
+      if (notifAction === 'COMPLETE') {
+        void completeTask(taskId);
+      } else if (notifAction === 'EXTEND') {
+        void extendTaskTime(taskId, minutes ?? 15);
+      } else if (notifAction === 'SKIP') {
+        void skipTask(taskId);
+      }
+    });
+    return () => { unsubNotifAction(); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [completeTask, extendTaskTime, skipTask]);
 
   // ── Focus Mode ──────────────────────────────────────────────────────────────
 

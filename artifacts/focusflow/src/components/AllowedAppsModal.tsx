@@ -287,6 +287,8 @@ const styles = StyleSheet.create({
   },
   headerBtn: {
     minWidth: 60,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.xs,
   },
   title: {
     fontSize: FONT.md,

@@ -337,8 +337,10 @@ const styles = StyleSheet.create({
   saveBtn: {
     backgroundColor: COLORS.primary,
     paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.xs,
+    paddingVertical: SPACING.sm,
     borderRadius: RADIUS.full,
+    minWidth: 64,
+    alignItems: 'center',
   },
   saveBtnText: { color: '#fff', fontWeight: '700', fontSize: FONT.sm },
   body: { flex: 1, padding: SPACING.lg },

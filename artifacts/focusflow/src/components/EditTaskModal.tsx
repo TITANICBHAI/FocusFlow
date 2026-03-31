@@ -113,11 +113,11 @@ export default function EditTaskModal({ task, visible, onClose, onSave, onDelete
       <SafeAreaView style={styles.safe}>
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={onClose}>
+          <TouchableOpacity onPress={onClose} style={styles.headerBtn}>
             <Text style={styles.cancel}>Cancel</Text>
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Edit Task</Text>
-          <TouchableOpacity onPress={handleSave} disabled={saving}>
+          <TouchableOpacity onPress={handleSave} disabled={saving} style={styles.headerBtn}>
             <Text style={[styles.save, saving && { opacity: 0.5 }]}>
               {saving ? 'Saving…' : 'Save'}
             </Text>
@@ -280,6 +280,7 @@ const styles = StyleSheet.create({
     borderBottomColor: COLORS.border,
   },
   headerTitle: { fontSize: FONT.md, fontWeight: '700', color: COLORS.text },
+  headerBtn: { paddingVertical: SPACING.sm, paddingHorizontal: SPACING.xs, minWidth: 60 },
   cancel: { fontSize: FONT.md, color: COLORS.muted },
   save: { fontSize: FONT.md, fontWeight: '700', color: COLORS.primary },
   body: { flex: 1 },

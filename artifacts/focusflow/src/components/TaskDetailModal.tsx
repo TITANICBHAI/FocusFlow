@@ -45,7 +45,7 @@ export default function TaskDetailModal({
         <View style={styles.header}>
           <View style={[styles.colorDot, { backgroundColor: task.color }]} />
           <Text style={styles.title} numberOfLines={2}>{task.title}</Text>
-          <TouchableOpacity onPress={onClose}>
+          <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
             <Ionicons name="close" size={24} color={COLORS.muted} />
           </TouchableOpacity>
         </View>
@@ -156,6 +156,7 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: COLORS.border,
   },
+  closeBtn: { padding: SPACING.sm },
   actionBtn: { alignItems: 'center', gap: SPACING.xs },
   actionIcon: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
   actionLabel: { fontSize: FONT.xs, fontWeight: '600' },
