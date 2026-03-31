@@ -34,7 +34,7 @@ const PERMISSIONS: PermissionItem[] = [
     id: 'accessibility',
     title: 'Accessibility Service',
     description:
-      'Required to detect and block apps during Focus Mode. Enable "FocusFlow Focus Mode" in the Accessibility services list.',
+      'Lets FocusFlow redirect you away from blocked apps the moment you open them. Reads only the app name — cannot see messages, passwords, or screen content. Nothing leaves your device.',
     icon: 'eye-outline',
     deepLinkLabel: 'Open Accessibility Settings',
     check: async (): Promise<PermStatus> => {

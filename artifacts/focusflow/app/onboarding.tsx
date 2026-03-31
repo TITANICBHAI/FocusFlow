@@ -55,7 +55,7 @@ const INITIAL_STEPS: Step[] = [
     id: 'battery',
     icon: 'battery-charging-outline',
     title: 'Battery Optimization',
-    description: 'Exclude FocusDay from battery optimization so reminders fire reliably.',
+    description: 'Keep FocusFlow running in the background so your focus sessions never get cut short. Required on Samsung, Xiaomi, and Realme devices.',
     action: 'auto',
     status: 'pending',
   },
@@ -64,7 +64,7 @@ const INITIAL_STEPS: Step[] = [
     icon: 'shield-outline',
     title: 'Usage Access',
     description:
-      'Allow FocusDay to detect which app is in the foreground so it can enforce focus mode. Tap to open Settings → Special app access → Usage access → FocusDay → Enable.',
+      'Shows FocusFlow which app you opened, so it can block distractions during a focus session. Your usage data never leaves your device.\n\nTap → Settings → Special app access → Usage access → FocusFlow → Enable.',
     action: 'manual',
     status: 'pending',
     intentAction: 'android.settings.USAGE_ACCESS_SETTINGS',
@@ -74,7 +74,7 @@ const INITIAL_STEPS: Step[] = [
     icon: 'accessibility-outline',
     title: 'Accessibility Service',
     description:
-      'Required for Focus Mode to block distracting apps. Tap to open Settings → Accessibility → Installed apps → FocusDay → Enable.',
+      'Lets FocusFlow redirect you away from blocked apps the moment you open them.\n\nThis service reads only the app name — it cannot see your messages, passwords, or screen content. Nothing leaves your device.\n\nTap → Accessibility → Installed apps → FocusFlow → Enable.',
     action: 'manual',
     status: 'pending',
     intentAction: 'android.settings.ACCESSIBILITY_SETTINGS',
@@ -191,7 +191,7 @@ export default function OnboardingScreen() {
           <View style={styles.logoCircle}>
             <Ionicons name="shield-checkmark" size={36} color="#fff" />
           </View>
-          <Text style={styles.appName}>FocusDay</Text>
+          <Text style={styles.appName}>FocusFlow</Text>
           <Text style={styles.tagline}>Your discipline operating system</Text>
         </View>
 
