@@ -44,6 +44,7 @@ echo "🖼   Copying resource files..."
 # XML config files
 mkdir -p "$RES_DIR/xml"
 cp "$SCRIPT_DIR/app/src/main/res/xml/accessibility_service_config.xml" "$RES_DIR/xml/"
+cp "$SCRIPT_DIR/app/src/main/res/xml/device_admin.xml" "$RES_DIR/xml/"
 cp "$SCRIPT_DIR/app/src/main/res/xml/widget_info.xml" "$RES_DIR/xml/"
 echo "   ✓ xml/ resources copied"
 
