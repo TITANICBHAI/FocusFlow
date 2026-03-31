@@ -40,10 +40,12 @@ class BootReceiver : BroadcastReceiver() {
 
         if (focusActive && endTimeMs > 0L && endTimeMs > System.currentTimeMillis()) {
             // ── Restart in ACTIVE focus mode ──────────────────────────────────
+            val taskId   = prefs.getString("task_id", "") ?: ""
             val taskName = prefs.getString("task_name", "Focus Task") ?: "Focus Task"
             val nextName = prefs.getString("next_task_name", null)
 
             val serviceIntent = Intent(context, ForegroundTaskService::class.java).apply {
+                putExtra(ForegroundTaskService.EXTRA_TASK_ID,   taskId)
                 putExtra(ForegroundTaskService.EXTRA_TASK_NAME, taskName)
                 putExtra(ForegroundTaskService.EXTRA_END_MS, endTimeMs)
                 nextName?.let { putExtra(ForegroundTaskService.EXTRA_NEXT_NAME, it) }

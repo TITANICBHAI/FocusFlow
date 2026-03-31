@@ -68,7 +68,7 @@ export async function startFocusMode(
   //   • AppBlockerAccessibilityService knows focus is on and which apps to block
   //   • BootReceiver can restart the service after a reboot
   await SharedPrefsModule.setFocusActive(true);
-  await SharedPrefsModule.setActiveTask(task.title, endMs, nextTask?.title ?? null);
+  await SharedPrefsModule.setActiveTask(task.id, task.title, endMs, nextTask?.title ?? null);
   // Write the allowed-list so the AccessibilityService knows which apps to permit.
   await SharedPrefsModule.setAllowedPackages(
     session.allowedPackages.filter((p) => p.includes('.')),

@@ -28,9 +28,9 @@ export const SharedPrefsModule = {
     return SharedPrefs.setAllowedPackages(packages);
   },
 
-  async setActiveTask(name: string, endMs: number, nextName: string | null): Promise<void> {
+  async setActiveTask(taskId: string, name: string, endMs: number, nextName: string | null): Promise<void> {
     if (!SharedPrefs) return;
-    return SharedPrefs.setActiveTask(name, endMs, nextName ?? null);
+    return SharedPrefs.setActiveTask(taskId, name, endMs, nextName ?? null);
   },
 
   async setStandaloneBlock(active: boolean, packages: string[], untilMs: number): Promise<void> {

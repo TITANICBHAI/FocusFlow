@@ -58,13 +58,16 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
     /**
      * Stores the active task details so BootReceiver can restart the service after reboot.
      *
+     * @param taskId   DB id of the task — passed to ForegroundTaskService so notification
+     *                 action buttons (Done / +15m / +30m / Skip) carry the correct id after reboot.
      * @param name     Task display name
      * @param endMs    Task end time as epoch milliseconds
      * @param nextName Name of the next task (pass null or empty string if none)
      */
     @ReactMethod
-    fun setActiveTask(name: String, endMs: Double, nextName: String?, promise: Promise) {
+    fun setActiveTask(taskId: String, name: String, endMs: Double, nextName: String?, promise: Promise) {
         prefs().edit()
+            .putString("task_id", taskId)
             .putString("task_name", name)
             .putLong("task_end_ms", endMs.toLong())
             .putString("next_task_name", nextName?.takeIf { it.isNotBlank() })
