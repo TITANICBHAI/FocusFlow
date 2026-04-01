@@ -13,6 +13,7 @@ export function createTask(data: {
   tags?: string[];
   color?: string;
   focusMode?: boolean;
+  focusAllowedPackages?: string[];
 }): Task {
   const start = dayjs(data.startTime);
   const end = start.add(data.durationMinutes, 'minute');
@@ -30,6 +31,7 @@ export function createTask(data: {
     reminders: [],
     color: data.color ?? '#6366f1',
     focusMode: data.focusMode ?? false,
+    focusAllowedPackages: data.focusAllowedPackages,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };

@@ -17,7 +17,9 @@ import { Ionicons } from '@expo/vector-icons';
 import dayjs from 'dayjs';
 import { createTask, parseQuickInput, formatDuration } from '@/services/taskService';
 import { COLORS, FONT, RADIUS, SPACING, TASK_COLORS } from '@/styles/theme';
-import type { Task, TaskPriority } from '@/data/types';
+import type { Task, TaskPriority, AllowedAppPreset } from '@/data/types';
+import { AppPickerSheet } from './AppPickerSheet';
+import { useApp } from '@/context/AppContext';
 
 interface Props {
   visible: boolean;
@@ -38,6 +40,9 @@ function initialDate(hhmm?: string): Date {
 }
 
 export default function QuickAddModal({ visible, onClose, onSave, initialStartTime }: Props) {
+  const { state, updateSettings } = useApp();
+  const presets: AllowedAppPreset[] = state.settings.allowedAppPresets ?? [];
+
   const [quickText, setQuickText] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -50,6 +55,8 @@ export default function QuickAddModal({ visible, onClose, onSave, initialStartTi
   const [tags, setTags] = useState('');
   const [color, setColor] = useState(TASK_COLORS[0]);
   const [focusMode, setFocusMode] = useState(false);
+  const [focusAllowedPackages, setFocusAllowedPackages] = useState<string[]>([]); // [] = all allowed
+  const [showAppPicker, setShowAppPicker] = useState(false);
   const [isAdvanced, setIsAdvanced] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -82,18 +89,19 @@ export default function QuickAddModal({ visible, onClose, onSave, initialStartTi
       tags: tags.split(',').map((t) => t.trim()).filter(Boolean),
       color,
       focusMode,
+      focusAllowedPackages: focusMode ? focusAllowedPackages : undefined,
     });
 
     setSaving(true);
     try {
       await onSave(task);
       handleClose();
-    } catch (e) {
+    } catch {
       Alert.alert('Error', 'Failed to save task. Please try again.');
     } finally {
       setSaving(false);
     }
-  }, [title, quickText, description, startDate, duration, priority, tags, color, focusMode, onSave]);
+  }, [title, quickText, description, startDate, duration, priority, tags, color, focusMode, focusAllowedPackages, onSave]);
 
   const handleClose = () => {
     setQuickText('');
@@ -108,206 +116,260 @@ export default function QuickAddModal({ visible, onClose, onSave, initialStartTi
     setTags('');
     setColor(TASK_COLORS[0]);
     setFocusMode(false);
+    setFocusAllowedPackages([]);
+    setShowAppPicker(false);
     setIsAdvanced(false);
     onClose();
   };
 
+  const allowedAppsLabel =
+    focusAllowedPackages.length === 0
+      ? 'All apps allowed'
+      : `${focusAllowedPackages.length} app${focusAllowedPackages.length !== 1 ? 's' : ''} allowed`;
+
+  const handleSavePreset = async (preset: AllowedAppPreset) => {
+    const newPresets = [...presets, preset];
+    await updateSettings({ ...state.settings, allowedAppPresets: newPresets });
+  };
+
+  const handleDeletePreset = async (id: string) => {
+    const newPresets = presets.filter((p) => p.id !== id);
+    await updateSettings({ ...state.settings, allowedAppPresets: newPresets });
+  };
+
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={handleClose}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    <>
+      <Modal
+        visible={visible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={handleClose}
       >
-        <View style={styles.container}>
-          {/* Header */}
-          <View style={styles.header}>
-            <TouchableOpacity onPress={handleClose}>
-              <Ionicons name="close" size={24} color={COLORS.muted} />
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>New Task</Text>
-            <TouchableOpacity onPress={handleSave} disabled={saving} style={styles.saveBtn}>
-              <Text style={styles.saveBtnText}>{saving ? 'Saving…' : 'Save'}</Text>
-            </TouchableOpacity>
-          </View>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <View style={styles.container}>
+            {/* Header */}
+            <View style={styles.header}>
+              <TouchableOpacity onPress={handleClose}>
+                <Ionicons name="close" size={24} color={COLORS.muted} />
+              </TouchableOpacity>
+              <Text style={styles.headerTitle}>New Task</Text>
+              <TouchableOpacity onPress={handleSave} disabled={saving} style={styles.saveBtn}>
+                <Text style={styles.saveBtnText}>{saving ? 'Saving…' : 'Save'}</Text>
+              </TouchableOpacity>
+            </View>
 
-          <ScrollView style={styles.body} keyboardShouldPersistTaps="handled">
+            <ScrollView style={styles.body} keyboardShouldPersistTaps="handled">
 
-            {/* Quick input */}
-            {!isAdvanced && (
-              <View style={styles.quickRow}>
-                <TextInput
-                  style={styles.quickInput}
-                  placeholder='e.g. "Call Bob at 3pm for 30m"'
-                  placeholderTextColor={COLORS.muted}
-                  value={quickText}
-                  onChangeText={setQuickText}
-                  onSubmitEditing={handleQuickParse}
-                  returnKeyType="done"
-                  autoFocus
-                />
-                <TouchableOpacity style={styles.parseBtn} onPress={handleQuickParse}>
-                  <Ionicons name="flash" size={18} color="#fff" />
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {(isAdvanced || !quickText) && (
-              <>
-                {/* Title */}
-                <Field label="Title">
+              {/* Quick input */}
+              {!isAdvanced && (
+                <View style={styles.quickRow}>
                   <TextInput
-                    style={styles.input}
-                    placeholder="What do you need to do?"
+                    style={styles.quickInput}
+                    placeholder='e.g. "Call Bob at 3pm for 30m"'
                     placeholderTextColor={COLORS.muted}
-                    value={title}
-                    onChangeText={setTitle}
-                    autoFocus={isAdvanced}
+                    value={quickText}
+                    onChangeText={setQuickText}
+                    onSubmitEditing={handleQuickParse}
+                    returnKeyType="done"
+                    autoFocus
                   />
-                </Field>
-
-                {/* Description */}
-                <Field label="Notes (optional)">
-                  <TextInput
-                    style={[styles.input, styles.multiline]}
-                    placeholder="Add details…"
-                    placeholderTextColor={COLORS.muted}
-                    value={description}
-                    onChangeText={setDescription}
-                    multiline
-                    numberOfLines={3}
-                  />
-                </Field>
-
-                {/* Time */}
-                <Field label="Start Time">
-                  <TouchableOpacity
-                    style={[styles.input, styles.timePickerRow]}
-                    onPress={() => setShowPicker(true)}
-                    activeOpacity={0.7}
-                  >
-                    <Ionicons name="time-outline" size={18} color={COLORS.muted} />
-                    <Text style={styles.timePickerText}>
-                      {dayjs(startDate).format('h:mm A')}
-                    </Text>
+                  <TouchableOpacity style={styles.parseBtn} onPress={handleQuickParse}>
+                    <Ionicons name="flash" size={18} color="#fff" />
                   </TouchableOpacity>
-                  {showPicker && (
-                    <DateTimePicker
-                      value={startDate}
-                      mode="time"
-                      is24Hour={false}
-                      display={Platform.OS === 'ios' ? 'spinner' : 'clock'}
-                      onChange={(_event: DateTimePickerEvent, selected?: Date) => {
-                        setShowPicker(false);
-                        if (selected) setStartDate(selected);
-                      }}
-                    />
-                  )}
-                </Field>
+                </View>
+              )}
 
-                {/* Duration */}
-                <Field label={`Duration: ${isCustomDuration ? (parseInt(customDurationText, 10) > 0 ? formatDuration(parseInt(customDurationText, 10)) : 'Custom') : formatDuration(duration)}`}>
-                  <View style={styles.durationRow}>
-                    {DURATION_OPTIONS.map((d) => (
-                      <TouchableOpacity
-                        key={d}
-                        style={[styles.chip, !isCustomDuration && d === duration && styles.chipSelected]}
-                        onPress={() => { setDuration(d); setIsCustomDuration(false); setCustomDurationText(''); }}
-                      >
-                        <Text style={[styles.chipText, !isCustomDuration && d === duration && styles.chipTextSelected]}>
-                          {formatDuration(d)}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
+              {(isAdvanced || !quickText) && (
+                <>
+                  {/* Title */}
+                  <Field label="Title">
+                    <TextInput
+                      style={styles.input}
+                      placeholder="What do you need to do?"
+                      placeholderTextColor={COLORS.muted}
+                      value={title}
+                      onChangeText={setTitle}
+                      autoFocus={isAdvanced}
+                    />
+                  </Field>
+
+                  {/* Description */}
+                  <Field label="Notes (optional)">
+                    <TextInput
+                      style={[styles.input, styles.multiline]}
+                      placeholder="Add details…"
+                      placeholderTextColor={COLORS.muted}
+                      value={description}
+                      onChangeText={setDescription}
+                      multiline
+                      numberOfLines={3}
+                    />
+                  </Field>
+
+                  {/* Time */}
+                  <Field label="Start Time">
                     <TouchableOpacity
-                      style={[styles.chip, isCustomDuration && styles.chipSelected]}
-                      onPress={() => { setIsCustomDuration(true); setCustomDurationText(String(duration)); }}
+                      style={[styles.input, styles.timePickerRow]}
+                      onPress={() => setShowPicker(true)}
+                      activeOpacity={0.7}
                     >
-                      <Text style={[styles.chipText, isCustomDuration && styles.chipTextSelected]}>
-                        Custom
+                      <Ionicons name="time-outline" size={18} color={COLORS.muted} />
+                      <Text style={styles.timePickerText}>
+                        {dayjs(startDate).format('h:mm A')}
                       </Text>
                     </TouchableOpacity>
-                  </View>
-                  {isCustomDuration && (
-                    <View style={styles.customDurationRow}>
-                      <TextInput
-                        style={[styles.input, styles.customDurationInput]}
-                        value={customDurationText}
-                        onChangeText={(text) => {
-                          setCustomDurationText(text);
-                          const parsed = parseInt(text, 10);
-                          if (!isNaN(parsed) && parsed > 0) setDuration(parsed);
+                    {showPicker && (
+                      <DateTimePicker
+                        value={startDate}
+                        mode="time"
+                        is24Hour={false}
+                        display={Platform.OS === 'ios' ? 'spinner' : 'clock'}
+                        onChange={(_event: DateTimePickerEvent, selected?: Date) => {
+                          setShowPicker(false);
+                          if (selected) setStartDate(selected);
                         }}
-                        keyboardType="number-pad"
-                        placeholder="Minutes"
-                        placeholderTextColor={COLORS.muted}
-                        autoFocus
                       />
-                      <Text style={styles.customDurationLabel}>minutes</Text>
-                    </View>
-                  )}
-                </Field>
+                    )}
+                  </Field>
 
-                {/* Priority */}
-                <Field label="Priority">
-                  <View style={styles.row}>
-                    {PRIORITY_OPTIONS.map((p) => (
+                  {/* Duration */}
+                  <Field label={`Duration: ${isCustomDuration ? (parseInt(customDurationText, 10) > 0 ? formatDuration(parseInt(customDurationText, 10)) : 'Custom') : formatDuration(duration)}`}>
+                    <View style={styles.durationRow}>
+                      {DURATION_OPTIONS.map((d) => (
+                        <TouchableOpacity
+                          key={d}
+                          style={[styles.chip, !isCustomDuration && d === duration && styles.chipSelected]}
+                          onPress={() => { setDuration(d); setIsCustomDuration(false); setCustomDurationText(''); }}
+                        >
+                          <Text style={[styles.chipText, !isCustomDuration && d === duration && styles.chipTextSelected]}>
+                            {formatDuration(d)}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
                       <TouchableOpacity
-                        key={p}
-                        style={[styles.chip, p === priority && styles.chipSelected]}
-                        onPress={() => setPriority(p)}
+                        style={[styles.chip, isCustomDuration && styles.chipSelected]}
+                        onPress={() => { setIsCustomDuration(true); setCustomDurationText(String(duration)); }}
                       >
-                        <Text style={[styles.chipText, p === priority && styles.chipTextSelected]}>
-                          {p}
+                        <Text style={[styles.chipText, isCustomDuration && styles.chipTextSelected]}>
+                          Custom
                         </Text>
                       </TouchableOpacity>
-                    ))}
-                  </View>
-                </Field>
+                    </View>
+                    {isCustomDuration && (
+                      <View style={styles.customDurationRow}>
+                        <TextInput
+                          style={[styles.input, styles.customDurationInput]}
+                          value={customDurationText}
+                          onChangeText={(text) => {
+                            setCustomDurationText(text);
+                            const parsed = parseInt(text, 10);
+                            if (!isNaN(parsed) && parsed > 0) setDuration(parsed);
+                          }}
+                          keyboardType="number-pad"
+                          placeholder="Minutes"
+                          placeholderTextColor={COLORS.muted}
+                          autoFocus
+                        />
+                        <Text style={styles.customDurationLabel}>minutes</Text>
+                      </View>
+                    )}
+                  </Field>
 
-                {/* Color */}
-                <Field label="Color">
-                  <View style={styles.row}>
-                    {TASK_COLORS.map((c) => (
-                      <TouchableOpacity
-                        key={c}
-                        style={[styles.colorDot, { backgroundColor: c }, c === color && styles.colorDotSelected]}
-                        onPress={() => setColor(c)}
-                      />
-                    ))}
-                  </View>
-                </Field>
+                  {/* Priority */}
+                  <Field label="Priority">
+                    <View style={styles.row}>
+                      {PRIORITY_OPTIONS.map((p) => (
+                        <TouchableOpacity
+                          key={p}
+                          style={[styles.chip, p === priority && styles.chipSelected]}
+                          onPress={() => setPriority(p)}
+                        >
+                          <Text style={[styles.chipText, p === priority && styles.chipTextSelected]}>
+                            {p}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </Field>
 
-                {/* Tags */}
-                <Field label="Tags (comma separated)">
-                  <TextInput
-                    style={styles.input}
-                    placeholder="work, focus, meeting"
-                    placeholderTextColor={COLORS.muted}
-                    value={tags}
-                    onChangeText={setTags}
-                    autoCapitalize="none"
-                  />
-                </Field>
+                  {/* Color */}
+                  <Field label="Color">
+                    <View style={styles.row}>
+                      {TASK_COLORS.map((c) => (
+                        <TouchableOpacity
+                          key={c}
+                          style={[styles.colorDot, { backgroundColor: c }, c === color && styles.colorDotSelected]}
+                          onPress={() => setColor(c)}
+                        />
+                      ))}
+                    </View>
+                  </Field>
 
-                {/* Focus Mode toggle */}
-                <View style={styles.switchRow}>
-                  <View>
-                    <Text style={styles.switchLabel}>Enable Focus Mode</Text>
-                    <Text style={styles.switchDesc}>Block distractions during this task</Text>
+                  {/* Tags */}
+                  <Field label="Tags (comma separated)">
+                    <TextInput
+                      style={styles.input}
+                      placeholder="work, focus, meeting"
+                      placeholderTextColor={COLORS.muted}
+                      value={tags}
+                      onChangeText={setTags}
+                      autoCapitalize="none"
+                    />
+                  </Field>
+
+                  {/* Focus Mode toggle */}
+                  <View style={styles.switchRow}>
+                    <View>
+                      <Text style={styles.switchLabel}>Enable Focus Mode</Text>
+                      <Text style={styles.switchDesc}>Block distractions during this task</Text>
+                    </View>
+                    <Switch
+                      value={focusMode}
+                      onValueChange={setFocusMode}
+                      trackColor={{ false: COLORS.border, true: COLORS.primary + '88' }}
+                      thumbColor={focusMode ? COLORS.primary : COLORS.muted}
+                    />
                   </View>
-                  <Switch
-                    value={focusMode}
-                    onValueChange={setFocusMode}
-                    trackColor={{ false: COLORS.border, true: COLORS.primary + '88' }}
-                    thumbColor={focusMode ? COLORS.primary : COLORS.muted}
-                  />
-                </View>
-              </>
-            )}
-          </ScrollView>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
+
+                  {/* Allowed apps picker — shown only when focus mode is on */}
+                  {focusMode && (
+                    <TouchableOpacity
+                      style={styles.allowedAppsRow}
+                      onPress={() => setShowAppPicker(true)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.allowedAppsIcon}>
+                        <Ionicons name="shield-checkmark-outline" size={20} color={COLORS.primary} />
+                      </View>
+                      <View style={styles.allowedAppsInfo}>
+                        <Text style={styles.allowedAppsLabel}>Allowed Apps</Text>
+                        <Text style={styles.allowedAppsValue}>{allowedAppsLabel}</Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={18} color={COLORS.muted} />
+                    </TouchableOpacity>
+                  )}
+                </>
+              )}
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Nested app picker sheet */}
+      <AppPickerSheet
+        visible={showAppPicker}
+        title="Allowed Apps for This Task"
+        initialSelected={focusAllowedPackages}
+        presets={presets}
+        onSave={setFocusAllowedPackages}
+        onSavePreset={(preset) => { void handleSavePreset(preset); }}
+        onDeletePreset={(id) => { void handleDeletePreset(id); }}
+        onClose={() => setShowAppPicker(false)}
+      />
+    </>
   );
 }
 
@@ -426,5 +488,37 @@ const styles = StyleSheet.create({
   customDurationLabel: {
     fontSize: FONT.md,
     color: COLORS.textSecondary,
+  },
+  allowedAppsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.card,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.primary + '44',
+    gap: SPACING.sm,
+  },
+  allowedAppsIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  allowedAppsInfo: {
+    flex: 1,
+  },
+  allowedAppsLabel: {
+    fontSize: FONT.md,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  allowedAppsValue: {
+    fontSize: FONT.sm,
+    color: COLORS.primary,
+    marginTop: 2,
   },
 });

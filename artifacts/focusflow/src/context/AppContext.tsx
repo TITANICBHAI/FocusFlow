@@ -97,13 +97,8 @@ const defaultSettings: AppSettings = {
   defaultDuration: 60,
   defaultReminderOffsets: [-10, -5, 0],
   focusModeEnabled: true,
-  allowedInFocus: [
-    'com.android.phone',
-    'com.android.dialer',
-    'com.google.android.dialer',
-    'com.whatsapp',
-    'com.samsung.android.incallui',
-  ],
+  allowedInFocus: [], // [] = all apps allowed (no blocking) — sentinel value
+  allowedAppPresets: [],
   pomodoroEnabled: false,
   pomodoroDuration: 25,
   pomodoroBreak: 5,
@@ -438,7 +433,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const task = state.tasks.find((t) => t.id === taskId);
       if (!task) return;
 
-      await _startFocusMode(task, state.settings.allowedInFocus, (app) => {
+      // Task-specific allowed packages take priority over the global setting.
+      // undefined → fall back to global; [] → all allowed; [...] → specific list.
+      const allowedPackages =
+        task.focusAllowedPackages !== undefined
+          ? task.focusAllowedPackages
+          : state.settings.allowedInFocus;
+
+      await _startFocusMode(task, allowedPackages, (app) => {
         dispatch({ type: 'SET_FOCUS_VIOLATION', payload: app });
         setTimeout(() => dispatch({ type: 'SET_FOCUS_VIOLATION', payload: null }), 4000);
       });
@@ -447,7 +449,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         taskId: task.id,
         startedAt: new Date().toISOString(),
         isActive: true,
-        allowedPackages: state.settings.allowedInFocus,
+        allowedPackages,
       };
       dispatch({ type: 'SET_FOCUS_SESSION', payload: session });
     },

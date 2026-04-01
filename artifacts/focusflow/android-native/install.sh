@@ -78,6 +78,15 @@ fi
 
 echo "📋  Patching AndroidManifest.xml..."
 
+# ── Ensure xmlns:tools namespace is declared in <manifest> ───────────────────
+# Required before any tools:ignore attributes are inserted by this script.
+if ! grep -q 'xmlns:tools' "$MANIFEST"; then
+  sed -i 's|<manifest |<manifest xmlns:tools="http://schemas.android.com/tools" |' "$MANIFEST"
+  echo "   ✓ xmlns:tools namespace added to manifest root"
+else
+  echo "   ✓ xmlns:tools already present"
+fi
+
 if [ ! -f "$MANIFEST" ]; then
   echo "❌  AndroidManifest.xml not found at $MANIFEST"
   exit 1

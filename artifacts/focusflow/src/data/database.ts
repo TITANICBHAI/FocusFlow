@@ -69,6 +69,14 @@ async function initSchema(db: SQLite.SQLiteDatabase): Promise<void> {
       total INTEGER NOT NULL DEFAULT 0
     );
   `);
+
+  // Migration: add focus_allowed_packages column to tasks.
+  // ALTER TABLE ADD COLUMN is idempotent via try/catch — safe to run every time.
+  try {
+    await db.execAsync(`ALTER TABLE tasks ADD COLUMN focus_allowed_packages TEXT;`);
+  } catch {
+    // Column already exists — ignore.
+  }
 }
 
 // ─── Tasks ────────────────────────────────────────────────────────────────────
@@ -92,8 +100,8 @@ export async function dbGetTasksForDate(dateISO: string): Promise<Task[]> {
 export async function dbInsertTask(task: Task): Promise<void> {
   const db = await getDb();
   await db.runAsync(
-    `INSERT INTO tasks (id, title, description, start_time, end_time, duration_minutes, status, priority, tags, reminders, color, focus_mode, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO tasks (id, title, description, start_time, end_time, duration_minutes, status, priority, tags, reminders, color, focus_mode, focus_allowed_packages, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       task.id,
       task.title,
@@ -107,6 +115,7 @@ export async function dbInsertTask(task: Task): Promise<void> {
       JSON.stringify(task.reminders),
       task.color,
       task.focusMode ? 1 : 0,
+      task.focusAllowedPackages !== undefined ? JSON.stringify(task.focusAllowedPackages) : null,
       task.createdAt,
       task.updatedAt,
     ],
@@ -116,7 +125,7 @@ export async function dbInsertTask(task: Task): Promise<void> {
 export async function dbUpdateTask(task: Task): Promise<void> {
   const db = await getDb();
   await db.runAsync(
-    `UPDATE tasks SET title=?, description=?, start_time=?, end_time=?, duration_minutes=?, status=?, priority=?, tags=?, reminders=?, color=?, focus_mode=?, updated_at=? WHERE id=?`,
+    `UPDATE tasks SET title=?, description=?, start_time=?, end_time=?, duration_minutes=?, status=?, priority=?, tags=?, reminders=?, color=?, focus_mode=?, focus_allowed_packages=?, updated_at=? WHERE id=?`,
     [
       task.title,
       task.description ?? null,
@@ -129,6 +138,7 @@ export async function dbUpdateTask(task: Task): Promise<void> {
       JSON.stringify(task.reminders),
       task.color,
       task.focusMode ? 1 : 0,
+      task.focusAllowedPackages !== undefined ? JSON.stringify(task.focusAllowedPackages) : null,
       task.updatedAt,
       task.id,
     ],
@@ -141,6 +151,7 @@ export async function dbDeleteTask(taskId: string): Promise<void> {
 }
 
 function rowToTask(row: Record<string, unknown>): Task {
+  const rawFap = row.focus_allowed_packages as string | null | undefined;
   return {
     id: row.id as string,
     title: row.title as string,
@@ -154,6 +165,7 @@ function rowToTask(row: Record<string, unknown>): Task {
     reminders: JSON.parse(row.reminders as string) as Task['reminders'],
     color: row.color as string,
     focusMode: (row.focus_mode as number) === 1,
+    focusAllowedPackages: rawFap ? (JSON.parse(rawFap) as string[]) : undefined,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
   };
@@ -166,13 +178,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   defaultDuration: 60,
   defaultReminderOffsets: [-10, -5, 0],
   focusModeEnabled: true,
-  allowedInFocus: [
-    'com.android.phone',
-    'com.android.dialer',
-    'com.google.android.dialer',
-    'com.whatsapp',
-    'com.samsung.android.incallui',
-  ],
+  allowedInFocus: [], // [] = all apps allowed (no blocking) — the new default
+  allowedAppPresets: [],
   pomodoroEnabled: false,
   pomodoroDuration: 25,
   pomodoroBreak: 5,

@@ -2,6 +2,12 @@ export type TaskStatus = 'scheduled' | 'active' | 'completed' | 'skipped' | 'ove
 export type TaskPriority = 'low' | 'medium' | 'high' | 'critical';
 export type ReminderType = 'pre-start' | 'at-start' | 'post-start';
 
+export interface AllowedAppPreset {
+  id: string;
+  name: string;
+  packages: string[]; // [] = "all apps allowed" sentinel
+}
+
 export interface Reminder {
   id: string;
   taskId: string;
@@ -23,6 +29,7 @@ export interface Task {
   reminders: Reminder[];
   color: string;
   focusMode: boolean;
+  focusAllowedPackages?: string[]; // undefined = use global setting, [] = all allowed, [...] = specific list
   createdAt: string;
   updatedAt: string;
 }
@@ -48,4 +55,5 @@ export interface AppSettings {
   // Standalone app blocking — independent of any task
   standaloneBlockPackages: string[]; // packages to always block regardless of task state
   standaloneBlockUntil: string | null; // ISO timestamp when the standalone block expires
+  allowedAppPresets: AllowedAppPreset[]; // saved preset allow-lists
 }

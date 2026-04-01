@@ -292,12 +292,16 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             }
         }
 
-        // 3. Task-based block: block any app NOT in the allowed list
+        // 3. Task-based block: block any app NOT in the allowed list.
+        //    Empty list [] is a sentinel meaning "all apps allowed" — skip blocking entirely.
         if (focusActive) {
             val allowedJson = prefs.getString(PREF_ALLOWED_PKG, "[]") ?: "[]"
             val allowedList = parseJsonArray(allowedJson)
-            val isAllowed = allowedList.any { a -> pkg.equals(a, ignoreCase = true) }
-            if (!isAllowed) return true
+            if (allowedList.isNotEmpty()) {
+                val isAllowed = allowedList.any { a -> pkg.equals(a, ignoreCase = true) }
+                if (!isAllowed) return true
+            }
+            // allowedList.isEmpty() → all apps allowed, do not block
         }
 
         // 4. Standalone block: block any app explicitly listed
