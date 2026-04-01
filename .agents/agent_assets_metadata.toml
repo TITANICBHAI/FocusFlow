@@ -12,6 +12,24 @@ uri = "file://artifacts/mockup-sandbox/public/images/kinetic-texture.png"
 type = "image"
 title = "Abstract kinetic energy texture"
 
+[[generated]]
+id = "77zk23aDOxznOQ_kcSyp3"
+uri = "file://artifacts/video/public/assets/cinematic-bg.png"
+type = "image"
+title = "Purple cinematic particle field"
+
+[[generated]]
+id = "Nsg7LfjKoQ8UMlZEFymeE"
+uri = "file://artifacts/video/public/assets/focused-person.png"
+type = "image"
+title = "Focused person working in dark room"
+
+[[generated]]
+id = "Z7fViuNwOTpXhASqwBbgm"
+uri = "file://artifacts/video/public/assets/distraction-noise.png"
+type = "image"
+title = "Abstract digital distraction noise"
+
 [[outputs]]
 id = "tgalAfT1-750LJk0Yh4R6"
 uri = "file://artifacts/focusflow/store-assets/STORE_LISTING.md"
