@@ -24,6 +24,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
+import * as Notifications from 'expo-notifications';
 import { useApp } from '@/context/AppContext';
 import { requestPermissions } from '@/services/notificationService';
 import { ForegroundServiceModule } from '@/native-modules/ForegroundServiceModule';
@@ -91,22 +93,33 @@ export default function OnboardingScreen() {
     setSteps((prev) => prev.map((s) => (s.id === id ? { ...s, status } : s)));
   };
 
-  // When the user returns from Settings, re-check permission statuses
+  // When the user returns from Settings, re-check all permission statuses automatically
   useEffect(() => {
     const subscription = AppState.addEventListener('change', async (nextState) => {
       if (appStateRef.current.match(/inactive|background/) && nextState === 'active') {
-        // Re-check usage access permission via native module
+        // Notifications
+        try {
+          const { status } = await Notifications.getPermissionsAsync();
+          if (status === 'granted') setStepStatus('notifications', 'granted');
+        } catch { /* native not available */ }
+
+        // Battery optimization
+        try {
+          const ignoring = await UsageStatsModule.isIgnoringBatteryOptimizations();
+          if (ignoring) setStepStatus('battery', 'granted');
+        } catch { /* native not available */ }
+
+        // Usage access
         try {
           const hasUsage = await UsageStatsModule.hasPermission();
-          if (hasUsage) {
-            setStepStatus('usage', 'granted');
-          }
-        } catch {
-          // Native module not available in dev
-        }
+          if (hasUsage) setStepStatus('usage', 'granted');
+        } catch { /* native not available */ }
 
-        // Accessibility permission cannot be checked programmatically (no native module).
-        // Users confirm by tapping the card again after returning from Settings.
+        // Accessibility — checked via native module
+        try {
+          const hasA11y = await UsageStatsModule.hasAccessibilityPermission();
+          if (hasA11y) setStepStatus('accessibility', 'granted');
+        } catch { /* native not available */ }
       }
       appStateRef.current = nextState;
     });
@@ -181,6 +194,7 @@ export default function OnboardingScreen() {
 
   const handleFinish = async () => {
     await updateSettings({ ...state.settings, onboardingComplete: true });
+    router.replace('/(tabs)');
   };
 
   return (
