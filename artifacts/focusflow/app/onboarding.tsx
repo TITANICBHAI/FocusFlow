@@ -194,7 +194,7 @@ export default function OnboardingScreen() {
 
   const handleFinish = async () => {
     await updateSettings({ ...state.settings, onboardingComplete: true });
-    router.replace('/(tabs)');
+    router.back();
   };
 
   return (

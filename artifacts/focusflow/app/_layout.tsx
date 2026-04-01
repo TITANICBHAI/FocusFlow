@@ -131,7 +131,7 @@ function OnboardingGuard() {
   useEffect(() => {
     if (!state.isDbReady) return;
     if (!state.settings.onboardingComplete) {
-      router.replace('/onboarding');
+      router.push('/onboarding');
     }
   }, [state.isDbReady, state.settings.onboardingComplete]);
 
@@ -168,7 +168,7 @@ export default function RootLayout() {
           <OnboardingGuard />
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+            <Stack.Screen name="onboarding" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
             <Stack.Screen name="permissions" options={{ headerShown: false }} />
             <Stack.Screen name="+not-found" />
           </Stack>
