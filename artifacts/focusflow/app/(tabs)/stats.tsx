@@ -10,6 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 import dayjs from 'dayjs';
 import { useApp } from '@/context/AppContext';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
+import { useTheme } from '@/hooks/useTheme';
 import {
   dbGetTodayFocusMinutes,
   dbGetTodayOverrideCount,
@@ -21,6 +22,7 @@ import type { Task } from '@/data/types';
 export default function StatsScreen() {
   const insets = useSafeAreaInsets();
   const { state } = useApp();
+  const { theme } = useTheme();
   const { tasks } = state;
 
   const [focusMinutes, setFocusMinutes] = useState(0);
@@ -89,10 +91,10 @@ export default function StatsScreen() {
     : COLORS.red;
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Today's Stats</Text>
-        <Text style={styles.date}>{dayjs().format('MMMM D, YYYY')}</Text>
+    <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
+      <View style={[styles.header, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
+        <Text style={[styles.title, { color: theme.text }]}>Today's Stats</Text>
+        <Text style={[styles.date, { color: theme.textSecondary }]}>{dayjs().format('MMMM D, YYYY')}</Text>
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 80 }]}>
@@ -106,13 +108,13 @@ export default function StatsScreen() {
         )}
 
         {/* Completion ring */}
-        <View style={styles.card}>
+        <View style={[styles.card, { backgroundColor: theme.card }]}>
           <View style={styles.ringRow}>
             <View style={[styles.ring, { borderColor: productivityColor }]}>
               <Text style={[styles.ringPercent, { color: productivityColor }]}>
                 {stats.completionRate}%
               </Text>
-              <Text style={styles.ringLabel}>done</Text>
+              <Text style={[styles.ringLabel, { color: theme.textSecondary }]}>done</Text>
             </View>
             <View style={styles.ringStats}>
               <StatItem icon="checkmark-circle" color={COLORS.green} label="Completed" value={stats.completed} />
@@ -123,8 +125,8 @@ export default function StatsScreen() {
         </View>
 
         {/* Time */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Time Overview</Text>
+        <View style={[styles.card, { backgroundColor: theme.card }]}>
+          <Text style={[styles.cardTitle, { color: theme.text }]}>Time Overview</Text>
           <View style={styles.statsGrid}>
             <StatCard icon="calendar-outline" label="Scheduled" value={fmtMins(stats.totalMinutesScheduled)} color={COLORS.blue} />
             <StatCard icon="checkmark-done-outline" label="Completed" value={fmtMins(stats.totalMinutesCompleted)} color={COLORS.green} />
@@ -139,8 +141,8 @@ export default function StatsScreen() {
         </View>
 
         {/* Focus stats */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Focus Mode</Text>
+        <View style={[styles.card, { backgroundColor: theme.card }]}>
+          <Text style={[styles.cardTitle, { color: theme.text }]}>Focus Mode</Text>
           <View style={styles.statsGrid}>
             <StatCard icon="shield-checkmark-outline" label="Focus Time" value={fmtMins(focusMinutes)} color={COLORS.primary} />
             <StatCard icon="shield-outline" label="Focus Tasks" value={String(stats.focusTasks)} color={COLORS.blue} />
@@ -156,8 +158,8 @@ export default function StatsScreen() {
         </View>
 
         {/* Priority breakdown */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>By Priority</Text>
+        <View style={[styles.card, { backgroundColor: theme.card }]}>
+          <Text style={[styles.cardTitle, { color: theme.text }]}>By Priority</Text>
           {[
             { label: 'Critical', value: stats.byPriority.critical, color: COLORS.red },
             { label: 'High', value: stats.byPriority.high, color: COLORS.orange },
@@ -180,8 +182,8 @@ export default function StatsScreen() {
 
         {/* Tags */}
         {stats.topTags.length > 0 && (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Top Tags</Text>
+          <View style={[styles.card, { backgroundColor: theme.card }]}>
+            <Text style={[styles.cardTitle, { color: theme.text }]}>Top Tags</Text>
             <View style={styles.tagsRow}>
               {stats.topTags.map(({ tag, count }) => (
                 <View key={tag} style={styles.tagBadge}>

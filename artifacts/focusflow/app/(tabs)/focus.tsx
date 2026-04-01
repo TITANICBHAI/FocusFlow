@@ -23,9 +23,11 @@ import { UsageStatsModule } from '@/native-modules/UsageStatsModule';
 import { StandaloneBlockModal } from '@/components/StandaloneBlockModal';
 import ExtendModal from '@/components/ExtendModal';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
+import { useTheme } from '@/hooks/useTheme';
 
 export default function FocusScreen() {
   const insets = useSafeAreaInsets();
+  const { theme } = useTheme();
   const { width: windowWidth } = useWindowDimensions();
   const ringSize = Math.min(Math.floor(windowWidth * 0.65), 260);
   const { state, activeTask, startFocusMode, stopFocusMode, completeTask, extendTaskTime, setStandaloneBlock } = useApp();
@@ -93,7 +95,7 @@ export default function FocusScreen() {
 
   if (!task) {
     return (
-      <SafeAreaView style={styles.safe}>
+      <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]}>
         <View style={styles.emptyContainer}>
           <Ionicons name="moon-outline" size={64} color={COLORS.border} />
           <Text style={styles.emptyTitle}>No Active Task</Text>

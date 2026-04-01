@@ -26,6 +26,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS, FONT, SPACING } from '@/styles/theme';
 
 import { AppProvider, useApp } from '@/context/AppContext';
+import { useTheme } from '@/hooks/useTheme';
 import { EventBridge } from '@/services/eventBridge';
 import { navigateToTask, consumePendingTaskNavigation } from '@/navigation/navigationRef';
 import { registerBackgroundFetch, registerOverrunCheckTask } from '@/tasks/backgroundTasks';
@@ -221,6 +222,12 @@ const splashStyles = StyleSheet.create({
   },
 });
 
+// ─── Themed status bar ───────────────────────────────────────────────────────
+function ThemedStatusBar() {
+  const { isDark } = useTheme();
+  return <StatusBar style={isDark ? 'light' : 'dark'} />;
+}
+
 // ─── Onboarding guard ─────────────────────────────────────────────────────────
 // Runs inside AppProvider so it has access to context.
 // Once the DB is ready, redirects to /onboarding on first install.
@@ -274,7 +281,7 @@ export default function RootLayout() {
             <Stack.Screen name="permissions" options={{ headerShown: false }} />
             <Stack.Screen name="+not-found" />
           </Stack>
-          <StatusBar style="auto" />
+          <ThemedStatusBar />
         </AppProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

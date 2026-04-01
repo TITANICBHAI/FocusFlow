@@ -20,6 +20,7 @@ import ExtendModal from '@/components/ExtendModal';
 import EditTaskModal from '@/components/EditTaskModal';
 import TaskDetailModal from '@/components/TaskDetailModal';
 import { COLORS, FONT, RADIUS, SPACING, SHADOW } from '@/styles/theme';
+import { useTheme } from '@/hooks/useTheme';
 import type { Task } from '@/data/types';
 import { formatTime } from '@/services/taskService';
 
@@ -27,6 +28,7 @@ type ViewMode = 'list' | 'timeline';
 
 export default function ScheduleScreen() {
   const insets = useSafeAreaInsets();
+  const { theme } = useTheme();
   const { state, todayTasks, activeTask, addTask, updateTask, deleteTask, completeTask, skipTask, extendTaskTime, startFocusMode, refreshTasks } = useApp();
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [showAddModal, setShowAddModal] = useState(false);
@@ -76,18 +78,18 @@ export default function ScheduleScreen() {
   const totalCount = todayTasks.length;
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
         <View>
-          <Text style={styles.dateText}>{dayjs().format('dddd, MMMM D')}</Text>
-          <Text style={styles.subtitle}>
+          <Text style={[styles.dateText, { color: theme.text }]}>{dayjs().format('dddd, MMMM D')}</Text>
+          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
             {completedCount}/{totalCount} tasks done
           </Text>
         </View>
         <View style={styles.headerRight}>
           {/* View toggle */}
-          <View style={styles.viewToggle}>
+          <View style={[styles.viewToggle, { backgroundColor: theme.surface }]}>
             <TouchableOpacity
               style={[styles.toggleBtn, viewMode === 'list' && styles.toggleBtnActive]}
               onPress={() => setViewMode('list')}
@@ -165,9 +167,9 @@ export default function ScheduleScreen() {
         >
           {todayTasks.length === 0 && (
             <View style={styles.emptyState}>
-              <Ionicons name="calendar-outline" size={48} color={COLORS.border} />
-              <Text style={styles.emptyText}>No tasks scheduled for today</Text>
-              <Text style={styles.emptySubtext}>Tap + to add your first task</Text>
+              <Ionicons name="calendar-outline" size={48} color={theme.border} />
+              <Text style={[styles.emptyText, { color: theme.muted }]}>No tasks scheduled for today</Text>
+              <Text style={[styles.emptySubtext, { color: theme.border }]}>Tap + to add your first task</Text>
             </View>
           )}
 

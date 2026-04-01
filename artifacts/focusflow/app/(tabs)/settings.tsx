@@ -14,6 +14,7 @@ import { router } from 'expo-router';
 import dayjs from 'dayjs';
 import { useApp } from '@/context/AppContext';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
+import { useTheme } from '@/hooks/useTheme';
 import { cancelAllReminders, requestPermissions } from '@/services/notificationService';
 import { formatDuration } from '@/services/taskService';
 import { AllowedAppsModal } from '@/components/AllowedAppsModal';
@@ -26,14 +27,15 @@ export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { state, updateSettings, setStandaloneBlock, refreshTasks, deleteTask } = useApp();
   const { settings } = state;
+  const { theme } = useTheme();
   const [appsModalVisible, setAppsModalVisible] = useState(false);
   const [blockModalVisible, setBlockModalVisible] = useState(false);
 
   if (!state.isDbReady) {
     return (
-      <SafeAreaView style={styles.safe} edges={['top']}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Settings</Text>
+      <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
+        <View style={[styles.header, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
+          <Text style={[styles.title, { color: theme.text }]}>Settings</Text>
         </View>
         <View style={styles.loadingContainer}>
           <Text style={styles.loadingText}>Loading…</Text>
@@ -100,9 +102,9 @@ export default function SettingsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Settings</Text>
+    <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
+      <View style={[styles.header, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
+        <Text style={[styles.title, { color: theme.text }]}>Settings</Text>
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 80 }]}>
@@ -134,10 +136,10 @@ export default function SettingsScreen() {
               {DURATION_OPTIONS.map((d) => (
                 <TouchableOpacity
                   key={d}
-                  style={[styles.chip, d === settings.defaultDuration && styles.chipActive]}
+                  style={[styles.chip, { backgroundColor: theme.surface, borderColor: theme.border }, d === settings.defaultDuration && styles.chipActive]}
                   onPress={() => update({ defaultDuration: d })}
                 >
-                  <Text style={[styles.chipText, d === settings.defaultDuration && styles.chipTextActive]}>
+                  <Text style={[styles.chipText, { color: theme.text }, d === settings.defaultDuration && styles.chipTextActive]}>
                     {formatDuration(d)}
                   </Text>
                 </TouchableOpacity>
@@ -263,10 +265,11 @@ export default function SettingsScreen() {
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  const { theme } = useTheme();
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      <View style={styles.sectionCard}>{children}</View>
+      <Text style={[styles.sectionTitle, { color: theme.muted }]}>{title}</Text>
+      <View style={[styles.sectionCard, { backgroundColor: theme.card, borderColor: theme.border }]}>{children}</View>
     </View>
   );
 }
@@ -280,11 +283,12 @@ function SettingRow({
   description?: string;
   children?: React.ReactNode;
 }) {
+  const { theme } = useTheme();
   return (
-    <View style={styles.row}>
+    <View style={[styles.row, { borderBottomColor: theme.border }]}>
       <View style={styles.rowText}>
-        <Text style={styles.rowLabel}>{label}</Text>
-        {description && <Text style={styles.rowDesc}>{description}</Text>}
+        <Text style={[styles.rowLabel, { color: theme.text }]}>{label}</Text>
+        {description && <Text style={[styles.rowDesc, { color: theme.muted }]}>{description}</Text>}
       </View>
       {children}
     </View>
@@ -304,14 +308,15 @@ function SettingButton({
   danger?: boolean;
   onPress: () => void;
 }) {
+  const { theme } = useTheme();
   return (
-    <TouchableOpacity style={styles.settingButton} onPress={onPress}>
+    <TouchableOpacity style={[styles.settingButton, { borderBottomColor: theme.border }]} onPress={onPress}>
       <Ionicons name={icon} size={20} color={danger ? COLORS.red : COLORS.primary} />
       <View style={styles.rowText}>
-        <Text style={[styles.rowLabel, danger && { color: COLORS.red }]}>{label}</Text>
-        {description && <Text style={styles.rowDesc}>{description}</Text>}
+        <Text style={[styles.rowLabel, { color: theme.text }, danger && { color: COLORS.red }]}>{label}</Text>
+        {description && <Text style={[styles.rowDesc, { color: theme.muted }]}>{description}</Text>}
       </View>
-      <Ionicons name="chevron-forward" size={16} color={COLORS.border} />
+      <Ionicons name="chevron-forward" size={16} color={theme.border} />
     </TouchableOpacity>
   );
 }
