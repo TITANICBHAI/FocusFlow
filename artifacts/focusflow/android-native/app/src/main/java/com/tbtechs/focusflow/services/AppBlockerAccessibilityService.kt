@@ -384,15 +384,22 @@ class AppBlockerAccessibilityService : AccessibilityService() {
      * Returns true when the event represents Android's Accessibility Settings page.
      * Covers AOSP, Samsung One UI, MIUI, OPPO/ColorOS, and Vivo class name variants.
      *
-     * CARVE-OUT: The per-service detail/toggle page is allowed through if it is
-     * specifically for FocusFlow, so the user can always enable or re-enable our
-     * own accessibility service even during an active block session.
+     * Detection uses three layers in order:
+     *   1. FocusFlow carve-out — allow the per-service toggle page for our own service.
+     *   2. Class name matching — catches AOSP and OEM variants whose class name is reported.
+     *   3. Node-tree content scan — fallback for Samsung and other OEMs that send a generic
+     *      class name (e.g. SubSettings) but whose page content is identifiable:
+     *        • Main Accessibility page contains "talkback" in its service list.
+     *        • "Installed apps" sub-page (Samsung calls it this, not "Downloaded apps")
+     *          contains accessibility service names such as "live transcribe" or the
+     *          combination of "installed apps" + "focusflow".
      */
     private fun isAccessibilitySettingsPage(event: AccessibilityEvent): Boolean {
         val className = event.className?.toString()?.lowercase() ?: ""
 
-        // If this looks like a per-service detail page, check whether it is
-        // specifically the FocusFlow service page and allow it through if so.
+        // ── 1. FocusFlow carve-out ────────────────────────────────────────────
+        // If this is specifically the per-service detail/toggle page for FocusFlow,
+        // allow it through so the user can always enable or re-enable our service.
         if ("toggleaccessibilityservicepreferencefragment" in className ||
             "accessibilityservicesettings" in className) {
             val combined = buildString {
@@ -400,22 +407,25 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                 event.contentDescription?.let { append(it); append(' ') }
             }.lowercase()
             if ("focusflow" in combined || "com.tbtechs.focusflow" in combined) return false
-            val root = event.source
-            if (root != null) {
-                val nodeText = try {
-                    collectNodeText(root).lowercase()
+            val carveRoot = event.source
+            if (carveRoot != null) {
+                val carveNodeText = try {
+                    collectNodeText(carveRoot).lowercase()
                 } finally {
-                    root.recycle()
+                    carveRoot.recycle()
                 }
-                if ("focusflow" in nodeText || "com.tbtechs.focusflow" in nodeText) return false
+                if ("focusflow" in carveNodeText || "com.tbtechs.focusflow" in carveNodeText) return false
             }
         }
 
+        // ── 2. Class name detection ───────────────────────────────────────────
         val classKeywords = listOf(
             // AOSP / Pixel
             "accessibilitysettings",
             "accessibilityservicesettings",
             "toggleaccessibilityservicepreferencefragment",
+            "accessibilityinstalledapps",
+            "installedaccessibilityservice",
             // Samsung One UI
             "com.samsung.android.settings.accessibility",
             "samsungaccessibility",
@@ -430,10 +440,32 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         )
         if (classKeywords.any { it in className }) return true
 
+        // Event-text check: AOSP says "Downloaded apps", Samsung says "Installed apps"
         val eventText = buildString {
             event.text.forEach { append(it); append(' ') }
         }.lowercase()
-        return "downloaded apps" in eventText && "accessibility" in eventText
+        if (("downloaded apps" in eventText || "installed apps" in eventText) &&
+            "accessibility" in eventText) return true
+
+        // ── 3. Node-tree content scan (Samsung / generic-class fallback) ──────
+        // Samsung devices often fire a generic SubSettings class name. We identify
+        // the page by its actual on-screen content instead.
+        val root = event.source ?: return false
+        return try {
+            val nodeText = collectNodeText(root).lowercase()
+            // Main Accessibility page: TalkBack appears in the installed service list.
+            val isMainAccessibilityPage = "talkback" in nodeText
+            // "Installed apps" sub-page: Samsung's dedicated accessibility service list.
+            // Identified by its page title + the presence of known accessibility services.
+            val isInstalledAppsPage =
+                "installed apps" in nodeText &&
+                ("live transcribe" in nodeText ||
+                 "sound notification" in nodeText ||
+                 ("focusflow" in nodeText && "live transcribe" in nodeText))
+            isMainAccessibilityPage || isInstalledAppsPage
+        } finally {
+            root.recycle()
+        }
     }
 
     /**
