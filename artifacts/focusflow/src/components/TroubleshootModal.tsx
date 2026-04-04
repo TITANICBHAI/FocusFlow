@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
+import { useTheme } from '@/hooks/useTheme';
 
 type PermissionId = 'accessibility' | 'usage' | 'battery' | 'notifications' | 'device_admin';
 
@@ -201,6 +202,7 @@ interface Props {
 }
 
 export function TroubleshootModal({ visible, permissionId, onClose }: Props) {
+  const { theme } = useTheme();
   const [selectedBrand, setSelectedBrand] = useState('stock');
 
   const tips = TIPS[selectedBrand]?.[permissionId] ?? [
@@ -220,22 +222,22 @@ export function TroubleshootModal({ visible, permissionId, onClose }: Props) {
       statusBarTranslucent
     >
       <Pressable style={styles.overlay} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={() => {}}>
+        <Pressable style={[styles.sheet, { backgroundColor: theme.card }]} onPress={() => {}}>
           {/* Handle */}
-          <View style={styles.handle} />
+          <View style={[styles.handle, { backgroundColor: theme.border }]} />
 
           {/* Title */}
           <View style={styles.titleRow}>
             <View style={styles.titleIcon}>
               <Ionicons name={permInfo.icon} size={18} color={COLORS.primary} />
             </View>
-            <Text style={styles.title}>Troubleshoot: {permInfo.label}</Text>
+            <Text style={[styles.title, { color: theme.text }]}>Troubleshoot: {permInfo.label}</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <Ionicons name="close" size={20} color={COLORS.muted} />
+              <Ionicons name="close" size={20} color={theme.muted} />
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.subtitle}>
+          <Text style={[styles.subtitle, { color: theme.muted }]}>
             Select your phone brand for step-by-step instructions
           </Text>
 
@@ -249,13 +251,18 @@ export function TroubleshootModal({ visible, permissionId, onClose }: Props) {
             {BRANDS.map((b) => (
               <TouchableOpacity
                 key={b.id}
-                style={[styles.brandChip, selectedBrand === b.id && styles.brandChipActive]}
+                style={[
+                  styles.brandChip,
+                  { backgroundColor: theme.surface, borderColor: theme.border },
+                  selectedBrand === b.id && styles.brandChipActive,
+                ]}
                 onPress={() => setSelectedBrand(b.id)}
               >
                 <Text style={styles.brandIcon}>{b.icon}</Text>
                 <Text
                   style={[
                     styles.brandLabel,
+                    { color: theme.muted },
                     selectedBrand === b.id && styles.brandLabelActive,
                   ]}
                 >
@@ -276,7 +283,7 @@ export function TroubleshootModal({ visible, permissionId, onClose }: Props) {
                 <View style={styles.stepBadge}>
                   <Text style={styles.stepNum}>{i + 1}</Text>
                 </View>
-                <Text style={styles.tipText}>{tip}</Text>
+                <Text style={[styles.tipText, { color: theme.textSecondary }]}>{tip}</Text>
               </View>
             ))}
 

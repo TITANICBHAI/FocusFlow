@@ -27,6 +27,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import { useApp } from '@/context/AppContext';
+import { useTheme } from '@/hooks/useTheme';
 import { requestPermissions } from '@/services/notificationService';
 import { ForegroundServiceModule } from '@/native-modules/ForegroundServiceModule';
 import { UsageStatsModule } from '@/native-modules/UsageStatsModule';
@@ -137,6 +138,7 @@ async function checkStatus(id: string): Promise<PermStatus> {
 
 export default function OnboardingScreen() {
   const { state, updateSettings } = useApp();
+  const { theme } = useTheme();
   const [statuses, setStatuses] = useState<Record<string, PermStatus>>({});
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -204,7 +206,7 @@ export default function OnboardingScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
         {/* Header */}
@@ -212,8 +214,8 @@ export default function OnboardingScreen() {
           <View style={styles.logoCircle}>
             <Ionicons name="shield-checkmark" size={38} color="#fff" />
           </View>
-          <Text style={styles.appName}>FocusFlow</Text>
-          <Text style={styles.tagline}>Your discipline operating system</Text>
+          <Text style={[styles.appName, { color: theme.text }]}>FocusFlow</Text>
+          <Text style={[styles.tagline, { color: theme.muted }]}>Your discipline operating system</Text>
         </View>
 
         {/* Why banner */}
@@ -234,12 +236,12 @@ export default function OnboardingScreen() {
         {/* Progress bar */}
         <View style={styles.progressSection}>
           <View style={styles.progressLabelRow}>
-            <Text style={styles.progressLabel}>Permissions granted</Text>
+            <Text style={[styles.progressLabel, { color: theme.muted }]}>Permissions granted</Text>
             <Text style={[styles.progressCount, allGranted && styles.progressCountDone]}>
               {grantedCount} / {PERMISSIONS.length}
             </Text>
           </View>
-          <View style={styles.progressBar}>
+          <View style={[styles.progressBar, { backgroundColor: theme.border }]}>
             <View
               style={[
                 styles.progressFill,
@@ -258,7 +260,7 @@ export default function OnboardingScreen() {
         </View>
 
         {/* Section label */}
-        <Text style={styles.sectionLabel}>TAP A CARD TO SEE DETAILS</Text>
+        <Text style={[styles.sectionLabel, { color: theme.muted }]}>TAP A CARD TO SEE DETAILS</Text>
 
         {/* Permission cards */}
         {PERMISSIONS.map((perm) => {
@@ -269,7 +271,7 @@ export default function OnboardingScreen() {
           return (
             <View
               key={perm.id}
-              style={[styles.card, status === 'granted' && styles.cardGranted]}
+              style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }, status === 'granted' && styles.cardGranted]}
             >
               <TouchableOpacity
                 style={styles.cardMain}
@@ -282,10 +284,10 @@ export default function OnboardingScreen() {
 
                 <View style={styles.cardBody}>
                   <View style={styles.cardTitleRow}>
-                    <Text style={styles.cardTitle}>{perm.title}</Text>
+                    <Text style={[styles.cardTitle, { color: theme.text }]}>{perm.title}</Text>
                     <StatusBadge status={status} />
                   </View>
-                  <Text style={styles.cardDesc} numberOfLines={isExpanded ? undefined : 2}>
+                  <Text style={[styles.cardDesc, { color: theme.muted }]} numberOfLines={isExpanded ? undefined : 2}>
                     {perm.description}
                   </Text>
                 </View>
@@ -293,12 +295,12 @@ export default function OnboardingScreen() {
                 <Ionicons
                   name={isExpanded ? 'chevron-up' : 'chevron-down'}
                   size={16}
-                  color={COLORS.muted}
+                  color={theme.muted}
                 />
               </TouchableOpacity>
 
               {isExpanded && (
-                <View style={styles.expandedSection}>
+                <View style={[styles.expandedSection, { backgroundColor: theme.surface, borderTopColor: theme.border }]}>
                   {/* Why needed */}
                   <View style={styles.whyBox}>
                     <Ionicons name="bulb-outline" size={14} color={COLORS.orange} />
@@ -308,11 +310,11 @@ export default function OnboardingScreen() {
                   {/* What breaks without it */}
                   {status !== 'granted' && (
                     <View style={styles.brokenSection}>
-                      <Text style={styles.brokenTitle}>Without this permission:</Text>
+                      <Text style={[styles.brokenTitle, { color: theme.text }]}>Without this permission:</Text>
                       {perm.brokenWithout.map((item, i) => (
                         <View key={i} style={styles.brokenRow}>
                           <Ionicons name="close-circle" size={14} color={COLORS.red} />
-                          <Text style={styles.brokenText}>{item}</Text>
+                          <Text style={[styles.brokenText, { color: theme.textSecondary }]}>{item}</Text>
                         </View>
                       ))}
                     </View>
@@ -345,7 +347,7 @@ export default function OnboardingScreen() {
         {!allGranted && (
           <View style={styles.manageTip}>
             <Ionicons name="information-circle-outline" size={18} color={COLORS.primary} />
-            <Text style={styles.manageTipText}>
+            <Text style={[styles.manageTipText, { color: theme.textSecondary }]}>
               Missing permissions can be fixed anytime in{' '}
               <Text style={styles.manageTipHighlight}>Settings → Permissions</Text>
               {' '}where you'll also find troubleshooting help.
@@ -364,7 +366,7 @@ export default function OnboardingScreen() {
           </Text>
         </TouchableOpacity>
 
-        <Text style={styles.footerNote}>
+        <Text style={[styles.footerNote, { color: theme.muted }]}>
           All permissions can be managed in Settings at any time.
         </Text>
       </ScrollView>

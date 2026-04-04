@@ -18,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import dayjs from 'dayjs';
 import { createTask, parseQuickInput, formatDuration } from '@/services/taskService';
 import { COLORS, FONT, RADIUS, SPACING, TASK_COLORS } from '@/styles/theme';
+import { useTheme } from '@/hooks/useTheme';
 import type { Task, TaskPriority, AllowedAppPreset } from '@/data/types';
 import { AppPickerSheet } from './AppPickerSheet';
 import { useApp } from '@/context/AppContext';
@@ -43,6 +44,7 @@ function initialDate(hhmm?: string): Date {
 export default function QuickAddModal({ visible, onClose, onSave, initialStartTime }: Props) {
   const insets = useSafeAreaInsets();
   const { state, updateSettings } = useApp();
+  const { theme } = useTheme();
   const presets: AllowedAppPreset[] = state.settings.allowedAppPresets ?? [];
 
   const [quickText, setQuickText] = useState('');
@@ -151,13 +153,13 @@ export default function QuickAddModal({ visible, onClose, onSave, initialStartTi
           style={{ flex: 1 }}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
-          <View style={[styles.container, { paddingTop: insets.top }]}>
+          <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.background }]}>
             {/* Header */}
-            <View style={styles.header}>
+            <View style={[styles.header, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
               <TouchableOpacity onPress={handleClose}>
-                <Ionicons name="close" size={24} color={COLORS.muted} />
+                <Ionicons name="close" size={24} color={theme.muted} />
               </TouchableOpacity>
-              <Text style={styles.headerTitle}>New Task</Text>
+              <Text style={[styles.headerTitle, { color: theme.text }]}>New Task</Text>
               <TouchableOpacity onPress={handleSave} disabled={saving} style={styles.saveBtn}>
                 <Text style={styles.saveBtnText}>{saving ? 'Saving…' : 'Save'}</Text>
               </TouchableOpacity>
@@ -173,9 +175,9 @@ export default function QuickAddModal({ visible, onClose, onSave, initialStartTi
               {!isAdvanced && (
                 <View style={styles.quickRow}>
                   <TextInput
-                    style={styles.quickInput}
+                    style={[styles.quickInput, { backgroundColor: theme.card, color: theme.text, borderColor: theme.border }]}
                     placeholder='e.g. "Call Bob at 3pm for 30m"'
-                    placeholderTextColor={COLORS.muted}
+                    placeholderTextColor={theme.muted}
                     value={quickText}
                     onChangeText={setQuickText}
                     onSubmitEditing={handleQuickParse}
@@ -191,11 +193,11 @@ export default function QuickAddModal({ visible, onClose, onSave, initialStartTi
               {(isAdvanced || !quickText) && (
                 <>
                   {/* Title */}
-                  <Field label="Title">
+                  <Field label="Title" labelColor={theme.textSecondary}>
                     <TextInput
-                      style={styles.input}
+                      style={[styles.input, { backgroundColor: theme.card, color: theme.text, borderColor: theme.border }]}
                       placeholder="What do you need to do?"
-                      placeholderTextColor={COLORS.muted}
+                      placeholderTextColor={theme.muted}
                       value={title}
                       onChangeText={setTitle}
                       autoFocus={isAdvanced}
@@ -203,11 +205,11 @@ export default function QuickAddModal({ visible, onClose, onSave, initialStartTi
                   </Field>
 
                   {/* Description */}
-                  <Field label="Notes (optional)">
+                  <Field label="Notes (optional)" labelColor={theme.textSecondary}>
                     <TextInput
-                      style={[styles.input, styles.multiline]}
+                      style={[styles.input, styles.multiline, { backgroundColor: theme.card, color: theme.text, borderColor: theme.border }]}
                       placeholder="Add details…"
-                      placeholderTextColor={COLORS.muted}
+                      placeholderTextColor={theme.muted}
                       value={description}
                       onChangeText={setDescription}
                       multiline
@@ -216,14 +218,14 @@ export default function QuickAddModal({ visible, onClose, onSave, initialStartTi
                   </Field>
 
                   {/* Time */}
-                  <Field label="Start Time">
+                  <Field label="Start Time" labelColor={theme.textSecondary}>
                     <TouchableOpacity
-                      style={[styles.input, styles.timePickerRow]}
+                      style={[styles.input, styles.timePickerRow, { backgroundColor: theme.card, borderColor: theme.border }]}
                       onPress={() => setShowPicker(true)}
                       activeOpacity={0.7}
                     >
-                      <Ionicons name="time-outline" size={18} color={COLORS.muted} />
-                      <Text style={styles.timePickerText}>
+                      <Ionicons name="time-outline" size={18} color={theme.muted} />
+                      <Text style={[styles.timePickerText, { color: theme.text }]}>
                         {dayjs(startDate).format('h:mm A')}
                       </Text>
                     </TouchableOpacity>
@@ -242,24 +244,24 @@ export default function QuickAddModal({ visible, onClose, onSave, initialStartTi
                   </Field>
 
                   {/* Duration */}
-                  <Field label={`Duration: ${isCustomDuration ? (parseInt(customDurationText, 10) > 0 ? formatDuration(parseInt(customDurationText, 10)) : 'Custom') : formatDuration(duration)}`}>
+                  <Field label={`Duration: ${isCustomDuration ? (parseInt(customDurationText, 10) > 0 ? formatDuration(parseInt(customDurationText, 10)) : 'Custom') : formatDuration(duration)}`} labelColor={theme.textSecondary}>
                     <View style={styles.durationRow}>
                       {DURATION_OPTIONS.map((d) => (
                         <TouchableOpacity
                           key={d}
-                          style={[styles.chip, !isCustomDuration && d === duration && styles.chipSelected]}
+                          style={[styles.chip, { backgroundColor: theme.surface, borderColor: theme.border }, !isCustomDuration && d === duration && styles.chipSelected]}
                           onPress={() => { setDuration(d); setIsCustomDuration(false); setCustomDurationText(''); }}
                         >
-                          <Text style={[styles.chipText, !isCustomDuration && d === duration && styles.chipTextSelected]}>
+                          <Text style={[styles.chipText, { color: theme.text }, !isCustomDuration && d === duration && styles.chipTextSelected]}>
                             {formatDuration(d)}
                           </Text>
                         </TouchableOpacity>
                       ))}
                       <TouchableOpacity
-                        style={[styles.chip, isCustomDuration && styles.chipSelected]}
+                        style={[styles.chip, { backgroundColor: theme.surface, borderColor: theme.border }, isCustomDuration && styles.chipSelected]}
                         onPress={() => { setIsCustomDuration(true); setCustomDurationText(String(duration)); }}
                       >
-                        <Text style={[styles.chipText, isCustomDuration && styles.chipTextSelected]}>
+                        <Text style={[styles.chipText, { color: theme.text }, isCustomDuration && styles.chipTextSelected]}>
                           Custom
                         </Text>
                       </TouchableOpacity>
@@ -267,7 +269,7 @@ export default function QuickAddModal({ visible, onClose, onSave, initialStartTi
                     {isCustomDuration && (
                       <View style={styles.customDurationRow}>
                         <TextInput
-                          style={[styles.input, styles.customDurationInput]}
+                          style={[styles.input, styles.customDurationInput, { backgroundColor: theme.card, color: theme.text, borderColor: theme.border }]}
                           value={customDurationText}
                           onChangeText={(text) => {
                             setCustomDurationText(text);
@@ -276,24 +278,24 @@ export default function QuickAddModal({ visible, onClose, onSave, initialStartTi
                           }}
                           keyboardType="number-pad"
                           placeholder="Minutes"
-                          placeholderTextColor={COLORS.muted}
+                          placeholderTextColor={theme.muted}
                           autoFocus
                         />
-                        <Text style={styles.customDurationLabel}>minutes</Text>
+                        <Text style={[styles.customDurationLabel, { color: theme.textSecondary }]}>minutes</Text>
                       </View>
                     )}
                   </Field>
 
                   {/* Priority */}
-                  <Field label="Priority">
+                  <Field label="Priority" labelColor={theme.textSecondary}>
                     <View style={styles.row}>
                       {PRIORITY_OPTIONS.map((p) => (
                         <TouchableOpacity
                           key={p}
-                          style={[styles.chip, p === priority && styles.chipSelected]}
+                          style={[styles.chip, { backgroundColor: theme.surface, borderColor: theme.border }, p === priority && styles.chipSelected]}
                           onPress={() => setPriority(p)}
                         >
-                          <Text style={[styles.chipText, p === priority && styles.chipTextSelected]}>
+                          <Text style={[styles.chipText, { color: theme.text }, p === priority && styles.chipTextSelected]}>
                             {p}
                           </Text>
                         </TouchableOpacity>
@@ -302,12 +304,12 @@ export default function QuickAddModal({ visible, onClose, onSave, initialStartTi
                   </Field>
 
                   {/* Color */}
-                  <Field label="Color">
+                  <Field label="Color" labelColor={theme.textSecondary}>
                     <View style={styles.row}>
                       {TASK_COLORS.map((c) => (
                         <TouchableOpacity
                           key={c}
-                          style={[styles.colorDot, { backgroundColor: c }, c === color && styles.colorDotSelected]}
+                          style={[styles.colorDot, { backgroundColor: c }, c === color && styles.colorDotSelected, c === color && { borderColor: theme.text }]}
                           onPress={() => setColor(c)}
                         />
                       ))}
@@ -315,11 +317,11 @@ export default function QuickAddModal({ visible, onClose, onSave, initialStartTi
                   </Field>
 
                   {/* Tags */}
-                  <Field label="Tags (comma separated)">
+                  <Field label="Tags (comma separated)" labelColor={theme.textSecondary}>
                     <TextInput
-                      style={styles.input}
+                      style={[styles.input, { backgroundColor: theme.card, color: theme.text, borderColor: theme.border }]}
                       placeholder="work, focus, meeting"
-                      placeholderTextColor={COLORS.muted}
+                      placeholderTextColor={theme.muted}
                       value={tags}
                       onChangeText={setTags}
                       autoCapitalize="none"
@@ -327,23 +329,23 @@ export default function QuickAddModal({ visible, onClose, onSave, initialStartTi
                   </Field>
 
                   {/* Focus Mode toggle */}
-                  <View style={styles.switchRow}>
+                  <View style={[styles.switchRow, { backgroundColor: theme.card, borderColor: theme.border }]}>
                     <View>
-                      <Text style={styles.switchLabel}>Enable Focus Mode</Text>
-                      <Text style={styles.switchDesc}>Block distractions during this task</Text>
+                      <Text style={[styles.switchLabel, { color: theme.text }]}>Enable Focus Mode</Text>
+                      <Text style={[styles.switchDesc, { color: theme.muted }]}>Block distractions during this task</Text>
                     </View>
                     <Switch
                       value={focusMode}
                       onValueChange={setFocusMode}
-                      trackColor={{ false: COLORS.border, true: COLORS.primary + '88' }}
-                      thumbColor={focusMode ? COLORS.primary : COLORS.muted}
+                      trackColor={{ false: theme.border, true: COLORS.primary + '88' }}
+                      thumbColor={focusMode ? COLORS.primary : theme.muted}
                     />
                   </View>
 
                   {/* Allowed apps picker — shown only when focus mode is on */}
                   {focusMode && (
                     <TouchableOpacity
-                      style={styles.allowedAppsRow}
+                      style={[styles.allowedAppsRow, { backgroundColor: theme.card }]}
                       onPress={() => setShowAppPicker(true)}
                       activeOpacity={0.7}
                     >
@@ -351,10 +353,10 @@ export default function QuickAddModal({ visible, onClose, onSave, initialStartTi
                         <Ionicons name="shield-checkmark-outline" size={20} color={COLORS.primary} />
                       </View>
                       <View style={styles.allowedAppsInfo}>
-                        <Text style={styles.allowedAppsLabel}>Allowed Apps</Text>
+                        <Text style={[styles.allowedAppsLabel, { color: theme.text }]}>Allowed Apps</Text>
                         <Text style={styles.allowedAppsValue}>{allowedAppsLabel}</Text>
                       </View>
-                      <Ionicons name="chevron-forward" size={18} color={COLORS.muted} />
+                      <Ionicons name="chevron-forward" size={18} color={theme.muted} />
                     </TouchableOpacity>
                   )}
                 </>
@@ -379,10 +381,10 @@ export default function QuickAddModal({ visible, onClose, onSave, initialStartTi
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children, labelColor }: { label: string; children: React.ReactNode; labelColor?: string }) {
   return (
     <View style={styles.field}>
-      <Text style={styles.fieldLabel}>{label}</Text>
+      <Text style={[styles.fieldLabel, labelColor ? { color: labelColor } : undefined]}>{label}</Text>
       {children}
     </View>
   );

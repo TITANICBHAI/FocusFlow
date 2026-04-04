@@ -7,6 +7,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
+import { useTheme } from '@/hooks/useTheme';
 
 interface Props {
   visible: boolean;
@@ -18,6 +19,7 @@ interface Props {
 const OPTIONS = [10, 15, 20, 30, 45, 60];
 
 export default function ExtendModal({ visible, taskId, onClose, onExtend }: Props) {
+  const { theme } = useTheme();
   const [loading, setLoading] = useState(false);
 
   const handleExtend = async (mins: number) => {
@@ -32,9 +34,9 @@ export default function ExtendModal({ visible, taskId, onClose, onExtend }: Prop
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
-        <View style={styles.card}>
-          <Text style={styles.title}>Need more time?</Text>
-          <Text style={styles.subtitle}>
+        <View style={[styles.card, { backgroundColor: theme.card }]}>
+          <Text style={[styles.title, { color: theme.text }]}>Need more time?</Text>
+          <Text style={[styles.subtitle, { color: theme.muted }]}>
             Choose how much extra time to add.{'\n'}Subsequent tasks will shift forward.
           </Text>
 
@@ -52,7 +54,7 @@ export default function ExtendModal({ visible, taskId, onClose, onExtend }: Prop
           </View>
 
           <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
-            <Text style={styles.cancelText}>Cancel</Text>
+            <Text style={[styles.cancelText, { color: theme.muted }]}>Cancel</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -69,7 +71,6 @@ const styles = StyleSheet.create({
     padding: SPACING.lg,
   },
   card: {
-    backgroundColor: COLORS.card,
     borderRadius: RADIUS.xl,
     padding: SPACING.xl,
     width: '100%',
@@ -78,13 +79,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: FONT.xl,
     fontWeight: '700',
-    color: COLORS.text,
     textAlign: 'center',
     marginBottom: SPACING.xs,
   },
   subtitle: {
     fontSize: FONT.sm,
-    color: COLORS.muted,
     textAlign: 'center',
     marginBottom: SPACING.lg,
     lineHeight: 20,
@@ -114,7 +113,6 @@ const styles = StyleSheet.create({
   },
   cancelText: {
     fontSize: FONT.md,
-    color: COLORS.muted,
     fontWeight: '600',
   },
 });

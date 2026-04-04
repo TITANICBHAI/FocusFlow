@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import dayjs from 'dayjs';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
+import { useTheme } from '@/hooks/useTheme';
 import type { Task } from '@/data/types';
 import { formatTime } from '@/services/taskService';
 
@@ -33,6 +34,8 @@ export default function TaskDetailModal({
   onStartFocus,
   onEdit,
 }: Props) {
+  const { theme } = useTheme();
+
   const isActive =
     task.status !== 'completed' &&
     task.status !== 'skipped' &&
@@ -41,53 +44,53 @@ export default function TaskDetailModal({
 
   return (
     <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <SafeAreaView style={styles.safe}>
-        <View style={styles.header}>
+      <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]}>
+        <View style={[styles.header, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
           <View style={[styles.colorDot, { backgroundColor: task.color }]} />
-          <Text style={styles.title} numberOfLines={2}>{task.title}</Text>
+          <Text style={[styles.title, { color: theme.text }]} numberOfLines={2}>{task.title}</Text>
           <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-            <Ionicons name="close" size={24} color={COLORS.muted} />
+            <Ionicons name="close" size={24} color={theme.muted} />
           </TouchableOpacity>
         </View>
 
         <ScrollView style={styles.body}>
           {task.description && (
             <View style={styles.section}>
-              <Text style={styles.label}>Notes</Text>
-              <Text style={styles.desc}>{task.description}</Text>
+              <Text style={[styles.label, { color: theme.muted }]}>Notes</Text>
+              <Text style={[styles.desc, { color: theme.text }]}>{task.description}</Text>
             </View>
           )}
 
           <View style={styles.section}>
-            <Text style={styles.label}>Schedule</Text>
-            <Text style={styles.value}>{formatTime(task.startTime)} – {formatTime(task.endTime)}</Text>
-            <Text style={styles.subvalue}>{dayjs(task.startTime).format('dddd, MMMM D')}</Text>
+            <Text style={[styles.label, { color: theme.muted }]}>Schedule</Text>
+            <Text style={[styles.value, { color: theme.text }]}>{formatTime(task.startTime)} – {formatTime(task.endTime)}</Text>
+            <Text style={[styles.subvalue, { color: theme.muted }]}>{dayjs(task.startTime).format('dddd, MMMM D')}</Text>
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.label}>Priority</Text>
-            <Text style={[styles.value, { textTransform: 'capitalize' }]}>{task.priority}</Text>
+            <Text style={[styles.label, { color: theme.muted }]}>Priority</Text>
+            <Text style={[styles.value, { color: theme.text, textTransform: 'capitalize' }]}>{task.priority}</Text>
           </View>
 
           {task.tags.length > 0 && (
             <View style={styles.section}>
-              <Text style={styles.label}>Tags</Text>
-              <Text style={styles.value}>{task.tags.map((t) => `#${t}`).join(' ')}</Text>
+              <Text style={[styles.label, { color: theme.muted }]}>Tags</Text>
+              <Text style={[styles.value, { color: theme.text }]}>{task.tags.map((t) => `#${t}`).join(' ')}</Text>
             </View>
           )}
 
           <View style={styles.section}>
-            <Text style={styles.label}>Status</Text>
-            <Text style={[styles.value, { textTransform: 'capitalize' }]}>{task.status}</Text>
+            <Text style={[styles.label, { color: theme.muted }]}>Status</Text>
+            <Text style={[styles.value, { color: theme.text, textTransform: 'capitalize' }]}>{task.status}</Text>
           </View>
         </ScrollView>
 
-        <View style={styles.actions}>
+        <View style={[styles.actions, { backgroundColor: theme.card, borderTopColor: theme.border }]}>
           <ActionBtn label="Edit" icon="create-outline" color={COLORS.blue} onPress={() => onEdit(task)} />
           {task.status !== 'completed' && task.status !== 'skipped' && (
             <>
               <ActionBtn label="Complete" icon="checkmark-circle" color={COLORS.green} onPress={() => { onComplete(task.id); onClose(); }} />
-              <ActionBtn label="Skip" icon="close-circle" color={COLORS.muted} onPress={() => { onSkip(task.id); onClose(); }} />
+              <ActionBtn label="Skip" icon="close-circle" color={theme.muted} onPress={() => { onSkip(task.id); onClose(); }} />
               <ActionBtn label="Extend" icon="alarm-outline" color={COLORS.orange} onPress={() => onExtend(task.id)} />
               {task.focusMode && (
                 <ActionBtn label="Focus" icon="shield-checkmark" color={COLORS.primary} onPress={() => { onStartFocus(task.id); onClose(); }} />

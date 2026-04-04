@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import dayjs from 'dayjs';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
+import { useTheme } from '@/hooks/useTheme';
 import type { Task, TaskPriority, AllowedAppPreset } from '@/data/types';
 import { AppPickerSheet } from './AppPickerSheet';
 import { useApp } from '@/context/AppContext';
@@ -41,6 +42,7 @@ const COLORS_OPTIONS = [
 
 export default function EditTaskModal({ task, visible, onClose, onSave, onDelete }: Props) {
   const { state, updateSettings } = useApp();
+  const { theme } = useTheme();
   const presets: AllowedAppPreset[] = state.settings.allowedAppPresets ?? [];
 
   const [title, setTitle] = useState(task.title);
@@ -136,13 +138,13 @@ export default function EditTaskModal({ task, visible, onClose, onSave, onDelete
   return (
     <>
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <SafeAreaView style={styles.safe}>
+      <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]}>
         {/* Header */}
-        <View style={styles.header}>
+        <View style={[styles.header, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
           <TouchableOpacity onPress={onClose} style={styles.headerBtn}>
-            <Text style={styles.cancel}>Cancel</Text>
+            <Text style={[styles.cancel, { color: theme.muted }]}>Cancel</Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Edit Task</Text>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>Edit Task</Text>
           <TouchableOpacity onPress={handleSave} disabled={saving} style={styles.headerBtn}>
             <Text style={[styles.save, saving && { opacity: 0.5 }]}>
               {saving ? 'Saving…' : 'Save'}
@@ -154,13 +156,13 @@ export default function EditTaskModal({ task, visible, onClose, onSave, onDelete
 
           {/* Title */}
           <View style={styles.field}>
-            <Text style={styles.label}>Title</Text>
+            <Text style={[styles.label, { color: theme.muted }]}>Title</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
               value={title}
               onChangeText={setTitle}
               placeholder="Task title"
-              placeholderTextColor={COLORS.muted}
+              placeholderTextColor={theme.muted}
               returnKeyType="next"
               autoFocus
             />
@@ -168,13 +170,13 @@ export default function EditTaskModal({ task, visible, onClose, onSave, onDelete
 
           {/* Description */}
           <View style={styles.field}>
-            <Text style={styles.label}>Notes (optional)</Text>
+            <Text style={[styles.label, { color: theme.muted }]}>Notes (optional)</Text>
             <TextInput
-              style={[styles.input, styles.textArea]}
+              style={[styles.input, styles.textArea, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
               value={description}
               onChangeText={setDescription}
               placeholder="Add notes..."
-              placeholderTextColor={COLORS.muted}
+              placeholderTextColor={theme.muted}
               multiline
               numberOfLines={3}
             />
@@ -182,14 +184,14 @@ export default function EditTaskModal({ task, visible, onClose, onSave, onDelete
 
           {/* Start time */}
           <View style={styles.field}>
-            <Text style={styles.label}>Start Time</Text>
+            <Text style={[styles.label, { color: theme.muted }]}>Start Time</Text>
             <TouchableOpacity
-              style={[styles.input, styles.timePickerRow]}
+              style={[styles.input, styles.timePickerRow, { backgroundColor: theme.card, borderColor: theme.border }]}
               onPress={() => setShowPicker(true)}
               activeOpacity={0.7}
             >
-              <Ionicons name="time-outline" size={18} color={COLORS.muted} />
-              <Text style={styles.timePickerText}>
+              <Ionicons name="time-outline" size={18} color={theme.muted} />
+              <Text style={[styles.timePickerText, { color: theme.text }]}>
                 {dayjs(startDate).format('h:mm A')}
               </Text>
             </TouchableOpacity>
@@ -209,31 +211,32 @@ export default function EditTaskModal({ task, visible, onClose, onSave, onDelete
 
           {/* Duration */}
           <View style={styles.field}>
-            <Text style={styles.label}>Duration (minutes)</Text>
+            <Text style={[styles.label, { color: theme.muted }]}>Duration (minutes)</Text>
             <TextInput
-              style={[styles.input, { width: 120 }]}
+              style={[styles.input, { width: 120, backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
               value={durationStr}
               onChangeText={setDurationStr}
               keyboardType="number-pad"
               placeholder="60"
-              placeholderTextColor={COLORS.muted}
+              placeholderTextColor={theme.muted}
             />
           </View>
 
           {/* Priority */}
           <View style={styles.field}>
-            <Text style={styles.label}>Priority</Text>
+            <Text style={[styles.label, { color: theme.muted }]}>Priority</Text>
             <View style={styles.chipRow}>
               {PRIORITIES.map((p) => (
                 <TouchableOpacity
                   key={p}
                   style={[
                     styles.chip,
+                    { borderColor: theme.border },
                     priority === p && { backgroundColor: PRIORITY_COLORS[p], borderColor: PRIORITY_COLORS[p] },
                   ]}
                   onPress={() => setPriority(p)}
                 >
-                  <Text style={[styles.chipText, priority === p && { color: '#fff' }]}>
+                  <Text style={[styles.chipText, { color: theme.text }, priority === p && { color: '#fff' }]}>
                     {p.charAt(0).toUpperCase() + p.slice(1)}
                   </Text>
                 </TouchableOpacity>
@@ -243,19 +246,19 @@ export default function EditTaskModal({ task, visible, onClose, onSave, onDelete
 
           {/* Tags */}
           <View style={styles.field}>
-            <Text style={styles.label}>Tags (comma separated)</Text>
+            <Text style={[styles.label, { color: theme.muted }]}>Tags (comma separated)</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
               value={tags}
               onChangeText={setTags}
               placeholder="work, deep-focus, health"
-              placeholderTextColor={COLORS.muted}
+              placeholderTextColor={theme.muted}
             />
           </View>
 
           {/* Color */}
           <View style={styles.field}>
-            <Text style={styles.label}>Color</Text>
+            <Text style={[styles.label, { color: theme.muted }]}>Color</Text>
             <View style={styles.colorRow}>
               {COLORS_OPTIONS.map((c) => (
                 <TouchableOpacity
@@ -271,10 +274,10 @@ export default function EditTaskModal({ task, visible, onClose, onSave, onDelete
 
           {/* Focus mode toggle */}
           <View style={styles.field}>
-            <TouchableOpacity style={styles.toggleRow} onPress={() => setFocusMode((v) => !v)}>
+            <TouchableOpacity style={[styles.toggleRow, { backgroundColor: theme.card, borderColor: theme.border }]} onPress={() => setFocusMode((v) => !v)}>
               <View style={styles.toggleInfo}>
-                <Text style={styles.toggleTitle}>Focus Mode</Text>
-                <Text style={styles.toggleSub}>Block distracting apps during this task</Text>
+                <Text style={[styles.toggleTitle, { color: theme.text }]}>Focus Mode</Text>
+                <Text style={[styles.toggleSub, { color: theme.muted }]}>Block distracting apps during this task</Text>
               </View>
               <View style={[styles.toggle, focusMode && styles.toggleOn]}>
                 <View style={[styles.toggleThumb, focusMode && styles.toggleThumbOn]} />
@@ -284,7 +287,7 @@ export default function EditTaskModal({ task, visible, onClose, onSave, onDelete
             {/* Allowed apps picker — shown only when focus mode is on */}
             {focusMode && (
               <TouchableOpacity
-                style={styles.allowedAppsRow}
+                style={[styles.allowedAppsRow, { backgroundColor: theme.card }]}
                 onPress={() => setShowAppPicker(true)}
                 activeOpacity={0.7}
               >
@@ -292,10 +295,10 @@ export default function EditTaskModal({ task, visible, onClose, onSave, onDelete
                   <Ionicons name="shield-checkmark-outline" size={20} color={COLORS.primary} />
                 </View>
                 <View style={styles.allowedAppsInfo}>
-                  <Text style={styles.allowedAppsLabel}>Allowed Apps</Text>
+                  <Text style={[styles.allowedAppsLabel, { color: theme.text }]}>Allowed Apps</Text>
                   <Text style={styles.allowedAppsValue}>{allowedAppsLabel}</Text>
                 </View>
-                <Ionicons name="chevron-forward" size={18} color={COLORS.muted} />
+                <Ionicons name="chevron-forward" size={18} color={theme.muted} />
               </TouchableOpacity>
             )}
           </View>

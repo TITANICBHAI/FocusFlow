@@ -148,7 +148,37 @@ class ForegroundTaskService : Service() {
 
                     // Push widget update immediately — don't wait for the 30s tick
                     FocusFlowWidget.pushWidgetUpdate(applicationContext)
+                } else if (intent == null) {
+                    // Android OS restarted this service after it was killed (START_STICKY).
+                    // All member variables are reset — restore session state from SharedPreferences.
+                    val prefs        = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                    val focusActive  = prefs.getBoolean("focus_active", false)
+                    if (focusActive) {
+                        val restoredName  = prefs.getString("task_name", null)
+                        val restoredEndMs = prefs.getLong("task_end_ms", 0L)
+                        if (restoredName != null && restoredEndMs > System.currentTimeMillis()) {
+                            // Session still running — restore it fully
+                            taskId      = prefs.getString("task_id", "") ?: ""
+                            taskName    = restoredName
+                            endTimeMs   = restoredEndMs
+                            nextName    = prefs.getString("next_task_name", null)
+                            startTimeMs = prefs.getLong("task_start_ms", System.currentTimeMillis())
+                            isActiveMode = true
+
+                            val notification = buildActiveNotification(restoredEndMs - System.currentTimeMillis())
+                            startForeground(NOTIFICATION_ID, notification)
+                            handler.removeCallbacks(tickRunnable)
+                            handler.post(tickRunnable)
+                            FocusFlowWidget.pushWidgetUpdate(applicationContext)
+                        } else {
+                            // Session expired while the service was dead — clean up
+                            clearFocusActive()
+                            goIdle()
+                        }
+                    }
+                    // If focus_active == false, onCreate already started idle notification — nothing to do.
                 } else {
+                    // Intent with no task data — normal idle start from JS layer.
                     // Only go idle if we are not already running an active focus session.
                     // Without this guard, calling startIdleService() while focus is active
                     // (e.g. on app open) would destroy the active notification and block state.
