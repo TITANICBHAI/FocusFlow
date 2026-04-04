@@ -18,6 +18,8 @@ if (Platform.OS === 'android' && !SharedPrefs) {
   console.error('[SharedPrefsModule] NativeModules.SharedPrefs not found. Ensure an EAS build is used — Expo Go does not include custom native modules.');
 }
 
+export const isSharedPrefsAvailable = Platform.OS === 'android' && SharedPrefs != null;
+
 export const SharedPrefsModule = {
   async setFocusActive(active: boolean): Promise<void> {
     if (!SharedPrefs) return;

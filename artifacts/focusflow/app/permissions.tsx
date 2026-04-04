@@ -14,7 +14,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import * as Notifications from 'expo-notifications';
-import { UsageStatsModule } from '@/native-modules/UsageStatsModule';
+import { UsageStatsModule, isUsageStatsAvailable } from '@/native-modules/UsageStatsModule';
+import { isSharedPrefsAvailable } from '@/native-modules/SharedPrefsModule';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 import { TroubleshootModal } from '@/components/TroubleshootModal';
 import { useApp } from '@/context/AppContext';
@@ -190,6 +191,7 @@ export default function PermissionsScreen() {
   const { state } = useApp();
   const { theme } = useTheme();
   const isFocusing = state.focusSession !== null && state.focusSession.isActive;
+  const nativeModulesOk = Platform.OS !== 'android' || (isSharedPrefsAvailable && isUsageStatsAvailable);
   const [statuses, setStatuses] = useState<Record<string, PermStatus>>({});
   const [checking, setChecking] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -283,6 +285,22 @@ export default function PermissionsScreen() {
         </View>
       ) : (
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+
+        {/* Native modules health check — only visible when FocusDayPackage is missing */}
+        {!nativeModulesOk && (
+          <View style={styles.modulesErrorBanner}>
+            <Ionicons name="warning" size={22} color="#fff" />
+            <View style={styles.modulesErrorTextWrap}>
+              <Text style={styles.modulesErrorTitle}>Native modules not loaded</Text>
+              <Text style={styles.modulesErrorBody}>
+                Blocking is completely non-functional. This means either:{'\n'}
+                {'  '}• You are running in Expo Go (use an EAS build instead){'\n'}
+                {'  '}• The EAS build failed to register FocusDayPackage{'\n\n'}
+                Run: <Text style={styles.modulesErrorCode}>eas build --profile preview</Text>
+              </Text>
+            </View>
+          </View>
+        )}
 
         {/* Tutorial Banner */}
         <View style={[styles.tutorialBanner, { backgroundColor: theme.card, borderColor: theme.border }]}>
@@ -620,6 +638,20 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     marginTop: SPACING.sm,
   },
+
+  // Native modules error banner
+  modulesErrorBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: COLORS.red,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+    gap: SPACING.sm,
+  },
+  modulesErrorTextWrap: { flex: 1, gap: 4 },
+  modulesErrorTitle: { fontSize: FONT.md, fontWeight: '800', color: '#fff' },
+  modulesErrorBody: { fontSize: FONT.xs, color: 'rgba(255,255,255,0.9)', lineHeight: 18 },
+  modulesErrorCode: { fontFamily: 'monospace', fontWeight: '700', color: '#fff' },
 
   // Full-screen lock (replaces scroll content entirely during focus)
   lockedScreen: {

@@ -27,6 +27,8 @@ if (Platform.OS === 'android' && !UsageStats) {
   console.error('[UsageStatsModule] NativeModules.UsageStats not found. Ensure an EAS build is used — Expo Go does not include custom native modules.');
 }
 
+export const isUsageStatsAvailable = Platform.OS === 'android' && UsageStats != null;
+
 export const UsageStatsModule = {
   async getForegroundApp(): Promise<string | null> {
     if (!UsageStats) return null;
