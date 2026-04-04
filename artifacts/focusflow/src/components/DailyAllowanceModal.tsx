@@ -16,32 +16,55 @@ import { Ionicons } from '@expo/vector-icons';
 import { InstalledAppsModule, InstalledApp } from '@/native-modules/InstalledAppsModule';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 import { useTheme } from '@/hooks/useTheme';
+import type { DailyAllowanceEntry, AllowanceMode } from '@/data/types';
 
 interface Props {
   visible: boolean;
-  selectedPackages: string[];
-  onSave: (packages: string[]) => void | Promise<void>;
+  selectedEntries: DailyAllowanceEntry[];
+  onSave: (entries: DailyAllowanceEntry[]) => void | Promise<void>;
   onClose: () => void;
+}
+
+const MODE_LABELS: Record<AllowanceMode, string> = {
+  count: 'Count',
+  time_budget: 'Time Budget',
+  interval: 'Interval',
+};
+
+const MODE_ICONS: Record<AllowanceMode, React.ComponentProps<typeof Ionicons>['name']> = {
+  count: 'finger-print-outline',
+  time_budget: 'hourglass-outline',
+  interval: 'timer-outline',
+};
+
+const ALL_MODES: AllowanceMode[] = ['count', 'time_budget', 'interval'];
+
+function makeDefaultEntry(pkg: string): DailyAllowanceEntry {
+  return { packageName: pkg, mode: 'count', countPerDay: 1, budgetMinutes: 30, intervalMinutes: 5, intervalHours: 1 };
 }
 
 /**
  * DailyAllowanceModal
  *
- * A searchable list of all installed apps where the user can toggle which apps
- * get a once-per-day bypass during blocking. Each app has its own independent
- * toggle — selecting one app never affects another.
+ * Full per-app daily allowance configuration. Each selected app can have its own
+ * mode: Count (N opens/day), Time Budget (N total minutes/day), or Interval
+ * (N minutes every Y hours). Selecting an app shows its configuration inline.
  */
-export function DailyAllowanceModal({ visible, selectedPackages, onSave, onClose }: Props) {
+export function DailyAllowanceModal({ visible, selectedEntries, onSave, onClose }: Props) {
   const { theme } = useTheme();
   const [apps, setApps] = useState<InstalledApp[]>([]);
-  const [selected, setSelected] = useState<Set<string>>(new Set(selectedPackages));
+  const [entriesMap, setEntriesMap] = useState<Map<string, DailyAllowanceEntry>>(new Map());
+  const [expandedPkg, setExpandedPkg] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!visible) return;
-    setSelected(new Set(selectedPackages));
+    const map = new Map<string, DailyAllowanceEntry>();
+    for (const e of selectedEntries) map.set(e.packageName, { ...e });
+    setEntriesMap(map);
+    setExpandedPkg(null);
     setSearch('');
     if (apps.length === 0) {
       setLoading(true);
@@ -61,13 +84,24 @@ export function DailyAllowanceModal({ visible, selectedPackages, onSave, onClose
   }, [apps, search]);
 
   const toggle = useCallback((pkg: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
+    setEntriesMap((prev) => {
+      const next = new Map(prev);
       if (next.has(pkg)) {
         next.delete(pkg);
+        setExpandedPkg((ep) => (ep === pkg ? null : ep));
       } else {
-        next.add(pkg);
+        next.set(pkg, makeDefaultEntry(pkg));
+        setExpandedPkg(pkg);
       }
+      return next;
+    });
+  }, []);
+
+  const updateEntry = useCallback((pkg: string, patch: Partial<DailyAllowanceEntry>) => {
+    setEntriesMap((prev) => {
+      const next = new Map(prev);
+      const existing = next.get(pkg) ?? makeDefaultEntry(pkg);
+      next.set(pkg, { ...existing, ...patch });
       return next;
     });
   }, []);
@@ -75,7 +109,7 @@ export function DailyAllowanceModal({ visible, selectedPackages, onSave, onClose
   const handleSave = async () => {
     setSaving(true);
     try {
-      await onSave(Array.from(selected));
+      await onSave(Array.from(entriesMap.values()));
       onClose();
     } catch (e) {
       console.error('[DailyAllowanceModal] save failed', e);
@@ -84,40 +118,187 @@ export function DailyAllowanceModal({ visible, selectedPackages, onSave, onClose
     }
   };
 
-  const renderItem = ({ item }: { item: InstalledApp }) => {
-    const active = selected.has(item.packageName);
+  const renderModeConfig = (entry: DailyAllowanceEntry) => {
+    const pkg = entry.packageName;
     return (
-      <TouchableOpacity
-        style={[styles.row, { backgroundColor: theme.card }, active && styles.rowActive]}
-        onPress={() => toggle(item.packageName)}
-        activeOpacity={0.7}
-      >
-        {item.iconBase64 ? (
-          <Image source={{ uri: `data:image/png;base64,${item.iconBase64}` }} style={styles.icon} />
-        ) : (
-          <View style={styles.iconPlaceholder}>
-            <Ionicons name="apps-outline" size={22} color={COLORS.muted} />
+      <View style={[styles.configPanel, { backgroundColor: theme.surface, borderTopColor: theme.border }]}>
+        {/* Mode picker */}
+        <Text style={[styles.configLabel, { color: theme.muted }]}>ALLOWANCE MODE</Text>
+        <View style={styles.modeRow}>
+          {ALL_MODES.map((m) => (
+            <TouchableOpacity
+              key={m}
+              style={[styles.modeBtn, { borderColor: theme.border }, entry.mode === m && styles.modeBtnActive]}
+              onPress={() => updateEntry(pkg, { mode: m })}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name={MODE_ICONS[m]}
+                size={14}
+                color={entry.mode === m ? COLORS.orange : COLORS.muted}
+              />
+              <Text style={[styles.modeBtnText, entry.mode === m && styles.modeBtnTextActive]}>
+                {MODE_LABELS[m]}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Mode-specific config */}
+        {entry.mode === 'count' && (
+          <View style={styles.configRow}>
+            <Text style={[styles.configFieldLabel, { color: theme.textSecondary }]}>Opens per day</Text>
+            <View style={styles.stepper}>
+              <TouchableOpacity
+                style={[styles.stepBtn, { backgroundColor: theme.card }]}
+                onPress={() => updateEntry(pkg, { countPerDay: Math.max(1, (entry.countPerDay ?? 1) - 1) })}
+              >
+                <Ionicons name="remove" size={16} color={COLORS.text} />
+              </TouchableOpacity>
+              <Text style={[styles.stepValue, { color: theme.text }]}>{entry.countPerDay ?? 1}</Text>
+              <TouchableOpacity
+                style={[styles.stepBtn, { backgroundColor: theme.card }]}
+                onPress={() => updateEntry(pkg, { countPerDay: Math.min(20, (entry.countPerDay ?? 1) + 1) })}
+              >
+                <Ionicons name="add" size={16} color={COLORS.text} />
+              </TouchableOpacity>
+            </View>
           </View>
         )}
-        <View style={styles.appInfo}>
-          <Text style={[styles.appName, { color: theme.text }]} numberOfLines={1}>
-            {item.appName}
-          </Text>
-          <Text style={[styles.packageName, { color: theme.muted }]} numberOfLines={1}>
-            {item.packageName}
-          </Text>
-          {active && (
-            <Text style={styles.activeLabel}>Allowed once per day</Text>
+
+        {entry.mode === 'time_budget' && (
+          <View style={styles.configRow}>
+            <Text style={[styles.configFieldLabel, { color: theme.textSecondary }]}>Total minutes per day</Text>
+            <View style={styles.stepper}>
+              <TouchableOpacity
+                style={[styles.stepBtn, { backgroundColor: theme.card }]}
+                onPress={() => updateEntry(pkg, { budgetMinutes: Math.max(1, (entry.budgetMinutes ?? 30) - 5) })}
+              >
+                <Ionicons name="remove" size={16} color={COLORS.text} />
+              </TouchableOpacity>
+              <Text style={[styles.stepValue, { color: theme.text }]}>{entry.budgetMinutes ?? 30} min</Text>
+              <TouchableOpacity
+                style={[styles.stepBtn, { backgroundColor: theme.card }]}
+                onPress={() => updateEntry(pkg, { budgetMinutes: Math.min(480, (entry.budgetMinutes ?? 30) + 5) })}
+              >
+                <Ionicons name="add" size={16} color={COLORS.text} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {entry.mode === 'interval' && (
+          <>
+            <View style={styles.configRow}>
+              <Text style={[styles.configFieldLabel, { color: theme.textSecondary }]}>Minutes allowed per window</Text>
+              <View style={styles.stepper}>
+                <TouchableOpacity
+                  style={[styles.stepBtn, { backgroundColor: theme.card }]}
+                  onPress={() => updateEntry(pkg, { intervalMinutes: Math.max(1, (entry.intervalMinutes ?? 5) - 1) })}
+                >
+                  <Ionicons name="remove" size={16} color={COLORS.text} />
+                </TouchableOpacity>
+                <Text style={[styles.stepValue, { color: theme.text }]}>{entry.intervalMinutes ?? 5} min</Text>
+                <TouchableOpacity
+                  style={[styles.stepBtn, { backgroundColor: theme.card }]}
+                  onPress={() => updateEntry(pkg, { intervalMinutes: Math.min(120, (entry.intervalMinutes ?? 5) + 1) })}
+                >
+                  <Ionicons name="add" size={16} color={COLORS.text} />
+                </TouchableOpacity>
+              </View>
+            </View>
+            <View style={styles.configRow}>
+              <Text style={[styles.configFieldLabel, { color: theme.textSecondary }]}>Window size (hours)</Text>
+              <View style={styles.stepper}>
+                <TouchableOpacity
+                  style={[styles.stepBtn, { backgroundColor: theme.card }]}
+                  onPress={() => updateEntry(pkg, { intervalHours: Math.max(1, (entry.intervalHours ?? 1) - 1) })}
+                >
+                  <Ionicons name="remove" size={16} color={COLORS.text} />
+                </TouchableOpacity>
+                <Text style={[styles.stepValue, { color: theme.text }]}>{entry.intervalHours ?? 1} hr</Text>
+                <TouchableOpacity
+                  style={[styles.stepBtn, { backgroundColor: theme.card }]}
+                  onPress={() => updateEntry(pkg, { intervalHours: Math.min(24, (entry.intervalHours ?? 1) + 1) })}
+                >
+                  <Ionicons name="add" size={16} color={COLORS.text} />
+                </TouchableOpacity>
+              </View>
+            </View>
+            <Text style={[styles.intervalSummary, { color: theme.muted }]}>
+              App is allowed for {entry.intervalMinutes ?? 5} min every {entry.intervalHours ?? 1} hour{(entry.intervalHours ?? 1) !== 1 ? 's' : ''}.
+            </Text>
+          </>
+        )}
+      </View>
+    );
+  };
+
+  const renderItem = ({ item }: { item: InstalledApp }) => {
+    const active = entriesMap.has(item.packageName);
+    const entry = entriesMap.get(item.packageName);
+    const isExpanded = expandedPkg === item.packageName;
+
+    return (
+      <View>
+        <TouchableOpacity
+          style={[styles.row, { backgroundColor: theme.card }, active && styles.rowActive]}
+          onPress={() => {
+            if (!active) {
+              toggle(item.packageName);
+            } else {
+              setExpandedPkg((ep) => ep === item.packageName ? null : item.packageName);
+            }
+          }}
+          onLongPress={() => toggle(item.packageName)}
+          activeOpacity={0.7}
+        >
+          {item.iconBase64 ? (
+            <Image source={{ uri: `data:image/png;base64,${item.iconBase64}` }} style={styles.icon} />
+          ) : (
+            <View style={styles.iconPlaceholder}>
+              <Ionicons name="apps-outline" size={22} color={COLORS.muted} />
+            </View>
           )}
-        </View>
-        <View style={[styles.toggleBox, active && styles.toggleBoxActive]}>
-          <Ionicons
-            name={active ? 'sunny' : 'sunny-outline'}
-            size={16}
-            color={active ? COLORS.orange : COLORS.muted}
-          />
-        </View>
-      </TouchableOpacity>
+          <View style={styles.appInfo}>
+            <Text style={[styles.appName, { color: theme.text }]} numberOfLines={1}>
+              {item.appName}
+            </Text>
+            <Text style={[styles.packageName, { color: theme.muted }]} numberOfLines={1}>
+              {item.packageName}
+            </Text>
+            {active && entry && (
+              <Text style={styles.activeLabel}>
+                {entry.mode === 'count' && `${entry.countPerDay ?? 1} open${(entry.countPerDay ?? 1) !== 1 ? 's' : ''}/day`}
+                {entry.mode === 'time_budget' && `${entry.budgetMinutes ?? 30} min/day`}
+                {entry.mode === 'interval' && `${entry.intervalMinutes ?? 5} min every ${entry.intervalHours ?? 1}hr`}
+              </Text>
+            )}
+          </View>
+          <View style={styles.rightActions}>
+            {active && (
+              <Ionicons
+                name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                size={14}
+                color={COLORS.muted}
+                style={{ marginRight: SPACING.xs }}
+              />
+            )}
+            <TouchableOpacity
+              style={[styles.toggleBox, active && styles.toggleBoxActive]}
+              onPress={() => toggle(item.packageName)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons
+                name={active ? 'sunny' : 'sunny-outline'}
+                size={16}
+                color={active ? COLORS.orange : COLORS.muted}
+              />
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+        {active && entry && isExpanded && renderModeConfig(entry)}
+      </View>
     );
   };
 
@@ -143,7 +324,8 @@ export function DailyAllowanceModal({ visible, selectedPackages, onSave, onClose
         <View style={[styles.infoBanner, { backgroundColor: COLORS.orange + '15', borderBottomColor: COLORS.orange + '33' }]}>
           <Ionicons name="information-circle-outline" size={14} color={COLORS.orange} />
           <Text style={styles.infoText}>
-            Each toggled app is allowed to open <Text style={{ fontWeight: '800' }}>once per day</Text> before blocking resumes. Resets at midnight. Each app has its own independent counter.
+            Tap an app to enable its allowance. Tap again to expand its mode settings.{' '}
+            <Text style={{ fontWeight: '800' }}>Long-press to remove.</Text>
           </Text>
         </View>
 
@@ -155,7 +337,6 @@ export function DailyAllowanceModal({ visible, selectedPackages, onSave, onClose
           keyboardShouldPersistTaps="handled"
           ListHeaderComponent={
             <>
-              {/* Search */}
               <View style={[styles.searchBox, { backgroundColor: theme.card, borderColor: theme.border }]}>
                 <Ionicons name="search" size={16} color={COLORS.muted} />
                 <TextInput
@@ -169,10 +350,9 @@ export function DailyAllowanceModal({ visible, selectedPackages, onSave, onClose
                 />
               </View>
 
-              {/* Count badge */}
               <Text style={[styles.countLabel, { color: theme.textSecondary }]}>
-                {selected.size > 0
-                  ? `${selected.size} app${selected.size !== 1 ? 's' : ''} with once-per-day allowance`
+                {entriesMap.size > 0
+                  ? `${entriesMap.size} app${entriesMap.size !== 1 ? 's' : ''} with daily allowance`
                   : 'No apps have a daily allowance — tap to add one'}
               </Text>
 
@@ -197,11 +377,8 @@ export function DailyAllowanceModal({ visible, selectedPackages, onSave, onClose
             ) : null
           }
           ListFooterComponent={
-            selected.size > 0 ? (
-              <TouchableOpacity
-                style={styles.clearBtn}
-                onPress={() => setSelected(new Set())}
-              >
+            entriesMap.size > 0 ? (
+              <TouchableOpacity style={styles.clearBtn} onPress={() => { setEntriesMap(new Map()); setExpandedPkg(null); }}>
                 <Ionicons name="close-circle-outline" size={16} color={COLORS.muted} />
                 <Text style={styles.clearText}>Clear All Daily Allowances</Text>
               </TouchableOpacity>
@@ -309,6 +486,10 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
 
+  rightActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   toggleBox: {
     width: 32,
     height: 32,
@@ -319,6 +500,81 @@ const styles = StyleSheet.create({
   },
   toggleBoxActive: {
     backgroundColor: COLORS.orange + '20',
+  },
+
+  // Config panel (expanded per-app settings)
+  configPanel: {
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    gap: SPACING.sm,
+  },
+  configLabel: {
+    fontSize: FONT.xs,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+  },
+  modeRow: {
+    flexDirection: 'row',
+    gap: SPACING.xs,
+  },
+  modeBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingVertical: SPACING.xs + 2,
+    borderRadius: RADIUS.md,
+    borderWidth: 1.5,
+  },
+  modeBtnActive: {
+    borderColor: COLORS.orange,
+    backgroundColor: COLORS.orange + '15',
+  },
+  modeBtnText: {
+    fontSize: FONT.xs,
+    fontWeight: '600',
+    color: COLORS.muted,
+  },
+  modeBtnTextActive: {
+    color: COLORS.orange,
+  },
+
+  configRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: SPACING.sm,
+  },
+  configFieldLabel: {
+    flex: 1,
+    fontSize: FONT.xs,
+    lineHeight: 16,
+  },
+  stepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+  },
+  stepBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: RADIUS.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepValue: {
+    minWidth: 52,
+    textAlign: 'center',
+    fontSize: FONT.sm,
+    fontWeight: '700',
+  },
+  intervalSummary: {
+    fontSize: FONT.xs,
+    fontStyle: 'italic',
+    marginTop: 2,
   },
 
   sep: { height: StyleSheet.hairlineWidth, marginLeft: 56 + SPACING.md },

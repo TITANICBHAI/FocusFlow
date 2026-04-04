@@ -1,5 +1,5 @@
 import * as SQLite from 'expo-sqlite';
-import type { Task, AppSettings, FocusSession } from './types';
+import type { Task, AppSettings, FocusSession, DailyAllowanceEntry } from './types';
 
 let db: SQLite.SQLiteDatabase | null = null;
 
@@ -186,8 +186,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   notificationsEnabled: true,
   standaloneBlockPackages: [],
   standaloneBlockUntil: null,
-  dailyAllowancePackages: [],
+  dailyAllowanceEntries: [],
   onboardingComplete: false,
+  blockedWords: [],
 };
 
 export async function dbGetSettings(): Promise<AppSettings> {
@@ -197,7 +198,20 @@ export async function dbGetSettings(): Promise<AppSettings> {
   );
   if (!row) return DEFAULT_SETTINGS;
   try {
-    return { ...DEFAULT_SETTINGS, ...(JSON.parse(row.value) as Partial<AppSettings>) };
+    const parsed = JSON.parse(row.value) as Partial<AppSettings> & { dailyAllowancePackages?: string[] };
+    // Migrate old dailyAllowancePackages: string[] → dailyAllowanceEntries: DailyAllowanceEntry[]
+    if (parsed.dailyAllowancePackages && !parsed.dailyAllowanceEntries) {
+      parsed.dailyAllowanceEntries = parsed.dailyAllowancePackages.map((pkg): DailyAllowanceEntry => ({
+        packageName: pkg,
+        mode: 'count',
+        countPerDay: 1,
+        budgetMinutes: 30,
+        intervalMinutes: 5,
+        intervalHours: 1,
+      }));
+      delete parsed.dailyAllowancePackages;
+    }
+    return { ...DEFAULT_SETTINGS, ...parsed };
   } catch {
     return DEFAULT_SETTINGS;
   }

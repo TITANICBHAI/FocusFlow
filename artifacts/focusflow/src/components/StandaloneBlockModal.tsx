@@ -19,15 +19,16 @@ import dayjs from 'dayjs';
 import { InstalledAppsModule, InstalledApp } from '@/native-modules/InstalledAppsModule';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 import { useTheme } from '@/hooks/useTheme';
+import type { DailyAllowanceEntry } from '@/data/types';
 
 interface Props {
   visible: boolean;
   blockedPackages: string[];
   blockUntil: string | null;
   locked?: boolean;
-  dailyAllowancePackages?: string[];
+  dailyAllowanceEntries?: DailyAllowanceEntry[];
   onSave: (packages: string[], untilMs: number | null) => void | Promise<void>;
-  onSaveDailyAllowance?: (packages: string[]) => void | Promise<void>;
+  onSaveDailyAllowance?: (entries: DailyAllowanceEntry[]) => void | Promise<void>;
   onClose: () => void;
 }
 
@@ -46,7 +47,7 @@ export function StandaloneBlockModal({
   blockedPackages,
   blockUntil,
   locked = false,
-  dailyAllowancePackages = [],
+  dailyAllowanceEntries = [],
   onSave,
   onSaveDailyAllowance,
   onClose,
@@ -54,7 +55,11 @@ export function StandaloneBlockModal({
   const { theme } = useTheme();
   const [apps, setApps] = useState<InstalledApp[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set(blockedPackages));
-  const [dailyAllowed, setDailyAllowed] = useState<Set<string>>(new Set(dailyAllowancePackages));
+  // Derive allowed-package set from entries (for display) and keep the full entries map for saving
+  const [dailyEntriesMap, setDailyEntriesMap] = useState<Map<string, DailyAllowanceEntry>>(
+    new Map(dailyAllowanceEntries.map((e) => [e.packageName, e]))
+  );
+  const dailyAllowed = useMemo(() => new Set(dailyEntriesMap.keys()), [dailyEntriesMap]);
   const [search, setSearch] = useState('');
   const [loadingApps, setLoadingApps] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -69,7 +74,7 @@ export function StandaloneBlockModal({
   useEffect(() => {
     if (!visible) return;
     setSelected(new Set(blockedPackages));
-    setDailyAllowed(new Set(dailyAllowancePackages));
+    setDailyEntriesMap(new Map(dailyAllowanceEntries.map((e) => [e.packageName, e])));
     setSearch('');
     setManualInput('');
     setUntilDate(blockUntil ? new Date(blockUntil) : dayjs().add(1, 'day').toDate());
@@ -132,12 +137,19 @@ export function StandaloneBlockModal({
   };
 
   const toggleDailyAllowed = (packageName: string) => {
-    setDailyAllowed((prev) => {
-      const next = new Set(prev);
+    setDailyEntriesMap((prev) => {
+      const next = new Map(prev);
       if (next.has(packageName)) {
         next.delete(packageName);
       } else {
-        next.add(packageName);
+        next.set(packageName, {
+          packageName,
+          mode: 'count',
+          countPerDay: 1,
+          budgetMinutes: 30,
+          intervalMinutes: 5,
+          intervalHours: 1,
+        });
       }
       return next;
     });
@@ -174,7 +186,7 @@ export function StandaloneBlockModal({
     try {
       await onSave(Array.from(selected), untilDate.getTime());
       if (onSaveDailyAllowance) {
-        await onSaveDailyAllowance(Array.from(dailyAllowed));
+        await onSaveDailyAllowance(Array.from(dailyEntriesMap.values()));
       }
       onClose();
     } catch (e) {
@@ -266,7 +278,7 @@ export function StandaloneBlockModal({
             color={isDaily ? COLORS.orange : COLORS.muted}
           />
           <Text style={[styles.dailyText, isDaily && styles.dailyTextActive]}>
-            {isDaily ? 'Allowed once today' : 'Once per day allowance'}
+            {isDaily ? 'Daily allowance active' : 'Add daily allowance'}
           </Text>
         </TouchableOpacity>
       </View>
@@ -297,7 +309,7 @@ export function StandaloneBlockModal({
         >
           <Ionicons name={isDaily ? 'sunny' : 'sunny-outline'} size={13} color={isDaily ? COLORS.orange : COLORS.muted} />
           <Text style={[styles.dailyText, isDaily && styles.dailyTextActive]}>
-            {isDaily ? 'Allowed once today' : 'Once per day allowance'}
+            {isDaily ? 'Daily allowance active' : 'Add daily allowance'}
           </Text>
         </TouchableOpacity>
       </View>

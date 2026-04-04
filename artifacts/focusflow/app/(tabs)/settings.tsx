@@ -27,7 +27,7 @@ const DURATION_OPTIONS = [30, 45, 60, 90, 120];
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
-  const { state, updateSettings, setStandaloneBlock, setDailyAllowancePackages, setBlockedWords, refreshTasks, deleteTask } = useApp();
+  const { state, updateSettings, setStandaloneBlock, setDailyAllowanceEntries, setBlockedWords, refreshTasks, deleteTask } = useApp();
   const { settings } = state;
   const { theme } = useTheme();
   const [appsModalVisible, setAppsModalVisible] = useState(false);
@@ -193,9 +193,9 @@ export default function SettingsScreen() {
             icon="sunny-outline"
             label="Manage Daily Allowance Apps"
             description={
-              (settings.dailyAllowancePackages ?? []).length === 0
-                ? 'No apps configured — each app can get its own once-per-day bypass'
-                : `${(settings.dailyAllowancePackages ?? []).length} app${(settings.dailyAllowancePackages ?? []).length !== 1 ? 's' : ''} allowed once per day — each resets at midnight`
+              (settings.dailyAllowanceEntries ?? []).length === 0
+                ? 'No apps configured — set count, time budget, or interval per app'
+                : `${(settings.dailyAllowanceEntries ?? []).length} app${(settings.dailyAllowanceEntries ?? []).length !== 1 ? 's' : ''} with daily allowance — tap to configure modes`
             }
             onPress={() => setDailyModalVisible(true)}
           />
@@ -336,16 +336,16 @@ export default function SettingsScreen() {
         blockedPackages={settings.standaloneBlockPackages ?? []}
         blockUntil={settings.standaloneBlockUntil}
         locked={standaloneActive}
-        dailyAllowancePackages={settings.dailyAllowancePackages ?? []}
+        dailyAllowanceEntries={settings.dailyAllowanceEntries ?? []}
         onSave={handleSaveStandaloneBlock}
-        onSaveDailyAllowance={async (packages) => { await setDailyAllowancePackages(packages); }}
+        onSaveDailyAllowance={async (entries) => { await setDailyAllowanceEntries(entries); }}
         onClose={() => setBlockModalVisible(false)}
       />
 
       <DailyAllowanceModal
         visible={dailyModalVisible}
-        selectedPackages={settings.dailyAllowancePackages ?? []}
-        onSave={async (packages) => { await setDailyAllowancePackages(packages); }}
+        selectedEntries={settings.dailyAllowanceEntries ?? []}
+        onSave={async (entries) => { await setDailyAllowanceEntries(entries); }}
         onClose={() => setDailyModalVisible(false)}
       />
     </SafeAreaView>

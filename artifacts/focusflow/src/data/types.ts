@@ -2,6 +2,17 @@ export type TaskStatus = 'scheduled' | 'active' | 'completed' | 'skipped' | 'ove
 export type TaskPriority = 'low' | 'medium' | 'high' | 'critical';
 export type ReminderType = 'pre-start' | 'at-start' | 'post-start';
 
+export type AllowanceMode = 'count' | 'time_budget' | 'interval';
+
+export interface DailyAllowanceEntry {
+  packageName: string;
+  mode: AllowanceMode;
+  countPerDay: number;       // count mode: max opens per day (min 1, default 1)
+  budgetMinutes: number;     // time_budget mode: total minutes per day (default 30)
+  intervalMinutes: number;   // interval mode: minutes allowed per window (default 5)
+  intervalHours: number;     // interval mode: window size in hours (default 1)
+}
+
 export interface AllowedAppPreset {
   id: string;
   name: string;
@@ -56,10 +67,12 @@ export interface AppSettings {
   standaloneBlockPackages: string[]; // packages to always block regardless of task state
   standaloneBlockUntil: string | null; // ISO timestamp when the standalone block expires
   allowedAppPresets: AllowedAppPreset[]; // saved preset allow-lists
-  // Once-per-day allowance: these apps are allowed through ONE TIME per calendar day during
-  // any blocking session (task focus or standalone block). After the first open, they are
-  // blocked for the rest of the day. The counter resets at midnight.
-  dailyAllowancePackages: string[];
+  // Per-app daily allowance — replaces old dailyAllowancePackages: string[]
+  // Each entry configures a specific allowance mode for an app:
+  //   count:       allowed N opens per day (resets midnight)
+  //   time_budget: allowed N total minutes per day (resets midnight)
+  //   interval:    allowed N minutes every X hours (rolling window)
+  dailyAllowanceEntries: DailyAllowanceEntry[];
   // Word blocking: if any of these words appear on screen during an active blocking session
   // (task focus or standalone block), the user is immediately redirected to home.
   blockedWords: string[];

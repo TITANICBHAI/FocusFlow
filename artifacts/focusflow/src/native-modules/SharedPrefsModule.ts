@@ -10,6 +10,7 @@
  */
 
 import { NativeModules, Platform } from 'react-native';
+import type { DailyAllowanceEntry } from '@/data/types';
 
 const SharedPrefs = Platform.OS === 'android' ? NativeModules.SharedPrefs : null;
 
@@ -38,9 +39,15 @@ export const SharedPrefsModule = {
     return SharedPrefs.setStandaloneBlock(active, packages, untilMs);
   },
 
-  async setDailyAllowancePackages(packages: string[]): Promise<void> {
+  /**
+   * Writes the rich daily allowance config (DailyAllowanceEntry[]) to SharedPreferences
+   * as a JSON string. The AccessibilityService reads this to enforce per-app allowance modes.
+   *
+   * Replaces the old setDailyAllowancePackages (string[]) method.
+   */
+  async setDailyAllowanceConfig(entries: DailyAllowanceEntry[]): Promise<void> {
     if (!SharedPrefs) return;
-    return SharedPrefs.setDailyAllowancePackages(packages);
+    return SharedPrefs.setDailyAllowanceConfig(JSON.stringify(entries));
   },
 
   async resetDailyAllowanceUsage(packageName: string | null): Promise<void> {

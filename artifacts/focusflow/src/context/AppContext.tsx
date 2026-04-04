@@ -7,7 +7,7 @@ import React, {
   useRef,
 } from 'react';
 import { Alert } from 'react-native';
-import type { Task, AppSettings, FocusSession } from '@/data/types';
+import type { Task, AppSettings, FocusSession, DailyAllowanceEntry } from '@/data/types';
 import {
   dbGetTasksForDate,
   dbInsertTask,
@@ -106,7 +106,7 @@ const defaultSettings: AppSettings = {
   onboardingComplete: false,
   standaloneBlockPackages: [],
   standaloneBlockUntil: null,
-  dailyAllowancePackages: [],
+  dailyAllowanceEntries: [],
   blockedWords: [],
 };
 
@@ -138,7 +138,7 @@ interface AppContextValue {
 
   updateSettings: (settings: AppSettings) => Promise<void>;
   setStandaloneBlock: (packages: string[], untilMs: number | null) => Promise<void>;
-  setDailyAllowancePackages: (packages: string[]) => Promise<void>;
+  setDailyAllowanceEntries: (entries: DailyAllowanceEntry[]) => Promise<void>;
   setBlockedWords: (words: string[]) => Promise<void>;
   refreshTasks: () => Promise<void>;
 }
@@ -204,12 +204,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }
 
   /**
-   * Syncs the daily allowance package list into SharedPreferences so the
-   * AccessibilityService can read it without the JS bundle being running.
+   * Syncs the rich daily allowance entries into SharedPreferences so the
+   * AccessibilityService can enforce count / time_budget / interval modes
+   * without the JS bundle being running.
    */
   async function _syncDailyAllowance(settings: AppSettings): Promise<void> {
-    const packages = settings.dailyAllowancePackages ?? [];
-    await SharedPrefsModule.setDailyAllowancePackages(packages);
+    const entries = settings.dailyAllowanceEntries ?? [];
+    await SharedPrefsModule.setDailyAllowanceConfig(entries);
   }
 
   /**
@@ -533,14 +534,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
    * @param packages  Package names to block (empty array = disable)
    * @param untilMs   Epoch ms when block expires (null = disable)
    */
-  const setDailyAllowancePackages = useCallback(async (packages: string[]) => {
+  const setDailyAllowanceEntries = useCallback(async (entries: DailyAllowanceEntry[]) => {
     const newSettings: AppSettings = {
       ...state.settings,
-      dailyAllowancePackages: packages,
+      dailyAllowanceEntries: entries,
     };
     await dbSaveSettings(newSettings);
     dispatch({ type: 'SET_SETTINGS', payload: newSettings });
-    await SharedPrefsModule.setDailyAllowancePackages(packages);
+    await SharedPrefsModule.setDailyAllowanceConfig(entries);
   }, [state.settings]);
 
   const setBlockedWords = useCallback(async (words: string[]) => {
@@ -585,7 +586,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     stopFocusMode,
     updateSettings,
     setStandaloneBlock,
-    setDailyAllowancePackages,
+    setDailyAllowanceEntries,
     setBlockedWords,
     refreshTasks,
   };

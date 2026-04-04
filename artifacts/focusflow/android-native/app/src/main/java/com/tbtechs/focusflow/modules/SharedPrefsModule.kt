@@ -141,6 +141,25 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
     }
 
     /**
+     * Writes the rich daily allowance config JSON to SharedPreferences.
+     * Format: JSON array of DailyAllowanceEntry objects with fields:
+     *   packageName, mode ("count"|"time_budget"|"interval"),
+     *   countPerDay, budgetMinutes, intervalMinutes, intervalHours.
+     *
+     * The AccessibilityService reads this to enforce per-app allowance modes.
+     * Replaces the old setDailyAllowancePackages (string-only) approach.
+     *
+     * @param configJson  Full JSON string of DailyAllowanceEntry[]
+     */
+    @ReactMethod
+    fun setDailyAllowanceConfig(configJson: String, promise: Promise) {
+        prefs().edit()
+            .putString("daily_allowance_config", configJson)
+            .apply()
+        promise.resolve(null)
+    }
+
+    /**
      * Resets the daily allowance usage tracking for all packages (or a specific one).
      * Call with null to reset all packages, or a specific package name to reset just that one.
      *
