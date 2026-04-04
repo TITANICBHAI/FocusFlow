@@ -296,6 +296,7 @@ export default function SettingsScreen() {
       <DailyAllowanceModal
         visible={dailyModalVisible}
         selectedEntries={settings.dailyAllowanceEntries ?? []}
+        locked={standaloneActive}
         onSave={async (entries) => { await setDailyAllowanceEntries(entries); }}
         onClose={() => setDailyModalVisible(false)}
       />
@@ -303,6 +304,7 @@ export default function SettingsScreen() {
       <BlockedWordsModal
         visible={wordsModalVisible}
         words={settings.blockedWords ?? []}
+        locked={standaloneActive}
         onSave={async (words) => { await setBlockedWords(words); }}
         onClose={() => setWordsModalVisible(false)}
       />

@@ -123,6 +123,7 @@ export function StandaloneBlockModal({
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(packageName)) {
+        if (locked) return next;
         next.delete(packageName);
       } else {
         next.add(packageName);
@@ -358,34 +359,36 @@ export function StandaloneBlockModal({
         {/* Active block banner */}
         {locked && (
           <View style={styles.lockedBanner}>
-            <Ionicons name="information-circle-outline" size={14} color={COLORS.orange} />
+            <Ionicons name="lock-closed-outline" size={14} color={COLORS.orange} />
             <Text style={styles.lockedBannerText}>
-              A block schedule is active — any changes you save will take effect immediately.
+              Block is active — the expiry date is locked and blocked apps cannot be removed. You can still add more apps to the block.
             </Text>
           </View>
         )}
 
         {/* Expiry date/time pickers */}
-        <View style={[styles.expirySection, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <Text style={[styles.expirySectionLabel, { color: theme.textSecondary }]}>Block until</Text>
+        <View style={[styles.expirySection, { backgroundColor: theme.card, borderColor: theme.border }, locked && styles.expirySectionLocked]}>
+          <Text style={[styles.expirySectionLabel, { color: theme.textSecondary }]}>
+            Block until{locked ? ' (locked)' : ''}
+          </Text>
           <View style={styles.expiryRow}>
             <TouchableOpacity
-              style={styles.expiryBtn}
-              onPress={() => setShowDatePicker(true)}
-              activeOpacity={0.7}
+              style={[styles.expiryBtn, locked && styles.expiryBtnLocked]}
+              onPress={() => { if (!locked) setShowDatePicker(true); }}
+              activeOpacity={locked ? 1 : 0.7}
             >
-              <Ionicons name="calendar-outline" size={16} color={COLORS.primary} />
-              <Text style={styles.expiryBtnText}>
+              <Ionicons name={locked ? 'lock-closed-outline' : 'calendar-outline'} size={16} color={locked ? COLORS.muted : COLORS.primary} />
+              <Text style={[styles.expiryBtnText, locked && { color: COLORS.muted }]}>
                 {dayjs(untilDate).format('MMM D, YYYY')}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={styles.expiryBtn}
-              onPress={() => setShowTimePicker(true)}
-              activeOpacity={0.7}
+              style={[styles.expiryBtn, locked && styles.expiryBtnLocked]}
+              onPress={() => { if (!locked) setShowTimePicker(true); }}
+              activeOpacity={locked ? 1 : 0.7}
             >
-              <Ionicons name="time-outline" size={16} color={COLORS.primary} />
-              <Text style={styles.expiryBtnText}>
+              <Ionicons name={locked ? 'lock-closed-outline' : 'time-outline'} size={16} color={locked ? COLORS.muted : COLORS.primary} />
+              <Text style={[styles.expiryBtnText, locked && { color: COLORS.muted }]}>
                 {dayjs(untilDate).format('h:mm A')}
               </Text>
             </TouchableOpacity>
@@ -500,7 +503,7 @@ export function StandaloneBlockModal({
             ) : null
           }
           ListFooterComponent={
-            selected.size > 0 ? (
+            selected.size > 0 && !locked ? (
               <TouchableOpacity style={styles.clearBtn} onPress={handleClear}>
                 <Ionicons name="trash-outline" size={16} color={COLORS.red} />
                 <Text style={styles.clearBtnText}>Clear Block</Text>

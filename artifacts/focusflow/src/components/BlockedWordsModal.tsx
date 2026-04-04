@@ -19,6 +19,7 @@ import { useTheme } from '@/hooks/useTheme';
 interface Props {
   visible: boolean;
   words: string[];
+  locked?: boolean;
   onSave: (words: string[]) => void | Promise<void>;
   onClose: () => void;
 }
@@ -30,7 +31,7 @@ interface Props {
  * Words typed here are checked against on-screen text during any active block;
  * if matched, the service redirects the user home.
  */
-export function BlockedWordsModal({ visible, words, onSave, onClose }: Props) {
+export function BlockedWordsModal({ visible, words, locked = false, onSave, onClose }: Props) {
   const { theme } = useTheme();
   const [localWords, setLocalWords] = useState<string[]>([]);
   const [input, setInput] = useState('');
@@ -85,12 +86,16 @@ export function BlockedWordsModal({ visible, words, onSave, onClose }: Props) {
   const renderItem = ({ item }: { item: string }) => (
     <View style={[styles.chip, { backgroundColor: COLORS.red + '12', borderColor: COLORS.red + '40' }]}>
       <Text style={[styles.chipText, { color: COLORS.red }]}>{item}</Text>
-      <TouchableOpacity
-        onPress={() => handleRemove(item)}
-        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-      >
-        <Ionicons name="close-circle" size={17} color={COLORS.red} />
-      </TouchableOpacity>
+      {locked ? (
+        <Ionicons name="lock-closed" size={14} color={COLORS.red + '60'} />
+      ) : (
+        <TouchableOpacity
+          onPress={() => handleRemove(item)}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Ionicons name="close-circle" size={17} color={COLORS.red} />
+        </TouchableOpacity>
+      )}
     </View>
   );
 
@@ -114,6 +119,16 @@ export function BlockedWordsModal({ visible, words, onSave, onClose }: Props) {
               <Text style={[styles.saveText, saving && { opacity: 0.5 }]}>Save</Text>
             </TouchableOpacity>
           </View>
+
+          {/* Lock banner — shown when a block is active */}
+          {locked && (
+            <View style={[styles.banner, { backgroundColor: COLORS.orange + '18', borderBottomColor: COLORS.orange + '40' }]}>
+              <Ionicons name="lock-closed-outline" size={14} color={COLORS.orange} />
+              <Text style={[styles.bannerText, { color: COLORS.orange }]}>
+                Block is active — existing keywords are locked. You can add new keywords but cannot remove them until the block expires.
+              </Text>
+            </View>
+          )}
 
           {/* Info banner */}
           <View style={[styles.banner, { backgroundColor: COLORS.red + '10', borderBottomColor: COLORS.red + '28' }]}>
@@ -169,7 +184,7 @@ export function BlockedWordsModal({ visible, words, onSave, onClose }: Props) {
               </View>
             }
             ListFooterComponent={
-              localWords.length > 1 ? (
+              localWords.length > 1 && !locked ? (
                 <TouchableOpacity style={styles.clearBtn} onPress={handleClearAll}>
                   <Ionicons name="trash-outline" size={15} color={COLORS.muted} />
                   <Text style={styles.clearText}>Clear All Keywords</Text>

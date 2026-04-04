@@ -21,6 +21,7 @@ import type { DailyAllowanceEntry, AllowanceMode } from '@/data/types';
 interface Props {
   visible: boolean;
   selectedEntries: DailyAllowanceEntry[];
+  locked?: boolean;
   onSave: (entries: DailyAllowanceEntry[]) => void | Promise<void>;
   onClose: () => void;
 }
@@ -50,7 +51,7 @@ function makeDefaultEntry(pkg: string): DailyAllowanceEntry {
  * mode: Count (N opens/day), Time Budget (N total minutes/day), or Interval
  * (N minutes every Y hours). Selecting an app shows its configuration inline.
  */
-export function DailyAllowanceModal({ visible, selectedEntries, onSave, onClose }: Props) {
+export function DailyAllowanceModal({ visible, selectedEntries, locked = false, onSave, onClose }: Props) {
   const { theme } = useTheme();
   const [apps, setApps] = useState<InstalledApp[]>([]);
   const [entriesMap, setEntriesMap] = useState<Map<string, DailyAllowanceEntry>>(new Map());
@@ -87,6 +88,7 @@ export function DailyAllowanceModal({ visible, selectedEntries, onSave, onClose 
     setEntriesMap((prev) => {
       const next = new Map(prev);
       if (next.has(pkg)) {
+        if (locked) return next;
         next.delete(pkg);
         setExpandedPkg((ep) => (ep === pkg ? null : ep));
       } else {
@@ -95,7 +97,7 @@ export function DailyAllowanceModal({ visible, selectedEntries, onSave, onClose 
       }
       return next;
     });
-  }, []);
+  }, [locked]);
 
   const updateEntry = useCallback((pkg: string, patch: Partial<DailyAllowanceEntry>) => {
     setEntriesMap((prev) => {
@@ -320,12 +322,22 @@ export function DailyAllowanceModal({ visible, selectedEntries, onSave, onClose 
           </TouchableOpacity>
         </View>
 
+        {/* Lock banner — shown when a block is active */}
+        {locked && (
+          <View style={[styles.infoBanner, { backgroundColor: COLORS.orange + '18', borderBottomColor: COLORS.orange + '40' }]}>
+            <Ionicons name="lock-closed-outline" size={14} color={COLORS.orange} />
+            <Text style={styles.infoText}>
+              Block is active — existing allowances are locked. You can add new apps but cannot remove any until the block expires.
+            </Text>
+          </View>
+        )}
+
         {/* Info banner */}
         <View style={[styles.infoBanner, { backgroundColor: COLORS.orange + '15', borderBottomColor: COLORS.orange + '33' }]}>
           <Ionicons name="information-circle-outline" size={14} color={COLORS.orange} />
           <Text style={styles.infoText}>
             Tap an app to enable its allowance. Tap again to expand its mode settings.{' '}
-            <Text style={{ fontWeight: '800' }}>Long-press to remove.</Text>
+            {!locked && <Text style={{ fontWeight: '800' }}>Long-press to remove.</Text>}
           </Text>
         </View>
 
@@ -377,7 +389,7 @@ export function DailyAllowanceModal({ visible, selectedEntries, onSave, onClose 
             ) : null
           }
           ListFooterComponent={
-            entriesMap.size > 0 ? (
+            entriesMap.size > 0 && !locked ? (
               <TouchableOpacity style={styles.clearBtn} onPress={() => { setEntriesMap(new Map()); setExpandedPkg(null); }}>
                 <Ionicons name="close-circle-outline" size={16} color={COLORS.muted} />
                 <Text style={styles.clearText}>Clear All Daily Allowances</Text>
