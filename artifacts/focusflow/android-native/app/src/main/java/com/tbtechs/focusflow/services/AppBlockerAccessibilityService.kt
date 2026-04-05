@@ -145,6 +145,10 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     private var lastBlockedPkg: String? = null
     private var lastBlockedAtMs: Long = 0L
 
+    // Tracks the most recently seen foreground package so retries can verify
+    // the blocked app is still in the foreground before pressing Home again.
+    private var lastSeenPkg: String? = null
+
     // Handler for retry re-checks AND timed-allowance expiry — runs on main thread
     private val handler = Handler(Looper.getMainLooper())
 
@@ -187,6 +191,10 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         }
 
         val pkg = event.packageName?.toString() ?: return
+
+        // Update foreground package tracker so retries can guard against
+        // pressing Home when the user has already switched to an allowed app.
+        lastSeenPkg = pkg
 
         // ── Timed allowance: accumulate usage when user switches away ─────────
         // If the user was in a time-limited allowed app and just switched to a
@@ -348,10 +356,13 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     private fun scheduleRetryCheck(pkg: String, attempt: Int, focusWasActive: Boolean, saWasActive: Boolean) {
         if (attempt > MAX_RETRY_ATTEMPTS) return
         handler.postDelayed({
-            val now = System.currentTimeMillis()
             val focusActive = prefs.getBoolean(PREF_FOCUS_ON, false)
             val saActive = prefs.getBoolean(PREF_SA_ACTIVE, false)
             if (!focusActive && !saActive) return@postDelayed
+            // Guard: only dismiss if the blocked package is still in the foreground.
+            // Without this check, retries would press Home even after the user has
+            // already navigated to a legitimate allowed app, causing false kicks.
+            if (lastSeenPkg != pkg) return@postDelayed
             val isBlocked = isPackageBlocked(pkg, focusActive, saActive)
             if (isBlocked && findAllowanceEntry(pkg) == null) {
                 dismissPackage(pkg)
@@ -450,18 +461,25 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         // ── 3. Node-tree content scan (Samsung / generic-class fallback) ──────
         // Samsung devices often fire a generic SubSettings class name. We identify
         // the page by its actual on-screen content instead.
+        //
+        // The heuristic requires TWO well-known accessibility service names to appear
+        // together (e.g. "talkback" + "switch access", or "talkback" + "live transcribe").
+        // A single keyword like "talkback" is not sufficient — it appears in help text,
+        // search results, and settings descriptions, causing false positives.
         val root = event.source ?: return false
         return try {
             val nodeText = collectNodeText(root).lowercase()
-            // Main Accessibility page: TalkBack appears in the installed service list.
-            val isMainAccessibilityPage = "talkback" in nodeText
+            // Main Accessibility page: requires at least two known service names to
+            // reliably identify the list-of-services page vs. a random mention.
+            val knownServiceCount = listOf(
+                "talkback", "switch access", "live transcribe",
+                "sound notification", "brailleback", "select to speak"
+            ).count { it in nodeText }
+            val isMainAccessibilityPage = knownServiceCount >= 2
             // "Installed apps" sub-page: Samsung's dedicated accessibility service list.
-            // Identified by its page title + the presence of known accessibility services.
+            // Identified by its page title + multiple presence of known accessibility services.
             val isInstalledAppsPage =
-                "installed apps" in nodeText &&
-                ("live transcribe" in nodeText ||
-                 "sound notification" in nodeText ||
-                 ("focusflow" in nodeText && "live transcribe" in nodeText))
+                "installed apps" in nodeText && knownServiceCount >= 2
             isMainAccessibilityPage || isInstalledAppsPage
         } finally {
             root.recycle()
@@ -469,11 +487,16 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     }
 
     /**
-     * Returns true when the event represents a "Clear data" or "Clear storage" dialog
-     * in Android Settings — prevents the user from clearing FocusFlow data mid-session.
+     * Returns true when the event represents a "Clear data" dialog in Android Settings —
+     * prevents the user from clearing FocusFlow data mid-session.
+     *
+     * NOTE: "clear cache" is intentionally excluded. That button text appears on every
+     * app's Storage settings page in Android (not just as a dialog), which was causing
+     * false positives and blocking users from accessing any app's storage settings.
+     * Only "clear data" / "clear storage" represent the destructive confirmation dialog.
      */
     private fun isClearDataDialog(event: AccessibilityEvent): Boolean {
-        val keywords = listOf("clear data", "clear storage", "clear cache", "clear app data")
+        val keywords = listOf("clear data", "clear storage", "clear app data")
         val eventText = buildString {
             event.text.forEach { append(it); append(' ') }
             event.contentDescription?.let { append(it) }
@@ -924,32 +947,39 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     }
 
     /**
-     * Returns true if any blocked word appears in the event's text, content description,
-     * class name, or any text found in the accessibility node tree.
-     * Matching is case-insensitive and uses simple substring search.
-     * Node traversal is included so words that appear in on-screen content
-     * (not just the window title) are reliably caught.
+     * Returns true if any blocked word appears as a whole word in the event title text
+     * or in the shallow node tree (max 3 levels deep).
+     *
+     * Matching is case-insensitive and whole-word only — prevents "short" from
+     * matching "shortage", "shortage" in shopping apps, etc.
+     *
+     * Node traversal is deliberately depth-limited to avoid picking up deep content
+     * like notification text, search suggestions, or background list items that the
+     * user is not actively viewing, which was the primary source of false positives.
      */
     private fun containsBlockedWord(event: AccessibilityEvent, words: List<String>): Boolean {
         val corpus = buildString {
             event.text?.forEach { t -> t?.let { append(it); append(' ') } }
             event.contentDescription?.let { append(it); append(' ') }
-            event.className?.let { append(it); append(' ') }
-            // Traverse the accessibility node tree so content inside the app
-            // (e.g. page titles, tab labels, visible text) is also checked.
+            // Only scan the top 3 levels of the node tree to avoid deep content
+            // (notifications, list item descriptions, background elements).
             event.source?.let { root ->
                 try {
-                    append(collectNodeText(root))
+                    append(collectNodeTextShallow(root, maxDepth = 3))
                 } finally {
                     root.recycle()
                 }
             }
         }.lowercase()
         if (corpus.isBlank()) return false
-        return words.any { word -> corpus.contains(word.lowercase()) }
+        // Use whole-word matching: wrap the word in word boundaries via regex.
+        return words.any { word ->
+            val pattern = Regex("\\b${Regex.escape(word.lowercase())}\\b")
+            pattern.containsMatchIn(corpus)
+        }
     }
 
-    // ─── Node text collector ──────────────────────────────────────────────────
+    // ─── Node text collectors ─────────────────────────────────────────────────
 
     private fun collectNodeText(root: AccessibilityNodeInfo): String {
         return buildString {
@@ -964,6 +994,29 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                 }
             }
             walk(root)
+        }
+    }
+
+    /**
+     * Depth-limited variant of [collectNodeText]. Only traverses [maxDepth] levels
+     * below the root. Used by word blocking to avoid picking up deep content like
+     * notification text, list items, or background elements that are not the active
+     * page title or primary content — the main driver of false positives.
+     */
+    private fun collectNodeTextShallow(root: AccessibilityNodeInfo, maxDepth: Int): String {
+        return buildString {
+            fun walk(node: AccessibilityNodeInfo, depth: Int) {
+                if (depth > maxDepth) return
+                node.text?.let { append(it); append(' ') }
+                node.contentDescription?.let { append(it); append(' ') }
+                for (i in 0 until node.childCount) {
+                    node.getChild(i)?.let { child ->
+                        walk(child, depth + 1)
+                        child.recycle()
+                    }
+                }
+            }
+            walk(root, 0)
         }
     }
 
