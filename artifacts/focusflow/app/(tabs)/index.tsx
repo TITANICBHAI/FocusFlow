@@ -148,16 +148,6 @@ export default function ScheduleScreen() {
         </TouchableOpacity>
       )}
 
-      {/* Focus violation overlay */}
-      {state.focusViolationApp && (
-        <View style={styles.violationBanner}>
-          <Ionicons name="ban" size={16} color="#fff" />
-          <Text style={styles.violationText}>
-            {state.focusViolationApp} blocked — stay focused!
-          </Text>
-        </View>
-      )}
-
       {/* Task list or timeline */}
       {viewMode === 'list' ? (
         <ScrollView
@@ -296,18 +286,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  violationBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.xs,
-    backgroundColor: COLORS.red,
-    marginHorizontal: SPACING.lg,
-    marginTop: SPACING.xs,
-    borderRadius: RADIUS.md,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.xs,
-  },
-  violationText: { color: '#fff', fontSize: FONT.sm, fontWeight: '600' },
   list: { flex: 1, marginTop: SPACING.md },
   listContent: { paddingHorizontal: SPACING.lg },
   emptyState: { alignItems: 'center', paddingTop: 80, gap: SPACING.sm },

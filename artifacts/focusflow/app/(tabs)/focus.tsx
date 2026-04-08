@@ -251,28 +251,6 @@ export default function FocusScreen() {
         )}
       </View>
 
-      {/* Violation alert */}
-      {state.focusViolationApp && (() => {
-        const isInstaller = state.focusViolationApp.toLowerCase().includes('packageinstaller');
-        return (
-          <View style={styles.violationCard}>
-            <Ionicons name="ban" size={20} color={COLORS.red} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.violationText}>
-                {isInstaller
-                  ? 'Package Installer blocked (Android app installer/uninstaller)'
-                  : `Blocked: ${state.focusViolationApp}`}
-              </Text>
-              {isInstaller && (
-                <Text style={[styles.violationText, { fontSize: 11, opacity: 0.75, marginTop: 2 }]}>
-                  You can uninstall FocusFlow after your block period ends.
-                </Text>
-              )}
-            </View>
-          </View>
-        );
-      })()}
-
       {/* Action buttons */}
       <View style={styles.actions}>
         {!isFocusing ? (
@@ -517,17 +495,6 @@ const styles = StyleSheet.create({
   tagsRow: { flexDirection: 'row', gap: SPACING.xs, flexWrap: 'wrap', justifyContent: 'center' },
   tag: { paddingHorizontal: SPACING.sm, paddingVertical: 3, borderRadius: RADIUS.full },
   tagText: { fontSize: FONT.xs, fontWeight: '600' },
-  violationCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-    backgroundColor: COLORS.redLight,
-    marginHorizontal: SPACING.lg,
-    borderRadius: RADIUS.md,
-    padding: SPACING.md,
-    marginBottom: SPACING.sm,
-  },
-  violationText: { color: COLORS.red, fontWeight: '600', fontSize: FONT.sm, flex: 1 },
   actions: { padding: SPACING.lg, gap: SPACING.sm },
   primaryBtn: {
     flexDirection: 'row',
