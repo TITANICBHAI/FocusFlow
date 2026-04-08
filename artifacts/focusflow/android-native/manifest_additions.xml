@@ -47,6 +47,7 @@
     BIND_VPN_SERVICE
     VIBRATE                     (for vibration harassment aversion layer)
     SCHEDULE_EXACT_ALARM        (for weekly temptation report alarm; optional, falls back to inexact)
+    KILL_BACKGROUND_PROCESSES   (terminate the blocked app process after HOME press)
 
   AndroidManifest.xml components (patched automatically):
 

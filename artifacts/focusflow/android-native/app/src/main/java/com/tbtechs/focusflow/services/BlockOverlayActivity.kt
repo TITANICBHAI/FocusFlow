@@ -1,6 +1,7 @@
 package com.tbtechs.focusflow.services
 
 import android.app.Activity
+import android.app.WallpaperManager
 import android.content.SharedPreferences
 import android.graphics.BitmapFactory
 import android.graphics.Color
@@ -221,26 +222,47 @@ class BlockOverlayActivity : Activity() {
             )
         }
 
-        // Optional: user-set background image (configured in app settings)
+        // Background image layer: prefer user-set custom wallpaper; fall back to
+        // the system (home screen) wallpaper so the overlay never shows a bare
+        // gradient when the user hasn't picked a custom image.
         val wallpaperPath = prefs.getString("block_overlay_wallpaper", "") ?: ""
-        if (wallpaperPath.isNotEmpty()) {
-            val file = File(wallpaperPath)
-            if (file.exists()) {
-                try {
-                    val bmp = BitmapFactory.decodeFile(wallpaperPath)
-                    if (bmp != null) {
-                        root.addView(ImageView(this).apply {
-                            layoutParams = FrameLayout.LayoutParams(
-                                FrameLayout.LayoutParams.MATCH_PARENT,
-                                FrameLayout.LayoutParams.MATCH_PARENT
-                            )
-                            setImageBitmap(bmp)
-                            scaleType = ImageView.ScaleType.CENTER_CROP
-                            alpha = 0.40f
-                        })
-                    }
-                } catch (_: Exception) { }
-            }
+        val customFile = File(wallpaperPath)
+        if (wallpaperPath.isNotEmpty() && customFile.exists()) {
+            // User has set a custom overlay image — use it at 82 % opacity so the
+            // dark scrim below still keeps text readable.
+            try {
+                val bmp = BitmapFactory.decodeFile(wallpaperPath)
+                if (bmp != null) {
+                    root.addView(ImageView(this).apply {
+                        layoutParams = FrameLayout.LayoutParams(
+                            FrameLayout.LayoutParams.MATCH_PARENT,
+                            FrameLayout.LayoutParams.MATCH_PARENT
+                        )
+                        setImageBitmap(bmp)
+                        scaleType = ImageView.ScaleType.CENTER_CROP
+                        alpha = 0.82f
+                    })
+                }
+            } catch (_: Exception) { }
+        } else {
+            // No custom image — show the system wallpaper at 82 % opacity so the
+            // overlay still looks contextual (user recognises their own wallpaper)
+            // while remaining clearly distinct from the home screen.
+            try {
+                val wm = WallpaperManager.getInstance(this)
+                val wallpaperDrawable = wm.drawable
+                if (wallpaperDrawable != null) {
+                    root.addView(ImageView(this).apply {
+                        layoutParams = FrameLayout.LayoutParams(
+                            FrameLayout.LayoutParams.MATCH_PARENT,
+                            FrameLayout.LayoutParams.MATCH_PARENT
+                        )
+                        setImageDrawable(wallpaperDrawable)
+                        scaleType = ImageView.ScaleType.CENTER_CROP
+                        alpha = 0.82f
+                    })
+                }
+            } catch (_: Exception) { }
         }
 
         // Dark scrim — keeps text legible regardless of background

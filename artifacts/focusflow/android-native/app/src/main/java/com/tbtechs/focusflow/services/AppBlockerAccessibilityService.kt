@@ -204,19 +204,6 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         // whether the user navigated to our own app (settings) and skip re-raise.
         prefs.edit().putString("current_foreground_pkg", pkg).apply()
 
-        // ── Overlay X-button: signal when the blocked app leaves foreground ──
-        // When the AccessibilityService presses HOME after blocking, the next
-        // window event from a different package means the user is back at the
-        // launcher.  At that point we set overlay_x_ready = true so the
-        // BlockOverlayActivity can fade in its dismiss button.
-        val awaitingPkg = prefs.getString("overlay_awaiting_pkg", "") ?: ""
-        if (awaitingPkg.isNotEmpty() && !pkg.equals(awaitingPkg, ignoreCase = true)) {
-            prefs.edit()
-                .putBoolean(BlockOverlayActivity.PREF_OVERLAY_X_READY, true)
-                .putString("overlay_awaiting_pkg", "")
-                .apply()
-        }
-
         // ── Timed allowance: accumulate usage when user switches away ─────────
         // If the user was in a time-limited allowed app and just switched to a
         // different app, record elapsed time before continuing with other checks.
@@ -232,8 +219,30 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             currentTimedSessionEndMs = 0L
         }
 
-        // Never block our own app.
+        // Never block our own app.  This guard MUST come before the overlay
+        // X-button signal below — if our own overlay activity fires a window
+        // event (e.g. coming to the foreground after the HOME press) we must
+        // not mistake it for "the blocked app has left" and reveal the X early.
         if (pkg == packageName) return
+
+        // ── Overlay X-button: signal when the blocked app leaves foreground ──
+        // When the AccessibilityService presses HOME after blocking, the next
+        // window event from a different package means the user is back at the
+        // launcher.  At that point we set overlay_x_ready = true so the
+        // BlockOverlayActivity can fade in its dismiss button.
+        //
+        // This check intentionally lives AFTER the packageName guard above so
+        // our own overlay activity never triggers the X-ready signal.
+        // It also lives BEFORE the ALWAYS_ALLOWED early-return below so that
+        // the launcher (which is ALWAYS_ALLOWED) correctly triggers it after
+        // the user presses HOME.
+        val awaitingPkg = prefs.getString("overlay_awaiting_pkg", "") ?: ""
+        if (awaitingPkg.isNotEmpty() && !pkg.equals(awaitingPkg, ignoreCase = true)) {
+            prefs.edit()
+                .putBoolean(BlockOverlayActivity.PREF_OVERLAY_X_READY, true)
+                .putString("overlay_awaiting_pkg", "")
+                .apply()
+        }
 
         // ── ALWAYS_ALLOWED packages ───────────────────────────────────────────
         // Settings is always allowed at the package level but we intercept dangerous
@@ -1060,6 +1069,16 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             performGlobalAction(GLOBAL_ACTION_BACK)
         } else {
             performGlobalAction(GLOBAL_ACTION_HOME)
+            // Kill the blocked app's background process after HOME is pressed.
+            // A short delay lets the OS process the HOME navigation before the kill
+            // fires, ensuring the app has actually left the foreground first.
+            handler.postDelayed({
+                try {
+                    val am = getSystemService(android.app.ActivityManager.ACTIVITY_SERVICE)
+                            as android.app.ActivityManager
+                    am.killBackgroundProcesses(blockedPackage)
+                } catch (_: Exception) { }
+            }, 500L)
         }
     }
 

@@ -112,6 +112,7 @@ patch_permission "android.permission.FOREGROUND_SERVICE_SPECIAL_USE"
 patch_permission "android.permission.RECEIVE_BOOT_COMPLETED"
 patch_permission "android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"
 patch_permission "android.permission.BIND_ACCESSIBILITY_SERVICE"  ' tools:ignore="ProtectedPermissions"'
+patch_permission "android.permission.KILL_BACKGROUND_PROCESSES"
 
 # ── ForegroundTaskService ─────────────────────────────────────────────────────
 
