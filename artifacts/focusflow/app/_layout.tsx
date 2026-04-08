@@ -31,6 +31,7 @@ import { EventBridge } from '@/services/eventBridge';
 import { navigateToTask, consumePendingTaskNavigation } from '@/navigation/navigationRef';
 import { registerBackgroundFetch, registerOverrunCheckTask } from '@/tasks/backgroundTasks';
 import { dismissPersistentNotification } from '@/services/notificationService';
+import { BlockedAppOverlay } from '@/components/BlockedAppOverlay';
 
 // ─── 2. Foreground notification display behaviour ─────────────────────────────
 Notifications.setNotificationHandler({
@@ -275,6 +276,7 @@ export default function RootLayout() {
         <AppProvider>
           <AppSplashOverlay />
           <OnboardingGuard />
+          <BlockedAppOverlay />
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="onboarding" options={{ headerShown: false, presentation: 'fullScreenModal' }} />

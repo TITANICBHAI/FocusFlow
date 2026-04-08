@@ -37,6 +37,7 @@ export default function SettingsScreen() {
   const [blockModalVisible, setBlockModalVisible] = useState(false);
   const [dailyModalVisible, setDailyModalVisible] = useState(false);
   const [wordsModalVisible, setWordsModalVisible] = useState(false);
+  const [greyoutModalVisible, setGreyoutModalVisible] = useState(false);
 
   if (!state.isDbReady) {
     return (
@@ -108,6 +109,15 @@ export default function SettingsScreen() {
     }
   };
 
+  const handleViewReport = async () => {
+    try {
+      const summary = await GreyoutModule.getWeeklySummary();
+      Alert.alert('Weekly Temptation Report', summary || 'No blocked app attempts recorded this week.');
+    } catch {
+      Alert.alert('Weekly Temptation Report', 'Report data is not available yet. Enable the weekly report and come back after some blocking activity.');
+    }
+  };
+
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
       <View style={[styles.header, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
@@ -173,6 +183,34 @@ export default function SettingsScreen() {
           />
         </Section>
 
+        {/* ── Aversion Deterrents ── */}
+        <Section title="Aversion Deterrents">
+          <SettingRow label="Screen Dimmer" description="Near-black overlay appears while a blocked app is open">
+            <Switch
+              value={settings.aversionDimmerEnabled}
+              onValueChange={(v) => update({ aversionDimmerEnabled: v })}
+              trackColor={{ false: COLORS.border, true: COLORS.primary + '88' }}
+              thumbColor={settings.aversionDimmerEnabled ? COLORS.primary : COLORS.muted}
+            />
+          </SettingRow>
+          <SettingRow label="Vibration Harassment" description="Repeated pulse vibration while blocked app is in foreground">
+            <Switch
+              value={settings.aversionVibrateEnabled}
+              onValueChange={(v) => update({ aversionVibrateEnabled: v })}
+              trackColor={{ false: COLORS.border, true: COLORS.primary + '88' }}
+              thumbColor={settings.aversionVibrateEnabled ? COLORS.primary : COLORS.muted}
+            />
+          </SettingRow>
+          <SettingRow label="Sound Alert" description="Startling sound plays the moment a blocked app launches">
+            <Switch
+              value={settings.aversionSoundEnabled}
+              onValueChange={(v) => update({ aversionSoundEnabled: v })}
+              trackColor={{ false: COLORS.border, true: COLORS.primary + '88' }}
+              thumbColor={settings.aversionSoundEnabled ? COLORS.primary : COLORS.muted}
+            />
+          </SettingRow>
+        </Section>
+
         {/* ── Daily App Allowance ── */}
         <Section title="Daily App Allowance">
           <SettingButton
@@ -201,6 +239,20 @@ export default function SettingsScreen() {
           />
         </Section>
 
+        {/* ── Greyout Schedule ── */}
+        <Section title="Greyout Schedule">
+          <SettingButton
+            icon="time-outline"
+            label="Manage Time-Window Blocks"
+            description={
+              (settings.greyoutSchedule ?? []).length === 0
+                ? 'No windows set — block apps during specific hours and days'
+                : `${(settings.greyoutSchedule ?? []).length} window${(settings.greyoutSchedule ?? []).length !== 1 ? 's' : ''} active — tap to manage`
+            }
+            onPress={() => setGreyoutModalVisible(true)}
+          />
+        </Section>
+
         {/* ── Block Schedule ── */}
         <Section title="Block Schedule">
           {standaloneActive ? (
@@ -226,6 +278,24 @@ export default function SettingsScreen() {
             label={standaloneActive ? 'Add More Apps to Block' : 'Set Block Schedule'}
             description={standaloneActive ? 'Block is locked — you can add apps but not remove any until it expires' : 'Block specific apps until a date and time — regardless of tasks'}
             onPress={() => setBlockModalVisible(true)}
+          />
+        </Section>
+
+        {/* ── Temptation Report ── */}
+        <Section title="Temptation Report">
+          <SettingRow label="Weekly Report" description="Sunday notification with blocked-app attempt counts">
+            <Switch
+              value={settings.weeklyReportEnabled}
+              onValueChange={(v) => update({ weeklyReportEnabled: v })}
+              trackColor={{ false: COLORS.border, true: COLORS.primary + '88' }}
+              thumbColor={settings.weeklyReportEnabled ? COLORS.primary : COLORS.muted}
+            />
+          </SettingRow>
+          <SettingButton
+            icon="bar-chart-outline"
+            label="View Report"
+            description="See this week's blocked-app attempt summary"
+            onPress={handleViewReport}
           />
         </Section>
 
@@ -309,6 +379,13 @@ export default function SettingsScreen() {
         locked={standaloneActive}
         onSave={async (words) => { await setBlockedWords(words); }}
         onClose={() => setWordsModalVisible(false)}
+      />
+
+      <GreyoutScheduleModal
+        visible={greyoutModalVisible}
+        windows={settings.greyoutSchedule ?? []}
+        onSave={async (windows: GreyoutWindow[]) => { await update({ greyoutSchedule: windows }); }}
+        onClose={() => setGreyoutModalVisible(false)}
       />
     </SafeAreaView>
   );
