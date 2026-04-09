@@ -1421,6 +1421,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         } else {
             performGlobalAction(GLOBAL_ACTION_BACK)
             handler.postDelayed({ performGlobalAction(GLOBAL_ACTION_HOME) }, 150L)
+            handler.postDelayed({ performGlobalAction(GLOBAL_ACTION_BACK) }, 160L)
         }
     }
 
