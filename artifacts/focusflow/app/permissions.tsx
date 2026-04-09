@@ -16,13 +16,14 @@ import { router } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import { UsageStatsModule, isUsageStatsAvailable } from '@/native-modules/UsageStatsModule';
 import { isSharedPrefsAvailable } from '@/native-modules/SharedPrefsModule';
+import { ForegroundLaunchModule } from '@/native-modules/ForegroundLaunchModule';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 import { TroubleshootModal } from '@/components/TroubleshootModal';
 import { useApp } from '@/context/AppContext';
 import { useTheme } from '@/hooks/useTheme';
 
 type PermStatus = 'granted' | 'denied' | 'unknown';
-type PermissionId = 'accessibility' | 'usage' | 'battery' | 'notifications' | 'device_admin';
+type PermissionId = 'accessibility' | 'usage' | 'battery' | 'notifications' | 'device_admin' | 'overlay';
 
 interface PermissionItem {
   id: PermissionId;
@@ -181,6 +182,34 @@ const PERMISSIONS: PermissionItem[] = [
     },
     open: () => {
       UsageStatsModule.openDeviceAdminSettings().catch(() =>
+        Linking.openSettings()
+      );
+    },
+  },
+  {
+    id: 'overlay',
+    title: 'Appear on Top',
+    description:
+      'Draws the block screen directly over any app, so the blocked app is never visible — not even for a split second.',
+    whyNeeded:
+      'Without this, FocusFlow must switch tasks to show the block screen, causing a brief flash of the blocked app.',
+    brokenWithout: [
+      'Block overlay opens inside FocusFlow instead of on top of the blocked app',
+      'A brief flash of the blocked app may appear before you are redirected',
+    ],
+    icon: 'layers-outline',
+    deepLinkLabel: 'Enable Appear on Top',
+    optional: true,
+    check: async (): Promise<PermStatus> => {
+      try {
+        const granted = await ForegroundLaunchModule.hasOverlayPermission();
+        return granted ? 'granted' : 'denied';
+      } catch {
+        return 'unknown';
+      }
+    },
+    open: () => {
+      ForegroundLaunchModule.requestOverlayPermission().catch(() =>
         Linking.openSettings()
       );
     },

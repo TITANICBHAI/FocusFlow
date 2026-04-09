@@ -23,6 +23,14 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 | `AppBlockerAccessibilityService.kt` | Intercepts every window-change event. Enforces both task-based AND standalone block lists independently. Self-heals stale SharedPrefs flags when timestamps pass. |
 | `BootReceiver.kt` | Restarts `ForegroundTaskService` on reboot — in ACTIVE mode if a task session was running, IDLE mode otherwise (always-on). |
 
+### Block Overlay Strategy (Two-path)
+
+1. **WindowManager overlay** (preferred when SYSTEM_ALERT_WINDOW / "Appear on Top" is granted):  
+   `AppBlockerAccessibilityService.showWindowOverlay()` draws a `TYPE_APPLICATION_OVERLAY` FrameLayout directly over the blocked app via `WindowManager.addView()`. No task switch — the blocked app is never visible. X button is hidden (`alpha=0`) until the accessibility service detects the user has navigated home (`revealWindowXButton()` fades it in via ValueAnimator). X button tap clears `block_cooldown_reset` → cooldown resets so the same app re-triggers immediately if re-opened.
+
+2. **Full-screen notification fallback** (when overlay permission is not granted):  
+   A `PendingIntent` wrapped in a full-screen `Notification` (channel `focusday_block_alert`, id 9001) launches `BlockOverlayActivity`. The system (not the app) fires the intent, bypassing Android 10+ background activity launch restrictions. Auto-cancelled after 2 s. `BlockOverlayActivity` polls `overlay_x_ready` SharedPrefs key at 300 ms to reveal its X button once the home signal fires.
+
 ### SharedPreferences Schema (`focusday_prefs`)
 
 | Key | Type | Purpose |

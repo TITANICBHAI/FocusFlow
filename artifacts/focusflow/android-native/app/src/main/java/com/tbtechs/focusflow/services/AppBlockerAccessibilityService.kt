@@ -1,18 +1,32 @@
 package com.tbtechs.focusflow.services
 
 import android.accessibilityservice.AccessibilityService
+import android.animation.ValueAnimator
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.app.WallpaperManager
 import android.content.Intent
 import android.content.SharedPreferences
+import android.graphics.BitmapFactory
+import android.graphics.Color
+import android.graphics.PixelFormat
+import android.graphics.drawable.GradientDrawable
 import android.net.VpnService
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
+import android.view.Gravity
+import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.widget.FrameLayout
+import android.widget.ImageView
+import android.widget.LinearLayout
+import android.widget.TextView
+import com.tbtechs.focusflow.modules.BlockOverlayModule
 import com.tbtechs.focusflow.modules.FocusDayBridgeModule
 import com.tbtechs.focusflow.services.BlockOverlayActivity
 import com.tbtechs.focusflow.services.NetworkBlockerVpnService
@@ -162,6 +176,13 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     // the blocked app is still in the foreground before pressing Home again.
     private var lastSeenPkg: String? = null
 
+    // ── WindowManager overlay (TYPE_APPLICATION_OVERLAY path) ────────────────
+    // Used when SYSTEM_ALERT_WINDOW is granted — draws directly over any app
+    // without switching tasks, so the blocked app is never visually accessible.
+    private var wOverlayView: FrameLayout? = null
+    private var wOverlayXBtn: TextView? = null
+    private var wOverlayXRevealed = false
+
     // Handler for retry re-checks AND timed-allowance expiry — runs on main thread
     private val handler = Handler(Looper.getMainLooper())
 
@@ -260,6 +281,8 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                 .putBoolean(BlockOverlayActivity.PREF_OVERLAY_X_READY, true)
                 .putString("overlay_awaiting_pkg", "")
                 .apply()
+            // Also reveal directly on the WindowManager overlay (no polling needed)
+            revealWindowXButton()
         }
 
         // ── ALWAYS_ALLOWED packages ───────────────────────────────────────────
@@ -408,6 +431,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
 
     override fun onInterrupt() {
         lastBlockedPkg = null
+        dismissWindowOverlay()
     }
 
     // ─── Retry mechanism ──────────────────────────────────────────────────────
@@ -1060,6 +1084,205 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         } catch (_: Exception) { /* service start failed — overlay + HOME are the fallback */ }
     }
 
+    // ─── WindowManager overlay (TYPE_APPLICATION_OVERLAY) ────────────────────
+
+    /** True when SYSTEM_ALERT_WINDOW ("Appear on top") is granted. */
+    private fun canUseWindowOverlay(): Boolean =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) Settings.canDrawOverlays(this)
+        else true
+
+    /**
+     * Draws a full-screen block overlay directly over any foreground app using
+     * WindowManager TYPE_APPLICATION_OVERLAY.  Requires SYSTEM_ALERT_WINDOW.
+     * No task switch occurs — the blocked app stays behind our view, invisible.
+     */
+    @Suppress("DEPRECATION")
+    private fun showWindowOverlay(blockedPackage: String, appName: String) {
+        dismissWindowOverlay()   // clear any stale overlay first
+
+        val wm = getSystemService(WindowManager::class.java) ?: return
+        val density = resources.displayMetrics.density
+        fun dp(v: Int): Int = (v * density + 0.5f).toInt()
+
+        val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        else
+            WindowManager.LayoutParams.TYPE_PHONE
+
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            type,
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                    WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                    WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD or
+                    WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
+            PixelFormat.TRANSLUCENT
+        )
+
+        // ── Root ──────────────────────────────────────────────────────────────
+        val root = FrameLayout(this)
+        root.layoutParams = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT
+        )
+        root.background = GradientDrawable(
+            GradientDrawable.Orientation.TL_BR,
+            intArrayOf(Color.parseColor("#0C0C1A"), Color.parseColor("#1A1245"))
+        )
+
+        // ── Wallpaper / system wallpaper background ───────────────────────────
+        val wallpaperPath = prefs.getString("block_overlay_wallpaper", "") ?: ""
+        val customFile = java.io.File(wallpaperPath)
+        if (wallpaperPath.isNotEmpty() && customFile.exists()) {
+            try {
+                val bmp = BitmapFactory.decodeFile(wallpaperPath)
+                if (bmp != null) root.addView(ImageView(this).apply {
+                    layoutParams = FrameLayout.LayoutParams(
+                        FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT
+                    )
+                    setImageBitmap(bmp); scaleType = ImageView.ScaleType.CENTER_CROP; alpha = 0.82f
+                })
+            } catch (_: Exception) { }
+        } else {
+            try {
+                val drawable = WallpaperManager.getInstance(this).drawable
+                if (drawable != null) root.addView(ImageView(this).apply {
+                    layoutParams = FrameLayout.LayoutParams(
+                        FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT
+                    )
+                    setImageDrawable(drawable); scaleType = ImageView.ScaleType.CENTER_CROP; alpha = 0.82f
+                })
+            } catch (_: Exception) { }
+        }
+
+        // ── Dark scrim ────────────────────────────────────────────────────────
+        root.addView(android.view.View(this).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT
+            )
+            setBackgroundColor(Color.parseColor("#AA0A0A1A"))
+        })
+
+        // ── Centre column ─────────────────────────────────────────────────────
+        val col = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT
+            )
+            setPadding(dp(32), dp(80), dp(32), dp(80))
+        }
+
+        col.addView(TextView(this).apply {            // lock emoji
+            text = "\uD83D\uDD12"; textSize = 52f; gravity = Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = dp(20) }
+        })
+        col.addView(TextView(this).apply {            // "[App] is blocked"
+            text = if (appName.isNotEmpty()) "\u201C$appName\u201D is blocked" else "App Blocked"
+            textSize = 15f; setTextColor(Color.parseColor("#FF6B6B"))
+            gravity = Gravity.CENTER; letterSpacing = 0.12f
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = dp(36) }
+        })
+        col.addView(TextView(this).apply {            // random quote
+            text = "\u201C${resolveOverlayQuote()}\u201D"
+            textSize = 20f; setTextColor(Color.parseColor("#E8E8F0"))
+            gravity = Gravity.CENTER; setLineSpacing(0f, 1.55f)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = dp(48) }
+        })
+        col.addView(TextView(this).apply {            // sub-label
+            text = "Stay focused. You\u2019ve got this."
+            textSize = 13f; setTextColor(Color.parseColor("#55556A")); gravity = Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        })
+        root.addView(col)
+
+        // ── X button (hidden until home confirmed) ────────────────────────────
+        val xBtn = TextView(this).apply {
+            text = "\u2715"; textSize = 20f
+            setTextColor(Color.parseColor("#AAAACC")); gravity = Gravity.CENTER
+            setPadding(dp(16), dp(16), dp(16), dp(16))
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(Color.parseColor("#22222E"))
+                setStroke(dp(1), Color.parseColor("#44445A"))
+            }
+            alpha = 0f; isClickable = false; isFocusable = false
+            val size = dp(48)
+            layoutParams = FrameLayout.LayoutParams(size, size).apply {
+                gravity = Gravity.TOP or Gravity.END
+                topMargin = dp(56); rightMargin = dp(24)
+            }
+            setOnClickListener {
+                prefs.edit()
+                    .putBoolean(BlockOverlayActivity.PREF_OVERLAY_X_READY, false)
+                    .putBoolean("block_cooldown_reset", true)
+                    .apply()
+                dismissWindowOverlay()
+            }
+        }
+        wOverlayXBtn = xBtn
+        wOverlayXRevealed = false
+        root.addView(xBtn)
+
+        wOverlayView = root
+        try {
+            wm.addView(root, params)
+        } catch (_: Exception) {
+            wOverlayView = null; wOverlayXBtn = null
+        }
+    }
+
+    /** Removes the WindowManager overlay view if one is currently showing. */
+    private fun dismissWindowOverlay() {
+        val view = wOverlayView ?: return
+        try {
+            getSystemService(WindowManager::class.java)?.removeView(view)
+        } catch (_: Exception) { }
+        wOverlayView = null
+        wOverlayXBtn = null
+        wOverlayXRevealed = false
+    }
+
+    /** Fades in the ✕ button so the user can dismiss the window overlay. */
+    private fun revealWindowXButton() {
+        if (wOverlayXRevealed) return
+        val btn = wOverlayXBtn ?: return
+        wOverlayXRevealed = true
+        handler.post {
+            btn.isClickable = true
+            btn.isFocusable = true
+            ValueAnimator.ofFloat(0f, 1f).apply {
+                duration = 400L
+                addUpdateListener { btn.alpha = it.animatedValue as Float }
+                start()
+            }
+        }
+    }
+
+    /** Picks a quote for the overlay (fixed → custom pool → defaults). */
+    private fun resolveOverlayQuote(): String {
+        val fixed = prefs.getString("block_overlay_quote", "") ?: ""
+        if (fixed.isNotEmpty()) return fixed
+        val customJson = prefs.getString("block_overlay_quotes", "") ?: ""
+        val pool: List<String> = if (customJson.isNotEmpty()) {
+            try {
+                val arr = JSONArray(customJson)
+                (0 until arr.length()).map { arr.getString(it) }.takeIf { it.isNotEmpty() }
+                    ?: BlockOverlayModule.DEFAULT_QUOTES
+            } catch (_: Exception) { BlockOverlayModule.DEFAULT_QUOTES }
+        } else BlockOverlayModule.DEFAULT_QUOTES
+        return pool.random()
+    }
+
     /**
      * Launches [BlockOverlayActivity] via a full-screen notification PendingIntent.
      *
@@ -1070,8 +1293,16 @@ class AppBlockerAccessibilityService : AccessibilityService() {
      * activity is already showing.
      */
     private fun launchBlockOverlay(blockedPackage: String) {
+        val appName = resolveAppDisplayName(blockedPackage)
+
+        // Prefer WindowManager overlay (appears directly over any app, no task switch)
+        if (canUseWindowOverlay()) {
+            showWindowOverlay(blockedPackage, appName)
+            return
+        }
+
+        // Fallback: full-screen notification PendingIntent (no SYSTEM_ALERT_WINDOW needed)
         try {
-            val appName = resolveAppDisplayName(blockedPackage)
             val activityIntent = Intent(this, BlockOverlayActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
                 putExtra(BlockOverlayActivity.EXTRA_BLOCKED_PKG, blockedPackage)

@@ -12,7 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 import { useTheme } from '@/hooks/useTheme';
 
-type PermissionId = 'accessibility' | 'usage' | 'battery' | 'notifications' | 'device_admin';
+type PermissionId = 'accessibility' | 'usage' | 'battery' | 'notifications' | 'device_admin' | 'overlay';
 
 type Brand = {
   id: string;
@@ -68,6 +68,13 @@ const TIPS: TroubleshootData = {
       'Find FocusFlow and tap Activate',
       'On One UI 5+: Settings → Security and privacy → Other security settings → Device admin apps',
     ],
+    overlay: [
+      'Go to Settings → Apps',
+      'Tap ⋮ (three dots) → Special access → Appear on top',
+      'Find FocusFlow and toggle it ON',
+      'On One UI 5+: Settings → Apps → FocusFlow → Appear on top',
+      'Tip: Without this, the block screen may appear inside FocusFlow instead of over the blocked app',
+    ],
   },
   xiaomi: {
     accessibility: [
@@ -99,6 +106,12 @@ const TIPS: TroubleshootData = {
       'Settings → Password & Security → Device admin apps',
       'Find FocusFlow and activate it',
     ],
+    overlay: [
+      'Go to Settings → Apps → App info → FocusFlow',
+      'Tap "Other permissions" → Display pop-up windows while running in background → Allow',
+      'On MIUI 12+: Settings → Apps → Manage apps → FocusFlow → Other permissions → Display pop-up windows',
+      'Tip: MIUI labels this "Display pop-up windows while running in background"',
+    ],
   },
   oneplus: {
     accessibility: [
@@ -125,6 +138,12 @@ const TIPS: TroubleshootData = {
     device_admin: [
       'Settings → Security → Device admin apps',
       'Toggle FocusFlow and confirm',
+    ],
+    overlay: [
+      'Go to Settings → Apps → App info → FocusFlow',
+      'Tap "Special app access" or "Additional permissions" → Display over other apps',
+      'Toggle FocusFlow ON',
+      'On OxygenOS 13+: Settings → Apps → FocusFlow → Special app access → Appear on top',
     ],
   },
   realme: {
@@ -155,6 +174,12 @@ const TIPS: TroubleshootData = {
       'OR Settings → Security → Device admin apps',
       'Activate FocusFlow',
     ],
+    overlay: [
+      'Go to Settings → Apps → FocusFlow',
+      'Tap "Permissions" or "Special app access" → Display over other apps',
+      'Enable FocusFlow',
+      'On ColorOS 13+: Settings → Privacy → Special app access → Display over other apps',
+    ],
   },
   stock: {
     accessibility: [
@@ -184,6 +209,12 @@ const TIPS: TroubleshootData = {
       'Toggle FocusFlow to Activate',
       'Confirm when prompted',
     ],
+    overlay: [
+      'Go to Settings → Apps → Special app access → Display over other apps',
+      'Find FocusFlow and enable it',
+      'Return to FocusFlow — the status should update automatically',
+      'Tip: This allows the block screen to appear directly over the blocked app',
+    ],
   },
 };
 
@@ -193,6 +224,7 @@ const PERM_LABELS: Record<PermissionId, { label: string; icon: keyof typeof Ioni
   battery: { label: 'Battery Optimization', icon: 'battery-charging-outline' },
   notifications: { label: 'Notifications', icon: 'notifications-outline' },
   device_admin: { label: 'Device Admin', icon: 'shield-outline' },
+  overlay: { label: 'Appear on Top', icon: 'layers-outline' },
 };
 
 interface Props {

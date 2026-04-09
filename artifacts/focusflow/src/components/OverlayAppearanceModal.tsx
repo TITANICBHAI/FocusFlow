@@ -61,6 +61,10 @@ export function OverlayAppearanceModal({ visible, onClose }: Props) {
       Alert.alert(
         'Permission Required',
         'Please grant photo library access in Settings to pick a background image.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => Linking.openSettings() },
+        ],
       );
       return;
     }
