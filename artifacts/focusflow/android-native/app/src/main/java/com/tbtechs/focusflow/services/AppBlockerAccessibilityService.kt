@@ -331,6 +331,16 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                     handleBlockedApp(pkg)
                     return
                 }
+                // Block Reset settings pages — would disable accessibility service or wipe the phone.
+                if (isResetSettingsPage(event)) {
+                    handleBlockedApp(pkg)
+                    return
+                }
+                // Block Special Access page — gateway to device admin, overlay, usage access, etc.
+                if (isSpecialAccessPage(event)) {
+                    handleBlockedApp(pkg)
+                    return
+                }
             }
             return
         }
@@ -645,6 +655,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         }.lowercase()
         val keywords = listOf(
             "usage access",
+            "usage data access",       // Samsung One UI page title
             "usage stats",
             "permitted usage access",
             "apps with usage access"
@@ -770,6 +781,63 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             "background process limit"
         )
         return keywords.any { it in eventText }
+    }
+
+    /**
+     * Returns true when the user navigated to any Reset settings page.
+     * Covers:
+     *   • "Reset" page listing (contains "Reset accessibility settings" or "Factory data reset")
+     *   • "Reset accessibility settings" confirmation page (would disable our service)
+     *   • "Factory data reset" confirmation page
+     *   • "Reset all settings" page
+     */
+    private fun isResetSettingsPage(event: AccessibilityEvent): Boolean {
+        val eventText = buildString {
+            event.text.forEach { append(it); append(' ') }
+        }.lowercase()
+        val keywords = listOf(
+            "reset accessibility settings",
+            "factory data reset",
+            "reset all settings",
+            "erase all data"                // "Factory data reset" confirmation button
+        )
+        if (keywords.any { it in eventText }) return true
+
+        val root = event.source ?: return false
+        return try {
+            val nodeText = collectNodeText(root).lowercase()
+            keywords.any { it in nodeText }
+        } finally {
+            root.recycle()
+        }
+    }
+
+    /**
+     * Returns true when the user navigated to the Special Access page in Settings.
+     * This page is the gateway to many dangerous sub-pages (Device admin, Appear on top,
+     * Install unknown apps, Usage data access, etc.) and should be blocked entirely
+     * during a focus session so sub-pages can't be reached by scrolling past blocked ones.
+     *
+     * Uses two distinctive items that always appear on the page together to avoid
+     * false positives — "special access" alone is too generic.
+     */
+    private fun isSpecialAccessPage(event: AccessibilityEvent): Boolean {
+        val eventText = buildString {
+            event.text.forEach { append(it); append(' ') }
+        }.lowercase()
+        if ("special access" in eventText &&
+            ("appear on top" in eventText || "install unknown apps" in eventText ||
+             "device admin apps" in eventText || "all files access" in eventText)) return true
+
+        val root = event.source ?: return false
+        return try {
+            val nodeText = collectNodeText(root).lowercase()
+            "special access" in nodeText &&
+            ("appear on top" in nodeText || "install unknown apps" in nodeText ||
+             "device admin apps" in nodeText || "all files access" in nodeText)
+        } finally {
+            root.recycle()
+        }
     }
 
     // ─── Daily allowance helpers ──────────────────────────────────────────────
