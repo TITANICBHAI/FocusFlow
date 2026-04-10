@@ -341,6 +341,16 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             revealWindowXButton()
         }
 
+        // ── NEVER_BLOCK packages ──────────────────────────────────────────────
+        // Phone dialers (all OEM variants) and WhatsApp are unconditionally
+        // allowed. No user setting, standalone block, or focus session can
+        // override this. This check runs before ALWAYS_ALLOWED so that even
+        // if a user somehow adds one of these packages to a block list, the
+        // block is silently ignored.
+        if (NEVER_BLOCK.any { pkg.equals(it, ignoreCase = true) }) {
+            return
+        }
+
         // ── ALWAYS_ALLOWED packages ───────────────────────────────────────────
         // Settings is always allowed at the package level but we intercept dangerous
         // sub-pages (accessibility settings, clear data, date/time) during focus.
