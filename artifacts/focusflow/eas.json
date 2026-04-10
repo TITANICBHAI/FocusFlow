@@ -28,6 +28,7 @@
     },
     "production": {
       "autoIncrement": true,
+      "credentialsSource": "local",
       "env": {
         "NPM_CONFIG_NODE_LINKER": "hoisted",
         "EXPO_ROUTER_APP_ROOT": "app"

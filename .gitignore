@@ -47,3 +47,8 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Android signing — never commit these
+*.keystore
+*.jks
+credentials.json
