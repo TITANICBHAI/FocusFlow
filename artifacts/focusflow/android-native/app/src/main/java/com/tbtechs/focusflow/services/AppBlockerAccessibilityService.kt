@@ -132,6 +132,61 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             "com.samsung.android.settings"
         )
 
+        /**
+         * Packages that can NEVER be blocked, regardless of any user setting.
+         * These are safety-critical (emergency calls) or communication essentials
+         * (WhatsApp). Users cannot add these to any blocked list — they are always
+         * passed through unconditionally before any other check.
+         */
+        val NEVER_BLOCK: Set<String> = setOf(
+            // ── Emergency / in-call UI ────────────────────────────────────────
+            "com.android.phone",                       // AOSP telephony
+            "com.android.dialer",                      // AOSP dialer
+            "com.google.android.dialer",               // Pixel / Google dialer
+            "com.android.emergencydialer",             // Emergency dialer (any OEM)
+            "com.google.android.incallui",             // Google in-call UI
+            // Samsung
+            "com.samsung.android.app.telephonyui",
+            "com.samsung.android.incallui",
+            "com.sec.android.app.dialertab",
+            // Xiaomi / MIUI
+            "com.miui.dialer",
+            "com.xiaomi.phone",
+            // OnePlus / OxygenOS
+            "com.oneplus.dialer",
+            "com.oneplus.incallui",
+            // Huawei / EMUI
+            "com.huawei.phone",
+            "com.huawei.incallui",
+            // Oppo / ColorOS
+            "com.coloros.dialer",
+            "com.oppo.phone",
+            "com.oppo.incallui",
+            // Vivo / FuntouchOS
+            "com.vivo.phone",
+            "com.vivo.incallui",
+            // Realme
+            "com.realme.phone",
+            // Motorola
+            "com.motorola.phone",
+            "com.motorola.incallui",
+            // LG
+            "com.lge.phone",
+            "com.lge.incallui",
+            // Sony
+            "com.sonyericsson.android.phone",
+            "com.sony.incallui",
+            // Nokia
+            "com.nokia.phone",
+            // HTC
+            "com.htc.phone",
+            // ZTE / Blade
+            "com.android.contacts",                    // default contacts (dialer link)
+            // ── WhatsApp (messaging / calls) ─────────────────────────────────
+            "com.whatsapp",
+            "com.whatsapp.w4b",                        // WhatsApp Business
+        )
+
         val ALWAYS_BLOCKED: Set<String> = emptySet()
 
         /**
