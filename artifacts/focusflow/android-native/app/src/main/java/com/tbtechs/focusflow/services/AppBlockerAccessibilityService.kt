@@ -520,8 +520,23 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                         timedExpireRunnable?.let { handler.removeCallbacks(it) }
                         timedExpireRunnable = null
                     }
+                } else if (allowanceEntry.mode != "count" && currentTimedSessionEndMs > 0L && now >= currentTimedSessionEndMs) {
+                    // Fallback: same app still in foreground but session has expired.
+                    // handler.postDelayed may not have fired on this device (Doze / Samsung
+                    // battery optimization). Enforce expiry on the next window event instead.
+                    accumulateTimedUsage(pkg, allowanceEntry, currentTimedOpenAtMs)
+                    timedExpireRunnable?.let { handler.removeCallbacks(it) }
+                    timedExpireRunnable = null
+                    currentTimedPkg = null
+                    currentTimedOpenAtMs = 0L
+                    currentTimedSessionEndMs = 0L
+                    lastBlockedPkg = pkg
+                    lastBlockedAtMs = now
+                    handleBlockedApp(pkg)
+                    scheduleRetryCheck(pkg, 1, focusActive, saActive)
+                    return
                 }
-                // else: same app still in foreground — already recorded, just let it through
+                // else: same app still in foreground and session not yet expired — let it through
                 lastBlockedPkg = null
                 return // Allowed — within allowance
             }

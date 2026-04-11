@@ -14,13 +14,11 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import dayjs from 'dayjs';
 import { useApp } from '@/context/AppContext';
 import { useTaskTimer } from '@/hooks/useTimer';
 import { formatTime } from '@/services/taskService';
 import { dbLogFocusOverride } from '@/data/database';
 import { UsageStatsModule } from '@/native-modules/UsageStatsModule';
-import { StandaloneBlockModal } from '@/components/StandaloneBlockModal';
 import ExtendModal from '@/components/ExtendModal';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 import { useTheme } from '@/hooks/useTheme';
@@ -30,18 +28,12 @@ export default function FocusScreen() {
   const { theme } = useTheme();
   const { width: windowWidth } = useWindowDimensions();
   const ringSize = Math.min(Math.floor(windowWidth * 0.65), 260);
-  const { state, activeTask, startFocusMode, stopFocusMode, completeTask, extendTaskTime, setStandaloneBlockAndAllowance } = useApp();
+  const { state, activeTask, startFocusMode, stopFocusMode, completeTask, extendTaskTime } = useApp();
   const isFocusing = state.focusSession !== null && state.focusSession.isActive;
   const [hasAccessibilityPermission, setHasAccessibilityPermission] = useState<boolean | null>(null);
-  const [blockModalVisible, setBlockModalVisible] = useState(false);
   const [showExtendModal, setShowExtendModal] = useState(false);
 
   const { settings } = state;
-  const standaloneActive = (() => {
-    if (!settings.standaloneBlockUntil) return false;
-    if ((settings.standaloneBlockPackages ?? []).length === 0) return false;
-    return new Date(settings.standaloneBlockUntil).getTime() > Date.now();
-  })();
 
   const task = activeTask;
 
@@ -102,42 +94,7 @@ export default function FocusScreen() {
           <Text style={[styles.emptySubtitle, { color: theme.muted }]}>
             Start a task from the Schedule tab to activate Focus Mode
           </Text>
-
-          <TouchableOpacity
-            style={[styles.blockScheduleBtn, { backgroundColor: theme.card, borderColor: theme.border }, standaloneActive && styles.blockScheduleBtnActive]}
-            onPress={() => setBlockModalVisible(true)}
-            activeOpacity={0.8}
-          >
-            <Ionicons
-              name={standaloneActive ? 'ban' : 'ban-outline'}
-              size={18}
-              color={standaloneActive ? COLORS.red : COLORS.primary}
-            />
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.blockScheduleBtnText, { color: theme.text }, standaloneActive && { color: COLORS.red }]}>
-                {standaloneActive ? 'Block Schedule Active' : 'Set Block Schedule'}
-              </Text>
-              {standaloneActive && settings.standaloneBlockUntil && (
-                <Text style={[styles.blockScheduleBtnDesc, { color: theme.textSecondary }]}>
-                  {(settings.standaloneBlockPackages ?? []).length} apps blocked until{' '}
-                  {dayjs(settings.standaloneBlockUntil).format('MMM D [at] h:mm A')}
-                </Text>
-              )}
-            </View>
-            <Ionicons name="chevron-forward" size={16} color={COLORS.border} />
-          </TouchableOpacity>
         </View>
-
-        <StandaloneBlockModal
-          visible={blockModalVisible}
-          blockedPackages={settings.standaloneBlockPackages ?? []}
-          blockUntil={settings.standaloneBlockUntil}
-          dailyAllowanceEntries={settings.dailyAllowanceEntries ?? []}
-          onSave={async (packages, untilMs, allowanceEntries) => {
-            await setStandaloneBlockAndAllowance(packages, untilMs, allowanceEntries);
-          }}
-          onClose={() => setBlockModalVisible(false)}
-        />
         <View style={{ height: 60 + insets.bottom + 20 }} />
       </SafeAreaView>
     );
@@ -334,44 +291,8 @@ export default function FocusScreen() {
         </View>
       )}
 
-      {/* Block Schedule card */}
-      <TouchableOpacity
-        style={[styles.blockScheduleBtn, { backgroundColor: theme.card, borderColor: theme.border }, standaloneActive && styles.blockScheduleBtnActive, { marginHorizontal: SPACING.lg, marginBottom: SPACING.md }]}
-        onPress={() => setBlockModalVisible(true)}
-        activeOpacity={0.8}
-      >
-        <Ionicons
-          name={standaloneActive ? 'ban' : 'ban-outline'}
-          size={18}
-          color={standaloneActive ? COLORS.red : COLORS.primary}
-        />
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.blockScheduleBtnText, { color: theme.text }, standaloneActive && { color: COLORS.red }]}>
-            {standaloneActive ? 'Block Schedule Active' : 'Set Block Schedule'}
-          </Text>
-          {standaloneActive && settings.standaloneBlockUntil && (
-            <Text style={[styles.blockScheduleBtnDesc, { color: theme.textSecondary }]}>
-              {(settings.standaloneBlockPackages ?? []).length} apps blocked until{' '}
-              {dayjs(settings.standaloneBlockUntil).format('MMM D [at] h:mm A')}
-            </Text>
-          )}
-        </View>
-        <Ionicons name="chevron-forward" size={16} color={theme.border} />
-      </TouchableOpacity>
-
         <View style={{ height: 60 + insets.bottom + 20 }} />
       </ScrollView>
-
-      <StandaloneBlockModal
-        visible={blockModalVisible}
-        blockedPackages={settings.standaloneBlockPackages ?? []}
-        blockUntil={settings.standaloneBlockUntil}
-        dailyAllowanceEntries={settings.dailyAllowanceEntries ?? []}
-        onSave={async (packages, untilMs, allowanceEntries) => {
-          await setStandaloneBlockAndAllowance(packages, untilMs, allowanceEntries);
-        }}
-        onClose={() => setBlockModalVisible(false)}
-      />
 
       {task && (
         <ExtendModal
