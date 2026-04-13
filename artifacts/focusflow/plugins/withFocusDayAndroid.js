@@ -462,6 +462,103 @@ function withFocusDayKotlin(config) {
   ]);
 }
 
+// ─── 5. Patch app/build.gradle: R8 + shrinkResources + ABI splits ─────────────
+
+function withFocusDayBuildConfig(config) {
+  return withDangerousMod(config, [
+    'android',
+    (cfg) => {
+      const platformRoot = cfg.modRequest.platformProjectRoot;
+      const buildGradlePath = path.join(platformRoot, 'app', 'build.gradle');
+
+      if (!fs.existsSync(buildGradlePath)) {
+        console.warn('[withFocusDayAndroid] app/build.gradle not found — skipping build config patch.');
+        return cfg;
+      }
+
+      let content = fs.readFileSync(buildGradlePath, 'utf8');
+
+      // ── Enable R8 full minification for release ──────────────────────────
+      // Expo default: minifyEnabled (findProperty('android.enableProguardInReleaseBuilds')?.toBoolean() ?: false)
+      // We force it true so R8 runs unconditionally on release builds.
+      const minifyPatched = content.replace(
+        /minifyEnabled\s+\(findProperty\([^)]*\)\?\.toBoolean\(\)\s*\?:\s*false\)/,
+        'minifyEnabled true'
+      );
+      if (minifyPatched !== content) {
+        content = minifyPatched;
+        console.log('[withFocusDayAndroid] Enabled minifyEnabled true for release.');
+      } else if (!content.includes('minifyEnabled true')) {
+        // Fallback: simple replacement if the pattern is slightly different
+        content = content.replace(/minifyEnabled\s+false/, 'minifyEnabled true');
+        console.log('[withFocusDayAndroid] Fallback: set minifyEnabled true for release.');
+      }
+
+      // ── Enable shrinkResources (requires minifyEnabled true) ─────────────
+      if (!content.includes('shrinkResources')) {
+        content = content.replace(
+          /(minifyEnabled\s+true)/,
+          '$1\n            shrinkResources true'
+        );
+        console.log('[withFocusDayAndroid] Enabled shrinkResources true for release.');
+      }
+
+      // ── ABI splits: arm64 + arm32 + universal fallback ───────────────────
+      // Users get only the slice for their CPU. Play Store delivers the right
+      // one automatically. Direct APK installs can use the universalApk.
+      if (!content.includes('splits {')) {
+        content = content.replace(
+          /(\n\s*buildTypes\s*\{)/,
+          `\n    splits {
+        abi {
+            enable true
+            reset()
+            include "arm64-v8a", "armeabi-v7a"
+            universalApk true
+        }
+    }$1`
+        );
+        console.log('[withFocusDayAndroid] Added ABI splits (arm64-v8a, armeabi-v7a + universal).');
+      }
+
+      fs.writeFileSync(buildGradlePath, content, 'utf8');
+      return cfg;
+    },
+  ]);
+}
+
+// ─── 6. Patch proguard-rules.pro: keep all custom focusflow classes ────────────
+
+function withFocusDayProguard(config) {
+  return withDangerousMod(config, [
+    'android',
+    (cfg) => {
+      const platformRoot = cfg.modRequest.platformProjectRoot;
+      const proguardPath = path.join(platformRoot, 'app', 'proguard-rules.pro');
+
+      const rules = `
+# FocusFlow custom Kotlin modules, services, and receivers
+# Keep everything under the app package so R8 doesn't strip native bridge classes
+-keep class com.tbtechs.focusflow.** { *; }
+-keepclassmembers class com.tbtechs.focusflow.** { *; }
+`;
+
+      if (!fs.existsSync(proguardPath)) {
+        fs.writeFileSync(proguardPath, rules, 'utf8');
+        console.log('[withFocusDayAndroid] Created proguard-rules.pro with focusflow keep rules.');
+      } else {
+        const existing = fs.readFileSync(proguardPath, 'utf8');
+        if (!existing.includes('com.tbtechs.focusflow')) {
+          fs.writeFileSync(proguardPath, existing + rules, 'utf8');
+          console.log('[withFocusDayAndroid] Appended focusflow keep rules to proguard-rules.pro.');
+        }
+      }
+
+      return cfg;
+    },
+  ]);
+}
+
 // ─── Compose & export ─────────────────────────────────────────────────────────
 
 module.exports = function withFocusDayAndroid(config) {
@@ -469,6 +566,8 @@ module.exports = function withFocusDayAndroid(config) {
   config = withFocusDayManifest(config);
   config = withFocusDayKotlin(config);
   config = withFocusDayPackageRegistration(config);
+  config = withFocusDayBuildConfig(config);
+  config = withFocusDayProguard(config);
   return config;
 };
 
