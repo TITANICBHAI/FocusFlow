@@ -26,7 +26,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import * as Notifications from 'expo-notifications';
-import * as ImagePicker from 'expo-image-picker';
+import { NativeImagePickerModule } from '@/native-modules/NativeImagePickerModule';
 import { useApp } from '@/context/AppContext';
 import { useTheme } from '@/hooks/useTheme';
 import { requestPermissions } from '@/services/notificationService';
@@ -143,8 +143,8 @@ async function checkStatus(id: string): Promise<PermStatus> {
   try {
     switch (id) {
       case 'media': {
-        const { status } = await ImagePicker.getMediaLibraryPermissionsAsync();
-        return status === 'granted' ? 'granted' : 'denied';
+        const granted = await NativeImagePickerModule.checkMediaPermission();
+        return granted ? 'granted' : 'denied';
       }
       case 'notifications': {
         const { status } = await Notifications.getPermissionsAsync();
@@ -211,8 +211,8 @@ export default function OnboardingScreen() {
     setActionLoading(perm.id);
     try {
       if (perm.id === 'media') {
-        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        setStatuses((prev) => ({ ...prev, media: status === 'granted' ? 'granted' : 'denied' }));
+        const granted = await NativeImagePickerModule.requestMediaPermission();
+        setStatuses((prev) => ({ ...prev, media: granted ? 'granted' : 'denied' }));
       } else if (perm.id === 'notifications') {
         const granted = await requestPermissions();
         setStatuses((prev) => ({ ...prev, notifications: granted ? 'granted' : 'denied' }));

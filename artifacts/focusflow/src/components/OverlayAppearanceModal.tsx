@@ -7,13 +7,12 @@ import {
   StyleSheet,
   ScrollView,
   TextInput,
-  Platform,
   Alert,
   Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
+import { NativeImagePickerModule } from '@/native-modules/NativeImagePickerModule';
 import { useApp } from '@/context/AppContext';
 import { useTheme } from '@/hooks/useTheme';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
@@ -57,14 +56,9 @@ export function OverlayAppearanceModal({ visible, onClose }: Props) {
 
   const handlePickImage = async () => {
     try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        allowsEditing: false,
-        quality: 0.9,
-      });
-      if (!result.canceled && result.assets[0]) {
-        const uri = result.assets[0].uri;
-        const path = Platform.OS === 'android' && uri.startsWith('file://') ? uri.replace('file://', '') : uri;
+      const uri = await NativeImagePickerModule.pickImage();
+      if (uri) {
+        const path = uri.startsWith('file://') ? uri.replace('file://', '') : uri;
         await syncWallpaper(path);
       }
     } catch {

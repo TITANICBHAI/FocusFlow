@@ -32,6 +32,7 @@ import com.facebook.react.uimanager.ViewManager
  *   NetworkBlock      — VPN tunnel + WiFi/data disable when a blocked app opens
  *   Aversions         — screen dimmer / vibration / sound alert toggles
  *   Greyout           — time-window block schedule + temptation log access
+ *   NativeImagePicker — system photo picker replacing expo-image-picker (zero deps)
  */
 class FocusDayPackage : ReactPackage {
 
@@ -48,6 +49,7 @@ class FocusDayPackage : ReactPackage {
             NetworkBlockModule(reactContext),
             AversionsModule(reactContext),
             GreyoutModule(reactContext),
+            NativeImagePickerModule(reactContext),
         )
 
     override fun createViewManagers(reactContext: ReactApplicationContext): List<ViewManager<*, *>> =

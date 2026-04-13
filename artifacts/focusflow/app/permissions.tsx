@@ -14,7 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import * as Notifications from 'expo-notifications';
-import * as ImagePicker from 'expo-image-picker';
+import { NativeImagePickerModule } from '@/native-modules/NativeImagePickerModule';
 import { UsageStatsModule, isUsageStatsAvailable } from '@/native-modules/UsageStatsModule';
 import { isSharedPrefsAvailable } from '@/native-modules/SharedPrefsModule';
 import { ForegroundLaunchModule } from '@/native-modules/ForegroundLaunchModule';
@@ -175,14 +175,14 @@ const PERMISSIONS: PermissionItem[] = [
     optional: true,
     check: async (): Promise<PermStatus> => {
       try {
-        const { status } = await ImagePicker.getMediaLibraryPermissionsAsync();
-        return status === 'granted' ? 'granted' : 'denied';
+        const granted = await NativeImagePickerModule.checkMediaPermission();
+        return granted ? 'granted' : 'denied';
       } catch {
         return 'unknown';
       }
     },
     open: () => {
-      ImagePicker.requestMediaLibraryPermissionsAsync().catch(() =>
+      NativeImagePickerModule.requestMediaPermission().catch(() =>
         Linking.openSettings()
       );
     },
