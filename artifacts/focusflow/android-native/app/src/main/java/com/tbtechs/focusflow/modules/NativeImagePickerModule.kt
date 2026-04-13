@@ -30,8 +30,8 @@ import com.facebook.react.bridge.ReactMethod
  *   pickImage()             → Promise<String | null>  — file:// or content:// URI
  *   checkMediaPermission()  → Promise<Boolean>        — true if already granted
  */
-class NativeImagePickerModule(reactContext: ReactApplicationContext) :
-    ReactContextBaseJavaModule(reactContext) {
+class NativeImagePickerModule(private val ctx: ReactApplicationContext) :
+    ReactContextBaseJavaModule(ctx) {
 
     companion object {
         const val NAME = "NativeImagePicker"
@@ -57,14 +57,14 @@ class NativeImagePickerModule(reactContext: ReactApplicationContext) :
     }
 
     init {
-        reactContext.addActivityEventListener(activityEventListener)
+        ctx.addActivityEventListener(activityEventListener)
     }
 
     override fun getName(): String = NAME
 
     @ReactMethod
     fun pickImage(promise: Promise) {
-        val activity = currentActivity
+        val activity: Activity? = ctx.currentActivity
         if (activity == null) {
             promise.reject("E_NO_ACTIVITY", "No foreground activity available")
             return
@@ -81,6 +81,7 @@ class NativeImagePickerModule(reactContext: ReactApplicationContext) :
             Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI)
         }
 
+        @Suppress("DEPRECATION")
         activity.startActivityForResult(intent, REQUEST_PICK_IMAGE)
     }
 
@@ -95,7 +96,7 @@ class NativeImagePickerModule(reactContext: ReactApplicationContext) :
             return
         }
         val perm = android.Manifest.permission.READ_EXTERNAL_STORAGE
-        val granted = reactApplicationContext.checkSelfPermission(perm) ==
+        val granted = ctx.checkSelfPermission(perm) ==
                 android.content.pm.PackageManager.PERMISSION_GRANTED
         promise.resolve(granted)
     }
