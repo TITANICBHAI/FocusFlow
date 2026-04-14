@@ -1,19 +1,20 @@
 name: Build Release (APK × 3 + AAB)
 
-# Builds a signed, fully optimised release for production / Play Store.
-# Produces four artifacts:
-#   • arm64-v8a APK   — 64-bit ARM devices (most modern phones)
-#   • armeabi-v7a APK — 32-bit ARM devices (older phones)
-#   • universal APK   — works on every device (largest file)
-#   • AAB             — Play Store submission
+# Two independent jobs:
+#   apks  — expo prebuild → assembleRelease with ABI splits
+#           produces arm64-v8a APK, armeabi-v7a APK, universal APK
+#   aab   — expo prebuild → bundleRelease (no ABI splits needed)
+#           produces AAB for Play Store
 #
-# Optimisations applied:
-#   • R8 full-mode minification + obfuscation (enabled via expo-build-properties)
-#   • Resource shrinking  (unused drawables, strings, layouts removed)
-#   • ABI splits          (per-architecture APKs, smaller download size)
-#   • Universal APK       (universalApk true — single file for sideloading)
-#   • Hermes JS engine    (bytecode pre-compiled, already the RN 0.81 default)
-#   • zipalign + apksigner (applied automatically by Gradle signedRelease task)
+# Running them as separate jobs means each gets its own clean workspace
+# and build directory, so there are no conflicts between the split-APK
+# intermediates and the AAB bundle task.
+#
+# Optimisations applied to both jobs:
+#   • R8 full-mode minification + obfuscation (expo-build-properties)
+#   • Resource shrinking
+#   • Hermes JS engine (RN 0.81 default — bytecode pre-compiled)
+#   • zipalign + apksigner (applied automatically by Gradle signed release)
 #
 # Manual trigger only — requires keystore secrets to be configured.
 #
@@ -31,17 +32,86 @@ env:
   NPM_CONFIG_NODE_LINKER: hoisted
   EXPO_ROUTER_APP_ROOT: app
 
+# ── Shared setup steps (used by both jobs via YAML anchors) ───────────────────
+x-setup: &setup
+  - name: Checkout repository
+    uses: actions/checkout@v4
+
+  - name: Set up Java 17
+    uses: actions/setup-java@v4
+    with:
+      java-version: '17'
+      distribution: 'temurin'
+
+  - name: Set up Node.js 20
+    uses: actions/setup-node@v4
+    with:
+      node-version: '20'
+
+  - name: Set up pnpm
+    uses: pnpm/action-setup@v4
+    with:
+      version: 9
+
+  - name: Get pnpm store path
+    id: pnpm-cache
+    run: echo "STORE=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+
+  - name: Cache pnpm store
+    uses: actions/cache@v4
+    with:
+      path: ${{ steps.pnpm-cache.outputs.STORE }}
+      key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+      restore-keys: ${{ runner.os }}-pnpm-
+
+  - name: Cache Gradle
+    uses: actions/cache@v4
+    with:
+      path: |
+        ~/.gradle/caches
+        ~/.gradle/wrapper
+      key: ${{ runner.os }}-gradle-${{ hashFiles('**/gradle-wrapper.properties') }}
+      restore-keys: ${{ runner.os }}-gradle-
+
+  - name: Install JS dependencies
+    run: pnpm install --frozen-lockfile
+
+  - name: Expo Prebuild
+    working-directory: artifacts/focusflow
+    run: npx expo prebuild --platform android --clean --no-install
+
+  - name: Inject comprehensive ProGuard rules
+    working-directory: artifacts/focusflow
+    run: |
+      cp proguard-rules.pro android/app/proguard-rules.pro
+      echo "ProGuard rules injected ($(wc -l < android/app/proguard-rules.pro) lines)"
+
+  - name: Enable R8 full mode
+    working-directory: artifacts/focusflow/android
+    run: |
+      echo "" >> gradle.properties
+      echo "android.enableR8.fullMode=true" >> gradle.properties
+
+  - name: Decode release keystore
+    working-directory: artifacts/focusflow/android
+    run: |
+      echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 --decode > release.keystore
+
+  - name: Remove keystore from runner
+    if: always()
+    working-directory: artifacts/focusflow/android
+    run: rm -f release.keystore
+
 jobs:
-  build:
-    name: Release APK (arm64 + arm32 + universal) + AAB
+  # ── Job 1: ABI-split APKs (arm64 + arm32 + universal) ─────────────────────
+  apks:
+    name: Release APKs (arm64 + arm32 + universal)
     runs-on: ubuntu-latest
 
     steps:
-      # ── 1. Source ──────────────────────────────────────────────────────────
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ── 2. Toolchain ───────────────────────────────────────────────────────
       - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
@@ -58,7 +128,6 @@ jobs:
         with:
           version: 9
 
-      # ── 3. Caches ──────────────────────────────────────────────────────────
       - name: Get pnpm store path
         id: pnpm-cache
         run: echo "STORE=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
@@ -79,60 +148,28 @@ jobs:
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/gradle-wrapper.properties') }}
           restore-keys: ${{ runner.os }}-gradle-
 
-      # ── 4. JS dependencies ─────────────────────────────────────────────────
       - name: Install JS dependencies
         run: pnpm install --frozen-lockfile
 
-      # ── 5. Expo Prebuild ───────────────────────────────────────────────────
       - name: Expo Prebuild
         working-directory: artifacts/focusflow
         run: npx expo prebuild --platform android --clean --no-install
 
-      # ── 6. Inject ProGuard rules ───────────────────────────────────────────
-      #      expo prebuild generates a minimal proguard-rules.pro.
-      #      We replace it with our comprehensive rules that protect all
-      #      React Native, Expo, Hermes, and app-specific classes.
-      - name: Inject comprehensive ProGuard rules
+      - name: Inject ProGuard rules
         working-directory: artifacts/focusflow
-        run: |
-          cp proguard-rules.pro android/app/proguard-rules.pro
-          echo "ProGuard rules injected ($(wc -l < android/app/proguard-rules.pro) lines)"
+        run: cp proguard-rules.pro android/app/proguard-rules.pro
 
-      # ── 7. Verify & patch build.gradle optimisation flags ─────────────────
-      #      expo-build-properties sets minifyEnabled and shrinkResources,
-      #      but we double-check and guarantee they are on for release.
-      #      Also enable universalApk so the universal APK is produced
-      #      alongside the ABI-split APKs.
-      - name: Verify optimisation flags in build.gradle
-        working-directory: artifacts/focusflow/android
-        run: |
-          echo "── build.gradle release block ──"
-          grep -A 10 "buildTypes" app/build.gradle || true
-
-          echo "── Ensuring universalApk true ──"
-          sed -i 's/universalApk false/universalApk true/g' app/build.gradle
-          grep -n "universalApk\|minifyEnabled\|shrinkResources" app/build.gradle
-
-      # ── 8. Enforce R8 full mode ───────────────────────────────────────────
-      #      Adds a gradle.properties line that tells R8 to run in full mode,
-      #      enabling more aggressive dead-code elimination beyond default mode.
       - name: Enable R8 full mode
         working-directory: artifacts/focusflow/android
         run: |
           echo "" >> gradle.properties
-          echo "# R8 full mode — more aggressive dead-code removal" >> gradle.properties
           echo "android.enableR8.fullMode=true" >> gradle.properties
-          echo "R8 full mode enabled"
 
-      # ── 9. Decode keystore ─────────────────────────────────────────────────
       - name: Decode release keystore
         working-directory: artifacts/focusflow/android
-        run: |
-          echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 --decode > release.keystore
-          echo "Keystore decoded: $(du -sh release.keystore)"
+        run: echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 --decode > release.keystore
 
-      # ── 10. Build release APKs (arm64-v8a + armeabi-v7a + universal) ───────
-      - name: Build release APKs
+      - name: Build release APKs (arm64 + arm32 + universal)
         working-directory: artifacts/focusflow/android
         env:
           GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx6g -XX:MaxMetaspaceSize=512m -Dorg.gradle.daemon=false"
@@ -146,33 +183,98 @@ jobs:
           echo "── APK outputs ──"
           find app/build/outputs/apk/release/ -name "*.apk" -exec ls -lh {} \;
 
-      # ── 11. Disable ABI splits before AAB build ───────────────────────────
-      #      Known AGP bug (https://issuetracker.google.com/402800800):
-      #      when ABI splits + shrinkResources are both on, bundleRelease
-      #      fails because it finds multiple per-ABI shrunk-resource files
-      #      from the previous assembleRelease step.
-      #
-      #      The withFocusDayAndroid plugin writes:  enable true
-      #      inside the splits { abi { ... } } block.  We flip it to false
-      #      and wipe the APK-build intermediates that confuse the bundle task.
-      #      AABs don't need ABI splits — Play Store handles delivery natively.
-      - name: Disable ABI splits for AAB build
+      - name: Upload arm64-v8a APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: focusflow-arm64-v8a-release-${{ github.run_number }}
+          path: artifacts/focusflow/android/app/build/outputs/apk/release/app-arm64-v8a-release.apk
+          retention-days: 30
+
+      - name: Upload armeabi-v7a APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: focusflow-armeabi-v7a-release-${{ github.run_number }}
+          path: artifacts/focusflow/android/app/build/outputs/apk/release/app-armeabi-v7a-release.apk
+          retention-days: 30
+
+      - name: Upload universal APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: focusflow-universal-release-${{ github.run_number }}
+          path: artifacts/focusflow/android/app/build/outputs/apk/release/app-universal-release.apk
+          retention-days: 30
+
+      - name: Remove keystore from runner
+        if: always()
+        working-directory: artifacts/focusflow/android
+        run: rm -f release.keystore
+
+  # ── Job 2: AAB for Play Store ──────────────────────────────────────────────
+  aab:
+    name: Release AAB (Play Store)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Get pnpm store path
+        id: pnpm-cache
+        run: echo "STORE=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/gradle-wrapper.properties') }}
+          restore-keys: ${{ runner.os }}-gradle-
+
+      - name: Install JS dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Expo Prebuild
+        working-directory: artifacts/focusflow
+        run: npx expo prebuild --platform android --clean --no-install
+
+      - name: Inject ProGuard rules
+        working-directory: artifacts/focusflow
+        run: cp proguard-rules.pro android/app/proguard-rules.pro
+
+      - name: Enable R8 full mode
         working-directory: artifacts/focusflow/android
         run: |
-          # Flip  enable true  →  enable false  inside the splits.abi block
-          sed -i '/splits\s*{/,/^[[:space:]]*}/s/enable true/enable false/' app/build.gradle
-          echo "ABI splits block after patch:"
-          grep -n "enable\|universalApk\|splits" app/build.gradle | head -10
+          echo "" >> gradle.properties
+          echo "android.enableR8.fullMode=true" >> gradle.properties
 
-          # Wipe per-ABI R8 and resource intermediates so bundleRelease
-          # gets a clean slate and doesn't pick up APK-build leftovers.
-          rm -rf app/build/intermediates/shrunk_resources_proto_format/
-          rm -rf app/build/intermediates/optimized_processed_res/
-          rm -rf app/build/intermediates/shrunk_processed_res/
-          rm -rf app/build/intermediates/res/apk/
-          echo "Intermediates cleaned"
+      - name: Decode release keystore
+        working-directory: artifacts/focusflow/android
+        run: echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 --decode > release.keystore
 
-      # ── 12. Build release AAB ──────────────────────────────────────────────
       - name: Build release AAB
         working-directory: artifacts/focusflow/android
         env:
@@ -187,51 +289,6 @@ jobs:
           echo "── AAB output ──"
           find app/build/outputs/bundle/release/ -name "*.aab" -exec ls -lh {} \;
 
-      # ── 12. Size report ────────────────────────────────────────────────────
-      - name: Print artifact sizes
-        working-directory: artifacts/focusflow/android
-        run: |
-          echo "════════════════════════════════════"
-          echo "          Release artifact sizes     "
-          echo "════════════════════════════════════"
-          for f in \
-            app/build/outputs/apk/release/app-arm64-v8a-release.apk \
-            app/build/outputs/apk/release/app-armeabi-v7a-release.apk \
-            app/build/outputs/apk/release/app-universal-release.apk \
-            app/build/outputs/bundle/release/app-release.aab; do
-            if [ -f "$f" ]; then
-              printf "  %-55s %s\n" "$(basename $f)" "$(du -sh $f | cut -f1)"
-            else
-              echo "  MISSING: $(basename $f)"
-            fi
-          done
-          echo "════════════════════════════════════"
-
-      # ── 13. Upload APK — arm64-v8a ─────────────────────────────────────────
-      - name: Upload arm64-v8a APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: focusflow-arm64-v8a-release-${{ github.run_number }}
-          path: artifacts/focusflow/android/app/build/outputs/apk/release/app-arm64-v8a-release.apk
-          retention-days: 30
-
-      # ── 14. Upload APK — armeabi-v7a ──────────────────────────────────────
-      - name: Upload armeabi-v7a APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: focusflow-armeabi-v7a-release-${{ github.run_number }}
-          path: artifacts/focusflow/android/app/build/outputs/apk/release/app-armeabi-v7a-release.apk
-          retention-days: 30
-
-      # ── 15. Upload APK — universal ─────────────────────────────────────────
-      - name: Upload universal APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: focusflow-universal-release-${{ github.run_number }}
-          path: artifacts/focusflow/android/app/build/outputs/apk/release/app-universal-release.apk
-          retention-days: 30
-
-      # ── 16. Upload AAB ─────────────────────────────────────────────────────
       - name: Upload AAB
         uses: actions/upload-artifact@v4
         with:
@@ -239,7 +296,6 @@ jobs:
           path: artifacts/focusflow/android/app/build/outputs/bundle/release/app-release.aab
           retention-days: 30
 
-      # ── 17. Cleanup keystore ───────────────────────────────────────────────
       - name: Remove keystore from runner
         if: always()
         working-directory: artifacts/focusflow/android
