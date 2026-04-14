@@ -149,18 +149,28 @@ jobs:
       # ── 11. Disable ABI splits before AAB build ───────────────────────────
       #      Known AGP bug (https://issuetracker.google.com/402800800):
       #      when ABI splits + shrinkResources are both on, bundleRelease
-      #      finds multiple shrunk-resources intermediates (one per ABI) and
-      #      fails.  AABs don't need ABI splits — Play handles that via
-      #      asset delivery.  We disable splits, clean the affected
-      #      intermediate directory, then build the AAB cleanly.
+      #      fails because it finds multiple per-ABI shrunk-resource files
+      #      from the previous assembleRelease step.
+      #
+      #      The withFocusDayAndroid plugin writes:  enable true
+      #      inside the splits { abi { ... } } block.  We flip it to false
+      #      and wipe the APK-build intermediates that confuse the bundle task.
+      #      AABs don't need ABI splits — Play Store handles delivery natively.
       - name: Disable ABI splits for AAB build
         working-directory: artifacts/focusflow/android
         run: |
-          sed -i 's/enable enableSeparateBuildPerCPUArchitecture/enable false/g' app/build.gradle
-          sed -i 's/enableSeparateBuildPerCPUArchitecture = true/enableSeparateBuildPerCPUArchitecture = false/g' app/build.gradle
+          # Flip  enable true  →  enable false  inside the splits.abi block
+          sed -i '/splits\s*{/,/^[[:space:]]*}/s/enable true/enable false/' app/build.gradle
+          echo "ABI splits block after patch:"
+          grep -n "enable\|universalApk\|splits" app/build.gradle | head -10
+
+          # Wipe per-ABI R8 and resource intermediates so bundleRelease
+          # gets a clean slate and doesn't pick up APK-build leftovers.
           rm -rf app/build/intermediates/shrunk_resources_proto_format/
-          echo "ABI splits disabled for AAB build"
-          grep -n "enable\|universalApk" app/build.gradle || true
+          rm -rf app/build/intermediates/optimized_processed_res/
+          rm -rf app/build/intermediates/shrunk_processed_res/
+          rm -rf app/build/intermediates/res/apk/
+          echo "Intermediates cleaned"
 
       # ── 12. Build release AAB ──────────────────────────────────────────────
       - name: Build release AAB
