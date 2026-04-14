@@ -146,7 +146,23 @@ jobs:
           echo "── APK outputs ──"
           find app/build/outputs/apk/release/ -name "*.apk" -exec ls -lh {} \;
 
-      # ── 11. Build release AAB ──────────────────────────────────────────────
+      # ── 11. Disable ABI splits before AAB build ───────────────────────────
+      #      Known AGP bug (https://issuetracker.google.com/402800800):
+      #      when ABI splits + shrinkResources are both on, bundleRelease
+      #      finds multiple shrunk-resources intermediates (one per ABI) and
+      #      fails.  AABs don't need ABI splits — Play handles that via
+      #      asset delivery.  We disable splits, clean the affected
+      #      intermediate directory, then build the AAB cleanly.
+      - name: Disable ABI splits for AAB build
+        working-directory: artifacts/focusflow/android
+        run: |
+          sed -i 's/enable enableSeparateBuildPerCPUArchitecture/enable false/g' app/build.gradle
+          sed -i 's/enableSeparateBuildPerCPUArchitecture = true/enableSeparateBuildPerCPUArchitecture = false/g' app/build.gradle
+          rm -rf app/build/intermediates/shrunk_resources_proto_format/
+          echo "ABI splits disabled for AAB build"
+          grep -n "enable\|universalApk" app/build.gradle || true
+
+      # ── 12. Build release AAB ──────────────────────────────────────────────
       - name: Build release AAB
         working-directory: artifacts/focusflow/android
         env:
