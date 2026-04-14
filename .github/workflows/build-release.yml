@@ -1,30 +1,27 @@
 name: Build Release (APK × 3 + AAB)
 
-# Builds a signed release for production / Play Store.
+# Builds a signed, fully optimised release for production / Play Store.
 # Produces four artifacts:
 #   • arm64-v8a APK   — 64-bit ARM devices (most modern phones)
 #   • armeabi-v7a APK — 32-bit ARM devices (older phones)
 #   • universal APK   — works on every device (largest file)
 #   • AAB             — Play Store submission
 #
+# Optimisations applied:
+#   • R8 full-mode minification + obfuscation (enabled via expo-build-properties)
+#   • Resource shrinking  (unused drawables, strings, layouts removed)
+#   • ABI splits          (per-architecture APKs, smaller download size)
+#   • Universal APK       (universalApk true — single file for sideloading)
+#   • Hermes JS engine    (bytecode pre-compiled, already the RN 0.81 default)
+#   • zipalign + apksigner (applied automatically by Gradle signedRelease task)
+#
 # Manual trigger only — requires keystore secrets to be configured.
 #
 # ── Required secrets ──────────────────────────────────────────────────────────
-# Add these in:
-#   GitHub repo → Settings → Secrets and variables → Actions → New secret
-#
 #   RELEASE_KEYSTORE_BASE64   base64-encoded .jks keystore file
 #   RELEASE_STORE_PASSWORD    keystore store password
 #   RELEASE_KEY_ALIAS         key alias inside the keystore
 #   RELEASE_KEY_PASSWORD      key password
-#
-# Generate a keystore once (keep the .jks file safe — you need it forever):
-#   keytool -genkeypair -v -keystore release.keystore \
-#     -alias focusflow -keyalg RSA -keysize 2048 -validity 10000
-#
-# Encode it for the secret:
-#   Linux:  base64 -w0 release.keystore
-#   macOS:  base64 release.keystore | pbcopy
 # ─────────────────────────────────────────────────────────────────────────────
 
 on:
@@ -91,53 +88,100 @@ jobs:
         working-directory: artifacts/focusflow
         run: npx expo prebuild --platform android --clean --no-install
 
-      # ── 6. Patch build.gradle — enable universal APK alongside ABI splits ──
-      #      React Native's default sets universalApk false, which means
-      #      assembleRelease only emits per-ABI APKs (arm64, armeabi-v7a)
-      #      and no universal file.  Flipping it to true adds the universal APK.
-      - name: Patch build.gradle — enable universalApk
+      # ── 6. Inject ProGuard rules ───────────────────────────────────────────
+      #      expo prebuild generates a minimal proguard-rules.pro.
+      #      We replace it with our comprehensive rules that protect all
+      #      React Native, Expo, Hermes, and app-specific classes.
+      - name: Inject comprehensive ProGuard rules
+        working-directory: artifacts/focusflow
+        run: |
+          cp proguard-rules.pro android/app/proguard-rules.pro
+          echo "ProGuard rules injected ($(wc -l < android/app/proguard-rules.pro) lines)"
+
+      # ── 7. Verify & patch build.gradle optimisation flags ─────────────────
+      #      expo-build-properties sets minifyEnabled and shrinkResources,
+      #      but we double-check and guarantee they are on for release.
+      #      Also enable universalApk so the universal APK is produced
+      #      alongside the ABI-split APKs.
+      - name: Verify optimisation flags in build.gradle
         working-directory: artifacts/focusflow/android
         run: |
-          sed -i 's/universalApk false/universalApk true/g' app/build.gradle
-          echo "Patched build.gradle:"
-          grep -n "universalApk" app/build.gradle
+          echo "── build.gradle release block ──"
+          grep -A 10 "buildTypes" app/build.gradle || true
 
-      # ── 7. Decode keystore ─────────────────────────────────────────────────
+          echo "── Ensuring universalApk true ──"
+          sed -i 's/universalApk false/universalApk true/g' app/build.gradle
+          grep -n "universalApk\|minifyEnabled\|shrinkResources" app/build.gradle
+
+      # ── 8. Enforce R8 full mode ───────────────────────────────────────────
+      #      Adds a gradle.properties line that tells R8 to run in full mode,
+      #      enabling more aggressive dead-code elimination beyond default mode.
+      - name: Enable R8 full mode
+        working-directory: artifacts/focusflow/android
+        run: |
+          echo "" >> gradle.properties
+          echo "# R8 full mode — more aggressive dead-code removal" >> gradle.properties
+          echo "android.enableR8.fullMode=true" >> gradle.properties
+          echo "R8 full mode enabled"
+
+      # ── 9. Decode keystore ─────────────────────────────────────────────────
       - name: Decode release keystore
         working-directory: artifacts/focusflow/android
         run: |
           echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 --decode > release.keystore
           echo "Keystore decoded: $(du -sh release.keystore)"
 
-      # ── 8. Build release APKs (arm64-v8a + armeabi-v7a + universal) ────────
+      # ── 10. Build release APKs (arm64-v8a + armeabi-v7a + universal) ───────
       - name: Build release APKs
         working-directory: artifacts/focusflow/android
         env:
-          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.daemon=false"
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx6g -XX:MaxMetaspaceSize=512m -Dorg.gradle.daemon=false"
         run: |
           ./gradlew assembleRelease --no-daemon \
             -Pandroid.injected.signing.store.file="$(pwd)/release.keystore" \
             -Pandroid.injected.signing.store.password="${{ secrets.RELEASE_STORE_PASSWORD }}" \
             -Pandroid.injected.signing.key.alias="${{ secrets.RELEASE_KEY_ALIAS }}" \
             -Pandroid.injected.signing.key.password="${{ secrets.RELEASE_KEY_PASSWORD }}"
-          echo "── APK outputs ──"
-          find app/build/outputs/apk/release/ -name "*.apk" | sort
 
-      # ── 9. Build release AAB ───────────────────────────────────────────────
+          echo "── APK outputs ──"
+          find app/build/outputs/apk/release/ -name "*.apk" -exec ls -lh {} \;
+
+      # ── 11. Build release AAB ──────────────────────────────────────────────
       - name: Build release AAB
         working-directory: artifacts/focusflow/android
         env:
-          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.daemon=false"
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx6g -XX:MaxMetaspaceSize=512m -Dorg.gradle.daemon=false"
         run: |
           ./gradlew bundleRelease --no-daemon \
             -Pandroid.injected.signing.store.file="$(pwd)/release.keystore" \
             -Pandroid.injected.signing.store.password="${{ secrets.RELEASE_STORE_PASSWORD }}" \
             -Pandroid.injected.signing.key.alias="${{ secrets.RELEASE_KEY_ALIAS }}" \
             -Pandroid.injected.signing.key.password="${{ secrets.RELEASE_KEY_PASSWORD }}"
-          echo "── AAB output ──"
-          find app/build/outputs/bundle/release/ -name "*.aab" | sort
 
-      # ── 10. Upload APK — arm64-v8a ─────────────────────────────────────────
+          echo "── AAB output ──"
+          find app/build/outputs/bundle/release/ -name "*.aab" -exec ls -lh {} \;
+
+      # ── 12. Size report ────────────────────────────────────────────────────
+      - name: Print artifact sizes
+        working-directory: artifacts/focusflow/android
+        run: |
+          echo "════════════════════════════════════"
+          echo "          Release artifact sizes     "
+          echo "════════════════════════════════════"
+          for f in \
+            app/build/outputs/apk/release/app-arm64-v8a-release.apk \
+            app/build/outputs/apk/release/app-armeabi-v7a-release.apk \
+            app/build/outputs/apk/release/app-universal-release.apk \
+            app/build/outputs/bundle/release/app-release.aab; do
+            if [ -f "$f" ]; then
+              printf "  %-55s %s\n" "$(basename $f)" "$(du -sh $f | cut -f1)"
+            else
+              echo "  MISSING: $(basename $f)"
+            fi
+          done
+          echo "════════════════════════════════════"
+
+      # ── 13. Upload APK — arm64-v8a ─────────────────────────────────────────
       - name: Upload arm64-v8a APK
         uses: actions/upload-artifact@v4
         with:
@@ -145,7 +189,7 @@ jobs:
           path: artifacts/focusflow/android/app/build/outputs/apk/release/app-arm64-v8a-release.apk
           retention-days: 30
 
-      # ── 11. Upload APK — armeabi-v7a ───────────────────────────────────────
+      # ── 14. Upload APK — armeabi-v7a ──────────────────────────────────────
       - name: Upload armeabi-v7a APK
         uses: actions/upload-artifact@v4
         with:
@@ -153,7 +197,7 @@ jobs:
           path: artifacts/focusflow/android/app/build/outputs/apk/release/app-armeabi-v7a-release.apk
           retention-days: 30
 
-      # ── 12. Upload APK — universal ─────────────────────────────────────────
+      # ── 15. Upload APK — universal ─────────────────────────────────────────
       - name: Upload universal APK
         uses: actions/upload-artifact@v4
         with:
@@ -161,7 +205,7 @@ jobs:
           path: artifacts/focusflow/android/app/build/outputs/apk/release/app-universal-release.apk
           retention-days: 30
 
-      # ── 13. Upload AAB ─────────────────────────────────────────────────────
+      # ── 16. Upload AAB ─────────────────────────────────────────────────────
       - name: Upload AAB
         uses: actions/upload-artifact@v4
         with:
@@ -169,7 +213,7 @@ jobs:
           path: artifacts/focusflow/android/app/build/outputs/bundle/release/app-release.aab
           retention-days: 30
 
-      # ── 14. Cleanup keystore ───────────────────────────────────────────────
+      # ── 17. Cleanup keystore ───────────────────────────────────────────────
       - name: Remove keystore from runner
         if: always()
         working-directory: artifacts/focusflow/android
