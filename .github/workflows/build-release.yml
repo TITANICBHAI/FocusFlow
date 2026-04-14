@@ -1,6 +1,12 @@
-name: Build Production (APK + AAB)
+name: Build Release (APK × 3 + AAB)
 
-# Builds a signed release APK and AAB for production / Play Store.
+# Builds a signed release for production / Play Store.
+# Produces four artifacts:
+#   • arm64-v8a APK   — 64-bit ARM devices (most modern phones)
+#   • armeabi-v7a APK — 32-bit ARM devices (older phones)
+#   • universal APK   — works on every device (largest file)
+#   • AAB             — Play Store submission
+#
 # Manual trigger only — requires keystore secrets to be configured.
 #
 # ── Required secrets ──────────────────────────────────────────────────────────
@@ -30,7 +36,7 @@ env:
 
 jobs:
   build:
-    name: Production APK + AAB
+    name: Release APK (arm64 + arm32 + universal) + AAB
     runs-on: ubuntu-latest
 
     steps:
@@ -85,49 +91,85 @@ jobs:
         working-directory: artifacts/focusflow
         run: npx expo prebuild --platform android --clean --no-install
 
-      # ── 6. Decode keystore ─────────────────────────────────────────────────
+      # ── 6. Patch build.gradle — enable universal APK alongside ABI splits ──
+      #      React Native's default sets universalApk false, which means
+      #      assembleRelease only emits per-ABI APKs (arm64, armeabi-v7a)
+      #      and no universal file.  Flipping it to true adds the universal APK.
+      - name: Patch build.gradle — enable universalApk
+        working-directory: artifacts/focusflow/android
+        run: |
+          sed -i 's/universalApk false/universalApk true/g' app/build.gradle
+          echo "Patched build.gradle:"
+          grep -n "universalApk" app/build.gradle
+
+      # ── 7. Decode keystore ─────────────────────────────────────────────────
       - name: Decode release keystore
         working-directory: artifacts/focusflow/android
         run: |
           echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 --decode > release.keystore
           echo "Keystore decoded: $(du -sh release.keystore)"
 
-      # ── 7. Build release APK ───────────────────────────────────────────────
-      - name: Build release APK
+      # ── 8. Build release APKs (arm64-v8a + armeabi-v7a + universal) ────────
+      - name: Build release APKs
         working-directory: artifacts/focusflow/android
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.daemon=false"
         run: |
           ./gradlew assembleRelease --no-daemon \
             -Pandroid.injected.signing.store.file="$(pwd)/release.keystore" \
             -Pandroid.injected.signing.store.password="${{ secrets.RELEASE_STORE_PASSWORD }}" \
             -Pandroid.injected.signing.key.alias="${{ secrets.RELEASE_KEY_ALIAS }}" \
             -Pandroid.injected.signing.key.password="${{ secrets.RELEASE_KEY_PASSWORD }}"
+          echo "── APK outputs ──"
+          find app/build/outputs/apk/release/ -name "*.apk" | sort
 
-      # ── 8. Build release AAB ───────────────────────────────────────────────
+      # ── 9. Build release AAB ───────────────────────────────────────────────
       - name: Build release AAB
         working-directory: artifacts/focusflow/android
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.daemon=false"
         run: |
           ./gradlew bundleRelease --no-daemon \
             -Pandroid.injected.signing.store.file="$(pwd)/release.keystore" \
             -Pandroid.injected.signing.store.password="${{ secrets.RELEASE_STORE_PASSWORD }}" \
             -Pandroid.injected.signing.key.alias="${{ secrets.RELEASE_KEY_ALIAS }}" \
             -Pandroid.injected.signing.key.password="${{ secrets.RELEASE_KEY_PASSWORD }}"
+          echo "── AAB output ──"
+          find app/build/outputs/bundle/release/ -name "*.aab" | sort
 
-      # ── 9. Upload artifacts ────────────────────────────────────────────────
-      - name: Upload release APK
+      # ── 10. Upload APK — arm64-v8a ─────────────────────────────────────────
+      - name: Upload arm64-v8a APK
         uses: actions/upload-artifact@v4
         with:
-          name: focusflow-release-apk-${{ github.run_number }}
-          path: artifacts/focusflow/android/app/build/outputs/apk/release/app-release.apk
+          name: focusflow-arm64-v8a-release-${{ github.run_number }}
+          path: artifacts/focusflow/android/app/build/outputs/apk/release/app-arm64-v8a-release.apk
           retention-days: 30
 
-      - name: Upload release AAB
+      # ── 11. Upload APK — armeabi-v7a ───────────────────────────────────────
+      - name: Upload armeabi-v7a APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: focusflow-armeabi-v7a-release-${{ github.run_number }}
+          path: artifacts/focusflow/android/app/build/outputs/apk/release/app-armeabi-v7a-release.apk
+          retention-days: 30
+
+      # ── 12. Upload APK — universal ─────────────────────────────────────────
+      - name: Upload universal APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: focusflow-universal-release-${{ github.run_number }}
+          path: artifacts/focusflow/android/app/build/outputs/apk/release/app-universal-release.apk
+          retention-days: 30
+
+      # ── 13. Upload AAB ─────────────────────────────────────────────────────
+      - name: Upload AAB
         uses: actions/upload-artifact@v4
         with:
           name: focusflow-release-aab-${{ github.run_number }}
           path: artifacts/focusflow/android/app/build/outputs/bundle/release/app-release.aab
           retention-days: 30
 
-      # ── 10. Cleanup keystore ───────────────────────────────────────────────
+      # ── 14. Cleanup keystore ───────────────────────────────────────────────
       - name: Remove keystore from runner
         if: always()
         working-directory: artifacts/focusflow/android
