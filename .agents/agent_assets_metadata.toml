@@ -35,3 +35,33 @@ id = "tgalAfT1-750LJk0Yh4R6"
 uri = "file://artifacts/focusflow/store-assets/STORE_LISTING.md"
 type = "text"
 title = "FocusFlow — Updated Store Listing with Full Reviewer Declarations"
+
+[[outputs]]
+id = "rTNoHUsdnzroGuH3GE2_R"
+uri = "file://exports/focusflow-iphone-01-schedule.jpg"
+type = "image"
+title = "FocusFlow Screenshot 1 — Smart Daily Scheduling"
+
+[[outputs]]
+id = "1gGVlfipXAjZM2m6SE9R9"
+uri = "file://exports/focusflow-iphone-02-focus-blocking.jpg"
+type = "image"
+title = "FocusFlow Screenshot 2 — Pomodoro Timer Built In"
+
+[[outputs]]
+id = "5PXCnHUqoFlsKtw5dK5k9"
+uri = "file://exports/focusflow-iphone-03-blocked-overlay.jpg"
+type = "image"
+title = "FocusFlow Screenshot 3 — System-Level App Blocking"
+
+[[outputs]]
+id = "PqcEChUE6PHYd_hCpJ85X"
+uri = "file://exports/focusflow-iphone-04-stats.jpg"
+type = "image"
+title = "FocusFlow Screenshot 4 — Accountability & Progress"
+
+[[outputs]]
+id = "HMxUMIR1aw8aygbewd1Pj"
+uri = "file://exports/focusflow-iphone-05-permissions.jpg"
+type = "image"
+title = "FocusFlow Screenshot 5 — Simple Setup, Maximum Protection"
