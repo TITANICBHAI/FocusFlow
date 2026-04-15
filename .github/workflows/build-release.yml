@@ -195,6 +195,23 @@ jobs:
         working-directory: artifacts/focusflow
         run: cp proguard-rules.pro android/app/proguard-rules.pro
 
+      - name: Disable ABI splits for AAB
+        working-directory: artifacts/focusflow
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const file = 'android/app/build.gradle';
+          const source = fs.readFileSync(file, 'utf8');
+          const updated = source.replace(
+            /(splits\s*\{\s*abi\s*\{\s*)enable true([\s\S]*?universalApk )true/,
+            '$1enable false$2false'
+          );
+          if (updated === source) {
+            throw new Error('ABI splits block was not patched');
+          }
+          fs.writeFileSync(file, updated);
+          NODE
+
       - name: Enable R8 full mode
         working-directory: artifacts/focusflow/android
         run: |
