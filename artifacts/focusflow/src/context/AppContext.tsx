@@ -222,6 +222,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       withTimeout(ForegroundServiceModule.startIdleService(), 5000, undefined).catch((e) => {
         console.warn('[AppContext] idle foreground service start failed', e);
       });
+>>>>>>> 1ff1185 (Fix splash screen from getting stuck and improve content visibility)
 
       // Re-apply standalone block from persisted settings on startup.
       await _syncStandaloneBlock(settings);
