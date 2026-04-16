@@ -29,6 +29,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
+import { InstalledAppsModule, type InstalledApp as NativeInstalledApp } from '@/native-modules/InstalledAppsModule';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -42,20 +43,48 @@ interface InstalledApp {
 
 // Packages permanently pinned to the dock — always shown, cannot be removed.
 const PINNED_PKGS = new Set([
-  'com.google.android.dialer',
-  'com.android.dialer',
-  'com.samsung.android.app.telephonyui',
-  'com.miui.dialer',
-  'com.oneplus.dialer',
-  'com.coloros.dialer',
-  'com.vivo.phone',
+  // ── Phone / Dialer (all major brands) ─────────────────────────────────────
+  'com.google.android.dialer',        // Pixel / stock Android
+  'com.android.dialer',               // AOSP (Nokia, Sony, LG, etc.)
+  'com.samsung.android.app.telephonyui', // Samsung One UI
+  'com.miui.dialer',                  // Xiaomi / MIUI
+  'com.oneplus.dialer',               // OnePlus OxygenOS
+  'com.coloros.dialer',               // Oppo / Realme ColorOS
+  'com.vivo.phone',                   // Vivo
+  'com.motorola.dialer',              // Motorola
+  'com.huawei.contacts',              // Huawei / Honor
+  'com.asus.contacts',                // Asus ROG / Zenfone
+  'com.transsion.contacts',           // Tecno / Infinix / Itel
+
+  // ── WhatsApp ──────────────────────────────────────────────────────────────
   'com.whatsapp',
-  'com.whatsapp.w4b',
+  'com.whatsapp.w4b',                 // WhatsApp Business
+
+  // ── VLC ───────────────────────────────────────────────────────────────────
   'org.videolan.vlc',
   'org.videolan.vlc.betav',
+
+  // ── System Settings (all major brands) ────────────────────────────────────
   'com.android.settings',
   'com.samsung.android.app.settings',
   'com.miui.settings',
+  'com.coloros.settings',             // Oppo / Realme
+  'com.vivo.settings',
+  'com.huawei.systemmanager',
+  'com.asus.settings',
+
+  // ── Education: Allen ─────────────────────────────────────────────────────
+  'in.allen.online',
+  'in.allen.parent',
+
+  // ── Education: Physics Wallah (PW) ────────────────────────────────────────
+  'com.physicswallah.live',
+  'com.pw.live',
+
+  // ── Education: Gurukripa / GCI ────────────────────────────────────────────
+  'com.gurukripa.app',
+  'com.gci.studentapp',
+  'in.gurukripa.student',
 ]);
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -86,13 +115,22 @@ export function LauncherSetupModal({ visible, onClose, currentLauncherApps, onSa
   const loadInstalledApps = async () => {
     setLoading(true);
     try {
-      // Use the DeviceApps native module if available, otherwise fall back
-      // to a curated popular-app list so the modal is never empty on Expo Go.
-      const DeviceApps = require('react-native-device-info');
-      // react-native-device-info doesn't list apps — use a fixed list as
-      // placeholder.  In a real EAS build the launcher handles its own picker
-      // natively; this modal is for syncing the JS-side cache only.
-      setApps(POPULAR_APPS_FALLBACK);
+      const nativeApps: NativeInstalledApp[] = await InstalledAppsModule.getInstalledApps();
+      if (nativeApps.length > 0) {
+        // Filter out pinned packages — they're always in the dock and can't be toggled
+        const filtered = nativeApps
+          .filter((a) => !PINNED_PKGS.has(a.packageName))
+          .map((a) => ({
+            packageName: a.packageName,
+            appName: a.appName,
+            icon: a.iconBase64 ? `data:image/png;base64,${a.iconBase64}` : undefined,
+          }))
+          .sort((a, b) => a.appName.localeCompare(b.appName));
+        setApps(filtered);
+      } else {
+        // Expo Go / simulator: native module unavailable — show curated fallback
+        setApps(POPULAR_APPS_FALLBACK);
+      }
     } catch (_) {
       setApps(POPULAR_APPS_FALLBACK);
     } finally {
@@ -204,7 +242,7 @@ export function LauncherSetupModal({ visible, onClose, currentLauncherApps, onSa
         <View style={[styles.banner, { backgroundColor: COLORS.primary + '18', borderColor: COLORS.primary + '44' }]}>
           <Ionicons name="home-outline" size={18} color={COLORS.primary} style={{ marginRight: SPACING.sm }} />
           <Text style={[styles.bannerText, { color: theme.text }]}>
-            During a block session the launcher shows ONLY these apps. Phone, WhatsApp, VLC and Settings are always in the dock.
+            During a block session the launcher shows ONLY the apps you pick here, plus the permanent dock (Phone, WhatsApp, VLC, Settings, Allen, PW, Gurukripa). You can add any of your other installed apps to the grid below.
           </Text>
         </View>
 
@@ -264,10 +302,13 @@ export function LauncherSetupModal({ visible, onClose, currentLauncherApps, onSa
 // ─── Static data ──────────────────────────────────────────────────────────────
 
 const PINNED_DISPLAY = [
-  { label: 'Phone',    icon: 'call-outline',     color: '#22C55E' },
-  { label: 'WA',       icon: 'chatbubble-outline', color: '#25D366' },
-  { label: 'VLC',      icon: 'play-outline',      color: '#FF8800' },
-  { label: 'Settings', icon: 'settings-outline',  color: '#6B7280' },
+  { label: 'Phone',    icon: 'call-outline',       color: '#22C55E' },
+  { label: 'WhatsApp', icon: 'chatbubble-outline', color: '#25D366' },
+  { label: 'VLC',      icon: 'play-outline',       color: '#FF8800' },
+  { label: 'Settings', icon: 'settings-outline',   color: '#6B7280' },
+  { label: 'Allen',    icon: 'school-outline',      color: '#E11D48' },
+  { label: 'PW',       icon: 'flask-outline',       color: '#7C3AED' },
+  { label: 'GCI',      icon: 'library-outline',     color: '#0EA5E9' },
 ];
 
 // Curated list of common apps shown in the picker while in Expo Go / before
@@ -373,7 +414,9 @@ const styles = StyleSheet.create({
   },
   pinnedRow: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    flexWrap: 'wrap',
+    gap: SPACING.sm,
+    justifyContent: 'flex-start',
   },
   pinnedItem: {
     alignItems: 'center',
