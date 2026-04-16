@@ -89,10 +89,17 @@ export async function dbGetAllTasks(): Promise<Task[]> {
 
 export async function dbGetTasksForDate(dateISO: string): Promise<Task[]> {
   const db = await getDb();
-  const day = dateISO.slice(0, 10);
+  // Use LOCAL date boundaries so tasks at 11pm local are not missed for UTC-offset
+  // users and tasks at 1am local are found for UTC+ users.
+  // new Date(dateISO) gives the local representation of the timestamp, then we
+  // build midnight..23:59:59 in LOCAL time and convert back to UTC ISO for the
+  // SQL comparison (task start_time values are always stored as UTC ISO strings).
+  const ref = new Date(dateISO);
+  const startOfLocal = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate(), 0, 0, 0, 0);
+  const endOfLocal   = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate(), 23, 59, 59, 999);
   const rows = await db.getAllAsync<Record<string, unknown>>(
-    `SELECT * FROM tasks WHERE date(start_time) = ? ORDER BY start_time ASC`,
-    [day],
+    `SELECT * FROM tasks WHERE start_time >= ? AND start_time <= ? ORDER BY start_time ASC`,
+    [startOfLocal.toISOString(), endOfLocal.toISOString()],
   );
   return rows.map(rowToTask);
 }

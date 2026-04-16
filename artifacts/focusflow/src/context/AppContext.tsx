@@ -591,7 +591,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const startFocusMode = useCallback(
     async (taskId: string) => {
-      const task = state.tasks.find((t) => t.id === taskId);
+      // Read from stateRef so this callback never holds a stale closure and
+      // does not need to be recreated on every task list change.
+      const task = stateRef.current.tasks.find((t) => t.id === taskId);
       if (!task) return;
 
       // Task-specific allowed packages take priority over the global setting.
@@ -599,7 +601,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const allowedPackages =
         task.focusAllowedPackages !== undefined
           ? task.focusAllowedPackages
-          : state.settings.allowedInFocus;
+          : stateRef.current.settings.allowedInFocus;
 
       await _startFocusMode(task, allowedPackages, (app) => {
         dispatch({ type: 'SET_FOCUS_VIOLATION', payload: app });
@@ -614,7 +616,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       };
       dispatch({ type: 'SET_FOCUS_SESSION', payload: session });
     },
-    [state.tasks, state.settings.allowedInFocus],
+    // stateRef is a stable ref — no deps needed; reads always get current state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
   );
 
   const stopFocusMode = useCallback(async () => {

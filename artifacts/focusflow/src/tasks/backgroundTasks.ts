@@ -25,6 +25,7 @@ import * as BackgroundFetch from 'expo-background-fetch';
 import * as Notifications from 'expo-notifications';
 
 import { dbGetTasksForDate, dbUpdateTask } from '@/data/database';
+import { extendTask } from '@/services/taskService';
 import { rebalanceAfterOverrun } from '@/services/schedulerEngine';
 import {
   cancelTaskReminders,
@@ -67,16 +68,22 @@ TaskManager.defineTask(TASK_OVERRUN_CHECK, async ({ data, error }: any) => {
 
     if (notifData?.type !== 'OVERRUN_CHECK' || !notifData.taskId) return;
 
-    const today = new Date().toISOString().slice(0, 10);
-    const tasks = await dbGetTasksForDate(today);
+    const tasks = await dbGetTasksForDate(new Date().toISOString());
     const task  = tasks.find((t) => t.id === notifData.taskId);
 
     if (!task || task.status === 'completed' || task.status === 'skipped') return;
 
-    // Task ran over — extend by 10 min as a safe default and rebalance
+    // Task ran over — extend by 10 min as a safe default and rebalance.
+    // CRITICAL: extendTask() must be called on the overrun task FIRST so the
+    // overrun task itself gets a new endTime in the DB.  rebalanceAfterOverrun
+    // only returns *subsequent* tasks; it never includes the overrun task.
     const DEFAULT_EXTENSION_MINUTES = 10;
-    const { updatedSchedule } = rebalanceAfterOverrun(task, DEFAULT_EXTENSION_MINUTES, tasks);
+    const extended = extendTask(task, DEFAULT_EXTENSION_MINUTES);
+    await dbUpdateTask(extended);
+    await cancelTaskReminders(extended.id);
+    await scheduleTaskReminders(extended);
 
+    const { updatedSchedule } = rebalanceAfterOverrun(extended, DEFAULT_EXTENSION_MINUTES, tasks);
     for (const t of updatedSchedule) {
       await dbUpdateTask(t);
       await cancelTaskReminders(t.id);
@@ -84,19 +91,15 @@ TaskManager.defineTask(TASK_OVERRUN_CHECK, async ({ data, error }: any) => {
     }
 
     // Update the native foreground service notification so its countdown
-    // reflects the new end time (FF-007).
+    // reflects the new end time (FF-007).  Use `extended` directly since
+    // the overrun task is never included in updatedSchedule.
     try {
       const { ForegroundServiceModule } = await import('@/native-modules/ForegroundServiceModule');
-      const extendedTask = updatedSchedule.find((t) => t.id === task.id);
-      if (extendedTask) {
-        const endMs = new Date(extendedTask.endTime).getTime();
-        const nextTask = updatedSchedule.find(
-          (t) => t.id !== extendedTask.id && t.status === 'scheduled',
-        );
-        await ForegroundServiceModule.updateNotification(
-          extendedTask.id, extendedTask.title, endMs, nextTask?.title ?? null,
-        );
-      }
+      const endMs = new Date(extended.endTime).getTime();
+      const nextTask = updatedSchedule.find((t) => t.status === 'scheduled');
+      await ForegroundServiceModule.updateNotification(
+        extended.id, extended.title, endMs, nextTask?.title ?? null,
+      );
     } catch {
       // Native module not available in headless context — safe to ignore.
     }
@@ -127,8 +130,7 @@ TaskManager.defineTask(TASK_OVERRUN_CHECK, async ({ data, error }: any) => {
 
 TaskManager.defineTask(TASK_BACKGROUND_FETCH, async () => {
   try {
-    const today  = new Date().toISOString().slice(0, 10);
-    const tasks  = await dbGetTasksForDate(today);
+    const tasks  = await dbGetTasksForDate(new Date().toISOString());
     const nowMs  = Date.now();
 
     let rearmedCount = 0;
@@ -185,8 +187,7 @@ TaskManager.defineTask(TASK_NOTIFICATION_BG, async ({ data, error }: any) => {
     const taskId = notifData?.taskId;
     if (!taskId) return;
 
-    const today = new Date().toISOString().slice(0, 10);
-    const tasks = await dbGetTasksForDate(today);
+    const tasks = await dbGetTasksForDate(new Date().toISOString());
     const task  = tasks.find((t) => t.id === taskId);
     if (!task) return;
 
@@ -195,9 +196,15 @@ TaskManager.defineTask(TASK_NOTIFICATION_BG, async ({ data, error }: any) => {
       await cancelTaskReminders(taskId);
       console.log('[BgTask] Task completed from notification:', taskId);
     } else if (actionId === 'EXTEND') {
-      // Extend by 15 min from the background
+      // CRITICAL: extend the overrun task itself FIRST (rebalanceAfterOverrun
+      // only returns subsequent tasks and never includes the overrun task).
       const EXTENSION = 15;
-      const { updatedSchedule } = rebalanceAfterOverrun(task, EXTENSION, tasks);
+      const extended = extendTask(task, EXTENSION);
+      await dbUpdateTask(extended);
+      await cancelTaskReminders(extended.id);
+      await scheduleTaskReminders(extended);
+
+      const { updatedSchedule } = rebalanceAfterOverrun(extended, EXTENSION, tasks);
       for (const t of updatedSchedule) {
         await dbUpdateTask(t);
         await cancelTaskReminders(t.id);
