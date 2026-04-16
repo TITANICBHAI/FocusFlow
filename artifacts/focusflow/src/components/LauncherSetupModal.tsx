@@ -17,6 +17,7 @@ import {
   Alert,
   FlatList,
   Image,
+  Linking,
   Modal,
   Platform,
   StyleSheet,
@@ -123,23 +124,10 @@ export function LauncherSetupModal({ visible, onClose, currentLauncherApps, onSa
   };
 
   const handleSetDefault = () => {
-    Alert.alert(
-      'Set as Default Launcher',
-      'Android will now ask you to choose your default home app. Select "FocusFlow" to activate the launcher.\n\nTo undo this, go to Settings → Apps → Default apps → Home app and select your previous launcher.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Open Settings',
-          onPress: () => {
-            try {
-              const { Linking } = require('react-native');
-              Linking.openURL('android.settings.HOME_SETTINGS').catch(() =>
-                Linking.openSettings()
-              );
-            } catch (_) {}
-          },
-        },
-      ]
+    // Go directly to Android "Default apps → Home app" screen.
+    // No intermediate alert — same one-tap behaviour as Accessibility / Battery permission setup.
+    Linking.sendIntent('android.settings.HOME_SETTINGS').catch(() =>
+      Linking.openSettings()
     );
   };
 

@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
+  Linking,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -350,12 +351,22 @@ export default function SettingsScreen() {
         {/* ── Focus Launcher ── */}
         <Section title="Focus Launcher">
           <SettingButton
-            icon="home-outline"
+            icon="swap-horizontal-outline"
+            label="Set as Default Home App"
+            description="Opens Android's home app chooser — select FocusFlow to activate the launcher"
+            onPress={() => {
+              Linking.sendIntent('android.settings.HOME_SETTINGS').catch(() =>
+                Linking.openSettings()
+              );
+            }}
+          />
+          <SettingButton
+            icon="apps-outline"
             label="Manage Launcher Apps"
             description={
               (settings.launcherApps ?? []).length === 0
-                ? 'No apps selected — during a block the launcher shows only the permanent dock'
-                : `${(settings.launcherApps ?? []).length} app${(settings.launcherApps ?? []).length !== 1 ? 's' : ''} in launcher grid — Phone, WhatsApp, VLC, Settings always in dock`
+                ? 'Choose which apps appear in the launcher grid during a block'
+                : `${(settings.launcherApps ?? []).length} app${(settings.launcherApps ?? []).length !== 1 ? 's' : ''} in grid — Phone, WhatsApp, VLC, Settings always in dock`
             }
             onPress={() => setLauncherModalVisible(true)}
           />
