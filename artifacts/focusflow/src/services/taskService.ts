@@ -113,7 +113,9 @@ export function getTodayTasks(tasks: Task[]): Task[] {
   return tasks
     .filter((t) => {
       const s = dayjs(t.startTime);
-      return s.isAfter(startOfDay) && s.isBefore(endOfDay);
+      // Use !isBefore (>=) instead of isAfter (>) so tasks scheduled at
+      // exactly midnight (00:00:00) are not silently excluded.
+      return !s.isBefore(startOfDay) && s.isBefore(endOfDay);
     })
     .sort((a, b) => dayjs(a.startTime).unix() - dayjs(b.startTime).unix());
 }

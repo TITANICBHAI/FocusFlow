@@ -94,11 +94,21 @@ export const EventBridge = new EventBridgeClass();
 
 // ─── React hook for subscribing to native events ──────────────────────────────
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 export function useNativeEvent(type: NativeEventType, handler: EventHandler): void {
+  // Keep a stable ref to the latest handler so the effect only runs when
+  // `type` changes, not on every render (inline handler functions are
+  // recreated every render and would otherwise cause subscribe/unsubscribe
+  // churn and risk briefly missing events).
+  const handlerRef = useRef<EventHandler>(handler);
   useEffect(() => {
-    const unsub = EventBridge.subscribe(type, handler);
+    handlerRef.current = handler;
+  });
+
+  useEffect(() => {
+    const stable: EventHandler = (event) => handlerRef.current(event);
+    const unsub = EventBridge.subscribe(type, stable);
     return unsub;
-  }, [type, handler]);
+  }, [type]);
 }

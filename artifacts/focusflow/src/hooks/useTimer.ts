@@ -24,7 +24,10 @@ export function useTaskTimer(startTime: string, endTime: string): TimerState {
 
     return {
       elapsed: Math.max(0, elapsed),
-      remaining: Math.max(0, remaining),
+      // Do NOT clamp remaining to 0 — TaskCard displays "Overdue by Xm" using
+      // the magnitude of remaining when isOverdue is true. Clamping to 0 would
+      // always show "Overdue by 0m".
+      remaining,
       progress: total > 0 ? Math.min(1, Math.max(0, elapsed / total)) : 0,
       isOverdue: remaining < 0,
     };

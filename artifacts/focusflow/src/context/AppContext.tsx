@@ -191,17 +191,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   async function init() {
     dispatch({ type: 'SET_LOADING', payload: true });
     try {
+      // ── Step 1: Open DB and dispatch SET_DB_READY immediately ──────────────
+      // This MUST be the very first async step so the splash overlay clears as
+      // fast as possible. requestPermissions() can show an Android system dialog
+      // and block indefinitely on first install — never gate SET_DB_READY on it.
+      const settings = await withTimeout(dbGetSettings(), 8000, defaultSettings);
+      dispatch({ type: 'SET_SETTINGS', payload: settings });
+      dispatch({ type: 'SET_DB_READY' });
+
+      // ── Step 2: Notification channel setup (fast, no dialog) ───────────────
+      // Must run before any notifications are scheduled, but does NOT block the
+      // splash since SET_DB_READY was already dispatched above.
       try {
         await setupNotificationChannels();
       } catch (e) {
         console.warn('[AppContext] notification channel setup failed', e);
       }
-      try {
-        await requestPermissions();
-      } catch (e) {
-        console.warn('[AppContext] notification permission request failed', e);
-      }
 
+      // ── Step 3: Permission request — fire-and-forget ───────────────────────
+      // requestPermissions() calls Notifications.requestPermissionsAsync() which
+      // shows a system dialog on Android 13+. We must NEVER await it before
+      // SET_DB_READY or the app appears stuck on the splash screen. Running it
+      // as a detached promise means the dialog can appear after the app is visible.
+      void requestPermissions().catch((e) => {
+        console.warn('[AppContext] notification permission request failed', e);
+      });
+
+<<<<<<< HEAD
       // DB ready FIRST — never gate the splash dismissal on the native service start.
       // The service start is fire-and-forget after this point.
       const settings = await withTimeout(dbGetSettings(), 8000, defaultSettings);
@@ -212,6 +228,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // withTimeout always resolves (never rejects), so no .catch() needed.
       // Fire-and-forget: we do not await so the rest of init continues immediately.
       void withTimeout(ForegroundServiceModule.startIdleService(), 5000, undefined);
+=======
+      // ── Step 4: Start foreground service (fire-and-forget) ─────────────────
+      // Wrapped in withTimeout so a hung native Promise can never re-freeze the app.
+      withTimeout(ForegroundServiceModule.startIdleService(), 5000, undefined).catch((e) => {
+        console.warn('[AppContext] idle foreground service start failed', e);
+      });
+>>>>>>> 1ff1185 (Fix splash screen from getting stuck and improve content visibility)
 
       // Re-apply standalone block from persisted settings on startup.
       await _syncStandaloneBlock(settings);
