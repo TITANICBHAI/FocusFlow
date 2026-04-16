@@ -82,9 +82,8 @@ const PINNED_PKGS = new Set([
   'com.pw.live',
 
   // ── Education: Gurukripa / GCI ────────────────────────────────────────────
-  'com.gurukripa.app',
-  'com.gci.studentapp',
-  'in.gurukripa.student',
+  'in.schoollog.testseries.gcisikar', // Gurukripa e-Learning (student app)
+  'com.gurukripa.publicapp',          // Gurukripa Parent App
 ]);
 
 // ─── Component ────────────────────────────────────────────────────────────────
