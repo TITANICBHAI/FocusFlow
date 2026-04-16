@@ -11,7 +11,7 @@ git add -A
 if git diff --cached --quiet; then
   echo "[push] Nothing to commit."
 else
-  git commit -m "fix: audit session 4 — 11 bugs fixed, BUGS.md added"
+  git commit -m "fix: reliable splash screen dismiss + useCallback import"
 fi
 
 git fetch focusflow main 2>&1 || true
