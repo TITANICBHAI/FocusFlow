@@ -497,14 +497,27 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                         handler.postDelayed({ performGlobalAction(GLOBAL_ACTION_HOME) }, 350L)
                         return
                     }
-                    if (isNotificationPanelExpanded(ev)) {
-                        closeSystemDialogsBroadcast()
-                        handler.postDelayed({
-                            collapseStatusBarPanel()
-                            handler.postDelayed({ performGlobalAction(GLOBAL_ACTION_HOME) }, 300L)
-                        }, 80L)
-                        return
-                    }
+                    // Notification bar is intentionally NOT blocked — users need it
+                    return
+                }
+
+                // ── Launcher power-off dialog (e.g. One UI Home long-press power button) ──
+                // Some OEMs (Samsung One UI) show the power-off confirmation from the launcher
+                // package rather than from SystemUI or the powerkey package.
+                val isLauncherPkg = pkg == "com.sec.android.app.launcher" ||
+                    pkg == "com.samsung.android.app.launcher" ||
+                    pkg == "com.google.android.apps.nexuslauncher" ||
+                    pkg == "com.android.launcher3" ||
+                    pkg == "com.android.launcher" ||
+                    pkg == "com.miui.home" ||
+                    pkg == "com.oneplus.launcher" ||
+                    pkg == "com.huawei.android.launcher" ||
+                    pkg == "com.oppo.launcher" ||
+                    pkg == "com.bbk.launcher2"
+                if (isLauncherPkg && isPowerMenu(ev)) {
+                    closeSystemDialogsBroadcast()
+                    handler.postDelayed({ performGlobalAction(GLOBAL_ACTION_BACK) }, 80L)
+                    handler.postDelayed({ performGlobalAction(GLOBAL_ACTION_HOME) }, 350L)
                     return
                 }
 
@@ -620,6 +633,25 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             return
         }
 
+        // ── Explicit block check: standalone list or focus-mode blocked ──────
+        // If the app is explicitly in the standalone blocked list, or explicitly
+        // blocked by focus mode (not in the allowed list), it must be blocked
+        // immediately — daily allowance does NOT override an explicit block.
+        // This must run BEFORE the daily allowance check so that an app in both
+        // the block list and the allowance list is always blocked, never let through.
+        val explicitlyBlocked = isPackageBlocked(pkg, focusActive, saActive)
+        if (explicitlyBlocked) {
+            val samePackage = pkg == lastBlockedPkg
+            val cooldownExpired = (now - lastBlockedAtMs) > 2_000L
+            if (!samePackage || cooldownExpired) {
+                lastBlockedPkg = pkg
+                lastBlockedAtMs = now
+                handleBlockedApp(pkg)
+                scheduleRetryCheck(pkg, 1, focusActive, saActive)
+            }
+            return
+        }
+
         // ── Daily allowance check (count / time_budget / interval modes) ──────
         // Each app can have its own allowance mode. If the allowance is available,
         // let the app through and start tracking for time-based modes.
@@ -651,9 +683,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                 lastBlockedPkg = null
                 return // Allowed — within allowance
             }
-            // Allowance exhausted — always block during any active session.
-            // This makes daily allowance act as a true "N opens then blocked" limit
-            // regardless of whether the app is also in the explicit standalone block list.
+            // Allowance exhausted — block during any active session.
             val samePackage = pkg == lastBlockedPkg
             val cooldownExpired = (now - lastBlockedAtMs) > 2_000L
             if (!samePackage || cooldownExpired) {
@@ -749,6 +779,9 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         val powerTextKeywords = listOf(
             "power off",
             "power down",
+            "tap again to turn off",         // Samsung One UI Home confirmation text
+            "tap again to power off",
+            "press again to power off",
             "restart",
             "reboot",
             "emergency mode",

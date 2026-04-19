@@ -82,6 +82,9 @@ export function StandaloneBlockModal({
   const [dailyEntriesMap, setDailyEntriesMap] = useState<Map<string, DailyAllowanceEntry>>(
     new Map(dailyAllowanceEntries.map((e) => [e.packageName, e]))
   );
+  const [originalDailyPkgs, setOriginalDailyPkgs] = useState<Set<string>>(
+    new Set(dailyAllowanceEntries.map((e) => e.packageName))
+  );
   const dailyAllowed = useMemo(() => new Set(dailyEntriesMap.keys()), [dailyEntriesMap]);
   const [search, setSearch] = useState('');
   const [loadingApps, setLoadingApps] = useState(false);
@@ -98,6 +101,7 @@ export function StandaloneBlockModal({
     if (!visible) return;
     setSelected(new Set(blockedPackages));
     setDailyEntriesMap(new Map(dailyAllowanceEntries.map((e) => [e.packageName, e])));
+    setOriginalDailyPkgs(new Set(dailyAllowanceEntries.map((e) => e.packageName)));
     setSearch('');
     setManualInput('');
     setUntilDate(blockUntil ? new Date(blockUntil) : dayjs().add(1, 'day').toDate());
@@ -157,7 +161,10 @@ export function StandaloneBlockModal({
     });
   };
 
+  const isDailyEntryLocked = (packageName: string) => locked && originalDailyPkgs.has(packageName);
+
   const toggleDailyAllowed = (packageName: string) => {
+    if (isDailyEntryLocked(packageName)) return;
     setDailyEntriesMap((prev) => {
       const next = new Map(prev);
       if (next.has(packageName)) {
@@ -285,17 +292,22 @@ export function StandaloneBlockModal({
   const renderDailyControls = (packageName: string) => {
     const isDaily = dailyAllowed.has(packageName);
     const dailyEntry = dailyEntriesMap.get(packageName);
+    const entryLocked = isDailyEntryLocked(packageName);
     return (
       <View style={[styles.dailyRow, { backgroundColor: theme.surface, borderTopColor: theme.border }, isDaily && styles.dailyRowActive]}>
         <View style={styles.dailyTopLine}>
-          <TouchableOpacity style={styles.dailyToggle} onPress={() => toggleDailyAllowed(packageName)} activeOpacity={0.7}>
+          <TouchableOpacity
+            style={styles.dailyToggle}
+            onPress={() => toggleDailyAllowed(packageName)}
+            activeOpacity={entryLocked ? 1 : 0.7}
+          >
             <Ionicons
-              name={isDaily ? 'sunny' : 'sunny-outline'}
+              name={isDaily ? (entryLocked ? 'lock-closed-outline' : 'sunny') : 'sunny-outline'}
               size={13}
-              color={isDaily ? COLORS.orange : COLORS.muted}
+              color={isDaily ? (entryLocked ? COLORS.muted : COLORS.orange) : COLORS.muted}
             />
-            <Text style={[styles.dailyText, isDaily && styles.dailyTextActive]}>
-              {isDaily ? 'Daily allowance:' : 'Add daily allowance'}
+            <Text style={[styles.dailyText, isDaily && !entryLocked && styles.dailyTextActive]}>
+              {isDaily ? (entryLocked ? 'Daily allowance (locked):' : 'Daily allowance:') : 'Add daily allowance'}
             </Text>
           </TouchableOpacity>
           {isDaily && dailyEntry && (
@@ -308,16 +320,16 @@ export function StandaloneBlockModal({
               {ALL_MODES.map((mode) => (
                 <TouchableOpacity
                   key={mode}
-                  style={[styles.modePill, dailyEntry.mode === mode && styles.modePillActive]}
-                  onPress={() => updateDailyEntry(packageName, { mode })}
-                  activeOpacity={0.75}
+                  style={[styles.modePill, dailyEntry.mode === mode && styles.modePillActive, entryLocked && { opacity: 0.45 }]}
+                  onPress={() => { if (!entryLocked) updateDailyEntry(packageName, { mode }); }}
+                  activeOpacity={entryLocked ? 1 : 0.75}
                 >
                   <Ionicons
                     name={MODE_ICONS[mode]}
                     size={12}
-                    color={dailyEntry.mode === mode ? COLORS.orange : COLORS.muted}
+                    color={dailyEntry.mode === mode ? (entryLocked ? COLORS.muted : COLORS.orange) : COLORS.muted}
                   />
-                  <Text style={[styles.modePillText, dailyEntry.mode === mode && styles.modePillTextActive]}>
+                  <Text style={[styles.modePillText, dailyEntry.mode === mode && !entryLocked && styles.modePillTextActive]}>
                     {MODE_LABELS[mode]}
                   </Text>
                 </TouchableOpacity>
@@ -328,8 +340,9 @@ export function StandaloneBlockModal({
                 label="Opens per day"
                 value={dailyEntry.countPerDay ?? 1}
                 suffix=""
-                onMinus={() => adjustDailyValue(packageName, 'countPerDay', -1, 1, 20)}
-                onPlus={() => adjustDailyValue(packageName, 'countPerDay', 1, 1, 20)}
+                onMinus={() => { if (!entryLocked) adjustDailyValue(packageName, 'countPerDay', -1, 1, 20); }}
+                onPlus={() => { if (!entryLocked) adjustDailyValue(packageName, 'countPerDay', 1, 1, 20); }}
+                disabled={entryLocked}
               />
             )}
             {dailyEntry.mode === 'time_budget' && (
@@ -337,8 +350,9 @@ export function StandaloneBlockModal({
                 label="Minutes per day"
                 value={dailyEntry.budgetMinutes ?? 30}
                 suffix=" min"
-                onMinus={() => adjustDailyValue(packageName, 'budgetMinutes', -5, 1, 480)}
-                onPlus={() => adjustDailyValue(packageName, 'budgetMinutes', 5, 1, 480)}
+                onMinus={() => { if (!entryLocked) adjustDailyValue(packageName, 'budgetMinutes', -5, 1, 480); }}
+                onPlus={() => { if (!entryLocked) adjustDailyValue(packageName, 'budgetMinutes', 5, 1, 480); }}
+                disabled={entryLocked}
               />
             )}
             {dailyEntry.mode === 'interval' && (
@@ -347,15 +361,17 @@ export function StandaloneBlockModal({
                   label="Minutes per window"
                   value={dailyEntry.intervalMinutes ?? 5}
                   suffix=" min"
-                  onMinus={() => adjustDailyValue(packageName, 'intervalMinutes', -1, 1, 120)}
-                  onPlus={() => adjustDailyValue(packageName, 'intervalMinutes', 1, 1, 120)}
+                  onMinus={() => { if (!entryLocked) adjustDailyValue(packageName, 'intervalMinutes', -1, 1, 120); }}
+                  onPlus={() => { if (!entryLocked) adjustDailyValue(packageName, 'intervalMinutes', 1, 1, 120); }}
+                  disabled={entryLocked}
                 />
                 <StepperRow
                   label="Window size"
                   value={dailyEntry.intervalHours ?? 1}
                   suffix=" hr"
-                  onMinus={() => adjustDailyValue(packageName, 'intervalHours', -1, 1, 24)}
-                  onPlus={() => adjustDailyValue(packageName, 'intervalHours', 1, 1, 24)}
+                  onMinus={() => { if (!entryLocked) adjustDailyValue(packageName, 'intervalHours', -1, 1, 24); }}
+                  onPlus={() => { if (!entryLocked) adjustDailyValue(packageName, 'intervalHours', 1, 1, 24); }}
+                  disabled={entryLocked}
                 />
               </>
             )}
@@ -594,22 +610,24 @@ function StepperRow({
   suffix,
   onMinus,
   onPlus,
+  disabled = false,
 }: {
   label: string;
   value: number;
   suffix: string;
   onMinus: () => void;
   onPlus: () => void;
+  disabled?: boolean;
 }) {
   return (
-    <View style={styles.stepperRow}>
+    <View style={[styles.stepperRow, disabled && { opacity: 0.45 }]}>
       <Text style={styles.stepperLabel}>{label}</Text>
       <View style={styles.dailyStepper}>
-        <TouchableOpacity onPress={onMinus} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <TouchableOpacity onPress={onMinus} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} disabled={disabled}>
           <Ionicons name="remove-circle-outline" size={18} color={COLORS.orange} />
         </TouchableOpacity>
         <Text style={styles.dailyCountText}>{value}{suffix}</Text>
-        <TouchableOpacity onPress={onPlus} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <TouchableOpacity onPress={onPlus} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} disabled={disabled}>
           <Ionicons name="add-circle-outline" size={18} color={COLORS.orange} />
         </TouchableOpacity>
       </View>
