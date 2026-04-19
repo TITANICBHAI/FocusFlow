@@ -228,7 +228,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         /** Max number of rapid re-check attempts after a block dismissal. */
         private const val MAX_RETRY_ATTEMPTS = 5
         /** Interval between retry checks in milliseconds. */
-        private const val RETRY_INTERVAL_MS = 300L
+        private const val RETRY_INTERVAL_MS = 200L
 
         // ── Keyword blocker: URL / search field detection ─────────────────────
 
@@ -715,6 +715,9 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     /**
      * Schedules up to [MAX_RETRY_ATTEMPTS] re-checks at [RETRY_INTERVAL_MS] ms intervals
      * to catch apps that relaunch themselves after the initial dismissal.
+     *
+     * Each retry re-shows the block overlay AND presses BACK+HOME so the blocked
+     * app is forcefully removed from the foreground even on slow devices.
      */
     private fun scheduleRetryCheck(pkg: String, attempt: Int, focusWasActive: Boolean, saWasActive: Boolean) {
         if (attempt > MAX_RETRY_ATTEMPTS) return
@@ -722,12 +725,19 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             val focusActive = prefs.getBoolean(PREF_FOCUS_ON, false)
             val saActive = prefs.getBoolean(PREF_SA_ACTIVE, false)
             if (!focusActive && !saActive) return@postDelayed
-            // Guard: only dismiss if the blocked package is still in the foreground.
+            // Guard: only act if the blocked package is still in the foreground.
             // Without this check, retries would press Home even after the user has
             // already navigated to a legitimate allowed app, causing false kicks.
             if (lastSeenPkg != pkg) return@postDelayed
             val isBlocked = isPackageBlocked(pkg, focusActive, saActive)
-            if (isBlocked && findAllowanceEntry(pkg) == null) {
+            val allowanceExhausted = run {
+                val entry = findAllowanceEntry(pkg)
+                entry != null && !isAllowanceAvailable(pkg, entry)
+            }
+            if (isBlocked || allowanceExhausted) {
+                // Re-raise the overlay in case it was dismissed or never rendered,
+                // then kick the app out again.
+                launchBlockOverlay(pkg)
                 dismissPackage(pkg)
                 scheduleRetryCheck(pkg, attempt + 1, focusActive, saActive)
             }
@@ -2301,6 +2311,9 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         handler.postDelayed({
             if (lastSeenPkg != pkg) return@postDelayed
             if (isInGreyoutWindow(pkg)) {
+                // Re-raise overlay + kick app on each retry, consistent with the
+                // regular block retry behaviour.
+                launchBlockOverlay(pkg)
                 dismissPackage(pkg)
                 scheduleGreyoutRetryCheck(pkg, attempt + 1)
             }
