@@ -36,6 +36,36 @@ uri = "file://attached_assets/focusflow-logo.png"
 type = "image"
 title = "generated_image"
 
+[[generated]]
+id = "zqfb1rmStn-VZ_I0TZmD0"
+uri = "file://store-assets/logo-v1-shield.png"
+type = "image"
+title = "focusflow logo shield"
+
+[[generated]]
+id = "k69N0JnikbuPHRpHM2OaX"
+uri = "file://store-assets/logo-v2-timer.png"
+type = "image"
+title = "focusflow logo timer ring"
+
+[[generated]]
+id = "vu3iseTO90ZM7dPhGQ08-"
+uri = "file://store-assets/logo-v3-letter.png"
+type = "image"
+title = "focusflow logo F letter"
+
+[[generated]]
+id = "vdzZo22evHjYxpZaw9rMz"
+uri = "file://store-assets/logo-v4-eye.png"
+type = "image"
+title = "focusflow logo eye focus"
+
+[[generated]]
+id = "vAY7WcN9TOO4Oqm9aTI0h"
+uri = "file://store-assets/logo-v5-brain.png"
+type = "image"
+title = "focusflow logo brain shield"
+
 [[outputs]]
 id = "tgalAfT1-750LJk0Yh4R6"
 uri = "file://artifacts/focusflow/store-assets/STORE_LISTING.md"
