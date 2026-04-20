@@ -128,4 +128,5 @@ export interface CustomNodeRule {
   warnings?: string[];
   importedAt: string;        // ISO timestamp when this rule was imported
   captureTimestamp?: number; // Unix ms from the source NodeSpyCaptureV1
+  sourceName?: string;       // User-supplied title or filename used during import
 }

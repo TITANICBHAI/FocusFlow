@@ -1,12 +1,17 @@
 /**
  * CustomNodeRulesModal
  *
- * Lets the user import NodeSpyCaptureV1 JSON exports and manage the resulting
- * custom node-blocking rules. Rules are stored in AppSettings.customNodeRules
- * and pushed to native SharedPreferences via SharedPrefsModule.setCustomNodeRules().
+ * Lets the user manage custom node-blocking rules derived from NodeSpy captures
+ * or any compatible JSON export.
  *
- * Usage: block a specific UI node (e.g. the Shorts tab in YouTube) without
- * blocking the whole app — surgical blocking powered by NodeSpy captures.
+ * Import sources supported:
+ *   1. Paste JSON directly into the text area (title typed manually)
+ *   2. Browse device files via the native file picker (title auto-filled from filename)
+ *
+ * Accepted JSON formats:
+ *   • NodeSpyCaptureV1  — official NodeSpy export; uses recommendedRules array
+ *   • Any JSON object   — must contain recommendedRules[] or nodes[]+pinnedNodeIds[]
+ *   • Plain array       — [{pkg, matchResId?, matchText?, matchCls?, label?}, ...]
  */
 
 import React, { useState, useCallback } from 'react';
@@ -21,65 +26,101 @@ import {
   Alert,
   StyleSheet,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { CustomNodeRule } from '@/data/types';
+import { NativeFilePickerModule } from '@/native-modules/NativeFilePickerModule';
 
-// ─── Palette (matches FocusFlow dark-mode colours) ────────────────────────────
+// ─── Palette ─────────────────────────────────────────────────────────────────
 const C = {
-  bg:        '#0F0F14',
-  surface:   '#1A1A24',
-  surfaceVar:'#242430',
-  border:    '#2E2E3E',
-  text:      '#E8E8F0',
-  muted:     '#6B6B80',
-  primary:   '#6366f1',
-  green:     '#22c55e',
-  red:       '#ef4444',
-  orange:    '#f97316',
-  yellow:    '#eab308',
+  bg:         '#0F0F14',
+  surface:    '#1A1A24',
+  surfaceVar: '#242430',
+  border:     '#2E2E3E',
+  text:       '#E8E8F0',
+  muted:      '#6B6B80',
+  primary:    '#6366f1',
+  green:      '#22c55e',
+  red:        '#ef4444',
+  orange:     '#f97316',
+  yellow:     '#eab308',
 };
 
-// ─── NodeSpyCaptureV1 minimal shape ───────────────────────────────────────────
-interface NodeSpyCaptureV1 {
-  format: string;
-  version: number;
-  timestamp: number;
-  pkg: string;
-  nodes: Array<{
-    id: string;
-    cls: string;
-    resId?: string;
-    text?: string;
-    desc?: string;
-    flags: { visible: boolean };
-    depth: number;
+// ─── JSON parse types ─────────────────────────────────────────────────────────
+interface NodeSpyCapture {
+  format?: string;
+  version?: number;
+  timestamp?: number;
+  pkg?: string;
+  nodes?: Array<{
+    id: string; cls: string; resId?: string; text?: string;
+    desc?: string; flags: { visible: boolean }; depth: number;
   }>;
-  pinnedNodeIds: string[];
+  pinnedNodeIds?: string[];
   ruleQuality?: {
-    totalPinned: number;
-    exportableRules: number;
-    strongRules: number;
-    mediumRules: number;
-    weakRules: number;
-    averageConfidence: number;
-    warnings?: string[];
+    totalPinned: number; exportableRules: number;
+    strongRules: number; mediumRules: number; weakRules: number;
+    averageConfidence: number; warnings?: string[];
   };
   recommendedRules?: Array<{
-    nodeId: string;
-    label: string;
-    pkg: string;
-    selector: {
-      matchResId?: string;
-      matchText?: string;
-      matchCls?: string;
-    };
-    selectorType?: string;
-    confidence?: number;
+    nodeId: string; label: string; pkg: string;
+    selector: { matchResId?: string; matchText?: string; matchCls?: string };
+    selectorType?: string; confidence?: number;
     tier?: 'strong' | 'medium' | 'weak';
-    stability?: number;
-    warnings?: string[];
+    stability?: number; warnings?: string[];
   }>;
+}
+
+// ─── Parse result ─────────────────────────────────────────────────────────────
+interface ParseResult {
+  capture: NodeSpyCapture | null;
+  rawRules: CustomNodeRule[] | null;
+  error: string | null;
+}
+
+function parseJson(text: string): ParseResult {
+  let parsed: unknown;
+  try { parsed = JSON.parse(text); }
+  catch { return { capture: null, rawRules: null, error: 'Invalid JSON — check for missing brackets or quotes.' }; }
+
+  // Plain array — [{pkg, matchResId?, matchText?, label?}, ...]
+  if (Array.isArray(parsed)) {
+    const now = new Date().toISOString();
+    const rawRules: CustomNodeRule[] = (parsed as Record<string, unknown>[])
+      .filter(item => typeof item === 'object' && item !== null && typeof item.pkg === 'string')
+      .map((item, i) => ({
+        id:         `cnr_${Date.now()}_arr${i}`,
+        label:      (item.label as string) || (item.matchResId as string | undefined)?.split('/').pop() || `Rule ${i + 1}`,
+        pkg:        item.pkg as string,
+        matchResId: item.matchResId as string | undefined,
+        matchText:  item.matchText as string | undefined,
+        matchCls:   item.matchCls as string | undefined,
+        action:     'overlay' as const,
+        enabled:    true,
+        importedAt: now,
+      }));
+    if (rawRules.length === 0)
+      return { capture: null, rawRules: null, error: 'Array found but no items have a "pkg" field.' };
+    return { capture: null, rawRules, error: null };
+  }
+
+  // Object — NodeSpyCaptureV1 or similar
+  if (typeof parsed !== 'object' || parsed === null)
+    return { capture: null, rawRules: null, error: 'Expected a JSON object or array.' };
+
+  const obj = parsed as NodeSpyCapture;
+
+  // Must have at least one usable section
+  const hasRecommended = Array.isArray(obj.recommendedRules);
+  const hasNodes       = Array.isArray(obj.nodes) && Array.isArray(obj.pinnedNodeIds);
+  if (!hasRecommended && !hasNodes)
+    return { capture: null, rawRules: null, error: 'JSON does not contain "recommendedRules" or "nodes"+"pinnedNodeIds" fields.' };
+
+  if (!obj.pkg)
+    return { capture: null, rawRules: null, error: 'Missing "pkg" (target app package name).' };
+
+  return { capture: obj, rawRules: null, error: null };
 }
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -90,103 +131,117 @@ interface Props {
   onSave: (rules: CustomNodeRule[]) => void;
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
+// ─── Root component ───────────────────────────────────────────────────────────
 export default function CustomNodeRulesModal({ visible, rules, onClose, onSave }: Props) {
   const [tab, setTab] = useState<'rules' | 'import'>('rules');
-  const [importJson, setImportJson] = useState('');
-  const [importError, setImportError] = useState<string | null>(null);
-  const [importPreview, setImportPreview] = useState<NodeSpyCaptureV1 | null>(null);
-  const [selectedAction, setSelectedAction] = useState<'overlay' | 'home'>('overlay');
 
+  const [importTitle, setImportTitle] = useState('');
+  const [importJson,  setImportJson]  = useState('');
+  const [parseResult, setParseResult] = useState<ParseResult | null>(null);
+  const [action, setAction] = useState<'overlay' | 'home'>('overlay');
+  const [browsing, setBrowsing] = useState(false);
+
+  // ── Reset import form ──
+  const resetImport = useCallback(() => {
+    setImportTitle('');
+    setImportJson('');
+    setParseResult(null);
+  }, []);
+
+  // ── Live-parse as the user types ──
   const handleJsonChange = useCallback((text: string) => {
     setImportJson(text);
-    setImportError(null);
-    setImportPreview(null);
-    if (!text.trim()) return;
+    if (!text.trim()) { setParseResult(null); return; }
+    setParseResult(parseJson(text));
+  }, []);
+
+  // ── Native file browse ──
+  const handleBrowse = useCallback(async () => {
+    setBrowsing(true);
     try {
-      const parsed = JSON.parse(text) as NodeSpyCaptureV1;
-      if (parsed.format !== 'NodeSpyCaptureV1') {
-        setImportError('Not a valid NodeSpyCaptureV1 export. Copy the JSON directly from NodeSpy.');
-        return;
-      }
-      if (!parsed.pkg || !Array.isArray(parsed.nodes) || !Array.isArray(parsed.pinnedNodeIds)) {
-        setImportError('Malformed export — missing required fields (pkg, nodes, pinnedNodeIds).');
-        return;
-      }
-      setImportPreview(parsed);
+      const file = await NativeFilePickerModule.pickFile('*/*');
+      if (!file) return;
+      const stem = file.name.replace(/\.[^.]+$/, '');   // strip extension for title
+      setImportTitle(stem);
+      setImportJson(file.content);
+      setParseResult(parseJson(file.content));
     } catch {
-      setImportError('Invalid JSON — paste the full NodeSpy export.');
+      Alert.alert('Error', 'Could not open the file.');
+    } finally {
+      setBrowsing(false);
     }
   }, []);
 
+  // ── Confirm import ──
   const handleImport = useCallback(() => {
-    if (!importPreview) return;
-    const { pkg, nodes, pinnedNodeIds, timestamp, recommendedRules } = importPreview;
-
-    if (pinnedNodeIds.length === 0) {
-      setImportError('No pinned nodes in this export. Pin at least one node in NodeSpy before exporting.');
-      return;
-    }
-
+    if (!parseResult || parseResult.error) return;
+    const sourceName = importTitle.trim() || undefined;
     const now = new Date().toISOString();
-    const hasRecommendedRulesField = Array.isArray(recommendedRules);
-    const recommended = hasRecommendedRulesField ? recommendedRules : null;
-    const newRules: CustomNodeRule[] = recommended
-      ? recommended.map(rec => ({
-          id: `cnr_${Date.now()}_${rec.nodeId}`,
-          label: rec.label || rec.selector.matchResId?.split('/').pop() || rec.nodeId,
-          pkg: rec.pkg || pkg,
-          matchResId: rec.selector.matchResId || undefined,
-          matchText: rec.selector.matchText || undefined,
-          matchCls: rec.selector.matchCls || undefined,
-          action: selectedAction,
-          enabled: true,
-          confidence: rec.confidence,
-          qualityTier: rec.tier,
-          selectorType: rec.selectorType,
-          stability: rec.stability,
-          warnings: rec.warnings,
-          importedAt: now,
+    let newRules: CustomNodeRule[] = [];
+
+    if (parseResult.rawRules) {
+      // Plain array path
+      newRules = parseResult.rawRules.map(r => ({ ...r, sourceName, action }));
+    } else if (parseResult.capture) {
+      const { capture } = parseResult;
+      const { pkg, nodes = [], pinnedNodeIds = [], timestamp, recommendedRules } = capture;
+
+      if (pinnedNodeIds.length === 0 && !recommendedRules?.length) {
+        Alert.alert('Nothing to import', 'No pinned nodes or recommended rules found.');
+        return;
+      }
+
+      if (Array.isArray(recommendedRules) && recommendedRules.length > 0) {
+        newRules = recommendedRules.map(rec => ({
+          id:            `cnr_${Date.now()}_${rec.nodeId}`,
+          label:         rec.label || rec.selector.matchResId?.split('/').pop() || rec.nodeId,
+          pkg:           rec.pkg || pkg!,
+          matchResId:    rec.selector.matchResId || undefined,
+          matchText:     rec.selector.matchText || undefined,
+          matchCls:      rec.selector.matchCls || undefined,
+          action,
+          enabled:       true,
+          confidence:    rec.confidence,
+          qualityTier:   rec.tier,
+          selectorType:  rec.selectorType,
+          stability:     rec.stability,
+          warnings:      rec.warnings,
+          importedAt:    now,
           captureTimestamp: timestamp,
-        } as CustomNodeRule))
-      : pinnedNodeIds
+          sourceName,
+        } as CustomNodeRule));
+      } else {
+        // Fall back to raw pinned nodes
+        newRules = pinnedNodeIds
           .map(id => nodes.find(n => n.id === id))
           .filter(Boolean)
           .map(n => n!)
-          .map(node => {
-            const label =
-              node.text?.slice(0, 40) ||
-              node.desc?.slice(0, 40) ||
-              node.resId?.split('/').pop()?.slice(0, 40) ||
-              node.cls.split('.').pop() ||
-              node.id;
+          .map(node => ({
+            id:        `cnr_${Date.now()}_${node.id}`,
+            label:     node.text?.slice(0, 40) || node.desc?.slice(0, 40) ||
+                       node.resId?.split('/').pop()?.slice(0, 40) ||
+                       node.cls.split('.').pop() || node.id,
+            pkg:       pkg!,
+            matchResId: node.resId || undefined,
+            matchText: (node.text || node.desc)?.slice(0, 100) || undefined,
+            action,
+            enabled:   true,
+            importedAt: now,
+            captureTimestamp: timestamp,
+            sourceName,
+          } as CustomNodeRule));
+      }
+    }
 
-            return {
-              id: `cnr_${Date.now()}_${node.id}`,
-              label,
-              pkg,
-              matchResId: node.resId || undefined,
-              matchText: (node.text || node.desc) ? (node.text || node.desc)?.slice(0, 100) : undefined,
-              matchCls: undefined,
-              action: selectedAction,
-              enabled: true,
-              importedAt: now,
-              captureTimestamp: timestamp,
-            } as CustomNodeRule;
-          });
-
-    if (hasRecommendedRulesField && newRules.length === 0) {
-      setImportError('NodeSpy did not find any high-confidence rules in this export. Capture another app state or pin nodes with a resource ID/text label.');
+    if (newRules.length === 0) {
+      Alert.alert('Nothing to import', 'No valid rules could be extracted from this JSON.');
       return;
     }
 
-    const merged = dedupeRules([...rules, ...newRules]);
-    onSave(merged);
-    setImportJson('');
-    setImportPreview(null);
-    setImportError(null);
+    onSave(dedupeRules([...rules, ...newRules]));
+    resetImport();
     setTab('rules');
-  }, [importPreview, rules, selectedAction, onSave]);
+  }, [parseResult, importTitle, action, rules, onSave, resetImport]);
 
   const toggleRule = useCallback((id: string) => {
     onSave(rules.map(r => r.id === id ? { ...r, enabled: !r.enabled } : r));
@@ -209,6 +264,7 @@ export default function CustomNodeRulesModal({ visible, rules, onClose, onSave }
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <View style={s.root}>
+
         {/* Header */}
         <View style={s.header}>
           <TouchableOpacity onPress={onClose} style={s.closeBtn}>
@@ -222,29 +278,23 @@ export default function CustomNodeRulesModal({ visible, rules, onClose, onSave }
           )}
         </View>
 
-        {/* Subtitle */}
         <Text style={s.subtitle}>
-          Import NodeSpy captures to block specific in-app UI elements — without blocking the whole app.
+          Block specific in-app UI elements surgically — without blocking the whole app.
         </Text>
 
         {/* Tab bar */}
         <View style={s.tabBar}>
-          <TouchableOpacity
-            style={[s.tab, tab === 'rules' && s.tabActive]}
-            onPress={() => setTab('rules')}
-          >
-            <Text style={[s.tabText, tab === 'rules' && s.tabTextActive]}>
-              Rules ({rules.length})
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[s.tab, tab === 'import' && s.tabActive]}
-            onPress={() => setTab('import')}
-          >
-            <Text style={[s.tabText, tab === 'import' && s.tabTextActive]}>
-              Import from NodeSpy
-            </Text>
-          </TouchableOpacity>
+          {(['rules', 'import'] as const).map(t => (
+            <TouchableOpacity
+              key={t}
+              style={[s.tab, tab === t && s.tabActive]}
+              onPress={() => setTab(t)}
+            >
+              <Text style={[s.tabText, tab === t && s.tabTextActive]}>
+                {t === 'rules' ? `Rules (${rules.length})` : 'Add Script'}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
 
         {/* Content */}
@@ -257,13 +307,17 @@ export default function CustomNodeRulesModal({ visible, rules, onClose, onSave }
           />
         ) : (
           <ImportTab
+            title={importTitle}
             json={importJson}
-            error={importError}
-            preview={importPreview}
-            action={selectedAction}
+            parseResult={parseResult}
+            action={action}
+            browsing={browsing}
+            onTitleChange={setImportTitle}
             onJsonChange={handleJsonChange}
-            onActionChange={setSelectedAction}
+            onBrowse={handleBrowse}
+            onActionChange={setAction}
             onImport={handleImport}
+            onClear={resetImport}
           />
         )}
       </View>
@@ -273,10 +327,7 @@ export default function CustomNodeRulesModal({ visible, rules, onClose, onSave }
 
 // ─── Rules tab ────────────────────────────────────────────────────────────────
 function RulesTab({
-  rules,
-  onToggle,
-  onDelete,
-  onImport,
+  rules, onToggle, onDelete, onImport,
 }: {
   rules: CustomNodeRule[];
   onToggle: (id: string) => void;
@@ -289,11 +340,11 @@ function RulesTab({
         <Ionicons name="scan-outline" size={52} color={C.muted} />
         <Text style={s.emptyTitle}>No rules yet</Text>
         <Text style={s.emptyBody}>
-          Capture a node tree with NodeSpy, pin the elements you want to block, export the JSON, then import it here.
+          Paste a NodeSpy JSON export or browse any JSON file from your device.
         </Text>
-        <TouchableOpacity style={s.importBtn} onPress={onImport}>
-          <Ionicons name="download-outline" size={18} color="#fff" />
-          <Text style={s.importBtnText}>Import from NodeSpy</Text>
+        <TouchableOpacity style={s.actionBtn} onPress={onImport}>
+          <Ionicons name="add-circle-outline" size={18} color="#fff" />
+          <Text style={s.actionBtnText}>Add Script</Text>
         </TouchableOpacity>
       </View>
     );
@@ -304,18 +355,16 @@ function RulesTab({
       {rules.map(rule => (
         <RuleRow key={rule.id} rule={rule} onToggle={onToggle} onDelete={onDelete} />
       ))}
-      <TouchableOpacity style={[s.importBtn, { marginTop: 16 }]} onPress={onImport}>
-        <Ionicons name="add-outline" size={18} color="#fff" />
-        <Text style={s.importBtnText}>Import More Rules</Text>
+      <TouchableOpacity style={[s.actionBtn, { marginTop: 16 }]} onPress={onImport}>
+        <Ionicons name="add-circle-outline" size={18} color="#fff" />
+        <Text style={s.actionBtnText}>Add Another Script</Text>
       </TouchableOpacity>
     </ScrollView>
   );
 }
 
 function RuleRow({
-  rule,
-  onToggle,
-  onDelete,
+  rule, onToggle, onDelete,
 }: {
   rule: CustomNodeRule;
   onToggle: (id: string) => void;
@@ -333,15 +382,20 @@ function RuleRow({
         {typeof rule.confidence === 'number' && (
           <View style={[s.qualityBadge, { backgroundColor: qualityColor(rule.qualityTier) + '22' }]}>
             <Text style={[s.qualityBadgeText, { color: qualityColor(rule.qualityTier) }]}>
-              {rule.confidence} {rule.qualityTier?.toUpperCase() ?? 'SCORE'}
+              {rule.confidence} {rule.qualityTier?.toUpperCase() ?? ''}
             </Text>
           </View>
         )}
       </View>
       <Text style={s.rulePkg} numberOfLines={1}>{rule.pkg}</Text>
+      {rule.sourceName && (
+        <Text style={s.ruleSource} numberOfLines={1}>
+          <Ionicons name="document-text-outline" size={10} color={C.muted} /> {rule.sourceName}
+        </Text>
+      )}
       <View style={s.ruleSelectors}>
-        {rule.matchResId && <SelectorChip label="id" value={rule.matchResId.split('/').pop() || rule.matchResId} />}
-        {rule.matchText   && <SelectorChip label="text" value={rule.matchText} />}
+        {rule.matchResId && <SelectorChip label="id"    value={rule.matchResId.split('/').pop() || rule.matchResId} />}
+        {rule.matchText   && <SelectorChip label="text"  value={rule.matchText} />}
         {rule.matchCls    && <SelectorChip label="class" value={rule.matchCls} />}
       </View>
       {rule.warnings?.[0] && (
@@ -374,35 +428,71 @@ function SelectorChip({ label, value }: { label: string; value: string }) {
   );
 }
 
-// ─── Import tab ───────────────────────────────────────────────────────────────
+// ─── Import / Add Script tab ──────────────────────────────────────────────────
 function ImportTab({
-  json,
-  error,
-  preview,
-  action,
-  onJsonChange,
-  onActionChange,
-  onImport,
+  title, json, parseResult, action, browsing,
+  onTitleChange, onJsonChange, onBrowse, onActionChange, onImport, onClear,
 }: {
+  title: string;
   json: string;
-  error: string | null;
-  preview: NodeSpyCaptureV1 | null;
+  parseResult: ParseResult | null;
   action: 'overlay' | 'home';
+  browsing: boolean;
+  onTitleChange: (t: string) => void;
   onJsonChange: (t: string) => void;
+  onBrowse: () => void;
   onActionChange: (a: 'overlay' | 'home') => void;
   onImport: () => void;
+  onClear: () => void;
 }) {
+  const capture = parseResult?.capture ?? null;
+  const rawRules = parseResult?.rawRules ?? null;
+  const error = parseResult?.error ?? null;
+  const readyCount = rawRules?.length
+    ?? (capture?.recommendedRules?.length
+        || capture?.pinnedNodeIds?.length
+        || 0);
+  const canImport = !error && (!!rawRules || !!capture) && readyCount > 0;
+
   return (
-    <ScrollView contentContainerStyle={s.importContent}>
+    <ScrollView contentContainerStyle={s.importContent} keyboardShouldPersistTaps="handled">
+
+      {/* Title row */}
+      <View style={s.titleRow}>
+        <View style={s.titleInputWrap}>
+          <Ionicons name="pricetag-outline" size={15} color={C.muted} style={s.titleIcon} />
+          <TextInput
+            style={s.titleInput}
+            placeholder="Script title (optional)"
+            placeholderTextColor={C.muted}
+            value={title}
+            onChangeText={onTitleChange}
+            returnKeyType="done"
+          />
+        </View>
+
+        {/* Browse file button */}
+        <TouchableOpacity style={s.browseBtn} onPress={onBrowse} disabled={browsing}>
+          {browsing
+            ? <ActivityIndicator size="small" color={C.primary} />
+            : <>
+                <Ionicons name="folder-open-outline" size={16} color={C.primary} />
+                <Text style={s.browseBtnText}>Browse</Text>
+              </>
+          }
+        </TouchableOpacity>
+      </View>
+
       <Text style={s.importHint}>
-        In NodeSpy, pin the nodes you want to block → tap "Export Pinned" → share or copy the JSON → paste it below.
+        Paste a NodeSpy JSON export below, or tap Browse to pick any JSON file from your device. The filename becomes the title automatically.
       </Text>
 
+      {/* JSON textarea */}
       <TextInput
-        style={[s.jsonInput, error ? s.jsonInputError : null]}
+        style={[s.jsonInput, error ? s.jsonInputError : (!error && canImport ? s.jsonInputOk : null)]}
         multiline
         numberOfLines={8}
-        placeholder='Paste NodeSpyCaptureV1 JSON here…'
+        placeholder={'Paste JSON here…'}
         placeholderTextColor={C.muted}
         value={json}
         onChangeText={onJsonChange}
@@ -410,6 +500,15 @@ function ImportTab({
         autoCorrect={false}
       />
 
+      {/* Clear */}
+      {json.length > 0 && (
+        <TouchableOpacity onPress={onClear} style={s.clearJsonBtn}>
+          <Ionicons name="close-circle-outline" size={14} color={C.muted} />
+          <Text style={s.clearJsonText}>Clear</Text>
+        </TouchableOpacity>
+      )}
+
+      {/* Error */}
       {error && (
         <View style={s.errorBox}>
           <Ionicons name="alert-circle-outline" size={16} color={C.red} />
@@ -417,27 +516,33 @@ function ImportTab({
         </View>
       )}
 
-      {preview && (
+      {/* Preview + action picker */}
+      {canImport && (
         <View style={s.previewBox}>
-          <Text style={s.previewTitle}>Ready to import</Text>
-          <PreviewRow icon="phone-portrait-outline" label="App" value={preview.pkg} />
-          <PreviewRow icon="layers-outline" label="Total nodes" value={`${preview.nodes.length}`} />
-          <PreviewRow icon="pin-outline" label="Pinned nodes" value={`${preview.pinnedNodeIds.length}`} color={C.green} />
-          {preview.ruleQuality && (
+          <Text style={s.previewTitle}>
+            {rawRules ? `${rawRules.length} rule${rawRules.length !== 1 ? 's' : ''} ready` : 'Ready to import'}
+          </Text>
+
+          {capture?.pkg && <PreviewRow icon="phone-portrait-outline" label="App" value={capture.pkg} />}
+          {capture?.nodes && <PreviewRow icon="layers-outline" label="Total nodes" value={`${capture.nodes.length}`} />}
+          {capture?.pinnedNodeIds && (
+            <PreviewRow icon="pin-outline" label="Pinned" value={`${capture.pinnedNodeIds.length}`} color={C.green} />
+          )}
+          {capture?.ruleQuality && (
             <>
               <PreviewRow
                 icon="shield-checkmark-outline"
-                label="Recommended rules"
-                value={`${preview.ruleQuality.exportableRules} / ${preview.ruleQuality.totalPinned}`}
-                color={preview.ruleQuality.weakRules > 0 ? C.yellow : C.green}
+                label="Recommended"
+                value={`${capture.ruleQuality.exportableRules} / ${capture.ruleQuality.totalPinned}`}
+                color={capture.ruleQuality.weakRules > 0 ? C.yellow : C.green}
               />
               <PreviewRow
                 icon="analytics-outline"
                 label="Quality"
-                value={`${preview.ruleQuality.strongRules} strong · ${preview.ruleQuality.mediumRules} medium · ${preview.ruleQuality.weakRules} weak`}
+                value={`${capture.ruleQuality.strongRules} strong · ${capture.ruleQuality.mediumRules} medium · ${capture.ruleQuality.weakRules} weak`}
               />
-              {preview.ruleQuality.warnings?.map((warning, i) => (
-                <Text key={i} style={s.importWarning}>{warning}</Text>
+              {capture.ruleQuality.warnings?.map((w, i) => (
+                <Text key={i} style={s.importWarning}>{w}</Text>
               ))}
             </>
           )}
@@ -458,14 +563,11 @@ function ImportTab({
             />
           </View>
 
-          <TouchableOpacity
-            style={[s.importConfirmBtn, (preview.recommendedRules && preview.recommendedRules.length === 0) ? s.importConfirmBtnDisabled : null]}
-            onPress={onImport}
-            disabled={!!preview.recommendedRules && preview.recommendedRules.length === 0}
-          >
+          <TouchableOpacity style={s.importConfirmBtn} onPress={onImport}>
             <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
             <Text style={s.importConfirmText}>
-              Import {preview.recommendedRules ? preview.recommendedRules.length : preview.pinnedNodeIds.length} rule{(preview.recommendedRules ? preview.recommendedRules.length : preview.pinnedNodeIds.length) !== 1 ? 's' : ''}
+              Import {readyCount} rule{readyCount !== 1 ? 's' : ''}
+              {title.trim() ? ` · "${title.trim()}"` : ''}
             </Text>
           </TouchableOpacity>
         </View>
@@ -484,12 +586,11 @@ function PreviewRow({ icon, label, value, color }: { icon: string; label: string
   );
 }
 
-function ActionToggle({ label, desc, selected, onSelect }: { label: string; desc: string; selected: boolean; onSelect: () => void }) {
+function ActionToggle({ label, desc, selected, onSelect }: {
+  label: string; desc: string; selected: boolean; onSelect: () => void;
+}) {
   return (
-    <TouchableOpacity
-      style={[s.actionToggle, selected && s.actionToggleSelected]}
-      onPress={onSelect}
-    >
+    <TouchableOpacity style={[s.actionToggle, selected && s.actionToggleSelected]} onPress={onSelect}>
       <View style={s.actionToggleCheck}>
         {selected && <Ionicons name="checkmark" size={14} color={C.primary} />}
       </View>
@@ -532,6 +633,8 @@ const s = StyleSheet.create({
   tabText:       { color: C.muted, fontSize: 13, fontWeight: '500' },
   tabTextActive: { color: C.primary },
   list:          { padding: 12, gap: 10 },
+
+  // Rule card
   ruleCard:      { backgroundColor: C.surface, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: C.border },
   ruleHeader:    { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
   actionBadge:   { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
@@ -539,7 +642,8 @@ const s = StyleSheet.create({
   ruleLabel:     { flex: 1, color: C.text, fontSize: 14, fontWeight: '600' },
   qualityBadge:  { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
   qualityBadgeText:{ fontSize: 10, fontWeight: '700', fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
-  rulePkg:       { color: C.muted, fontSize: 11, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', marginBottom: 6 },
+  rulePkg:       { color: C.muted, fontSize: 11, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', marginBottom: 2 },
+  ruleSource:    { color: C.muted, fontSize: 10, marginBottom: 6, opacity: 0.7 },
   ruleSelectors: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 },
   ruleWarning:   { color: C.orange, fontSize: 11, lineHeight: 16, marginBottom: 8 },
   chip:          { flexDirection: 'row', backgroundColor: C.surfaceVar, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 },
@@ -549,31 +653,43 @@ const s = StyleSheet.create({
   ruleDate:      { color: C.muted, fontSize: 11 },
   ruleActions:   { flexDirection: 'row', alignItems: 'center', gap: 8 },
   deleteBtn:     { padding: 6 },
+
+  // Empty / action button
   emptyState:    { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 12 },
   emptyTitle:    { color: C.text, fontSize: 18, fontWeight: '700' },
   emptyBody:     { color: C.muted, fontSize: 14, textAlign: 'center', lineHeight: 20 },
-  importBtn:     { flexDirection: 'row', alignItems: 'center', backgroundColor: C.primary, borderRadius: 10, paddingHorizontal: 18, paddingVertical: 12, gap: 8 },
-  importBtnText: { color: '#fff', fontSize: 15, fontWeight: '600' },
-  importContent: { padding: 16, gap: 14 },
-  importHint:    { color: C.muted, fontSize: 13, lineHeight: 20 },
+  actionBtn:     { flexDirection: 'row', alignItems: 'center', backgroundColor: C.primary, borderRadius: 10, paddingHorizontal: 18, paddingVertical: 12, gap: 8 },
+  actionBtnText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+
+  // Import tab
+  importContent: { padding: 16, gap: 12 },
+  titleRow:      { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  titleInputWrap:{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: C.surface, borderRadius: 8, borderWidth: 1, borderColor: C.border, paddingHorizontal: 10, height: 44 },
+  titleIcon:     { marginRight: 6 },
+  titleInput:    { flex: 1, color: C.text, fontSize: 14 },
+  browseBtn:     { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: C.surface, borderRadius: 8, borderWidth: 1, borderColor: C.primary + '66', paddingHorizontal: 12, height: 44 },
+  browseBtnText: { color: C.primary, fontSize: 13, fontWeight: '600' },
+  importHint:    { color: C.muted, fontSize: 12, lineHeight: 18 },
   jsonInput:     { backgroundColor: C.surface, borderRadius: 8, borderWidth: 1, borderColor: C.border, color: C.text, fontSize: 12, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', padding: 12, textAlignVertical: 'top', minHeight: 140 },
   jsonInputError:{ borderColor: C.red },
+  jsonInputOk:   { borderColor: C.green + '88' },
+  clearJsonBtn:  { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-end' },
+  clearJsonText: { color: C.muted, fontSize: 12 },
   errorBox:      { flexDirection: 'row', gap: 8, alignItems: 'flex-start', backgroundColor: C.red + '18', borderRadius: 8, padding: 10 },
   errorText:     { color: C.red, fontSize: 13, flex: 1, lineHeight: 18 },
   previewBox:    { backgroundColor: C.surface, borderRadius: 10, padding: 14, borderWidth: 1, borderColor: C.border },
   previewTitle:  { color: C.green, fontWeight: '700', fontSize: 14, marginBottom: 10 },
   previewRow:    { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
   previewLabel:  { color: C.muted, fontSize: 13, flex: 1 },
-  previewValue:  { color: C.text, fontSize: 13, fontWeight: '500' },
-  importWarning: { color: C.orange, fontSize: 12, lineHeight: 17, marginTop: 4 },
-  sectionLabel:  { color: C.muted, fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 },
-  actionToggleRow:{ gap: 8, marginBottom: 14 },
-  actionToggle:  { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: C.surfaceVar, borderRadius: 8, padding: 12, gap: 10, borderWidth: 1, borderColor: C.border },
-  actionToggleSelected: { borderColor: C.primary },
-  actionToggleCheck:{ width: 18, height: 18, borderRadius: 9, borderWidth: 1, borderColor: C.muted, alignItems: 'center', justifyContent: 'center' },
-  actionToggleLabel:{ color: C.text, fontSize: 14, fontWeight: '600' },
-  actionToggleDesc: { color: C.muted, fontSize: 12, marginTop: 2 },
-  importConfirmBtn:{ flexDirection: 'row', alignItems: 'center', backgroundColor: C.green, borderRadius: 10, paddingHorizontal: 18, paddingVertical: 13, gap: 8, justifyContent: 'center' },
-  importConfirmBtnDisabled:{ backgroundColor: C.border },
-  importConfirmText:{ color: '#fff', fontSize: 15, fontWeight: '700' },
+  previewValue:  { color: C.text, fontSize: 13, fontWeight: '600' },
+  importWarning: { color: C.yellow, fontSize: 12, lineHeight: 17, marginTop: 4 },
+  sectionLabel:  { color: C.muted, fontSize: 12, fontWeight: '600', marginBottom: 8 },
+  actionToggleRow:{ gap: 8 },
+  actionToggle:  { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: C.surfaceVar, borderRadius: 8, padding: 12, borderWidth: 1, borderColor: C.border },
+  actionToggleSelected: { borderColor: C.primary + '88' },
+  actionToggleCheck:    { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, borderColor: C.muted, alignItems: 'center', justifyContent: 'center' },
+  actionToggleLabel:    { color: C.text, fontSize: 14, fontWeight: '600' },
+  actionToggleDesc:     { color: C.muted, fontSize: 12, marginTop: 2 },
+  importConfirmBtn:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: C.primary, borderRadius: 10, paddingVertical: 14, gap: 8, marginTop: 16 },
+  importConfirmText:    { color: '#fff', fontSize: 15, fontWeight: '700' },
 });
