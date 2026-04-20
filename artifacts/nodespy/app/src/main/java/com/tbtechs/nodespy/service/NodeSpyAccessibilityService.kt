@@ -24,9 +24,12 @@ class NodeSpyAccessibilityService : AccessibilityService() {
 
     companion object {
         var instance: NodeSpyAccessibilityService? = null
+        private const val SCREENSHOT_COOLDOWN_MS = 2_000L
+        private const val MAX_SCREENSHOTS = 20
     }
 
     private val counter = intArrayOf(0)
+    private var lastScreenshotMs = 0L
 
     override fun onServiceConnected() {
         instance = this
@@ -79,7 +82,11 @@ class NodeSpyAccessibilityService : AccessibilityService() {
             }
 
             if (CaptureStore.screenshotEnabled.value && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                requestScreenshot()
+                val now = System.currentTimeMillis()
+                if (now - lastScreenshotMs >= SCREENSHOT_COOLDOWN_MS) {
+                    lastScreenshotMs = now
+                    requestScreenshot(capture.id)
+                }
             }
         } finally {
             root.recycle()
@@ -93,7 +100,9 @@ class NodeSpyAccessibilityService : AccessibilityService() {
         ) == PackageManager.PERMISSION_GRANTED
     }
 
-    fun requestScreenshot() {
+    // captureId is pinned at call-time so the screenshot attaches to the right capture
+    // even if new captures arrive before the async callback fires.
+    fun requestScreenshot(captureId: String = CaptureStore.latest()?.id ?: return) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
         takeScreenshot(
             Display.DEFAULT_DISPLAY,
@@ -106,27 +115,42 @@ class NodeSpyAccessibilityService : AccessibilityService() {
                     screenshot.hardwareBuffer.close()
                     val bitmap = hardwareBitmap.copy(Bitmap.Config.ARGB_8888, false)
                     hardwareBitmap.recycle()
-                    saveScreenshot(bitmap)
+                    saveScreenshot(bitmap, captureId)
                 }
-                override fun onFailure(errorCode: Int) {}
+                override fun onFailure(errorCode: Int) {
+                    // Silently swallow; SNAP toggle stays on for next capture.
+                    // errorCode values: 1=timeout, 2=security, 3=system error
+                }
             }
         )
     }
 
-    private fun saveScreenshot(bitmap: Bitmap) {
+    private fun saveScreenshot(bitmap: Bitmap, captureId: String) {
         try {
             val dir = File(
                 getExternalFilesDir(Environment.DIRECTORY_PICTURES), "nodespy"
             ).also { it.mkdirs() }
-            val file = File(dir, "screenshot_${System.currentTimeMillis()}.png")
+
+            // JPEG at quality 85 — ~4-8× smaller than PNG with no perceptible quality loss.
+            val file = File(dir, "ss_${captureId.take(8)}_${System.currentTimeMillis()}.jpg")
             FileOutputStream(file).use { out ->
-                bitmap.compress(Bitmap.CompressFormat.PNG, 90, out)
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 85, out)
             }
             bitmap.recycle()
-            CaptureStore.updateLatestScreenshot(file.absolutePath)
+
+            // Link screenshot to the exact capture it was taken for.
+            CaptureStore.updateScreenshotForCapture(captureId, file.absolutePath)
+
+            // Keep only the N most-recent screenshots on disk.
+            pruneScreenshots(dir)
         } catch (_: Exception) {
             bitmap.recycle()
         }
+    }
+
+    private fun pruneScreenshots(dir: File) {
+        val files = dir.listFiles()?.sortedByDescending { it.lastModified() } ?: return
+        files.drop(MAX_SCREENSHOTS).forEach { it.delete() }
     }
 
     private fun captureNode(

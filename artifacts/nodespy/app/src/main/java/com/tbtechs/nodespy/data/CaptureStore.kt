@@ -109,12 +109,21 @@ object CaptureStore {
         }
     }
 
-    fun updateLatestScreenshot(path: String) {
+    // Attach a screenshot to a specific capture by ID (avoids race condition where
+    // a new capture arrives before the async screenshot callback fires).
+    fun updateScreenshotForCapture(captureId: String, path: String) {
         val current = _captures.value
-        if (current.isEmpty()) return
+        val idx = current.indexOfFirst { it.id == captureId }
+        if (idx == -1) return
         val updated = current.toMutableList()
-        updated[0] = updated[0].copy(screenshotPath = path)
+        updated[idx] = updated[idx].copy(screenshotPath = path)
         _captures.value = updated
+    }
+
+    // Legacy helper kept for compatibility (e.g., manual trigger from bubble).
+    fun updateLatestScreenshot(path: String) {
+        val id = _captures.value.firstOrNull()?.id ?: return
+        updateScreenshotForCapture(id, path)
     }
 
     fun toggleStar(id: String) {
@@ -146,10 +155,15 @@ object CaptureStore {
     }
 
     fun remove(id: String) {
+        val capture = _captures.value.firstOrNull { it.id == id }
+        capture?.screenshotPath?.let { runCatching { java.io.File(it).delete() } }
         _captures.value = _captures.value.filter { it.id != id }
     }
 
     fun clearAll() {
+        _captures.value.forEach { c ->
+            c.screenshotPath?.let { runCatching { java.io.File(it).delete() } }
+        }
         _captures.value = emptyList()
         _bubblePinnedIds.value = emptySet()
         _bubbleActiveCaptureId.value = null

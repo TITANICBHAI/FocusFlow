@@ -48,20 +48,25 @@ class FloatingBubbleService : Service() {
 
     companion object {
         var instance: FloatingBubbleService? = null
-        const val ACTION_STOP = "com.tbtechs.nodespy.STOP_BUBBLE"
+        const val ACTION_STOP          = "com.tbtechs.nodespy.STOP_BUBBLE"
+        const val ACTION_TAP_SELECT    = "com.tbtechs.nodespy.TAP_SELECT"
+        const val ACTION_REGION_SELECT = "com.tbtechs.nodespy.REGION_SELECT"
+        const val ACTION_EXPORT        = "com.tbtechs.nodespy.EXPORT"
+        const val ACTION_CLEAR_PINS    = "com.tbtechs.nodespy.CLEAR_PINS"
+
         private const val NOTIF_CHANNEL = "nodespy_bubble"
         private const val NOTIF_ID = 42
 
-        val C_BG = Color.parseColor("#0D1117")
+        val C_BG      = Color.parseColor("#0D1117")
         val C_SURFACE = Color.parseColor("#161B22")
         val C_OUTLINE = Color.parseColor("#30363D")
-        val C_TEXT = Color.parseColor("#E6EDF3")
-        val C_GREEN = Color.parseColor("#3FB950")
-        val C_BLUE = Color.parseColor("#58A6FF")
-        val C_ORANGE = Color.parseColor("#F0883E")
-        val C_RED = Color.parseColor("#F85149")
-        val C_MUTED = Color.parseColor("#8B949E")
-        val C_PURPLE = Color.parseColor("#D2A8FF")
+        val C_TEXT    = Color.parseColor("#E6EDF3")
+        val C_GREEN   = Color.parseColor("#3FB950")
+        val C_BLUE    = Color.parseColor("#58A6FF")
+        val C_ORANGE  = Color.parseColor("#F0883E")
+        val C_RED     = Color.parseColor("#F85149")
+        val C_MUTED   = Color.parseColor("#8B949E")
+        val C_PURPLE  = Color.parseColor("#D2A8FF")
     }
 
     private lateinit var wm: WindowManager
@@ -109,7 +114,13 @@ class FloatingBubbleService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_STOP) stopSelf()
+        when (intent?.action) {
+            ACTION_STOP          -> stopSelf()
+            ACTION_TAP_SELECT    -> { removePanel(); enterSelectMode(BubbleSelectMode.TAP) }
+            ACTION_REGION_SELECT -> { removePanel(); enterSelectMode(BubbleSelectMode.REGION) }
+            ACTION_EXPORT        -> exportPinned()
+            ACTION_CLEAR_PINS    -> { CaptureStore.clearBubblePins(); toast("Pins cleared") }
+        }
         return START_STICKY
     }
 
@@ -132,28 +143,75 @@ class FloatingBubbleService : Service() {
             ) { log, snap, pins, caps ->
                 listOf<Any>(log, snap, pins.size, caps.firstOrNull()?.pkg ?: "")
             }.collect { values ->
-                val log = values[0] as Boolean
+                val log  = values[0] as Boolean
                 val snap = values[1] as Boolean
                 val pins = values[2] as Int
-                val pkg = values[3] as String
-                loggingOn = log
-                snapOn = snap
-                pinnedCount = pins
-                lastPkg = pkg
+                val pkg  = values[3] as String
+                loggingOn    = log
+                snapOn       = snap
+                pinnedCount  = pins
+                lastPkg      = pkg
                 tvLogToggle?.let { updateToggleChip(it, log, "LOG") }
                 tvSnapToggle?.let { updateToggleChip(it, snap, "SNAP") }
                 tvPanelPinCount?.text = "Pinned: $pins node${if (pins == 1) "" else "s"}"
-                tvPanelPkg?.text = if (pkg.isNotEmpty()) pkg else "—"
+                tvPanelPkg?.text      = if (pkg.isNotEmpty()) pkg else "—"
+                updateNotif(pins, pkg)
             }
         }
+    }
+
+    // ── Notification ─────────────────────────────────────────────────────────
+
+    private fun notifPi(action: String, reqCode: Int): PendingIntent =
+        PendingIntent.getService(
+            this, reqCode,
+            Intent(this, FloatingBubbleService::class.java).apply { this.action = action },
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+    private fun updateNotif(pins: Int, pkg: String) {
+        val nm = getSystemService(NotificationManager::class.java)
+        nm.notify(NOTIF_ID, buildNotif(pins, pkg))
+    }
+
+    private fun buildNotif(pins: Int = pinnedCount, pkg: String = lastPkg): Notification {
+        val shortPkg = if (pkg.isNotEmpty()) pkg.substringAfterLast('.') else "no app captured yet"
+        val pinText  = if (pins > 0) "$pins pinned" else "nothing pinned"
+
+        val openPi = PendingIntent.getActivity(
+            this, 99,
+            Intent(this, MainActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            },
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+        val builder = Notification.Builder(this, NOTIF_CHANNEL)
+            .setSmallIcon(android.R.drawable.ic_menu_view)
+            .setContentTitle("NodeSpy · $shortPkg · $pinText")
+            .setContentText("Use the buttons below to select or export elements")
+            .setContentIntent(openPi)
+            .setOngoing(true)
+            .addAction(Notification.Action.Builder(null, "Tap Select",
+                notifPi(ACTION_TAP_SELECT, 1)).build())
+            .addAction(Notification.Action.Builder(null, "Region",
+                notifPi(ACTION_REGION_SELECT, 2)).build())
+            .addAction(Notification.Action.Builder(null, "Export",
+                notifPi(ACTION_EXPORT, 3)).build())
+            .addAction(Notification.Action.Builder(null, "Clear",
+                notifPi(ACTION_CLEAR_PINS, 4)).build())
+            .addAction(Notification.Action.Builder(null, "Stop",
+                notifPi(ACTION_STOP, 5)).build())
+
+        return builder.build()
     }
 
     // ── Bubble ──────────────────────────────────────────────────────────────
 
     private fun showBubble() {
         if (bubbleView != null) return
-        val dm = resources.displayMetrics
-        val dp = dm.density
+        val dm   = resources.displayMetrics
+        val dp   = dm.density
         val size = (60 * dp).toInt()
 
         val view = object : FrameLayout(this) {
@@ -247,7 +305,7 @@ class FloatingBubbleService : Service() {
         container.addView(root, FrameLayout.LayoutParams(px(300f), ViewGroup.LayoutParams.WRAP_CONTENT))
 
         panelParams = baseWmParams().apply {
-            width = ViewGroup.LayoutParams.WRAP_CONTENT
+            width  = ViewGroup.LayoutParams.WRAP_CONTENT
             height = ViewGroup.LayoutParams.WRAP_CONTENT
             gravity = Gravity.TOP or Gravity.END
             x = px(8f); y = px(60f)
@@ -368,12 +426,16 @@ class FloatingBubbleService : Service() {
             },
             onDone = { exitSelectMode() }
         )
+
+        // FLAG_LAYOUT_NO_LIMITS ensures the overlay truly starts at screen (0,0)
+        // so touch coordinates align with accessibility node bounds (absolute screen coords).
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT
         ).apply { gravity = Gravity.TOP or Gravity.START }
         wm.addView(overlay, params)
@@ -477,31 +539,8 @@ class FloatingBubbleService : Service() {
 
     private fun createNotifChannel() {
         val ch = NotificationChannel(NOTIF_CHANNEL, "NodeSpy Bubble", NotificationManager.IMPORTANCE_LOW)
-        ch.description = "NodeSpy floating bubble overlay"
+        ch.description = "NodeSpy floating overlay controls"
         getSystemService(NotificationManager::class.java).createNotificationChannel(ch)
-    }
-
-    private fun buildNotif(): Notification {
-        val stopPi = PendingIntent.getService(
-            this, 0,
-            Intent(this, FloatingBubbleService::class.java).apply { action = ACTION_STOP },
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        )
-        val openPi = PendingIntent.getActivity(
-            this, 1,
-            Intent(this, MainActivity::class.java).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-            },
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        )
-        return Notification.Builder(this, NOTIF_CHANNEL)
-            .setSmallIcon(android.R.drawable.ic_menu_view)
-            .setContentTitle("NodeSpy Bubble active")
-            .setContentText("Tap to open NodeSpy")
-            .setContentIntent(openPi)
-            .addAction(Notification.Action.Builder(null, "Stop", stopPi).build())
-            .setOngoing(true)
-            .build()
     }
 }
 
@@ -556,18 +595,25 @@ class NodeSelectOverlay(
     private var regionNodes: List<NodeEntry> = emptyList()
     private var regionFinalized = false
 
+    // Status-bar height so touch y and node bounds stay in sync when the view
+    // is not laid out with FLAG_LAYOUT_NO_LIMITS (kept as fallback reference).
+    private val statusBarH: Int by lazy {
+        val res = context.resources
+        val id  = res.getIdentifier("status_bar_height", "dimen", "android")
+        if (id > 0) res.getDimensionPixelSize(id) else (24 * dp).toInt()
+    }
+
     private val barH = (52 * dp).toInt()
 
     init { setLayerType(LAYER_TYPE_SOFTWARE, null) }
 
     override fun onDraw(canvas: Canvas) {
         val w = width.toFloat()
-        val h = height.toFloat()
 
         canvas.drawRect(0f, 0f, w, barH.toFloat(), pBar)
 
         val modeLabel = if (mode == BubbleSelectMode.TAP) "TAP MODE" else "REGION MODE"
-        val instr = if (mode == BubbleSelectMode.TAP) "Tap any element to pin it" else "Drag to select a region"
+        val instr     = if (mode == BubbleSelectMode.TAP) "Tap any element to pin it" else "Drag to select a region"
         canvas.drawText(modeLabel, 16f * dp, 20f * dp, pAction)
         canvas.drawText(instr, 16f * dp, 38f * dp, pMuted)
 
@@ -576,15 +622,18 @@ class NodeSelectOverlay(
 
         if (mode == BubbleSelectMode.TAP) {
             hoveredNode?.let { node ->
-                val rect = RectF(node.boundsL.toFloat(), node.boundsT.toFloat(), node.boundsR.toFloat(), node.boundsB.toFloat())
+                val rect = nodeRect(node)
                 canvas.drawRect(rect, pHighlightFill)
                 canvas.drawRect(rect, pHighlight)
 
-                val label = (node.resId?.substringAfterLast('/') ?: node.text ?: node.cls.substringAfterLast('.')).take(40)
-                val infoW = pText.measureText(label)
-                val infoY = (node.boundsB + 26f * dp).coerceAtMost(h - 60f * dp)
-                val bgX = node.boundsL.toFloat().coerceAtMost(w - infoW - 80f * dp)
-                canvas.drawRoundRect(RectF(bgX, infoY - 18f * dp, bgX + infoW + 24f * dp, infoY + 8f * dp), 6 * dp, 6 * dp, pBar)
+                val label  = nodeLabel(node).take(40)
+                val infoW  = pText.measureText(label)
+                val infoY  = (rect.bottom + 26f * dp).coerceAtMost(height - 60f * dp)
+                val bgX    = rect.left.coerceAtMost(w - infoW - 80f * dp)
+                canvas.drawRoundRect(
+                    RectF(bgX, infoY - 18f * dp, bgX + infoW + 24f * dp, infoY + 8f * dp),
+                    6 * dp, 6 * dp, pBar
+                )
                 canvas.drawText(label, bgX + 8f * dp, infoY, pText)
 
                 val pinText = "[ PIN ]"
@@ -595,20 +644,27 @@ class NodeSelectOverlay(
         if (mode == BubbleSelectMode.REGION) {
             val start = regionStart; val end = regionEnd
             if (start != null && end != null) {
-                val rect = RectF(minOf(start.x, end.x), minOf(start.y, end.y), maxOf(start.x, end.x), maxOf(start.y, end.y))
+                val rect = RectF(
+                    minOf(start.x, end.x), minOf(start.y, end.y),
+                    maxOf(start.x, end.x), maxOf(start.y, end.y)
+                )
                 canvas.drawRect(rect, pRegionFill)
                 canvas.drawRect(rect, pRegion)
             }
             if (regionFinalized && regionNodes.isNotEmpty()) {
                 regionNodes.forEach { node ->
-                    canvas.drawRect(RectF(node.boundsL.toFloat(), node.boundsT.toFloat(), node.boundsR.toFloat(), node.boundsB.toFloat()), pHighlightFill)
-                    canvas.drawRect(RectF(node.boundsL.toFloat(), node.boundsT.toFloat(), node.boundsR.toFloat(), node.boundsB.toFloat()), pHighlight)
+                    val r = nodeRect(node)
+                    canvas.drawRect(r, pHighlightFill)
+                    canvas.drawRect(r, pHighlight)
                 }
                 val confirmText = "PIN ${regionNodes.size} NODE${if (regionNodes.size == 1) "" else "S"}"
-                val cancelText = "CANCEL"
-                val cy = h - 70f * dp
+                val cancelText  = "CANCEL"
+                val cy = height - 70f * dp
                 val cw = pPin.measureText(confirmText)
-                canvas.drawRoundRect(RectF(w / 2 - cw / 2 - 14f * dp, cy - 22f * dp, w / 2 + cw / 2 + 14f * dp, cy + 8f * dp), 6 * dp, 6 * dp, pBar)
+                canvas.drawRoundRect(
+                    RectF(w / 2 - cw / 2 - 14f * dp, cy - 22f * dp, w / 2 + cw / 2 + 14f * dp, cy + 8f * dp),
+                    6 * dp, 6 * dp, pBar
+                )
                 canvas.drawText(confirmText, w / 2 - cw / 2, cy, pPin)
                 canvas.drawText(cancelText, w / 2 - pMuted.measureText(cancelText) / 2, cy + 28f * dp, pMuted)
             }
@@ -630,13 +686,14 @@ class NodeSelectOverlay(
 
         val prev = hoveredNode
         if (prev != null) {
-            val label = (prev.resId?.substringAfterLast('/') ?: prev.text ?: prev.cls.substringAfterLast('.')).take(40)
+            val label = nodeLabel(prev).take(40)
             val infoW = pText.measureText(label)
-            val infoY = (prev.boundsB + 26f * dp).coerceAtMost(height - 60f * dp)
-            val bgX = prev.boundsL.toFloat().coerceAtMost(w - infoW - 80f * dp)
+            val prevRect = nodeRect(prev)
+            val infoY = (prevRect.bottom + 26f * dp).coerceAtMost(height - 60f * dp)
+            val bgX   = prevRect.left.coerceAtMost(w - infoW - 80f * dp)
             val pinText = "[ PIN ]"
-            val pinX = bgX + infoW + 28f * dp
-            val pinW = pPin.measureText(pinText)
+            val pinX  = bgX + infoW + 28f * dp
+            val pinW  = pPin.measureText(pinText)
             if (x >= pinX && x <= pinX + pinW && y >= infoY - 20f * dp && y <= infoY + 10f * dp) {
                 onPinNode(prev)
                 hoveredNode = null; invalidate(); return true
@@ -655,38 +712,68 @@ class NodeSelectOverlay(
                     val cy = height - 70f * dp
                     val confirmText = "PIN ${regionNodes.size} NODE${if (regionNodes.size == 1) "" else "S"}"
                     val cw = pPin.measureText(confirmText)
-                    if (y >= cy - 24f * dp && y <= cy + 10f * dp && x >= w / 2 - cw / 2 - 16f * dp && x <= w / 2 + cw / 2 + 16f * dp) {
+                    if (y >= cy - 24f * dp && y <= cy + 10f * dp &&
+                        x >= w / 2 - cw / 2 - 16f * dp && x <= w / 2 + cw / 2 + 16f * dp) {
                         regionNodes.forEach { onPinNode(it) }
-                        regionStart = null; regionEnd = null; regionFinalized = false; regionNodes = emptyList()
-                        invalidate(); return true
+                        resetRegion(); invalidate(); return true
                     }
-                    if (y > cy + 18f * dp) {
-                        regionStart = null; regionEnd = null; regionFinalized = false; regionNodes = emptyList()
-                        invalidate(); return true
-                    }
+                    if (y > cy + 18f * dp) { resetRegion(); invalidate(); return true }
                 }
-                regionStart = PointF(x, y); regionEnd = PointF(x, y); regionFinalized = false; regionNodes = emptyList()
+                regionStart = PointF(x, y); regionEnd = PointF(x, y)
+                regionFinalized = false; regionNodes = emptyList()
             }
             MotionEvent.ACTION_MOVE -> { regionEnd = PointF(x, y); invalidate() }
-            MotionEvent.ACTION_UP -> {
+            MotionEvent.ACTION_UP   -> {
                 regionEnd = PointF(x, y)
-                val start = regionStart ?: return true; val end = regionEnd ?: return true
-                val r = Rect(minOf(start.x, end.x).toInt(), minOf(start.y, end.y).toInt(), maxOf(start.x, end.x).toInt(), maxOf(start.y, end.y).toInt())
-                regionNodes = nodes.filter { n -> Rect.intersects(r, Rect(n.boundsL, n.boundsT, n.boundsR, n.boundsB)) }
+                val start = regionStart ?: return true
+                val end   = regionEnd   ?: return true
+
+                // Convert touch rect back to absolute screen coords for hit-testing node bounds.
+                // With FLAG_LAYOUT_NO_LIMITS + FLAG_LAYOUT_IN_SCREEN the overlay top == screen top,
+                // so no additional offset is needed. If (as a fallback) the overlay starts below
+                // the status bar, add statusBarH to compensate.
+                val offsetY = if (top == 0) 0 else statusBarH
+                val selL = minOf(start.x, end.x).toInt()
+                val selT = minOf(start.y, end.y).toInt() + offsetY
+                val selR = maxOf(start.x, end.x).toInt()
+                val selB = maxOf(start.y, end.y).toInt() + offsetY
+
+                regionNodes = nodes.filter { n ->
+                    n.boundsR > selL && n.boundsL < selR &&
+                    n.boundsB > selT && n.boundsT < selB
+                }
                 regionFinalized = true; invalidate()
             }
         }
         return true
     }
 
+    // Convert node bounds (absolute screen coords) to view-local coords.
+    // When FLAG_LAYOUT_NO_LIMITS is set the overlay top == 0 == screen top, so no offset.
+    // Otherwise subtract the overlay's own top position.
+    private fun nodeRect(n: NodeEntry): RectF {
+        val offsetY = if (top == 0) 0f else statusBarH.toFloat()
+        return RectF(n.boundsL.toFloat(), n.boundsT.toFloat() - offsetY,
+                     n.boundsR.toFloat(), n.boundsB.toFloat() - offsetY)
+    }
+
     private fun nodeAt(x: Float, y: Float): NodeEntry? {
+        val offsetY = if (top == 0) 0f else statusBarH.toFloat()
+        val screenY = y + offsetY
         var best: NodeEntry? = null; var bestArea = Long.MAX_VALUE
         nodes.forEach { n ->
-            if (x >= n.boundsL && x <= n.boundsR && y >= n.boundsT && y <= n.boundsB) {
+            if (x >= n.boundsL && x <= n.boundsR && screenY >= n.boundsT && screenY <= n.boundsB) {
                 val area = (n.boundsR - n.boundsL).toLong() * (n.boundsB - n.boundsT).toLong()
                 if (area < bestArea) { bestArea = area; best = n }
             }
         }
         return best
+    }
+
+    private fun nodeLabel(n: NodeEntry) =
+        n.resId?.substringAfterLast('/') ?: n.text ?: n.cls.substringAfterLast('.')
+
+    private fun resetRegion() {
+        regionStart = null; regionEnd = null; regionFinalized = false; regionNodes = emptyList()
     }
 }

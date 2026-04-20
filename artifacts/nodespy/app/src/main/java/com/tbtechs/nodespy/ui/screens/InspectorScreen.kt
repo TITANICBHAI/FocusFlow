@@ -69,6 +69,7 @@ fun InspectorScreen(captureId: String, onBack: () -> Unit) {
     }
     val qualitySummary = remember(recommendations) { RuleAnalyzer.summarize(recommendations) }
     val recommendationByNode = remember(recommendations) { recommendations.associateBy { it.nodeId } }
+    val tabLabels = listOf("Pick Elements", "All Nodes", "Help")
 
     fun togglePin(id: String) {
         pinnedIds = if (id in pinnedIds) pinnedIds - id else pinnedIds + id
@@ -127,14 +128,15 @@ fun InspectorScreen(captureId: String, onBack: () -> Unit) {
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).background(Background)) {
             TabRow(selectedTabIndex = selectedTab, containerColor = Surface, contentColor = AccentBlue) {
-                Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 },
-                    text = { Text("Visual", fontFamily = FontFamily.Monospace) })
-                Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 },
-                    text = { Text("Tree", fontFamily = FontFamily.Monospace) })
-                Tab(selected = selectedTab == 2, onClick = { selectedTab = 2 },
-                    text = { Text("Guide", fontFamily = FontFamily.Monospace) })
+                tabLabels.forEachIndexed { i, label ->
+                    Tab(
+                        selected = selectedTab == i,
+                        onClick = { selectedTab = i },
+                        text = { Text(label, fontFamily = FontFamily.Monospace, fontSize = 13.sp) }
+                    )
+                }
             }
-            QualityStrip(qualitySummary)
+            QualityStrip(qualitySummary, pinnedIds.size)
             when (selectedTab) {
                 0 -> VisualTab(capture, pinnedIds, recommendationByNode, onTogglePin = ::togglePin, onBulkPin = ::bulkPin)
                 1 -> TreeTab(capture, pinnedIds, recommendationByNode, onTogglePin = ::togglePin)
@@ -292,24 +294,33 @@ private fun VisualTab(
 }
 
 @Composable
-private fun QualityStrip(summary: RuleQualitySummary) {
+private fun QualityStrip(summary: RuleQualitySummary, pinnedCount: Int) {
     Surface(color = SurfaceVar) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                QualityPill("strong", summary.strongRules, AccentGreen)
-                QualityPill("medium", summary.mediumRules, AccentYellow)
-                QualityPill("weak", summary.weakRules, AccentOrange)
-                Spacer(Modifier.weight(1f))
+            if (pinnedCount == 0) {
                 Text(
-                    "${summary.exportableRules}/${summary.totalPinned} exportable",
-                    color = if (summary.exportableRules == summary.totalPinned && summary.totalPinned > 0) AccentGreen else Muted,
-                    fontSize = 11.sp,
-                    fontFamily = FontFamily.Monospace
+                    "Tap an element on the map (or switch to All Nodes) to mark what you want to block.",
+                    color = Muted,
+                    fontSize = 12.sp,
+                    lineHeight = 17.sp
                 )
-            }
-            summary.warnings.firstOrNull()?.let {
-                Spacer(Modifier.height(4.dp))
-                Text(it, color = AccentOrange, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    QualityPill("strong", summary.strongRules, AccentGreen)
+                    QualityPill("medium", summary.mediumRules, AccentYellow)
+                    QualityPill("weak", summary.weakRules, AccentOrange)
+                    Spacer(Modifier.weight(1f))
+                    Text(
+                        "${summary.exportableRules}/${summary.totalPinned} exportable",
+                        color = if (summary.exportableRules == summary.totalPinned && summary.totalPinned > 0) AccentGreen else Muted,
+                        fontSize = 11.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+                summary.warnings.firstOrNull()?.let {
+                    Spacer(Modifier.height(4.dp))
+                    Text(it, color = AccentOrange, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                }
             }
         }
     }
@@ -435,26 +446,59 @@ private fun TreeTab(
     recommendations: Map<String, RuleRecommendation>,
     onTogglePin: (String) -> Unit
 ) {
-    LazyColumn(contentPadding = PaddingValues(8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        items(capture.nodes, key = { it.id }) { node ->
-            NodeTreeRow(node, pinned = node.id in pinnedIds, recommendation = recommendations[node.id], onToggle = { onTogglePin(node.id) })
+    Column {
+        Surface(color = SurfaceVar) {
+            Text(
+                "Tick the checkbox next to anything you want to block, then tap Export below.",
+                color = Muted,
+                fontSize = 12.sp,
+                lineHeight = 17.sp,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)
+            )
+        }
+        LazyColumn(contentPadding = PaddingValues(8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            items(capture.nodes, key = { it.id }) { node ->
+                NodeTreeRow(
+                    node,
+                    pinned = node.id in pinnedIds,
+                    recommendation = recommendations[node.id],
+                    onToggle = { onTogglePin(node.id) }
+                )
+            }
         }
     }
+}
+
+private fun friendlyNodeKind(node: NodeEntry): String = when {
+    node.flags.clickable && node.cls.contains("Button", ignoreCase = true) -> "Button"
+    node.flags.clickable -> "Tappable"
+    node.cls.contains("EditText", ignoreCase = true) || node.flags.editable -> "Text Input"
+    node.cls.contains("Image", ignoreCase = true) || node.cls.contains("Icon", ignoreCase = true) -> "Image"
+    node.cls.contains("Text", ignoreCase = true) -> "Text"
+    node.cls.contains("List", ignoreCase = true) || node.cls.contains("Recycler", ignoreCase = true) -> "List"
+    node.cls.contains("Layout", ignoreCase = true) || node.cls.contains("Frame", ignoreCase = true) ||
+        node.cls.contains("Constraint", ignoreCase = true) -> "Container"
+    node.cls.contains("Tab", ignoreCase = true) -> "Tab"
+    node.cls.contains("Bar", ignoreCase = true) -> "Bar"
+    else -> node.cls.substringAfterLast('.')
 }
 
 @Composable
 private fun NodeTreeRow(node: NodeEntry, pinned: Boolean, recommendation: RuleRecommendation?, onToggle: () -> Unit) {
     val (_, borderColor) = nodeColors(node)
-    val label = node.text ?: node.desc ?: node.hint ?: node.resId?.substringAfterLast('/') ?: ""
+    val primaryLabel = node.text ?: node.desc ?: node.hint
+        ?: node.resId?.substringAfterLast('/')?.replace('_', ' ')
+        ?: ""
+    val kind = friendlyNodeKind(node)
 
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(start = (node.depth * 8).dp.coerceAtMost(80.dp))
+            .padding(start = (node.depth * 8).dp.coerceAtMost(64.dp))
             .clip(RoundedCornerShape(5.dp))
             .background(if (pinned) borderColor.copy(alpha = 0.12f) else Color.Transparent)
             .clickable(onClick = onToggle)
-            .padding(horizontal = 6.dp, vertical = 4.dp),
+            .padding(horizontal = 6.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Checkbox(
@@ -462,19 +506,38 @@ private fun NodeTreeRow(node: NodeEntry, pinned: Boolean, recommendation: RuleRe
             colors = CheckboxDefaults.colors(checkedColor = AccentGreen, uncheckedColor = Muted),
             modifier = Modifier.size(20.dp)
         )
-        Spacer(Modifier.width(6.dp))
+        Spacer(Modifier.width(8.dp))
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(node.cls.substringAfterLast('.'), color = borderColor, fontSize = 12.sp,
-                    fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Medium)
+                Text(
+                    kind,
+                    color = borderColor,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                if (primaryLabel.isNotBlank()) {
+                    Text(
+                        "\"${primaryLabel.take(30)}\"",
+                        color = OnBackground,
+                        fontSize = 13.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                }
                 recommendation?.let { ConfidenceBadge(it) }
             }
-            if (label.isNotBlank()) {
-                Text("\"$label\"", color = Muted, fontSize = 11.sp,
-                    fontFamily = FontFamily.Monospace, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (node.resId != null && primaryLabel != node.resId.substringAfterLast('/')) {
+                Text(
+                    node.resId.substringAfterLast('/'),
+                    color = Muted,
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
-        Text(node.id, color = Outline, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
     }
 }
 
@@ -501,6 +564,7 @@ private fun ConfidenceBadge(recommendation: RuleRecommendation) {
 @Composable
 private fun GuideTab(summary: RuleQualitySummary, recommendations: List<RuleRecommendation>) {
     LazyColumn(contentPadding = PaddingValues(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+
         item {
             Column(
                 Modifier
@@ -509,38 +573,78 @@ private fun GuideTab(summary: RuleQualitySummary, recommendations: List<RuleReco
                     .background(Surface)
                     .padding(12.dp)
             ) {
-                Text("What to block", color = OnBackground, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                Spacer(Modifier.height(8.dp))
-                summary.guidance.forEachIndexed { index, step ->
-                    Text("${index + 1}. $step", color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
-                    Spacer(Modifier.height(4.dp))
-                }
-            }
-        }
-        item {
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(Surface)
-                    .padding(12.dp)
-            ) {
-                Text("Export quality", color = OnBackground, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    "${summary.exportableRules} recommended rule${if (summary.exportableRules == 1) "" else "s"} · average confidence ${summary.averageConfidence}/100",
-                    color = AccentBlue,
-                    fontSize = 12.sp,
-                    fontFamily = FontFamily.Monospace
+                Text("How to use NodeSpy", color = OnBackground, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                Spacer(Modifier.height(10.dp))
+                val steps = listOf(
+                    "Open the app you want to clean up (Instagram, TikTok, etc.).",
+                    "Come back to NodeSpy — a fresh snapshot is captured automatically.",
+                    "Go to Pick Elements and tap (or drag a box around) the distracting part.",
+                    "Tap Export selected at the bottom and share to FocusFlow.",
+                    "FocusFlow will hide that element every time the app opens."
                 )
-                summary.warnings.forEach { warning ->
-                    Spacer(Modifier.height(4.dp))
-                    Text("• $warning", color = AccentOrange, fontSize = 12.sp, lineHeight = 18.sp)
+                steps.forEachIndexed { i, step ->
+                    Row(verticalAlignment = Alignment.Top, modifier = Modifier.padding(vertical = 3.dp)) {
+                        Box(
+                            Modifier
+                                .size(22.dp)
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(AccentBlue.copy(alpha = 0.15f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("${i + 1}", color = AccentBlue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(Modifier.width(10.dp))
+                        Text(step, color = Muted, fontSize = 13.sp, lineHeight = 19.sp, modifier = Modifier.weight(1f))
+                    }
                 }
             }
         }
-        items(recommendations, key = { it.nodeId }) { rec ->
-            RecommendationCard(rec)
+
+        if (summary.guidance.isNotEmpty()) {
+            item {
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Surface)
+                        .padding(12.dp)
+                ) {
+                    Text("Suggestions for this capture", color = OnBackground, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Spacer(Modifier.height(8.dp))
+                    summary.guidance.forEachIndexed { index, step ->
+                        Text("${index + 1}. $step", color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
+                        Spacer(Modifier.height(4.dp))
+                    }
+                }
+            }
+        }
+
+        if (recommendations.isNotEmpty()) {
+            item {
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Surface)
+                        .padding(12.dp)
+                ) {
+                    Text("How reliable are these rules?", color = OnBackground, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "${summary.exportableRules} rule${if (summary.exportableRules == 1) "" else "s"} ready · avg confidence ${summary.averageConfidence}/100",
+                        color = AccentBlue,
+                        fontSize = 12.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    summary.warnings.forEach { warning ->
+                        Spacer(Modifier.height(4.dp))
+                        Text("• $warning", color = AccentOrange, fontSize = 12.sp, lineHeight = 18.sp)
+                    }
+                }
+            }
+            items(recommendations, key = { it.nodeId }) { rec ->
+                RecommendationCard(rec)
+            }
         }
     }
 }
@@ -572,21 +676,37 @@ private fun ExportBar(
     onExportPinned: () -> Unit, onExportAll: () -> Unit
 ) {
     Surface(color = Surface, tonalElevation = 4.dp) {
-        Row(
+        Column(
             Modifier.fillMaxWidth().navigationBarsPadding()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                .padding(horizontal = 12.dp, vertical = 10.dp)
         ) {
-            OutlinedButton(onClick = onExportAll, modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = Muted)) {
-                Text("All ($totalCount)", fontSize = 13.sp)
+            if (pinnedCount == 0) {
+                Text(
+                    "Mark elements above, then tap Export selected to send them to FocusFlow.",
+                    color = Muted,
+                    fontSize = 12.sp,
+                    lineHeight = 17.sp,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
             }
-            Button(
-                onClick = onExportPinned, enabled = pinnedCount > 0,
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = AccentBlue)
-            ) {
-                Text("Pinned ($pinnedCount)", fontSize = 13.sp, color = Background)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = onExportAll, modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Muted)
+                ) {
+                    Text("Export all ($totalCount)", fontSize = 13.sp)
+                }
+                Button(
+                    onClick = onExportPinned, enabled = pinnedCount > 0,
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentBlue)
+                ) {
+                    Text(
+                        if (pinnedCount > 0) "Export selected ($pinnedCount)" else "Nothing selected",
+                        fontSize = 13.sp,
+                        color = Background
+                    )
+                }
             }
         }
     }
