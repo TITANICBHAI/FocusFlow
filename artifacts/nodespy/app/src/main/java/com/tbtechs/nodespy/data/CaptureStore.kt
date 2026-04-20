@@ -135,6 +135,9 @@ object CaptureStore {
 
     fun latest(): NodeCapture? = _captures.value.firstOrNull()
 
+    fun recentForPackage(pkg: String, limit: Int = 5): List<NodeCapture> =
+        _captures.value.filter { it.pkg == pkg }.take(limit)
+
     fun addToAllowlist(pkg: String) {
         if (pkg.isNotBlank()) _packageAllowlist.value = _packageAllowlist.value + pkg.trim()
     }

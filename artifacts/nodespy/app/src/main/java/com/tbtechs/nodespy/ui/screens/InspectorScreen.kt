@@ -40,6 +40,9 @@ import com.tbtechs.nodespy.data.CaptureStore
 import com.tbtechs.nodespy.data.NodeCapture
 import com.tbtechs.nodespy.data.NodeEntry
 import com.tbtechs.nodespy.export.ExportBuilder
+import com.tbtechs.nodespy.export.RuleAnalyzer
+import com.tbtechs.nodespy.export.RuleRecommendation
+import com.tbtechs.nodespy.export.RuleQualitySummary
 import com.tbtechs.nodespy.ui.theme.*
 
 private enum class SelectMode { TAP, REGION }
@@ -60,6 +63,12 @@ fun InspectorScreen(captureId: String, onBack: () -> Unit) {
     var selectedTab by remember { mutableIntStateOf(0) }
     var pinnedIds by remember { mutableStateOf(capture.autoPinnedIds) }
     var showExport by remember { mutableStateOf(false) }
+    val recentCaptures = remember(capture.id) { CaptureStore.recentForPackage(capture.pkg) }
+    val recommendations = remember(pinnedIds, recentCaptures) {
+        RuleAnalyzer.analyze(capture, pinnedIds, recentCaptures)
+    }
+    val qualitySummary = remember(recommendations) { RuleAnalyzer.summarize(recommendations) }
+    val recommendationByNode = remember(recommendations) { recommendations.associateBy { it.nodeId } }
 
     fun togglePin(id: String) {
         pinnedIds = if (id in pinnedIds) pinnedIds - id else pinnedIds + id
@@ -122,10 +131,14 @@ fun InspectorScreen(captureId: String, onBack: () -> Unit) {
                     text = { Text("Visual", fontFamily = FontFamily.Monospace) })
                 Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 },
                     text = { Text("Tree", fontFamily = FontFamily.Monospace) })
+                Tab(selected = selectedTab == 2, onClick = { selectedTab = 2 },
+                    text = { Text("Guide", fontFamily = FontFamily.Monospace) })
             }
+            QualityStrip(qualitySummary)
             when (selectedTab) {
-                0 -> VisualTab(capture, pinnedIds, onTogglePin = ::togglePin, onBulkPin = ::bulkPin)
-                1 -> TreeTab(capture, pinnedIds, onTogglePin = ::togglePin)
+                0 -> VisualTab(capture, pinnedIds, recommendationByNode, onTogglePin = ::togglePin, onBulkPin = ::bulkPin)
+                1 -> TreeTab(capture, pinnedIds, recommendationByNode, onTogglePin = ::togglePin)
+                2 -> GuideTab(qualitySummary, recommendations)
             }
         }
     }
@@ -139,6 +152,7 @@ fun InspectorScreen(captureId: String, onBack: () -> Unit) {
 private fun VisualTab(
     capture: NodeCapture,
     pinnedIds: Set<String>,
+    recommendations: Map<String, RuleRecommendation>,
     onTogglePin: (String) -> Unit,
     onBulkPin: (Collection<String>) -> Unit
 ) {
@@ -272,8 +286,47 @@ private fun VisualTab(
         }
 
         if (selectedNode != null && selectMode == SelectMode.TAP) {
-            NodeDetailStrip(selectedNode, pinned = selectedNode.id in pinnedIds)
+            NodeDetailStrip(selectedNode, pinned = selectedNode.id in pinnedIds, recommendation = recommendations[selectedNode.id])
         }
+    }
+}
+
+@Composable
+private fun QualityStrip(summary: RuleQualitySummary) {
+    Surface(color = SurfaceVar) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                QualityPill("strong", summary.strongRules, AccentGreen)
+                QualityPill("medium", summary.mediumRules, AccentYellow)
+                QualityPill("weak", summary.weakRules, AccentOrange)
+                Spacer(Modifier.weight(1f))
+                Text(
+                    "${summary.exportableRules}/${summary.totalPinned} exportable",
+                    color = if (summary.exportableRules == summary.totalPinned && summary.totalPinned > 0) AccentGreen else Muted,
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace
+                )
+            }
+            summary.warnings.firstOrNull()?.let {
+                Spacer(Modifier.height(4.dp))
+                Text(it, color = AccentOrange, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+            }
+        }
+    }
+}
+
+@Composable
+private fun QualityPill(label: String, count: Int, color: Color) {
+    Row(
+        Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(color.copy(alpha = 0.12f))
+            .padding(horizontal = 8.dp, vertical = 3.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(count.toString(), color = color, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        Text(label, color = color, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
     }
 }
 
@@ -329,7 +382,7 @@ private fun ModeButton(label: String, icon: @Composable () -> Unit, active: Bool
 }
 
 @Composable
-private fun NodeDetailStrip(node: NodeEntry, pinned: Boolean) {
+private fun NodeDetailStrip(node: NodeEntry, pinned: Boolean, recommendation: RuleRecommendation?) {
     Column(Modifier.fillMaxWidth().background(Surface).padding(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
@@ -346,8 +399,15 @@ private fun NodeDetailStrip(node: NodeEntry, pinned: Boolean) {
             Spacer(Modifier.width(8.dp))
             Text(node.cls.substringAfterLast('.'), color = AccentBlue, fontSize = 13.sp,
                 fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.weight(1f))
+            recommendation?.let { ConfidenceBadge(it) }
         }
         Spacer(Modifier.height(6.dp))
+        recommendation?.let { rec ->
+            DetailRow("selector", rec.selector.entries.joinToString(" + ") { it.key.removePrefix("match") })
+            DetailRow("confidence", "${rec.confidence}/100 · ${rec.tier} · ${(rec.stability * 100).toInt()}% stable")
+            rec.warnings.firstOrNull()?.let { DetailRow("warning", it) }
+        }
         if (!node.text.isNullOrBlank()) DetailRow("text", node.text)
         if (!node.desc.isNullOrBlank()) DetailRow("desc", node.desc)
         if (!node.resId.isNullOrBlank()) DetailRow("id", node.resId)
@@ -371,17 +431,18 @@ private fun DetailRow(key: String, value: String?) {
 private fun TreeTab(
     capture: NodeCapture,
     pinnedIds: Set<String>,
+    recommendations: Map<String, RuleRecommendation>,
     onTogglePin: (String) -> Unit
 ) {
     LazyColumn(contentPadding = PaddingValues(8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         items(capture.nodes, key = { it.id }) { node ->
-            NodeTreeRow(node, pinned = node.id in pinnedIds, onToggle = { onTogglePin(node.id) })
+            NodeTreeRow(node, pinned = node.id in pinnedIds, recommendation = recommendations[node.id], onToggle = { onTogglePin(node.id) })
         }
     }
 }
 
 @Composable
-private fun NodeTreeRow(node: NodeEntry, pinned: Boolean, onToggle: () -> Unit) {
+private fun NodeTreeRow(node: NodeEntry, pinned: Boolean, recommendation: RuleRecommendation?, onToggle: () -> Unit) {
     val (_, borderColor) = nodeColors(node)
     val label = node.text ?: node.desc ?: node.resId?.substringAfterLast('/') ?: ""
 
@@ -402,14 +463,105 @@ private fun NodeTreeRow(node: NodeEntry, pinned: Boolean, onToggle: () -> Unit) 
         )
         Spacer(Modifier.width(6.dp))
         Column(Modifier.weight(1f)) {
-            Text(node.cls.substringAfterLast('.'), color = borderColor, fontSize = 12.sp,
-                fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Medium)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(node.cls.substringAfterLast('.'), color = borderColor, fontSize = 12.sp,
+                    fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Medium)
+                recommendation?.let { ConfidenceBadge(it) }
+            }
             if (label.isNotBlank()) {
                 Text("\"$label\"", color = Muted, fontSize = 11.sp,
                     fontFamily = FontFamily.Monospace, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
         Text(node.id, color = Outline, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+    }
+}
+
+@Composable
+private fun ConfidenceBadge(recommendation: RuleRecommendation) {
+    val color = when (recommendation.tier) {
+        "strong" -> AccentGreen
+        "medium" -> AccentYellow
+        else -> AccentOrange
+    }
+    Text(
+        "${recommendation.confidence} ${recommendation.tier.uppercase()}",
+        color = color,
+        fontSize = 9.sp,
+        fontFamily = FontFamily.Monospace,
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier
+            .clip(RoundedCornerShape(4.dp))
+            .background(color.copy(alpha = 0.12f))
+            .padding(horizontal = 5.dp, vertical = 2.dp)
+    )
+}
+
+@Composable
+private fun GuideTab(summary: RuleQualitySummary, recommendations: List<RuleRecommendation>) {
+    LazyColumn(contentPadding = PaddingValues(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        item {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Surface)
+                    .padding(12.dp)
+            ) {
+                Text("What to block", color = OnBackground, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                Spacer(Modifier.height(8.dp))
+                summary.guidance.forEachIndexed { index, step ->
+                    Text("${index + 1}. $step", color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
+                    Spacer(Modifier.height(4.dp))
+                }
+            }
+        }
+        item {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Surface)
+                    .padding(12.dp)
+            ) {
+                Text("Export quality", color = OnBackground, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "${summary.exportableRules} recommended rule${if (summary.exportableRules == 1) "" else "s"} · average confidence ${summary.averageConfidence}/100",
+                    color = AccentBlue,
+                    fontSize = 12.sp,
+                    fontFamily = FontFamily.Monospace
+                )
+                summary.warnings.forEach { warning ->
+                    Spacer(Modifier.height(4.dp))
+                    Text("• $warning", color = AccentOrange, fontSize = 12.sp, lineHeight = 18.sp)
+                }
+            }
+        }
+        items(recommendations, key = { it.nodeId }) { rec ->
+            RecommendationCard(rec)
+        }
+    }
+}
+
+@Composable
+private fun RecommendationCard(rec: RuleRecommendation) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(Surface)
+            .padding(12.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ConfidenceBadge(rec)
+            Text(rec.label, color = OnBackground, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Spacer(Modifier.height(6.dp))
+        DetailRow("selector", rec.selector.entries.joinToString(" + ") { "${it.key}=${it.value.take(36)}" })
+        DetailRow("stability", "${rec.matchedInRecentCaptures}/${rec.comparedCaptures} recent captures")
+        rec.reasons.take(2).forEach { DetailRow("why", it) }
+        rec.warnings.take(2).forEach { DetailRow("warn", it) }
     }
 }
 

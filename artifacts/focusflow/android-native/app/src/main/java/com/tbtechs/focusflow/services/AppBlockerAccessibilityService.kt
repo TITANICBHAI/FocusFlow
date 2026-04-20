@@ -2516,6 +2516,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         val rules = try { org.json.JSONArray(rulesJson) } catch (_: Exception) { return false }
         for (i in 0 until rules.length()) {
             val rule = rules.optJSONObject(i) ?: continue
+            if (!rule.optBoolean("enabled", true)) continue
             if (rule.optString("pkg") != pkg) continue
 
             val matchResId = rule.optString("matchResId").takeIf { it.isNotBlank() }

@@ -56,6 +56,30 @@ interface NodeSpyCaptureV1 {
     depth: number;
   }>;
   pinnedNodeIds: string[];
+  ruleQuality?: {
+    totalPinned: number;
+    exportableRules: number;
+    strongRules: number;
+    mediumRules: number;
+    weakRules: number;
+    averageConfidence: number;
+    warnings?: string[];
+  };
+  recommendedRules?: Array<{
+    nodeId: string;
+    label: string;
+    pkg: string;
+    selector: {
+      matchResId?: string;
+      matchText?: string;
+      matchCls?: string;
+    };
+    selectorType?: string;
+    confidence?: number;
+    tier?: 'strong' | 'medium' | 'weak';
+    stability?: number;
+    warnings?: string[];
+  }>;
 }
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -97,7 +121,7 @@ export default function CustomNodeRulesModal({ visible, rules, onClose, onSave }
 
   const handleImport = useCallback(() => {
     if (!importPreview) return;
-    const { pkg, nodes, pinnedNodeIds, timestamp } = importPreview;
+    const { pkg, nodes, pinnedNodeIds, timestamp, recommendedRules } = importPreview;
 
     if (pinnedNodeIds.length === 0) {
       setImportError('No pinned nodes in this export. Pin at least one node in NodeSpy before exporting.');
@@ -105,32 +129,56 @@ export default function CustomNodeRulesModal({ visible, rules, onClose, onSave }
     }
 
     const now = new Date().toISOString();
-    const newRules: CustomNodeRule[] = pinnedNodeIds
-      .map(id => nodes.find(n => n.id === id))
-      .filter(Boolean)
-      .map(n => n!)
-      .map(node => {
-        const resId = node.resId?.split('/').pop() || undefined;
-        const label =
-          node.text?.slice(0, 40) ||
-          node.desc?.slice(0, 40) ||
-          node.resId?.split('/').pop()?.slice(0, 40) ||
-          node.cls.split('.').pop() ||
-          node.id;
-
-        return {
-          id: `cnr_${Date.now()}_${node.id}`,
-          label,
-          pkg,
-          matchResId: node.resId || undefined,
-          matchText: (node.text || node.desc) ? (node.text || node.desc)?.slice(0, 100) : undefined,
-          matchCls: undefined,
+    const hasRecommendedRulesField = Array.isArray(recommendedRules);
+    const recommended = hasRecommendedRulesField ? recommendedRules : null;
+    const newRules: CustomNodeRule[] = recommended
+      ? recommended.map(rec => ({
+          id: `cnr_${Date.now()}_${rec.nodeId}`,
+          label: rec.label || rec.selector.matchResId?.split('/').pop() || rec.nodeId,
+          pkg: rec.pkg || pkg,
+          matchResId: rec.selector.matchResId || undefined,
+          matchText: rec.selector.matchText || undefined,
+          matchCls: rec.selector.matchCls || undefined,
           action: selectedAction,
           enabled: true,
+          confidence: rec.confidence,
+          qualityTier: rec.tier,
+          selectorType: rec.selectorType,
+          stability: rec.stability,
+          warnings: rec.warnings,
           importedAt: now,
           captureTimestamp: timestamp,
-        } as CustomNodeRule;
-      });
+        } as CustomNodeRule))
+      : pinnedNodeIds
+          .map(id => nodes.find(n => n.id === id))
+          .filter(Boolean)
+          .map(n => n!)
+          .map(node => {
+            const label =
+              node.text?.slice(0, 40) ||
+              node.desc?.slice(0, 40) ||
+              node.resId?.split('/').pop()?.slice(0, 40) ||
+              node.cls.split('.').pop() ||
+              node.id;
+
+            return {
+              id: `cnr_${Date.now()}_${node.id}`,
+              label,
+              pkg,
+              matchResId: node.resId || undefined,
+              matchText: (node.text || node.desc) ? (node.text || node.desc)?.slice(0, 100) : undefined,
+              matchCls: undefined,
+              action: selectedAction,
+              enabled: true,
+              importedAt: now,
+              captureTimestamp: timestamp,
+            } as CustomNodeRule;
+          });
+
+    if (hasRecommendedRulesField && newRules.length === 0) {
+      setImportError('NodeSpy did not find any high-confidence rules in this export. Capture another app state or pin nodes with a resource ID/text label.');
+      return;
+    }
 
     const merged = dedupeRules([...rules, ...newRules]);
     onSave(merged);
@@ -282,6 +330,13 @@ function RuleRow({
           </Text>
         </View>
         <Text style={s.ruleLabel} numberOfLines={1}>{rule.label}</Text>
+        {typeof rule.confidence === 'number' && (
+          <View style={[s.qualityBadge, { backgroundColor: qualityColor(rule.qualityTier) + '22' }]}>
+            <Text style={[s.qualityBadgeText, { color: qualityColor(rule.qualityTier) }]}>
+              {rule.confidence} {rule.qualityTier?.toUpperCase() ?? 'SCORE'}
+            </Text>
+          </View>
+        )}
       </View>
       <Text style={s.rulePkg} numberOfLines={1}>{rule.pkg}</Text>
       <View style={s.ruleSelectors}>
@@ -289,6 +344,9 @@ function RuleRow({
         {rule.matchText   && <SelectorChip label="text" value={rule.matchText} />}
         {rule.matchCls    && <SelectorChip label="class" value={rule.matchCls} />}
       </View>
+      {rule.warnings?.[0] && (
+        <Text style={s.ruleWarning} numberOfLines={2}>{rule.warnings[0]}</Text>
+      )}
       <View style={s.ruleFooter}>
         <Text style={s.ruleDate}>{new Date(rule.importedAt).toLocaleDateString()}</Text>
         <View style={s.ruleActions}>
@@ -365,6 +423,24 @@ function ImportTab({
           <PreviewRow icon="phone-portrait-outline" label="App" value={preview.pkg} />
           <PreviewRow icon="layers-outline" label="Total nodes" value={`${preview.nodes.length}`} />
           <PreviewRow icon="pin-outline" label="Pinned nodes" value={`${preview.pinnedNodeIds.length}`} color={C.green} />
+          {preview.ruleQuality && (
+            <>
+              <PreviewRow
+                icon="shield-checkmark-outline"
+                label="Recommended rules"
+                value={`${preview.ruleQuality.exportableRules} / ${preview.ruleQuality.totalPinned}`}
+                color={preview.ruleQuality.weakRules > 0 ? C.yellow : C.green}
+              />
+              <PreviewRow
+                icon="analytics-outline"
+                label="Quality"
+                value={`${preview.ruleQuality.strongRules} strong · ${preview.ruleQuality.mediumRules} medium · ${preview.ruleQuality.weakRules} weak`}
+              />
+              {preview.ruleQuality.warnings?.map((warning, i) => (
+                <Text key={i} style={s.importWarning}>{warning}</Text>
+              ))}
+            </>
+          )}
 
           <Text style={[s.sectionLabel, { marginTop: 16 }]}>Block action</Text>
           <View style={s.actionToggleRow}>
@@ -382,10 +458,14 @@ function ImportTab({
             />
           </View>
 
-          <TouchableOpacity style={s.importConfirmBtn} onPress={onImport}>
+          <TouchableOpacity
+            style={[s.importConfirmBtn, (preview.recommendedRules && preview.recommendedRules.length === 0) ? s.importConfirmBtnDisabled : null]}
+            onPress={onImport}
+            disabled={!!preview.recommendedRules && preview.recommendedRules.length === 0}
+          >
             <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
             <Text style={s.importConfirmText}>
-              Import {preview.pinnedNodeIds.length} rule{preview.pinnedNodeIds.length !== 1 ? 's' : ''}
+              Import {preview.recommendedRules ? preview.recommendedRules.length : preview.pinnedNodeIds.length} rule{(preview.recommendedRules ? preview.recommendedRules.length : preview.pinnedNodeIds.length) !== 1 ? 's' : ''}
             </Text>
           </TouchableOpacity>
         </View>
@@ -432,6 +512,12 @@ function dedupeRules(rules: CustomNodeRule[]): CustomNodeRule[] {
   });
 }
 
+function qualityColor(tier?: string) {
+  if (tier === 'strong') return C.green;
+  if (tier === 'medium') return C.yellow;
+  return C.orange;
+}
+
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
   root:          { flex: 1, backgroundColor: C.bg, paddingTop: Platform.OS === 'android' ? 24 : 0 },
@@ -451,8 +537,11 @@ const s = StyleSheet.create({
   actionBadge:   { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
   actionBadgeText:{ fontSize: 10, fontWeight: '700', fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
   ruleLabel:     { flex: 1, color: C.text, fontSize: 14, fontWeight: '600' },
+  qualityBadge:  { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  qualityBadgeText:{ fontSize: 10, fontWeight: '700', fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
   rulePkg:       { color: C.muted, fontSize: 11, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', marginBottom: 6 },
   ruleSelectors: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 },
+  ruleWarning:   { color: C.orange, fontSize: 11, lineHeight: 16, marginBottom: 8 },
   chip:          { flexDirection: 'row', backgroundColor: C.surfaceVar, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 },
   chipLabel:     { color: C.muted, fontSize: 11, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
   chipValue:     { color: C.text, fontSize: 11, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', maxWidth: 160, marginLeft: 2 },
@@ -476,6 +565,7 @@ const s = StyleSheet.create({
   previewRow:    { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
   previewLabel:  { color: C.muted, fontSize: 13, flex: 1 },
   previewValue:  { color: C.text, fontSize: 13, fontWeight: '500' },
+  importWarning: { color: C.orange, fontSize: 12, lineHeight: 17, marginTop: 4 },
   sectionLabel:  { color: C.muted, fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 },
   actionToggleRow:{ gap: 8, marginBottom: 14 },
   actionToggle:  { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: C.surfaceVar, borderRadius: 8, padding: 12, gap: 10, borderWidth: 1, borderColor: C.border },
@@ -484,5 +574,6 @@ const s = StyleSheet.create({
   actionToggleLabel:{ color: C.text, fontSize: 14, fontWeight: '600' },
   actionToggleDesc: { color: C.muted, fontSize: 12, marginTop: 2 },
   importConfirmBtn:{ flexDirection: 'row', alignItems: 'center', backgroundColor: C.green, borderRadius: 10, paddingHorizontal: 18, paddingVertical: 13, gap: 8, justifyContent: 'center' },
+  importConfirmBtnDisabled:{ backgroundColor: C.border },
   importConfirmText:{ color: '#fff', fontSize: 15, fontWeight: '700' },
 });

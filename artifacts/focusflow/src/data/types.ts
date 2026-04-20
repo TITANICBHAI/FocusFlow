@@ -121,6 +121,11 @@ export interface CustomNodeRule {
   matchCls?: string;         // Class name substring match (e.g. "Button")
   action: 'overlay' | 'home'; // overlay = show block overlay; home = press HOME
   enabled: boolean;
+  confidence?: number;        // NodeSpy confidence score (0–100), if exported by NodeSpy 1.2+
+  qualityTier?: 'strong' | 'medium' | 'weak';
+  selectorType?: string;
+  stability?: number;
+  warnings?: string[];
   importedAt: string;        // ISO timestamp when this rule was imported
   captureTimestamp?: number; // Unix ms from the source NodeSpyCaptureV1
 }

@@ -1,6 +1,7 @@
 package com.tbtechs.nodespy.export
 
 import com.google.gson.GsonBuilder
+import com.tbtechs.nodespy.data.CaptureStore
 import com.tbtechs.nodespy.data.NodeCapture
 import com.tbtechs.nodespy.data.NodeEntry
 
@@ -28,6 +29,9 @@ import com.tbtechs.nodespy.data.NodeEntry
  *     - depth        : tree depth (0 = root)
  *     - children     : ordered list of child node IDs
  *   - pinnedNodeIds  : IDs of nodes the user selected / pinned for FocusFlow
+ *   - ruleQuality    : aggregate confidence/stability summary for pinned nodes
+ *   - selectorRecommendations : scored selector options for every pinned node
+ *   - recommendedRules : high/medium-confidence rules intended for FocusFlow import
  */
 object ExportBuilder {
 
@@ -46,6 +50,23 @@ object ExportBuilder {
         val sh = capture.screenH.toFloat()
 
         val nodeList = capture.nodes.map { n -> nodeToMap(n, sw, sh) }
+        val recommendations = RuleAnalyzer.analyze(capture, pinnedIds, CaptureStore.recentForPackage(capture.pkg))
+        val summary = RuleAnalyzer.summarize(recommendations)
+        val recommendedRules = recommendations
+            .filter { it.exportable }
+            .map { r ->
+                mapOf(
+                    "nodeId" to r.nodeId,
+                    "label" to r.label,
+                    "pkg" to r.pkg,
+                    "selector" to r.selector,
+                    "selectorType" to r.selectorType,
+                    "confidence" to r.confidence,
+                    "tier" to r.tier,
+                    "stability" to r.stability,
+                    "warnings" to r.warnings
+                )
+            }
 
         return mapOf(
             "format" to "NodeSpyCaptureV1",
@@ -56,7 +77,15 @@ object ExportBuilder {
             "screen" to mapOf("w" to capture.screenW, "h" to capture.screenH),
             "screenshotPath" to capture.screenshotPath,
             "nodes" to nodeList,
-            "pinnedNodeIds" to pinnedIds.toList()
+            "pinnedNodeIds" to pinnedIds.toList(),
+            "ruleQuality" to summary,
+            "selectorRecommendations" to recommendations,
+            "recommendedRules" to recommendedRules,
+            "exportPolicy" to mapOf(
+                "defaultImportSource" to "recommendedRules",
+                "recommendedRulesOnly" to true,
+                "weakRulesExcluded" to recommendations.count { !it.exportable }
+            )
         )
     }
 

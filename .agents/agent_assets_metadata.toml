@@ -65,3 +65,9 @@ id = "HMxUMIR1aw8aygbewd1Pj"
 uri = "file://exports/focusflow-iphone-05-permissions.jpg"
 type = "image"
 title = "FocusFlow Screenshot 5 — Simple Setup, Maximum Protection"
+
+[[outputs]]
+id = "NC7vwxHM9N-2KR15CxnyC"
+uri = "file://artifacts/focusflow/CUSTOM_NODE_RULES_JSON.md"
+type = "text"
+title = "FocusFlow Custom Node Rules JSON Guide"

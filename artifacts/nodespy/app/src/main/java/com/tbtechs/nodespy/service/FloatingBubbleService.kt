@@ -33,6 +33,7 @@ import com.tbtechs.nodespy.MainActivity
 import com.tbtechs.nodespy.data.CaptureStore
 import com.tbtechs.nodespy.data.NodeEntry
 import com.tbtechs.nodespy.export.ExportBuilder
+import com.tbtechs.nodespy.export.RuleAnalyzer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -388,6 +389,10 @@ class FloatingBubbleService : Service() {
         val capture = (captureId?.let { CaptureStore.findById(it) }) ?: CaptureStore.latest()
         if (capture == null) { toast("Nothing to export"); return }
         val pinned = CaptureStore.bubblePinnedIds.value
+        val summary = RuleAnalyzer.summarize(RuleAnalyzer.analyze(capture, pinned, CaptureStore.recentForPackage(capture.pkg)))
+        if (summary.weakRules > 0 || summary.exportableRules == 0) {
+            toast("${summary.exportableRules} recommended · ${summary.weakRules} weak")
+        }
         val json = ExportBuilder.build(capture, pinned)
         val intent = Intent(Intent.ACTION_SEND).apply {
             type = "text/plain"
