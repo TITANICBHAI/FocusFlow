@@ -1,20 +1,35 @@
 package com.tbtechs.nodespy.service
 
+import android.Manifest
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.AccessibilityServiceInfo
+import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.graphics.Rect
+import android.os.Build
+import android.os.Environment
+import android.view.Display
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import androidx.core.content.ContextCompat
 import com.tbtechs.nodespy.data.CaptureStore
 import com.tbtechs.nodespy.data.NodeCapture
 import com.tbtechs.nodespy.data.NodeEntry
 import com.tbtechs.nodespy.data.NodeFlags
+import com.tbtechs.nodespy.notifications.NotificationHelper
+import java.io.File
+import java.io.FileOutputStream
 
 class NodeSpyAccessibilityService : AccessibilityService() {
+
+    companion object {
+        var instance: NodeSpyAccessibilityService? = null
+    }
 
     private val counter = intArrayOf(0)
 
     override fun onServiceConnected() {
+        instance = this
         serviceInfo = AccessibilityServiceInfo().apply {
             eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED or
                     AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
@@ -24,6 +39,7 @@ class NodeSpyAccessibilityService : AccessibilityService() {
                     AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS
             notificationTimeout = 200
         }
+        NotificationHelper.createCaptureChannel(applicationContext)
         CaptureStore.setServiceRunning(true)
     }
 
@@ -34,6 +50,7 @@ class NodeSpyAccessibilityService : AccessibilityService() {
 
         val pkg = event.packageName?.toString() ?: return
         if (pkg == applicationContext.packageName) return
+        if (!CaptureStore.loggingEnabled.value) return
 
         val root = rootInActiveWindow ?: return
         try {
@@ -41,18 +58,74 @@ class NodeSpyAccessibilityService : AccessibilityService() {
             val nodes = mutableListOf<NodeEntry>()
             captureNode(root, null, 0, nodes)
 
-            CaptureStore.addCapture(
-                NodeCapture(
-                    timestamp = System.currentTimeMillis(),
-                    pkg = pkg,
-                    activityClass = event.className?.toString() ?: "",
-                    screenW = resources.displayMetrics.widthPixels,
-                    screenH = resources.displayMetrics.heightPixels,
-                    nodes = nodes
-                )
+            val capture = NodeCapture(
+                timestamp = System.currentTimeMillis(),
+                pkg = pkg,
+                activityClass = event.className?.toString() ?: "",
+                screenW = resources.displayMetrics.widthPixels,
+                screenH = resources.displayMetrics.heightPixels,
+                nodes = nodes
             )
+            CaptureStore.addCapture(capture)
+
+            if (canPostNotifications()) {
+                NotificationHelper.showCaptureNotification(
+                    context = applicationContext,
+                    captureId = capture.id,
+                    pkg = pkg,
+                    nodeCount = nodes.size,
+                    activityClass = event.className?.toString() ?: ""
+                )
+            }
+
+            if (CaptureStore.screenshotEnabled.value && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                requestScreenshot()
+            }
         } finally {
             root.recycle()
+        }
+    }
+
+    private fun canPostNotifications(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return true
+        return ContextCompat.checkSelfPermission(
+            applicationContext, Manifest.permission.POST_NOTIFICATIONS
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+
+    fun requestScreenshot() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
+        takeScreenshot(
+            Display.DEFAULT_DISPLAY,
+            mainExecutor,
+            object : TakeScreenshotCallback {
+                override fun onSuccess(screenshot: ScreenshotResult) {
+                    val hardwareBitmap = Bitmap.wrapHardwareBuffer(
+                        screenshot.hardwareBuffer, screenshot.colorSpace
+                    ) ?: run { screenshot.hardwareBuffer.close(); return }
+                    screenshot.hardwareBuffer.close()
+                    val bitmap = hardwareBitmap.copy(Bitmap.Config.ARGB_8888, false)
+                    hardwareBitmap.recycle()
+                    saveScreenshot(bitmap)
+                }
+                override fun onFailure(errorCode: Int) {}
+            }
+        )
+    }
+
+    private fun saveScreenshot(bitmap: Bitmap) {
+        try {
+            val dir = File(
+                getExternalFilesDir(Environment.DIRECTORY_PICTURES), "nodespy"
+            ).also { it.mkdirs() }
+            val file = File(dir, "screenshot_${System.currentTimeMillis()}.png")
+            FileOutputStream(file).use { out ->
+                bitmap.compress(Bitmap.CompressFormat.PNG, 90, out)
+            }
+            bitmap.recycle()
+            CaptureStore.updateLatestScreenshot(file.absolutePath)
+        } catch (_: Exception) {
+            bitmap.recycle()
         }
     }
 
@@ -73,7 +146,7 @@ class NodeSpyAccessibilityService : AccessibilityService() {
             resId = node.viewIdResourceName,
             text = node.text?.toString()?.takeIf { it.isNotBlank() },
             desc = node.contentDescription?.toString()?.takeIf { it.isNotBlank() },
-            hint = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O)
+            hint = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
                 node.hintText?.toString()?.takeIf { it.isNotBlank() } else null,
             boundsL = bounds.left,
             boundsT = bounds.top,
@@ -108,6 +181,7 @@ class NodeSpyAccessibilityService : AccessibilityService() {
     override fun onInterrupt() {}
 
     override fun onDestroy() {
+        instance = null
         super.onDestroy()
         CaptureStore.setServiceRunning(false)
     }

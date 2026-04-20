@@ -9,7 +9,8 @@ data class NodeCapture(
     val activityClass: String,
     val screenW: Int,
     val screenH: Int,
-    val nodes: List<NodeEntry>
+    val nodes: List<NodeEntry>,
+    val screenshotPath: String? = null
 )
 
 data class NodeEntry(

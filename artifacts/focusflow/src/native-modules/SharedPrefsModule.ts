@@ -10,7 +10,7 @@
  */
 
 import { NativeModules, Platform } from 'react-native';
-import type { DailyAllowanceEntry } from '@/data/types';
+import type { DailyAllowanceEntry, CustomNodeRule } from '@/data/types';
 
 const SharedPrefs = Platform.OS === 'android' ? NativeModules.SharedPrefs : null;
 
@@ -79,5 +79,19 @@ export const SharedPrefsModule = {
   async putString(key: string, value: string): Promise<void> {
     if (!hasSharedPrefsMethod('putString')) return;
     return SharedPrefs.putString(key, value);
+  },
+
+  /**
+   * Writes the custom node rules (imported from NodeSpy NodeSpyCaptureV1 exports)
+   * to SharedPreferences as a JSON string.
+   * The AccessibilityService reads this to enforce per-node blocking rules.
+   *
+   * Only enabled rules are passed — disabled rules are filtered out client-side
+   * before calling this method to keep the native scan loop fast.
+   */
+  async setCustomNodeRules(rules: CustomNodeRule[]): Promise<void> {
+    if (!hasSharedPrefsMethod('setCustomNodeRules')) return;
+    const enabledRules = rules.filter(r => r.enabled);
+    return SharedPrefs.setCustomNodeRules(JSON.stringify(enabledRules));
   },
 };

@@ -25,7 +25,9 @@ import { BlockedWordsModal } from '@/components/BlockedWordsModal';
 import { GreyoutScheduleModal } from '@/components/GreyoutScheduleModal';
 import { WeeklyReportModal } from '@/components/WeeklyReportModal';
 import { OverlayAppearanceModal } from '@/components/OverlayAppearanceModal';
+import CustomNodeRulesModal from '@/components/CustomNodeRulesModal';
 import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
+import type { CustomNodeRule } from '@/data/types';
 
 const DURATION_OPTIONS = [30, 45, 60, 90, 120];
 
@@ -41,6 +43,7 @@ export default function SettingsScreen() {
   const [greyoutModalVisible, setGreyoutModalVisible] = useState(false);
   const [weeklyReportVisible, setWeeklyReportVisible] = useState(false);
   const [overlayAppearanceVisible, setOverlayAppearanceVisible] = useState(false);
+  const [customNodeRulesVisible, setCustomNodeRulesVisible] = useState(false);
 
   if (!state.isDbReady) {
     return (
@@ -117,6 +120,11 @@ export default function SettingsScreen() {
 
   const handleViewReport = () => {
     setWeeklyReportVisible(true);
+  };
+
+  const handleSaveCustomNodeRules = async (rules: CustomNodeRule[]) => {
+    await update({ customNodeRules: rules });
+    await SharedPrefsModule.setCustomNodeRules(rules);
   };
 
   const handleSystemGuardToggle = async (enabled: boolean) => {
@@ -268,6 +276,16 @@ export default function SettingsScreen() {
               thumbColor={(settings.systemGuardEnabled ?? true) ? COLORS.primary : COLORS.muted}
             />
           </SettingRow>
+          <SettingButton
+            icon="scan-outline"
+            label="Custom Node Rules"
+            description={
+              (settings.customNodeRules ?? []).length === 0
+                ? 'Import NodeSpy captures to block specific in-app elements'
+                : `${(settings.customNodeRules ?? []).filter((r: CustomNodeRule) => r.enabled).length} of ${(settings.customNodeRules ?? []).length} rule${(settings.customNodeRules ?? []).length !== 1 ? 's' : ''} active — tap to manage`
+            }
+            onPress={() => setCustomNodeRulesVisible(true)}
+          />
         </Section>
 
         {/* ── Greyout Schedule ── */}
@@ -469,6 +487,13 @@ export default function SettingsScreen() {
       <OverlayAppearanceModal
         visible={overlayAppearanceVisible}
         onClose={() => setOverlayAppearanceVisible(false)}
+      />
+
+      <CustomNodeRulesModal
+        visible={customNodeRulesVisible}
+        rules={settings.customNodeRules ?? []}
+        onClose={() => setCustomNodeRulesVisible(false)}
+        onSave={async (rules) => { await handleSaveCustomNodeRules(rules); }}
       />
     </SafeAreaView>
   );

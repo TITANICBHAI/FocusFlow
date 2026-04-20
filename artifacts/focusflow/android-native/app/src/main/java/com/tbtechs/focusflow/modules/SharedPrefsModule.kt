@@ -221,6 +221,25 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
      *
      * @param packageName  Specific package to reset, or null to reset all
      */
+    /**
+     * Writes the custom node-rule JSON (derived from NodeSpy NodeSpyCaptureV1 exports)
+     * to SharedPreferences so the AccessibilityService can enforce them without JS.
+     *
+     * Format: JSON array of objects with fields:
+     *   id, label, pkg, matchResId?, matchText?, matchCls?, action ("overlay"|"home"), enabled
+     *
+     * Only enabled rules need to be sent — the TS wrapper filters them before calling here.
+     *
+     * @param rulesJson  Full JSON string of CustomNodeRule[]
+     */
+    @ReactMethod
+    fun setCustomNodeRules(rulesJson: String, promise: Promise) {
+        prefs().edit()
+            .putString(AppBlockerAccessibilityService.PREF_CUSTOM_NODE_RULES, rulesJson)
+            .apply()
+        promise.resolve(null)
+    }
+
     @ReactMethod
     fun resetDailyAllowanceUsage(packageName: String?, promise: Promise) {
         val editor = prefs().edit()

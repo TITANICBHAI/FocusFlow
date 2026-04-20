@@ -196,6 +196,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   weeklyReportEnabled: false,
   greyoutSchedule: [],
   systemGuardEnabled: true,
+  customNodeRules: [],
 };
 
 export async function dbGetSettings(): Promise<AppSettings> {

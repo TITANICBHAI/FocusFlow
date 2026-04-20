@@ -119,6 +119,7 @@ const defaultSettings: AppSettings = {
   systemGuardEnabled: true,
   overlayWallpaper: '',
   overlayQuotes: [],
+  customNodeRules: [],
 };
 
 const initialState: AppState = {

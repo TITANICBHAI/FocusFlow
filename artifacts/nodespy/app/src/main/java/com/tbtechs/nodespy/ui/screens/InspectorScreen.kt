@@ -8,6 +8,7 @@ import android.widget.Toast
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -16,6 +17,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.IosShare
+import androidx.compose.material.icons.filled.SelectAll
+import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,6 +27,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -37,6 +41,8 @@ import com.tbtechs.nodespy.data.NodeCapture
 import com.tbtechs.nodespy.data.NodeEntry
 import com.tbtechs.nodespy.export.ExportBuilder
 import com.tbtechs.nodespy.ui.theme.*
+
+private enum class SelectMode { TAP, REGION }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -57,6 +63,11 @@ fun InspectorScreen(captureId: String, onBack: () -> Unit) {
 
     fun togglePin(id: String) {
         pinnedIds = if (id in pinnedIds) pinnedIds - id else pinnedIds + id
+    }
+
+    fun bulkPin(ids: Collection<String>) {
+        val allPinned = ids.all { it in pinnedIds }
+        pinnedIds = if (allPinned) pinnedIds - ids.toSet() else pinnedIds + ids
     }
 
     Scaffold(
@@ -107,7 +118,7 @@ fun InspectorScreen(captureId: String, onBack: () -> Unit) {
                     text = { Text("Tree", fontFamily = FontFamily.Monospace) })
             }
             when (selectedTab) {
-                0 -> VisualTab(capture, pinnedIds, onTogglePin = ::togglePin)
+                0 -> VisualTab(capture, pinnedIds, onTogglePin = ::togglePin, onBulkPin = ::bulkPin)
                 1 -> TreeTab(capture, pinnedIds, onTogglePin = ::togglePin)
             }
         }
@@ -122,34 +133,86 @@ fun InspectorScreen(captureId: String, onBack: () -> Unit) {
 private fun VisualTab(
     capture: NodeCapture,
     pinnedIds: Set<String>,
-    onTogglePin: (String) -> Unit
+    onTogglePin: (String) -> Unit,
+    onBulkPin: (Collection<String>) -> Unit
 ) {
     val sw = capture.screenW.toFloat()
     val sh = capture.screenH.toFloat()
     var selectedId by remember { mutableStateOf<String?>(null) }
     val selectedNode = capture.nodes.firstOrNull { it.id == selectedId }
 
+    var selectMode by remember { mutableStateOf(SelectMode.TAP) }
+    var dragStart  by remember { mutableStateOf<Offset?>(null) }
+    var dragEnd    by remember { mutableStateOf<Offset?>(null) }
+
     Column(Modifier.fillMaxSize()) {
-        Box(
-            Modifier.fillMaxWidth().weight(1f).background(SurfaceVar)
-        ) {
+        ModeToggleBar(selectMode) { mode ->
+            selectMode = mode
+            dragStart = null
+            dragEnd = null
+        }
+
+        Box(Modifier.fillMaxWidth().weight(1f).background(SurfaceVar)) {
             Canvas(
                 modifier = Modifier
                     .fillMaxSize()
-                    .pointerInput(capture.nodes) {
-                        detectTapGestures { offset ->
-                            val scaleX = size.width / sw
-                            val scaleY = size.height / sh
-                            val hit = capture.nodes
-                                .filter { it.flags.visible }
-                                .lastOrNull { n ->
-                                    offset.x in (n.boundsL * scaleX)..(n.boundsR * scaleX) &&
-                                    offset.y in (n.boundsT * scaleY)..(n.boundsB * scaleY)
+                    .pointerInput(capture.nodes, selectMode) {
+                        if (selectMode == SelectMode.TAP) {
+                            detectTapGestures { offset ->
+                                val scaleX = size.width / sw
+                                val scaleY = size.height / sh
+                                val hit = capture.nodes
+                                    .filter { it.flags.visible }
+                                    .lastOrNull { n ->
+                                        offset.x in (n.boundsL * scaleX)..(n.boundsR * scaleX) &&
+                                        offset.y in (n.boundsT * scaleY)..(n.boundsB * scaleY)
+                                    }
+                                if (hit != null) {
+                                    selectedId = hit.id
+                                    onTogglePin(hit.id)
                                 }
-                            if (hit != null) {
-                                selectedId = hit.id
-                                onTogglePin(hit.id)
                             }
+                        } else {
+                            detectDragGestures(
+                                onDragStart = { offset ->
+                                    dragStart = offset
+                                    dragEnd = offset
+                                },
+                                onDrag = { change, _ ->
+                                    dragEnd = change.position
+                                },
+                                onDragEnd = {
+                                    val start = dragStart
+                                    val end = dragEnd
+                                    if (start != null && end != null) {
+                                        val cw = size.width.toFloat()
+                                        val ch = size.height.toFloat()
+                                        val scaleX = sw / cw
+                                        val scaleY = sh / ch
+
+                                        val selL = (minOf(start.x, end.x) * scaleX).toInt()
+                                        val selT = (minOf(start.y, end.y) * scaleY).toInt()
+                                        val selR = (maxOf(start.x, end.x) * scaleX).toInt()
+                                        val selB = (maxOf(start.y, end.y) * scaleY).toInt()
+
+                                        val intersecting = capture.nodes
+                                            .filter { n ->
+                                                n.flags.visible &&
+                                                n.boundsR > selL && n.boundsL < selR &&
+                                                n.boundsB > selT && n.boundsT < selB
+                                            }
+                                            .map { it.id }
+
+                                        if (intersecting.isNotEmpty()) onBulkPin(intersecting)
+                                    }
+                                    dragStart = null
+                                    dragEnd = null
+                                },
+                                onDragCancel = {
+                                    dragStart = null
+                                    dragEnd = null
+                                }
+                            )
                         }
                     }
             ) {
@@ -175,20 +238,93 @@ private fun VisualTab(
                         style = Stroke(width = if (isPinned || isSelected) 3f else 1f)
                     )
                 }
+
+                // Draw selection rectangle in REGION mode
+                val start = dragStart
+                val end   = dragEnd
+                if (start != null && end != null && selectMode == SelectMode.REGION) {
+                    val l = minOf(start.x, end.x)
+                    val t = minOf(start.y, end.y)
+                    val r = maxOf(start.x, end.x)
+                    val b = maxOf(start.y, end.y)
+                    drawRect(
+                        color = AccentBlue.copy(alpha = 0.15f),
+                        topLeft = Offset(l, t),
+                        size = Size(r - l, b - t)
+                    )
+                    drawRect(
+                        color = AccentBlue,
+                        topLeft = Offset(l, t),
+                        size = Size(r - l, b - t),
+                        style = Stroke(
+                            width = 2f,
+                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 6f))
+                        )
+                    )
+                }
             }
         }
 
-        if (selectedNode != null) {
+        if (selectedNode != null && selectMode == SelectMode.TAP) {
             NodeDetailStrip(selectedNode, pinned = selectedNode.id in pinnedIds)
         }
     }
 }
 
 @Composable
-private fun NodeDetailStrip(node: NodeEntry, pinned: Boolean) {
-    Column(
-        Modifier.fillMaxWidth().background(Surface).padding(12.dp)
+private fun ModeToggleBar(current: SelectMode, onChange: (SelectMode) -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(Surface)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
+        Text("Select:", color = Muted, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+        ModeButton(
+            label = "Tap",
+            icon = { Icon(Icons.Default.TouchApp, null, Modifier.size(16.dp)) },
+            active = current == SelectMode.TAP,
+            onClick = { onChange(SelectMode.TAP) }
+        )
+        ModeButton(
+            label = "Region",
+            icon = { Icon(Icons.Default.SelectAll, null, Modifier.size(16.dp)) },
+            active = current == SelectMode.REGION,
+            onClick = { onChange(SelectMode.REGION) }
+        )
+        Spacer(Modifier.weight(1f))
+        if (current == SelectMode.REGION) {
+            Text(
+                "Drag a rectangle to pin all nodes inside",
+                color = AccentBlue, fontSize = 11.sp, fontFamily = FontFamily.Monospace
+            )
+        }
+    }
+}
+
+@Composable
+private fun ModeButton(label: String, icon: @Composable () -> Unit, active: Boolean, onClick: () -> Unit) {
+    val bg = if (active) AccentBlue.copy(alpha = 0.2f) else SurfaceVar
+    val fg = if (active) AccentBlue else Muted
+    Row(
+        Modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(bg)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        CompositionLocalProvider(LocalContentColor provides fg) { icon() }
+        Text(label, color = fg, fontSize = 12.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Medium)
+    }
+}
+
+@Composable
+private fun NodeDetailStrip(node: NodeEntry, pinned: Boolean) {
+    Column(Modifier.fillMaxWidth().background(Surface).padding(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
                 Modifier.clip(RoundedCornerShape(4.dp))
@@ -210,8 +346,8 @@ private fun NodeDetailStrip(node: NodeEntry, pinned: Boolean) {
         if (!node.desc.isNullOrBlank()) DetailRow("desc", node.desc)
         if (!node.resId.isNullOrBlank()) DetailRow("id", node.resId)
         DetailRow("bounds", "${node.boundsL},${node.boundsT} → ${node.boundsR},${node.boundsB}")
+        DetailRow("node-id", node.id)
         DetailRow("depth", node.depth.toString())
-        DetailRow("id", node.id)
     }
 }
 

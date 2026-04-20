@@ -13,6 +13,7 @@ import com.tbtechs.nodespy.data.NodeEntry
  *   - pkg            : foreground app package name
  *   - activityClass  : activity class name
  *   - screen         : { w, h } device screen dimensions in px
+ *   - screenshotPath : absolute path to screenshot file, or null
  *   - nodes          : flat array of all captured nodes
  *     - id           : stable within-capture ID ("n0", "n1", …)
  *     - parentId     : null for root
@@ -53,6 +54,7 @@ object ExportBuilder {
             "pkg" to capture.pkg,
             "activityClass" to capture.activityClass,
             "screen" to mapOf("w" to capture.screenW, "h" to capture.screenH),
+            "screenshotPath" to capture.screenshotPath,
             "nodes" to nodeList,
             "pinnedNodeIds" to pinnedIds.toList()
         )

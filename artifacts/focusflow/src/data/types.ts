@@ -98,4 +98,29 @@ export interface AppSettings {
   // Block overlay appearance
   overlayWallpaper?: string;        // Absolute path to custom background image (empty = use gradient)
   overlayQuotes?: string[];         // Custom quote pool (empty = use built-in quotes)
+  // NodeSpy custom node rules — imported from NodeSpyCaptureV1 exports
+  customNodeRules: CustomNodeRule[];
+}
+
+/**
+ * A surgical blocking rule derived from a NodeSpy capture.
+ * FocusFlow's AccessibilityService scans the foreground window's node tree
+ * for any node matching these selectors; when found it triggers the block action.
+ *
+ * Example: block the "Shorts" tab in YouTube by resId without blocking all of YouTube.
+ *
+ * Selectors are ANDed together (all non-empty fields must match).
+ * At least one selector field must be non-empty for the rule to fire.
+ */
+export interface CustomNodeRule {
+  id: string;
+  label: string;             // Human-readable — usually node text or resId short name
+  pkg: string;               // Target app package name (e.g. "com.google.android.youtube")
+  matchResId?: string;       // viewIdResourceName substring match (case-insensitive)
+  matchText?: string;        // Visible text/content-description substring match
+  matchCls?: string;         // Class name substring match (e.g. "Button")
+  action: 'overlay' | 'home'; // overlay = show block overlay; home = press HOME
+  enabled: boolean;
+  importedAt: string;        // ISO timestamp when this rule was imported
+  captureTimestamp?: number; // Unix ms from the source NodeSpyCaptureV1
 }

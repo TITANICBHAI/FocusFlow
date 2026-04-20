@@ -1,6 +1,9 @@
 package com.tbtechs.nodespy.ui.screens
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.provider.Settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -10,21 +13,28 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BubbleChart
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.FiberManualRecord
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.ShieldMoon
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.tbtechs.nodespy.data.CaptureStore
 import com.tbtechs.nodespy.data.NodeCapture
 import com.tbtechs.nodespy.ui.theme.*
@@ -33,10 +43,37 @@ import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CaptureListScreen(onOpenCapture: (String) -> Unit) {
+fun CaptureListScreen(
+    onOpenCapture: (String) -> Unit,
+    onLaunchBubble: () -> Unit = {},
+    onOpenPermissions: () -> Unit = {}
+) {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var refreshTick by remember { mutableIntStateOf(0) }
+
+    DisposableEffect(lifecycleOwner) {
+        val obs = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) refreshTick++
+        }
+        lifecycleOwner.lifecycle.addObserver(obs)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(obs) }
+    }
+
     val captures by CaptureStore.captures.collectAsState()
     val serviceRunning by CaptureStore.serviceRunning.collectAsState()
+    val loggingOn by CaptureStore.loggingEnabled.collectAsState()
+    val snapOn by CaptureStore.screenshotEnabled.collectAsState()
+    val pinnedIds by CaptureStore.bubblePinnedIds.collectAsState()
+
+    val allPermissionsOk = remember(refreshTick, serviceRunning) {
+        val overlayOk = Settings.canDrawOverlays(context)
+        val notifOk = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
+                    PackageManager.PERMISSION_GRANTED
+        } else true
+        serviceRunning && overlayOk && notifOk
+    }
 
     Scaffold(
         containerColor = Background,
@@ -57,6 +94,16 @@ fun CaptureListScreen(onOpenCapture: (String) -> Unit) {
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Surface),
                 actions = {
+                    IconButton(onClick = onOpenPermissions) {
+                        Icon(
+                            if (allPermissionsOk) Icons.Default.Shield else Icons.Default.ShieldMoon,
+                            "Permissions",
+                            tint = if (allPermissionsOk) AccentGreen else AccentOrange
+                        )
+                    }
+                    IconButton(onClick = onLaunchBubble) {
+                        Icon(Icons.Default.BubbleChart, "Launch Bubble", tint = AccentBlue)
+                    }
                     if (captures.isNotEmpty()) {
                         IconButton(onClick = { CaptureStore.clearAll() }) {
                             Icon(Icons.Default.DeleteSweep, "Clear all", tint = Muted)
@@ -73,9 +120,31 @@ fun CaptureListScreen(onOpenCapture: (String) -> Unit) {
                 .background(Background)
         ) {
             if (!serviceRunning) {
-                ServiceBanner {
+                ServiceBanner(
+                    message = "Accessibility service is off — NodeSpy cannot capture nodes",
+                    actionLabel = "Enable",
+                    color = AccentOrange
+                ) {
                     context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
                 }
+            }
+
+            if (!Settings.canDrawOverlays(context)) {
+                ServiceBanner(
+                    message = "Draw over apps permission missing — floating bubble disabled",
+                    actionLabel = "Fix",
+                    color = AccentRed
+                ) {
+                    onOpenPermissions()
+                }
+            }
+
+            if (loggingOn || snapOn || pinnedIds.isNotEmpty()) {
+                BubbleStatusBar(
+                    loggingOn = loggingOn,
+                    snapOn = snapOn,
+                    pinnedCount = pinnedIds.size
+                )
             }
 
             if (captures.isEmpty()) {
@@ -91,6 +160,56 @@ fun CaptureListScreen(onOpenCapture: (String) -> Unit) {
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun BubbleStatusBar(loggingOn: Boolean, snapOn: Boolean, pinnedCount: Int) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(SurfaceVar)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        StatusChip(label = "LOG", active = loggingOn, activeColor = AccentGreen)
+        StatusChip(label = "SNAP", active = snapOn, activeColor = AccentBlue)
+        if (pinnedCount > 0) {
+            Box(
+                Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(AccentOrange.copy(alpha = 0.15f))
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
+            ) {
+                Text(
+                    "$pinnedCount pinned",
+                    color = AccentOrange,
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatusChip(label: String, active: Boolean, activeColor: androidx.compose.ui.graphics.Color) {
+    val color = if (active) activeColor else Muted
+    Box(
+        Modifier
+            .clip(RoundedCornerShape(4.dp))
+            .background(color.copy(alpha = 0.12f))
+            .padding(horizontal = 6.dp, vertical = 2.dp)
+    ) {
+        Text(
+            if (active) "● $label" else "○ $label",
+            color = color,
+            fontSize = 11.sp,
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 
@@ -118,23 +237,23 @@ private fun ServiceBadge(running: Boolean) {
 }
 
 @Composable
-private fun ServiceBanner(onEnable: () -> Unit) {
+private fun ServiceBanner(
+    message: String,
+    actionLabel: String,
+    color: androidx.compose.ui.graphics.Color,
+    onAction: () -> Unit
+) {
     Row(
         Modifier
             .fillMaxWidth()
-            .background(AccentOrange.copy(alpha = 0.12f))
+            .background(color.copy(alpha = 0.12f))
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            "Accessibility service is off — NodeSpy cannot capture nodes",
-            color = AccentOrange,
-            fontSize = 13.sp,
-            modifier = Modifier.weight(1f)
-        )
+        Text(message, color = color, fontSize = 13.sp, modifier = Modifier.weight(1f))
         Spacer(Modifier.width(8.dp))
-        TextButton(onClick = onEnable) {
-            Text("Enable", color = AccentOrange, fontWeight = FontWeight.Bold)
+        TextButton(onClick = onAction) {
+            Text(actionLabel, color = color, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -160,6 +279,7 @@ private fun CaptureCard(capture: NodeCapture, onClick: () -> Unit) {
     val fmt = remember { SimpleDateFormat("HH:mm:ss", Locale.getDefault()) }
     val shortPkg = capture.pkg.substringAfterLast('.')
     val shortCls = capture.activityClass.substringAfterLast('.')
+    val hasScreenshot = capture.screenshotPath != null
 
     Card(
         modifier = Modifier
@@ -213,7 +333,20 @@ private fun CaptureCard(capture: NodeCapture, onClick: () -> Unit) {
             Spacer(Modifier.width(8.dp))
 
             Column(horizontalAlignment = Alignment.End) {
-                NodeCountBadge(capture.nodes.size)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (hasScreenshot) {
+                        Box(
+                            Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(AccentBlue.copy(alpha = 0.15f))
+                                .padding(horizontal = 5.dp, vertical = 2.dp)
+                        ) {
+                            Text("📷", fontSize = 10.sp)
+                        }
+                        Spacer(Modifier.width(4.dp))
+                    }
+                    NodeCountBadge(capture.nodes.size)
+                }
                 Spacer(Modifier.height(4.dp))
                 Text(
                     fmt.format(Date(capture.timestamp)),
