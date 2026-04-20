@@ -82,6 +82,14 @@ fun CaptureListScreen(
 
     val selectedTab = if (appMode == AppMode.SIMPLE) 0 else 1
 
+    val accessibilityGranted = remember(refreshTick) {
+        val enabled = Settings.Secure.getString(
+            context.contentResolver,
+            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+        )
+        enabled?.contains(context.packageName, ignoreCase = true) == true
+    }
+
     val allPermissionsOk = remember(refreshTick, serviceRunning) {
         val overlayOk = Settings.canDrawOverlays(context)
         val notifOk = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -147,6 +155,7 @@ fun CaptureListScreen(
                 SimpleHomeContent(
                     captures = captures,
                     serviceRunning = serviceRunning,
+                    accessibilityGranted = accessibilityGranted,
                     loggingOn = loggingOn,
                     onOpenCapture = onOpenSimpleCapture,
                     onOpenPermissions = onOpenPermissions,
@@ -331,6 +340,7 @@ private fun DeveloperTopBar(
 private fun SimpleHomeContent(
     captures: List<NodeCapture>,
     serviceRunning: Boolean,
+    accessibilityGranted: Boolean = false,
     loggingOn: Boolean,
     onOpenCapture: (String) -> Unit,
     onOpenPermissions: () -> Unit,
@@ -343,7 +353,13 @@ private fun SimpleHomeContent(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            item { SetupGuideCard(onOpenPermissions = onOpenPermissions) }
+            item {
+                if (accessibilityGranted) {
+                    ReconnectCard(context = context)
+                } else {
+                    SetupGuideCard(onOpenPermissions = onOpenPermissions)
+                }
+            }
         }
         return
     }
@@ -436,6 +452,52 @@ private fun SetupGuideCard(onOpenPermissions: () -> Unit) {
             contentPadding = PaddingValues(vertical = 14.dp)
         ) {
             Text("Set up permissions →", color = Background, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+        }
+    }
+}
+
+@Composable
+private fun ReconnectCard(context: android.content.Context) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(Surface)
+            .padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Text(
+            "NodeSpy paused",
+            color = OnBackground,
+            fontWeight = FontWeight.Bold,
+            fontSize = 18.sp
+        )
+        Text(
+            "The accessibility service was stopped by Android (this happens on some devices to save battery). " +
+            "Your permission is still granted — just toggle it off and back on to reconnect.",
+            color = Muted,
+            fontSize = 14.sp,
+            lineHeight = 21.sp
+        )
+        Button(
+            onClick = {
+                context.startActivity(
+                    Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                )
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = AccentGreen),
+            shape = RoundedCornerShape(10.dp),
+            contentPadding = PaddingValues(vertical = 14.dp)
+        ) {
+            Text(
+                "Reconnect — open Accessibility Settings",
+                color = Background,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp
+            )
         }
     }
 }

@@ -53,6 +53,8 @@ class FloatingBubbleService : Service() {
         const val ACTION_REGION_SELECT = "com.tbtechs.nodespy.REGION_SELECT"
         const val ACTION_EXPORT        = "com.tbtechs.nodespy.EXPORT"
         const val ACTION_CLEAR_PINS    = "com.tbtechs.nodespy.CLEAR_PINS"
+        const val ACTION_LOG_TOGGLE    = "com.tbtechs.nodespy.LOG_TOGGLE"
+        const val ACTION_SNAP_TOGGLE   = "com.tbtechs.nodespy.SNAP_TOGGLE"
 
         private const val NOTIF_CHANNEL = "nodespy_bubble"
         private const val NOTIF_ID = 42
@@ -120,6 +122,20 @@ class FloatingBubbleService : Service() {
             ACTION_REGION_SELECT -> { removePanel(); enterSelectMode(BubbleSelectMode.REGION) }
             ACTION_EXPORT        -> exportPinned()
             ACTION_CLEAR_PINS    -> { CaptureStore.clearBubblePins(); toast("Pins cleared") }
+            ACTION_LOG_TOGGLE    -> {
+                val next = !CaptureStore.loggingEnabled.value
+                CaptureStore.setLoggingEnabled(next)
+                toast(if (next) "Logging ON" else "Logging OFF")
+            }
+            ACTION_SNAP_TOGGLE   -> {
+                if (!CaptureStore.screenshotEnabled.value && Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+                    toast("Screenshot requires Android 11+")
+                } else {
+                    val next = !CaptureStore.screenshotEnabled.value
+                    CaptureStore.setScreenshotEnabled(next)
+                    toast(if (next) "SNAP ON" else "SNAP OFF")
+                }
+            }
         }
         return START_STICKY
     }
@@ -176,7 +192,10 @@ class FloatingBubbleService : Service() {
 
     private fun buildNotif(pins: Int = pinnedCount, pkg: String = lastPkg): Notification {
         val shortPkg = if (pkg.isNotEmpty()) pkg.substringAfterLast('.') else "no app captured yet"
-        val pinText  = if (pins > 0) "$pins pinned" else "nothing pinned"
+        val pinText  = if (pins > 0) "$pins pinned" else "0 pinned"
+
+        val logLabel  = if (loggingOn) "LOG: ON"  else "LOG: OFF"
+        val snapLabel = if (snapOn)    "SNAP: ON" else "SNAP: OFF"
 
         val openPi = PendingIntent.getActivity(
             this, 99,
@@ -186,16 +205,20 @@ class FloatingBubbleService : Service() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
+        // Android shows first 3 actions compactly, rest in expanded view.
+        // Priority order: LOG toggle · SNAP toggle · Export · Clear · Stop
         val builder = Notification.Builder(this, NOTIF_CHANNEL)
             .setSmallIcon(android.R.drawable.ic_menu_view)
-            .setContentTitle("NodeSpy · $shortPkg · $pinText")
-            .setContentText("Use the buttons below to select or export elements")
+            .setContentTitle("NodeSpy  ·  $shortPkg  ·  $pinText")
+            .setContentText("$logLabel  |  $snapLabel  —  tap actions to toggle or export")
             .setContentIntent(openPi)
             .setOngoing(true)
-            .addAction(Notification.Action.Builder(null, "Tap Select",
-                notifPi(ACTION_TAP_SELECT, 1)).build())
-            .addAction(Notification.Action.Builder(null, "Region",
-                notifPi(ACTION_REGION_SELECT, 2)).build())
+            .setStyle(Notification.BigTextStyle()
+                .bigText("$logLabel  |  $snapLabel\nPinned: $pinText  ·  App: $shortPkg\nUse LOG/SNAP to toggle capture · Export to share"))
+            .addAction(Notification.Action.Builder(null, logLabel,
+                notifPi(ACTION_LOG_TOGGLE, 10)).build())
+            .addAction(Notification.Action.Builder(null, snapLabel,
+                notifPi(ACTION_SNAP_TOGGLE, 11)).build())
             .addAction(Notification.Action.Builder(null, "Export",
                 notifPi(ACTION_EXPORT, 3)).build())
             .addAction(Notification.Action.Builder(null, "Clear",
@@ -330,7 +353,10 @@ class FloatingBubbleService : Service() {
         row.addView(title)
         row.addView(chip("✕", C_RED) { removePanel() })
         row.addView(spacer((6 * resources.displayMetrics.density).toInt()))
-        row.addView(chip("Stop", C_MUTED) { stopSelf() })
+        row.addView(chip("■ Stop", C_RED) {
+            toast("NodeSpy stopped — thanks for using it!")
+            stopSelf()
+        })
         return row
     }
 
@@ -410,6 +436,10 @@ class FloatingBubbleService : Service() {
     // ── Select Overlay ───────────────────────────────────────────────────────
 
     private fun enterSelectMode(mode: BubbleSelectMode) {
+        // Always remove any existing overlay first — prevents WindowManager double-add crash
+        // (e.g. notification action tapped while overlay is already showing).
+        removeOverlay()
+
         selectMode = mode
         val capture = CaptureStore.latest() ?: run {
             toast("No capture yet — open any app first"); return
@@ -424,7 +454,11 @@ class FloatingBubbleService : Service() {
                 CaptureStore.addBubblePinnedId(node.id)
                 toast("Pinned: ${node.resId?.substringAfterLast('/') ?: node.text ?: node.cls.substringAfterLast('.')}")
             },
-            onDone = { exitSelectMode() }
+            onDone  = { exitSelectMode() },
+            onStop  = {
+                toast("NodeSpy stopped — thanks for using it!")
+                stopSelf()
+            }
         )
 
         // FLAG_LAYOUT_NO_LIMITS ensures the overlay truly starts at screen (0,0)
@@ -438,8 +472,7 @@ class FloatingBubbleService : Service() {
                     WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT
         ).apply { gravity = Gravity.TOP or Gravity.START }
-        wm.addView(overlay, params)
-        overlayView = overlay
+        runCatching { wm.addView(overlay, params) }.onSuccess { overlayView = overlay }
     }
 
     private fun exitSelectMode() {
@@ -551,7 +584,8 @@ class NodeSelectOverlay(
     private val mode: BubbleSelectMode,
     private val nodes: List<NodeEntry>,
     private val onPinNode: (NodeEntry) -> Unit,
-    private val onDone: () -> Unit
+    private val onDone: () -> Unit,
+    private val onStop: () -> Unit = {}
 ) : View(context) {
 
     private val dp = resources.displayMetrics.density
@@ -579,6 +613,10 @@ class NodeSelectOverlay(
     }
     private val pAction = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = FloatingBubbleService.C_GREEN; textSize = 13f * dp
+        typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
+    }
+    private val pStop = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = FloatingBubbleService.C_RED; textSize = 12f * dp
         typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
     }
     private val pMuted = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -618,7 +656,9 @@ class NodeSelectOverlay(
         canvas.drawText(instr, 16f * dp, 38f * dp, pMuted)
 
         val doneText = "✕ DONE"
-        canvas.drawText(doneText, w - pAction.measureText(doneText) - 16f * dp, 30f * dp, pAction)
+        val stopText = "■ STOP NODE SPY"
+        canvas.drawText(doneText, w - pAction.measureText(doneText) - 16f * dp, 20f * dp, pAction)
+        canvas.drawText(stopText, w - pStop.measureText(stopText) - 16f * dp, 38f * dp, pStop)
 
         if (mode == BubbleSelectMode.TAP) {
             hoveredNode?.let { node ->
@@ -675,7 +715,12 @@ class NodeSelectOverlay(
         val x = e.x; val y = e.y; val w = width.toFloat()
         if (y < barH && e.action == MotionEvent.ACTION_UP) {
             val doneText = "✕ DONE"
-            if (x > w - pAction.measureText(doneText) - 20f * dp) { onDone(); return true }
+            val stopText = "■ STOP NODE SPY"
+            val doneX = w - pAction.measureText(doneText) - 20f * dp
+            val stopX = w - pStop.measureText(stopText) - 20f * dp
+            val midBar = barH / 2f
+            if (y < midBar && x >= doneX) { onDone(); return true }
+            if (y >= midBar && x >= stopX) { onStop(); return true }
         }
         return if (mode == BubbleSelectMode.TAP) handleTap(e, x, y, w) else handleRegion(e, x, y, w)
     }
