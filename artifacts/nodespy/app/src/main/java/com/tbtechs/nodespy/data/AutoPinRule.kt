@@ -13,7 +13,8 @@ enum class MatchField(val label: String) {
     RES_ID("Resource ID"),
     TEXT("Text"),
     CLASS("Class Name"),
-    DESC("Content Desc")
+    DESC("Content Desc"),
+    HINT("Hint Text")
 }
 
 fun globMatch(pattern: String, value: String?): Boolean {
@@ -32,6 +33,7 @@ fun AutoPinRule.matches(node: NodeEntry): Boolean {
         MatchField.TEXT -> node.text
         MatchField.CLASS -> node.cls
         MatchField.DESC -> node.desc
+        MatchField.HINT -> node.hint
     }
     return globMatch(pattern, field)
 }

@@ -32,8 +32,9 @@ import android.widget.Toast
 import com.tbtechs.nodespy.MainActivity
 import com.tbtechs.nodespy.data.CaptureStore
 import com.tbtechs.nodespy.data.NodeEntry
+import com.tbtechs.nodespy.data.PrefsStore
 import com.tbtechs.nodespy.export.ExportBuilder
-import com.tbtechs.nodespy.export.RuleAnalyzer
+import com.tbtechs.nodespy.export.RuleQualitySummary
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -97,6 +98,14 @@ class FloatingBubbleService : Service() {
         startForeground(NOTIF_ID, buildNotif())
         showBubble()
         observeStore()
+        if (!PrefsStore.isBubbleIntroShown()) {
+            Toast.makeText(
+                this,
+                "Tap this bubble · then tap anything you want to block · tap Export when done",
+                Toast.LENGTH_LONG
+            ).show()
+            PrefsStore.markBubbleIntroShown()
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -389,9 +398,17 @@ class FloatingBubbleService : Service() {
         val capture = (captureId?.let { CaptureStore.findById(it) }) ?: CaptureStore.latest()
         if (capture == null) { toast("Nothing to export"); return }
         val pinned = CaptureStore.bubblePinnedIds.value
-        val summary = RuleAnalyzer.summarize(RuleAnalyzer.analyze(capture, pinned, CaptureStore.recentForPackage(capture.pkg)))
-        if (summary.weakRules > 0 || summary.exportableRules == 0) {
-            toast("${summary.exportableRules} recommended · ${summary.weakRules} weak")
+        val payload = ExportBuilder.buildMinimal(capture, pinned)
+        val summary = payload["ruleQuality"] as? RuleQualitySummary
+        if (summary != null) {
+            when {
+                summary.exportableRules == 0 ->
+                    toast("No exportable rules — pin nodes with IDs or stable text first")
+                summary.weakRules > 0 ->
+                    toast("${summary.exportableRules} recommended · ${summary.weakRules} weak rules excluded")
+                else ->
+                    toast("${summary.exportableRules} strong rule${if (summary.exportableRules == 1) "" else "s"} ready to export")
+            }
         }
         val json = ExportBuilder.build(capture, pinned)
         val intent = Intent(Intent.ACTION_SEND).apply {

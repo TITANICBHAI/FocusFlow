@@ -10,6 +10,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import com.tbtechs.nodespy.data.CaptureStore
 import com.tbtechs.nodespy.service.FloatingBubbleService
 import com.tbtechs.nodespy.ui.NodeSpyApp
 import com.tbtechs.nodespy.ui.theme.NodeSpyTheme
@@ -63,8 +64,7 @@ class MainActivity : ComponentActivity() {
         setIntent(intent)
         if (intent.action == ACTION_OPEN_CAPTURE) {
             val id = intent.getStringExtra(EXTRA_CAPTURE_ID) ?: return
-            pendingCaptureId = id
-            recreate()
+            CaptureStore.emitOpenCapture(id)
         }
     }
 

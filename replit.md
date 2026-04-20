@@ -8,6 +8,15 @@
 ## Artifacts
 - NodeSpy: pure Kotlin/Jetpack Compose Android accessibility inspector in `artifacts/nodespy/`. No Expo/JS. Uses AccessibilityService to capture live node trees (class, text, bounds, flags) from any foreground app. Visual canvas tab for tap-to-select nodes, Tree tab for checkbox selection, exports NodeSpyCaptureV1 JSON (with normalized bounds) for future FocusFlow integration. Build workflow: `.github/workflows/build-nodespy.yml`.
 
+## NodeSpy — Current State
+- **Simple / Developer dual mode**: CaptureListScreen has a ScrollableTabRow at top (Simple | Developer). Mode persists via PrefsStore. Simple tab shows user-friendly snapshots list; Developer tab is unchanged technical interface.
+- **SimpleInspectorScreen**: Three tabs — Pick (screenshot canvas), Marked, Suggestions. Screenshot canvas shows the real captured screenshot as background; tapping highlights in green. Falls back to colored rectangles if no screenshot. Box-select supported in both modes.
+- **Smart app suggestions**: AppSuggestions.kt maps 8 popular apps (YouTube, Instagram, TikTok, Facebook, X, Reddit, Snapchat, LinkedIn) to common things people block, with keyword auto-matching.
+- **"Copy rules" flow**: Copies NodeSpyCaptureV1 JSON to clipboard + shows step-by-step FocusFlow import guide dialog.
+- **FloatingBubble first-launch tip**: One-time Toast on first bubble launch.
+- **Persistent settings**: allowlist, auto-pin rules, export history, app mode all survive app restarts via PrefsStore + SharedPreferences.
+- **Notification navigation**: onNewIntent uses SharedFlow (not recreate) for smooth capture navigation.
+
 ## Recent Changes
 - NodeSpy 1.2.0 turns pinned captures into rule-making exports: it scores pinned nodes, recommends resource-id/label selectors, compares recent captures for stability, warns about weak class/bounds-only rules, adds a Guide tab in the inspector, and exports `ruleQuality`, `selectorRecommendations`, and high-confidence `recommendedRules`. FocusFlow imports the recommended rules when present and preserves confidence/tier/stability metadata.
 - Updated the NodeSpy APK GitHub Actions workflow so manual runs still upload Actions artifacts and also create a prerelease with direct `.apk` download files (`nodespy-debug.apk` and signed `nodespy-release.apk` when keystore secrets are available).

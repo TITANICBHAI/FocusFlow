@@ -410,6 +410,7 @@ private fun NodeDetailStrip(node: NodeEntry, pinned: Boolean, recommendation: Ru
         }
         if (!node.text.isNullOrBlank()) DetailRow("text", node.text)
         if (!node.desc.isNullOrBlank()) DetailRow("desc", node.desc)
+        if (!node.hint.isNullOrBlank()) DetailRow("hint", node.hint)
         if (!node.resId.isNullOrBlank()) DetailRow("id", node.resId)
         DetailRow("bounds", "${node.boundsL},${node.boundsT} → ${node.boundsR},${node.boundsB}")
         DetailRow("node-id", node.id)
@@ -444,7 +445,7 @@ private fun TreeTab(
 @Composable
 private fun NodeTreeRow(node: NodeEntry, pinned: Boolean, recommendation: RuleRecommendation?, onToggle: () -> Unit) {
     val (_, borderColor) = nodeColors(node)
-    val label = node.text ?: node.desc ?: node.resId?.substringAfterLast('/') ?: ""
+    val label = node.text ?: node.desc ?: node.hint ?: node.resId?.substringAfterLast('/') ?: ""
 
     Row(
         Modifier

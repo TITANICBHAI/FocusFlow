@@ -1,7 +1,10 @@
 package com.tbtechs.nodespy.data
 
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 object CaptureStore {
@@ -37,6 +40,28 @@ object CaptureStore {
 
     private val _exportHistory = MutableStateFlow<List<ExportRecord>>(emptyList())
     val exportHistory: StateFlow<List<ExportRecord>> = _exportHistory.asStateFlow()
+
+    private val _openCaptureEvent = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val openCaptureEvent: SharedFlow<String> = _openCaptureEvent.asSharedFlow()
+
+    private val _appMode = MutableStateFlow(AppMode.SIMPLE)
+    val appMode: StateFlow<AppMode> = _appMode.asStateFlow()
+
+    fun loadPersistedState() {
+        _packageAllowlist.value = PrefsStore.loadAllowlist()
+        _autoPinRules.value = PrefsStore.loadAutoPinRules()
+        _exportHistory.value = PrefsStore.loadExportHistory()
+        _appMode.value = PrefsStore.loadAppMode()
+    }
+
+    fun setAppMode(mode: AppMode) {
+        _appMode.value = mode
+        PrefsStore.saveAppMode(mode)
+    }
+
+    fun emitOpenCapture(id: String) {
+        _openCaptureEvent.tryEmit(id)
+    }
 
     fun setServiceRunning(running: Boolean) {
         _serviceRunning.value = running
@@ -139,39 +164,56 @@ object CaptureStore {
         _captures.value.filter { it.pkg == pkg }.take(limit)
 
     fun addToAllowlist(pkg: String) {
-        if (pkg.isNotBlank()) _packageAllowlist.value = _packageAllowlist.value + pkg.trim()
+        if (pkg.isNotBlank()) {
+            val updated = _packageAllowlist.value + pkg.trim()
+            _packageAllowlist.value = updated
+            PrefsStore.saveAllowlist(updated)
+        }
     }
 
     fun removeFromAllowlist(pkg: String) {
-        _packageAllowlist.value = _packageAllowlist.value - pkg
+        val updated = _packageAllowlist.value - pkg
+        _packageAllowlist.value = updated
+        PrefsStore.saveAllowlist(updated)
     }
 
     fun clearAllowlist() {
         _packageAllowlist.value = emptySet()
+        PrefsStore.saveAllowlist(emptySet())
     }
 
     fun addAutoPinRule(rule: AutoPinRule) {
-        _autoPinRules.value = _autoPinRules.value + rule
+        val updated = _autoPinRules.value + rule
+        _autoPinRules.value = updated
+        PrefsStore.saveAutoPinRules(updated)
     }
 
     fun removeAutoPinRule(id: String) {
-        _autoPinRules.value = _autoPinRules.value.filter { it.id != id }
+        val updated = _autoPinRules.value.filter { it.id != id }
+        _autoPinRules.value = updated
+        PrefsStore.saveAutoPinRules(updated)
     }
 
     fun toggleAutoPinRule(id: String) {
-        _autoPinRules.value = _autoPinRules.value.map { r ->
+        val updated = _autoPinRules.value.map { r ->
             if (r.id == id) r.copy(enabled = !r.enabled) else r
         }
+        _autoPinRules.value = updated
+        PrefsStore.saveAutoPinRules(updated)
     }
 
     fun updateAutoPinRule(updated: AutoPinRule) {
-        _autoPinRules.value = _autoPinRules.value.map { r ->
+        val list = _autoPinRules.value.map { r ->
             if (r.id == updated.id) updated else r
         }
+        _autoPinRules.value = list
+        PrefsStore.saveAutoPinRules(list)
     }
 
     fun recordExport(captureId: String, pkg: String, nodeCount: Int) {
         val record = ExportRecord(captureId = captureId, pkg = pkg, nodeCount = nodeCount)
-        _exportHistory.value = (listOf(record) + _exportHistory.value).take(MAX_EXPORT_HISTORY)
+        val updated = (listOf(record) + _exportHistory.value).take(MAX_EXPORT_HISTORY)
+        _exportHistory.value = updated
+        PrefsStore.saveExportHistory(updated)
     }
 }

@@ -182,7 +182,8 @@ class NodeSpyAccessibilityService : AccessibilityService() {
 
     override fun onDestroy() {
         instance = null
-        super.onDestroy()
+        NotificationHelper.cancelCaptureNotification(applicationContext)
         CaptureStore.setServiceRunning(false)
+        super.onDestroy()
     }
 }
