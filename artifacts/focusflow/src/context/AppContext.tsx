@@ -511,11 +511,65 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (s.settings.standaloneBlockUntil) {
         void _syncStandaloneBlock(s.settings);
       }
+      // Refresh the home-screen widget so its time-remaining counter and
+      // standalone-block expiry stay in sync without waiting for the next
+      // user action. Cheap: it's a single SharedPrefs read + RemoteViews push.
+      void _syncWidget(s);
     }, 30000);
     return () => {
       if (tickRef.current) clearInterval(tickRef.current);
     };
   }, [state.isDbReady]);
+
+  /**
+   * Pushes the current "active task" snapshot to SharedPreferences for the
+   * home-screen widget. When focus mode is running we leave the prefs alone —
+   * focusService and ForegroundTaskService own those keys during a session.
+   * Otherwise we mirror the time-active task (or clear it).
+   */
+  async function _syncWidget(s: AppState): Promise<void> {
+    try {
+      // Focus session owns the task_* keys + pushes widget itself — don't fight it.
+      if (s.focusSession) return;
+      const active = getActiveTask(s.tasks);
+      if (active) {
+        const endMs   = new Date(active.endTime).getTime();
+        const startMs = new Date(active.startTime).getTime();
+        const next    = s.tasks.find(
+          (t) => t.id !== active.id && new Date(t.startTime).getTime() >= endMs,
+        );
+        await SharedPrefsModule.setActiveTask(active.id, active.title, endMs, next?.title ?? null);
+        await SharedPrefsModule.setActiveTaskColor(active.color ?? '');
+        // Use the task's real start time so widget progress reflects elapsed
+        // time, not "0%" each time AppContext re-syncs.
+        await SharedPrefsModule.setActiveTaskStartMs(active.id, startMs);
+      } else {
+        await SharedPrefsModule.clearActiveTask();
+        // Standalone-block state may still be active — pushWidgetUpdate lets the
+        // widget switch to the standalone render without waiting for the system.
+        await SharedPrefsModule.pushWidgetUpdate();
+      }
+    } catch (e) {
+      void logger.warn('AppContext', `widget sync failed: ${String(e)}`);
+    }
+  }
+
+  // ── React-driven widget refresh ──────────────────────────────────────────────
+  // Whenever the task list, focus session, or standalone-block state changes,
+  // push a fresh snapshot to the widget so the home screen reflects reality
+  // immediately (start / end / extend / complete / skip / block toggle all
+  // mutate one of these dependencies).
+  useEffect(() => {
+    if (!state.isDbReady) return;
+    void _syncWidget(state);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    state.isDbReady,
+    state.tasks,
+    state.focusSession,
+    state.settings.standaloneBlockUntil,
+    state.settings.standaloneBlockPackages,
+  ]);
 
   // ── Precise expiry timer: clears standalone block the moment it expires ───────
   // Fires a one-shot setTimeout set to the exact expiry ms so the UI updates

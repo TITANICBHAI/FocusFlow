@@ -55,7 +55,7 @@ echo "   ✓ layout/ resources copied"
 
 # Drawable (widget background)
 mkdir -p "$RES_DIR/drawable"
-cp "$SCRIPT_DIR/app/src/main/res/drawable/widget_background.xml" "$RES_DIR/drawable/"
+cp "$SCRIPT_DIR/app/src/main/res/drawable/"*.xml "$RES_DIR/drawable/"
 echo "   ✓ drawable/ resources copied"
 
 echo "📝  Patching strings.xml..."

@@ -21,7 +21,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="FOCUS MODE"
+            android:text="FOCUSFLOW"
             android:textSize="10sp"
             android:textColor="#6366f1"
             android:textStyle="bold"
@@ -41,7 +41,7 @@
         android:id="@+id/widget_task_name"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="No active session"
+        android:text="No active task"
         android:textSize="15sp"
         android:textColor="#1e1b4b"
         android:textStyle="bold"
@@ -49,7 +49,7 @@
         android:ellipsize="end"
         android:layout_marginBottom="8dp" />
 
-    <!-- Time remaining -->
+    <!-- Time remaining / status sub-line -->
     <TextView
         android:id="@+id/widget_time_remaining"
         android:layout_width="match_parent"
@@ -60,7 +60,7 @@
         android:textStyle="bold"
         android:layout_marginBottom="8dp" />
 
-    <!-- Progress bar -->
+    <!-- Progress bar (active task) -->
     <ProgressBar
         android:id="@+id/widget_progress"
         style="@android:style/Widget.ProgressBar.Horizontal"
@@ -70,5 +70,19 @@
         android:progress="0"
         android:progressTint="#6366f1"
         android:progressBackgroundTint="#e0e7ff" />
+
+    <!-- Add Task CTA (visible only when idle) -->
+    <TextView
+        android:id="@+id/widget_add_task_btn"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="+ Add Task"
+        android:textSize="12sp"
+        android:textColor="#ffffff"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:padding="8dp"
+        android:background="@drawable/widget_add_task_bg"
+        android:visibility="gone" />
 
 </LinearLayout>

@@ -72,6 +72,8 @@ export async function startFocusMode(
   //   • BootReceiver can restart the service after a reboot
   await SharedPrefsModule.setFocusActive(true);
   await SharedPrefsModule.setActiveTask(task.id, task.title, endMs, nextTask?.title ?? null);
+  // Tint the home-screen widget with the task's accent color.
+  await SharedPrefsModule.setActiveTaskColor(task.color ?? '');
   // Write the allowed-list so the AccessibilityService knows which apps to permit.
   await SharedPrefsModule.setAllowedPackages(
     session.allowedPackages.filter((p) => p.includes('.')),
@@ -99,6 +101,9 @@ export async function stopFocusMode(): Promise<void> {
   await ForegroundServiceModule.stopService();
   await SharedPrefsModule.setFocusActive(false);
   await SharedPrefsModule.setAllowedPackages([]);
+  // Clear the widget's active-task snapshot. The AppContext tick will re-populate
+  // it on the next pass if there's still a time-active task running.
+  await SharedPrefsModule.clearActiveTask();
   stopAndroidUsageMonitor();
 
   appStateSubscription?.remove();

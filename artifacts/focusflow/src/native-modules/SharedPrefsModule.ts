@@ -45,6 +45,47 @@ export const SharedPrefsModule = {
     return SharedPrefs.setActiveTask(taskId, name, endMs, nextName ?? null);
   },
 
+  /**
+   * Writes the active task's accent color (hex string, e.g. "#6366f1") so the
+   * widget can tint its header / sub-line. Pass an empty string to clear.
+   * Triggers a widget redraw on the native side.
+   */
+  async setActiveTaskColor(colorHex: string): Promise<void> {
+    if (!hasSharedPrefsMethod('setActiveTaskColor')) return;
+    return SharedPrefs.setActiveTaskColor(colorHex ?? '');
+  },
+
+  /**
+   * Persists the wall-clock start time of the active task so the widget can
+   * draw a progress bar even when the session was not started by the focus
+   * service. Idempotent — only writes when task identity changes.
+   * Pass 0 / negative to clear.
+   */
+  async setActiveTaskStartMs(taskId: string, startMs: number): Promise<void> {
+    if (!hasSharedPrefsMethod('setActiveTaskStartMs')) return;
+    return SharedPrefs.setActiveTaskStartMs(taskId, startMs);
+  },
+
+  /**
+   * Clears the active-task fields in SharedPreferences (without touching focus
+   * or block state) and pushes a widget redraw.
+   */
+  async clearActiveTask(): Promise<void> {
+    if (!hasSharedPrefsMethod('clearActiveTask')) return;
+    return SharedPrefs.clearActiveTask();
+  },
+
+  /**
+   * Forces a redraw of any home-screen widgets using whatever is currently in
+   * SharedPreferences. Use after standalone-block / task state changes that
+   * happen outside a focus session (where ForegroundTaskService would have
+   * pushed automatically).
+   */
+  async pushWidgetUpdate(): Promise<void> {
+    if (!hasSharedPrefsMethod('pushWidgetUpdate')) return;
+    return SharedPrefs.pushWidgetUpdate();
+  },
+
   async setStandaloneBlock(active: boolean, packages: string[], untilMs: number): Promise<void> {
     if (!hasSharedPrefsMethod('setStandaloneBlock')) return;
     return SharedPrefs.setStandaloneBlock(active, packages, untilMs);

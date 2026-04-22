@@ -6,6 +6,7 @@ import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.ReadableArray
 import com.tbtechs.focusflow.services.AppBlockerAccessibilityService
+import com.tbtechs.focusflow.widget.FocusFlowWidget
 
 /**
  * SharedPrefsModule
@@ -90,11 +91,21 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
         val endEpoch   = endMs.toLong()
         val now        = System.currentTimeMillis()
         val durationMs = (endEpoch - now).coerceAtLeast(0L)
-        prefs().edit()
+        // Detect task identity change BEFORE we overwrite task_id — when the
+        // task id changes we must invalidate task_start_ms so the next
+        // setActiveTaskStartMs call writes the new task's real start time
+        // (instead of inheriting the previous task's start, which would make
+        // the widget progress bar jump to ~100% on back-to-back tasks).
+        val prevId = prefs().getString("task_id", "") ?: ""
+        val editor = prefs().edit()
             .putString("task_id", taskId)
             .putString("task_name", name)
             .putLong("task_end_ms", endEpoch)
             .putString("next_task_name", nextName?.takeIf { it.isNotBlank() })
+        if (prevId != taskId) {
+            editor.remove("task_start_ms")
+        }
+        editor
             // Extra fields used by BootReceiver for clock-tamper detection:
             // task_duration_ms: total session length from now
             // task_last_written_ms: wall clock at write time — lets BootReceiver
@@ -102,6 +113,86 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
             .putLong("task_duration_ms", durationMs)
             .putLong("task_last_written_ms", now)
             .apply()
+        // Push fresh data to any home-screen widgets so they reflect the new task immediately.
+        FocusFlowWidget.pushWidgetUpdate(reactContext)
+        promise.resolve(null)
+    }
+
+    /**
+     * Writes the active task's accent color (hex string, e.g. "#6366f1") so the
+     * widget can tint its header / sub-line to match the task. Pass an empty
+     * string to clear (widget falls back to the default indigo accent).
+     */
+    @ReactMethod
+    fun setActiveTaskColor(colorHex: String, promise: Promise) {
+        val editor = prefs().edit()
+        if (colorHex.isBlank()) {
+            editor.remove("task_color")
+        } else {
+            editor.putString("task_color", colorHex)
+        }
+        editor.apply()
+        FocusFlowWidget.pushWidgetUpdate(reactContext)
+        promise.resolve(null)
+    }
+
+    /**
+     * Persists the wall-clock start time of the active task so the widget can
+     * compute progress without depending on ForegroundTaskService having been
+     * the one to start the session (i.e. for time-active tasks running outside
+     * focus mode). Pass 0 to clear.
+     *
+     * Idempotent: callers may invoke this on every state change — the value
+     * will only be written when it differs from what's already stored, so
+     * progress remains monotonic.
+     */
+    @ReactMethod
+    fun setActiveTaskStartMs(taskId: String, startMs: Double, promise: Promise) {
+        val current   = prefs().getString("task_id", "") ?: ""
+        val currStart = prefs().getLong("task_start_ms", 0L)
+        val newStart  = startMs.toLong()
+        // Only write when the task identity changed OR no start time exists yet.
+        // This prevents the widget's progress bar from jumping back to 0 when
+        // setActiveTaskStartMs is called repeatedly for the same task.
+        if (taskId != current || currStart <= 0L || newStart <= 0L) {
+            val editor = prefs().edit()
+            if (newStart <= 0L) {
+                editor.remove("task_start_ms")
+            } else {
+                editor.putLong("task_start_ms", newStart)
+            }
+            editor.apply()
+            FocusFlowWidget.pushWidgetUpdate(reactContext)
+        }
+        promise.resolve(null)
+    }
+
+    /**
+     * Clears the active task fields so the widget falls back to the standalone
+     * block / idle render. Does NOT touch focus_active or any block state.
+     */
+    @ReactMethod
+    fun clearActiveTask(promise: Promise) {
+        prefs().edit()
+            .remove("task_id")
+            .remove("task_name")
+            .remove("task_end_ms")
+            .remove("task_start_ms")
+            .remove("task_color")
+            .remove("next_task_name")
+            .apply()
+        FocusFlowWidget.pushWidgetUpdate(reactContext)
+        promise.resolve(null)
+    }
+
+    /**
+     * Forces a widget redraw using whatever is currently in SharedPreferences.
+     * Called by the JS layer after standalone block changes, task add/edit/delete,
+     * task completion, etc.
+     */
+    @ReactMethod
+    fun pushWidgetUpdate(promise: Promise) {
+        FocusFlowWidget.pushWidgetUpdate(reactContext)
         promise.resolve(null)
     }
 
@@ -126,6 +217,9 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
             .putString("standalone_blocked_packages", json)
             .putLong("standalone_block_until_ms", untilMs.toLong())
             .apply()
+        // Standalone block changes are independent of focus mode, so the widget
+        // needs an explicit nudge to re-read prefs and switch render mode.
+        FocusFlowWidget.pushWidgetUpdate(reactContext)
         promise.resolve(null)
     }
 
