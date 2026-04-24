@@ -14,6 +14,51 @@ type Entry = {
 
 const CHANGELOG: Entry[] = [
   {
+    version: 'c1.0.7',
+    date: 'April 2026',
+    sections: [
+      {
+        heading: 'Deeper Profile',
+        icon: 'person-circle-outline',
+        items: [
+          'Profile now asks 7 new questions: sleep time, when you focus best (chronotype), your ideal focus-block length, preferred break style, distraction triggers, motivation style, and weekly review day',
+          'Picking an ideal focus block (15 / 25 / 45 / 60 / 90 min) instantly becomes your default duration for new tasks AND your Pomodoro length',
+          'Picking a break style (short & frequent / balanced / long / none) instantly sets your default Pomodoro break length',
+          'Picking distraction triggers (social, video, news, games, shopping, messaging) adds tailored apps — Instagram, TikTok, Roblox, Amazon, WhatsApp and more — to the block-suggestions list',
+          'Weekly review day now drives when your existing weekly recap notification fires',
+          'New "How your profile is used" callout on the profile screen explains exactly which feature each field powers — no more wondering where preferences end up',
+        ],
+      },
+      {
+        heading: 'Your Journey Panel',
+        icon: 'trophy-outline',
+        items: [
+          'Profile screen now shows a personal journey card when editing — current streak, today\'s focus minutes with a progress bar to your daily goal, all-time focus hours, total sessions, and best streak',
+          'Hidden during first-run onboarding so new users don\'t see a wall of zeros',
+        ],
+      },
+      {
+        heading: 'Home-Screen Widget',
+        icon: 'apps-outline',
+        items: [
+          'Same compact 4×1 size, more useful at a glance: idle and next-up states now show "Done · 3/5 tasks · 45m today"',
+          'Active task header now shows a 🔥 streak chip alongside ACTIVE TASK',
+          'Idle state header reads "FOCUSFLOW · 🔥 N" so the streak is visible even with no active task',
+          'Daily stats sync automatically whenever you complete a task or finish a focus session',
+        ],
+      },
+      {
+        heading: 'Diagnostics Gating Fix',
+        icon: 'bug-outline',
+        items: [
+          'Startup log / Diagnostics panel now correctly appears in debug builds (was missing in both debug and release before)',
+          'Switched the gating check from JS-only __DEV__ (which is false in prebundled debug APKs) to the native Android FLAG_DEBUGGABLE flag',
+          'Console-mirrored logs now also gate on the native debuggable flag, so release builds stay quiet while debug builds get full visibility',
+        ],
+      },
+    ],
+  },
+  {
     version: 'c1.0.6',
     date: 'April 2026',
     sections: [
