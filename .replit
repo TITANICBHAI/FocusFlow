@@ -1,11 +1,5 @@
 modules = ["nodejs-24"]
 
-[[artifacts]]
-id = "artifacts/api-server"
-
-[[artifacts]]
-id = "artifacts/mockup-sandbox"
-
 [deployment]
 router = "application"
 deploymentTarget = "autoscale"
@@ -15,7 +9,16 @@ args = ["pnpm", "store", "prune"]
 env = { "CI" = "true" }
 
 [workflows]
-runButton = "Push to GitHub"
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Push to GitHub"
 
 [[workflows.workflow]]
 name = "Push to GitHub"
@@ -28,67 +31,6 @@ args = "pnpm --filter @workspace/scripts run github:push"
 [workflows.workflow.metadata]
 outputType = "console"
 
-[[workflows.workflow]]
-name = "artifacts/mockup-sandbox: Component Preview Server"
-author = "agent"
-mode = "sequential"
-
-[workflows.workflow.metadata]
-outputType = "webview"
-artifactId = "XegfDyZt7HqfW2Bb8Ghoy"
-isCanvasWorkflow = true
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "pnpm --filter @workspace/mockup-sandbox run dev"
-cwd = "./artifacts/mockup-sandbox"
-waitForPort = 8081
-
-[workflows.workflow.tasks.env]
-PORT = "8081"
-BASE_PATH = "/__mockup"
-
-[[workflows.workflow]]
-name = "artifacts/focusflow: expo"
-author = "agent"
-mode = "sequential"
-
-[workflows.workflow.metadata]
-outputType = "webview"
-artifactId = "artifacts/focusflow"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "pnpm --filter @workspace/focusflow run dev"
-cwd = "./artifacts/focusflow"
-waitForPort = 25040
-ensurePreviewReachable = "/status"
-router = "expo-domain"
-
-[workflows.workflow.tasks.env]
-PORT = "25040"
-BASE_PATH = "/"
-
-[[workflows.workflow]]
-name = "artifacts/focusflow-ad: web"
-author = "agent"
-mode = "sequential"
-
-[workflows.workflow.metadata]
-outputType = "webview"
-artifactId = "artifacts/focusflow-ad"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "pnpm --filter @workspace/focusflow-ad run dev"
-cwd = "./artifacts/focusflow-ad"
-waitForPort = 25669
-router = "path"
-
-[workflows.workflow.tasks.env]
-PORT = "25669"
-BASE_PATH = "/focusflow-ad/"
-
 [agent]
 stack = "PNPM_WORKSPACE"
 expertMode = true
@@ -96,6 +38,3 @@ expertMode = true
 [postMerge]
 path = "scripts/post-merge.sh"
 timeoutMs = 20000
-
-[nix]
-channel = "stable-25_05"
