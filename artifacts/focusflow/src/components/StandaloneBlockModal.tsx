@@ -35,6 +35,40 @@ interface AppCategory {
   packages: string[];
 }
 
+// ─── System app block protection ─────────────────────────────────────────────
+// These apps must NEVER be added to the block list.  Blocking them via the
+// AccessibilityService can cause a soft brick or safety emergency:
+//   • Home launchers → no way back to home screen (soft brick)
+//   • SystemUI → status bar / quick settings disappear (device unusable without ADB)
+//   • Phone/dialer → user cannot dial 112 / 911 in an emergency
+//   • Settings → cannot open Android Settings to revoke or adjust permissions
+//   • Google Play Services → nearly all apps crash or fail authentication
+//   • Package installers → OTA updates silently fail
+//   • Digital wallets → user stranded at payment terminal
+
+const SYSTEM_NEVER_BLOCK = new Set([
+  'com.android.launcher', 'com.android.launcher2', 'com.android.launcher3',
+  'com.sec.android.app.launcher', 'com.google.android.apps.nexuslauncher',
+  'com.miui.launcher', 'com.huawei.android.launcher', 'com.coloros.launcher',
+  'com.oneplus.launcher', 'com.oppo.launcher', 'com.motorola.launcher3',
+  'com.nothing.launcher', 'com.realme.launcher', 'com.iqoo.launcher',
+  'com.vivo.launcher', 'com.asus.launcher', 'com.ZenUI.launcher',
+  'com.lge.launcher3', 'com.htc.launcher', 'com.sonyericsson.home',
+  'com.tcl.launcher', 'com.nokia.launcher', 'com.infinix.launcher',
+  'com.transsion.launcher', 'com.hihonor.launcher',
+  'com.android.systemui',
+  'com.android.phone', 'com.android.server.telecom',
+  'com.samsung.android.incallui', 'com.google.android.dialer',
+  'com.google.android.apps.googledialer',
+  'com.android.settings', 'com.sec.android.app.SecSetupWizard',
+  'com.google.android.gms',
+  'com.android.packageinstaller', 'com.google.android.packageinstaller',
+  'com.samsung.android.packageinstaller',
+  'com.samsung.android.wallet', 'com.samsung.android.samsungpay',
+  'com.google.android.apps.walletnfcrel',
+  'com.tbtechs.focusflow',
+]);
+
 const APP_CATEGORIES: AppCategory[] = [
   {
     id: 'social',
@@ -247,9 +281,10 @@ export function StandaloneBlockModal({
     setLoadingApps(true);
     try {
       const result = await InstalledAppsModule.getInstalledApps();
-      const sorted = result.slice().sort((a, b) =>
-        a.appName.toLowerCase().localeCompare(b.appName.toLowerCase())
-      );
+      const sorted = result
+        .filter((a) => !SYSTEM_NEVER_BLOCK.has(a.packageName)) // never show system-critical apps
+        .slice()
+        .sort((a, b) => a.appName.toLowerCase().localeCompare(b.appName.toLowerCase()));
       setApps(sorted);
       // Re-derive manual packages now that we have the installed list
       setManualPackages((prev) => {
@@ -276,6 +311,7 @@ export function StandaloneBlockModal({
   }, [apps, search]);
 
   const toggle = (packageName: string) => {
+    if (SYSTEM_NEVER_BLOCK.has(packageName)) return; // cannot block critical system apps
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(packageName)) {
@@ -335,8 +371,17 @@ export function StandaloneBlockModal({
   };
 
   const applyPreset = useCallback((preset: BlockPreset) => {
-    setSelected(new Set(preset.packages));
-  }, []);
+    // Filter out system-critical apps that must never be blocked
+    const safe = preset.packages.filter((p) => !SYSTEM_NEVER_BLOCK.has(p));
+    if (locked) {
+      // Active session: only ADD packages that aren't already selected.
+      // Never remove apps the user has already chosen to block.
+      setSelected((prev) => new Set([...prev, ...safe]));
+    } else {
+      // No active session: replace selection with the preset's package list.
+      setSelected(new Set(safe));
+    }
+  }, [locked]);
 
   // ── Category helpers ──────────────────────────────────────────────────────
 

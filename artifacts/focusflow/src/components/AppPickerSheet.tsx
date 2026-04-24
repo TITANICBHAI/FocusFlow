@@ -18,6 +18,71 @@ import { InstalledAppsModule, type InstalledApp } from '@/native-modules/Install
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 import type { AllowedAppPreset } from '@/data/types';
 
+// ─── System app whitelist ─────────────────────────────────────────────────────
+// Apps in this set are ALWAYS allowed during Focus and cannot be deselected.
+// Blocking them causes soft bricks (no home screen), broken emergencies, or
+// inaccessible device settings.  Research summary:
+//   • Home launchers (ALL brands): blocking = no way to return to home = soft brick
+//   • SystemUI: blocking = status bar/notification shade disappears = device unusable
+//   • Phone/dialer: blocking = cannot dial 112/911 during emergency
+//   • Settings: blocking = cannot change any device setting (including uninstalling FocusFlow)
+//   • Google Play Services (gms): blocking = ~all apps fail auth, crash, or lose internet
+//   • Package installers: blocking = OTA updates and Play Store installs fail silently
+//   • Wallet apps: blocking at a payment terminal leaves user unable to pay or unlock NFC
+//   • FocusFlow itself: must always be accessible so user can end/adjust a session
+
+const SYSTEM_ALWAYS_ALLOWED = new Set([
+  // ── Home launchers (every known Android OEM + AOSP) ──
+  'com.android.launcher',
+  'com.android.launcher2',
+  'com.android.launcher3',
+  'com.sec.android.app.launcher',        // Samsung OneUI
+  'com.google.android.apps.nexuslauncher', // Pixel / stock
+  'com.miui.launcher',                   // Xiaomi / MIUI
+  'com.huawei.android.launcher',         // Huawei / EMUI
+  'com.coloros.launcher',                // Oppo / ColorOS
+  'com.oneplus.launcher',                // OnePlus OxygenOS
+  'com.oppo.launcher',                   // Oppo legacy
+  'com.motorola.launcher3',              // Motorola
+  'com.nothing.launcher',               // Nothing OS
+  'com.realme.launcher',                 // Realme UI
+  'com.iqoo.launcher',                   // iQOO / Funtouch
+  'com.vivo.launcher',                   // Vivo
+  'com.asus.launcher',                   // Asus ROG
+  'com.ZenUI.launcher',                  // Asus ZenUI
+  'com.lge.launcher3',                   // LG
+  'com.htc.launcher',                    // HTC
+  'com.sonyericsson.home',               // Sony Xperia
+  'com.tcl.launcher',                    // TCL
+  'com.nokia.launcher',                  // Nokia
+  'com.infinix.launcher',                // Infinix
+  'com.transsion.launcher',              // Transsion / itel / Tecno
+  'com.hihonor.launcher',                // Honor
+  // ── System UI ──
+  'com.android.systemui',
+  // ── Phone / emergency calling ──
+  'com.android.phone',
+  'com.android.server.telecom',
+  'com.samsung.android.incallui',
+  'com.google.android.dialer',
+  'com.google.android.apps.googledialer',
+  // ── Settings ──
+  'com.android.settings',
+  'com.sec.android.app.SecSetupWizard',
+  // ── Google Play Services (critical dependency for most apps) ──
+  'com.google.android.gms',
+  // ── Package installers ──
+  'com.android.packageinstaller',
+  'com.google.android.packageinstaller',
+  'com.samsung.android.packageinstaller',
+  // ── Digital wallets (blocking at POS terminal leaves user stranded) ──
+  'com.samsung.android.wallet',
+  'com.samsung.android.samsungpay',
+  'com.google.android.apps.walletnfcrel',
+  // ── FocusFlow itself ──
+  'com.tbtechs.focusflow',
+]);
+
 interface Props {
   visible: boolean;
   title?: string;
@@ -67,11 +132,16 @@ export function AppPickerSheet({
         setApps(sorted);
 
         const allPkgs = new Set(sorted.map((a) => a.packageName));
+        // System-critical apps are always allowed — seed them into the initial selection
+        const systemPkgsPresent = sorted
+          .map((a) => a.packageName)
+          .filter((p) => SYSTEM_ALWAYS_ALLOWED.has(p));
         if (initialSelected.length === 0) {
           // [] sentinel → check ALL apps (all allowed by default)
           setSelected(new Set(allPkgs));
         } else {
-          setSelected(new Set(initialSelected.filter((p) => allPkgs.has(p))));
+          // Always include system-critical apps even if not in the saved list
+          setSelected(new Set([...initialSelected.filter((p) => allPkgs.has(p)), ...systemPkgsPresent]));
         }
       } catch {
         setApps([]);
@@ -93,6 +163,7 @@ export function AppPickerSheet({
   }, [apps, search]);
 
   const toggle = useCallback((pkg: string) => {
+    if (SYSTEM_ALWAYS_ALLOWED.has(pkg)) return; // system-critical: never removable
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(pkg)) next.delete(pkg);
@@ -106,8 +177,10 @@ export function AppPickerSheet({
   }, [apps]);
 
   const deselectAll = useCallback(() => {
-    setSelected(new Set());
-  }, []);
+    // Keep system-critical apps always checked
+    const systemPkgs = apps.map((a) => a.packageName).filter((p) => SYSTEM_ALWAYS_ALLOWED.has(p));
+    setSelected(new Set(systemPkgs));
+  }, [apps]);
 
   const applyPreset = useCallback(
     (preset: AllowedAppPreset) => {
@@ -163,11 +236,12 @@ export function AppPickerSheet({
 
   const renderApp = ({ item }: { item: InstalledApp }) => {
     const checked = selected.has(item.packageName);
+    const isSystem = SYSTEM_ALWAYS_ALLOWED.has(item.packageName);
     return (
       <TouchableOpacity
-        style={styles.row}
+        style={[styles.row, isSystem && { opacity: 0.7 }]}
         onPress={() => toggle(item.packageName)}
-        activeOpacity={0.7}
+        activeOpacity={isSystem ? 1 : 0.7}
       >
         {item.iconBase64 ? (
           <Image
@@ -180,12 +254,24 @@ export function AppPickerSheet({
           </View>
         )}
         <View style={styles.appInfo}>
-          <Text style={styles.appName} numberOfLines={1}>{item.appName}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Text style={styles.appName} numberOfLines={1}>{item.appName}</Text>
+            {isSystem && (
+              <View style={styles.systemBadge}>
+                <Ionicons name="shield-checkmark" size={10} color={COLORS.primary} />
+                <Text style={styles.systemBadgeText}>System</Text>
+              </View>
+            )}
+          </View>
           <Text style={styles.pkgName} numberOfLines={1}>{item.packageName}</Text>
         </View>
-        <View style={[styles.checkbox, checked && styles.checkboxOn]}>
-          {checked && <Ionicons name="checkmark" size={14} color="#fff" />}
-        </View>
+        {isSystem ? (
+          <Ionicons name="lock-closed" size={16} color={COLORS.muted} />
+        ) : (
+          <View style={[styles.checkbox, checked && styles.checkboxOn]}>
+            {checked && <Ionicons name="checkmark" size={14} color="#fff" />}
+          </View>
+        )}
       </TouchableOpacity>
     );
   };
@@ -601,6 +687,20 @@ const styles = StyleSheet.create({
   checkboxOn: {
     backgroundColor: COLORS.primary,
     borderColor: COLORS.primary,
+  },
+  systemBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: RADIUS.full,
+    backgroundColor: COLORS.primaryLight,
+  },
+  systemBadgeText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: COLORS.primary,
   },
   separator: {
     height: SPACING.xs,

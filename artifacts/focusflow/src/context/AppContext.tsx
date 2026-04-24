@@ -656,9 +656,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const active = getActiveTask(stateRef.current.tasks);
     if (active && active.focusMode && stateRef.current.settings.focusModeEnabled && stateRef.current.focusSession === null && !isFocusActive()) {
+      // Task-specific allowed packages take priority over the global list when auto-starting.
+      const autoAllowed =
+        active.focusAllowedPackages !== undefined
+          ? active.focusAllowedPackages
+          : stateRef.current.settings.allowedInFocus;
       void _startFocusMode(
         active,
-        stateRef.current.settings.allowedInFocus,
+        autoAllowed,
         (app) => {
           dispatch({ type: 'SET_FOCUS_VIOLATION', payload: app });
           setTimeout(() => dispatch({ type: 'SET_FOCUS_VIOLATION', payload: null }), 4000);
@@ -669,7 +674,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           taskId: active.id,
           startedAt: new Date().toISOString(),
           isActive: true,
-          allowedPackages: stateRef.current.settings.allowedInFocus,
+          allowedPackages: autoAllowed,
         };
         dispatch({ type: 'SET_FOCUS_SESSION', payload: session });
       }).catch(() => {});
