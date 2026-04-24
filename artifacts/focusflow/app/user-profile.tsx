@@ -289,6 +289,15 @@ export default function UserProfileScreen() {
   const [goals, setGoals]         = useState<string[]>(existing.focusGoals ?? []);
   const [saving, setSaving]       = useState(false);
 
+  // ── Deeper-profile state ────────────────────────────────────────────────────
+  const [sleepTime, setSleepTime]                 = useState(existing.sleepTime ?? '');
+  const [chronotype, setChronotype]               = useState<UserProfile['chronotype'] | ''>(existing.chronotype ?? '');
+  const [focusLength, setFocusLength]             = useState<number | null>(existing.focusSessionLength ?? null);
+  const [breakStyle, setBreakStyle]               = useState<UserProfile['breakStyle'] | ''>(existing.breakStyle ?? '');
+  const [triggers, setTriggers]                   = useState<string[]>(existing.distractionTriggers ?? []);
+  const [motivation, setMotivation]               = useState<string[]>(existing.motivationStyle ?? []);
+  const [reviewDay, setReviewDay]                 = useState<UserProfile['weeklyReviewDay'] | ''>(existing.weeklyReviewDay ?? '');
+
   // Personal-journey stats — only loaded in edit mode (returning user). On
   // first-run onboarding the DB is empty and this section stays hidden.
   const [stats, setStats] = useState<{
@@ -320,8 +329,8 @@ export default function UserProfileScreen() {
   }, [isEditMode]);
 
   const suggestedApps = useMemo(
-    () => computeSuggestedApps(occupation, goals),
-    [occupation, goals],
+    () => computeSuggestedApps(occupation, goals, triggers),
+    [occupation, goals, triggers],
   );
 
   // Computes today's progress toward the daily focus-hour goal and a short
@@ -353,9 +362,33 @@ export default function UserProfileScreen() {
         dailyGoalHours: goalHours,
         wakeUpTime: wakeTime || undefined,
         focusGoals: goals.length > 0 ? goals : undefined,
+
+        // Deeper-profile fields — undefined when unset so the JSON stays clean.
+        sleepTime:           sleepTime || undefined,
+        chronotype:          chronotype || undefined,
+        focusSessionLength:  focusLength ?? undefined,
+        breakStyle:          breakStyle || undefined,
+        distractionTriggers: triggers.length > 0 ? triggers : undefined,
+        motivationStyle:     motivation.length > 0 ? motivation : undefined,
+        weeklyReviewDay:     reviewDay || undefined,
       };
+
+      // Side-effects: deeper-profile fields that map directly to existing
+      // app settings. Done here (not in a separate useEffect) so the user
+      // gets one atomic save and a single confirmation.
+      const settingsPatch: Partial<typeof state.settings> = {};
+      if (focusLength) {
+        settingsPatch.defaultDuration  = focusLength;
+        settingsPatch.pomodoroDuration = focusLength;
+      }
+      if (breakStyle) {
+        const bs = BREAK_STYLES.find((b) => b.id === breakStyle);
+        if (bs) settingsPatch.pomodoroBreak = bs.mins;
+      }
+
       const updated = {
         ...state.settings,
+        ...settingsPatch,
         onboardingComplete: true,
         userProfile: profile,
       };
@@ -585,6 +618,172 @@ export default function UserProfileScreen() {
             </View>
           </FormSection>
 
+          {/* ── Deeper profile sections ──────────────────────────────────── */}
+
+          {/* Sleep time */}
+          <FormSection title="When do you usually go to sleep?">
+            <Text style={[styles.multiHint, { color: theme.muted }]}>
+              We pair this with your wake time to know your available focus hours.
+            </Text>
+            <View style={styles.chipRow}>
+              {SLEEP_TIMES.map((t) => {
+                const selected = sleepTime === t.id;
+                return (
+                  <TouchableOpacity
+                    key={t.id}
+                    style={[styles.chip, selected && styles.chipSelected, { borderColor: selected ? COLORS.primary : theme.border, backgroundColor: selected ? COLORS.primary : theme.card }]}
+                    onPress={() => setSleepTime(selected ? '' : t.id)}
+                    activeOpacity={0.75}
+                  >
+                    <Text style={[styles.chipLabel, { color: selected ? '#fff' : theme.text }]}>{t.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </FormSection>
+
+          {/* Chronotype */}
+          <FormSection title="When do you focus best?">
+            <Text style={[styles.multiHint, { color: theme.muted }]}>
+              Helps us suggest the right time slots for deep work.
+            </Text>
+            <View style={styles.chipGrid}>
+              {CHRONOTYPES.map((c) => {
+                const selected = chronotype === c.id;
+                return (
+                  <TouchableOpacity
+                    key={c.id}
+                    style={[styles.chip, selected && styles.chipSelected, { borderColor: selected ? COLORS.primary : theme.border, backgroundColor: selected ? COLORS.primary : theme.card }]}
+                    onPress={() => setChronotype(selected ? '' : c.id)}
+                    activeOpacity={0.75}
+                  >
+                    <Ionicons name={c.icon as any} size={15} color={selected ? '#fff' : theme.muted} />
+                    <Text style={[styles.chipLabel, { color: selected ? '#fff' : theme.text }]}>{c.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </FormSection>
+
+          {/* Preferred focus session length */}
+          <FormSection title="Your ideal focus block">
+            <Text style={[styles.multiHint, { color: theme.muted }]}>
+              We'll set this as your default for new tasks and Pomodoro sessions.
+            </Text>
+            <View style={styles.chipRow}>
+              {FOCUS_LENGTHS.map((f) => {
+                const selected = focusLength === f.id;
+                return (
+                  <TouchableOpacity
+                    key={f.id}
+                    style={[styles.chip, selected && styles.chipSelected, { borderColor: selected ? COLORS.primary : theme.border, backgroundColor: selected ? COLORS.primary : theme.card }]}
+                    onPress={() => setFocusLength(selected ? null : f.id)}
+                    activeOpacity={0.75}
+                  >
+                    <Text style={[styles.chipLabel, { color: selected ? '#fff' : theme.text }]}>{f.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            {focusLength != null && (
+              <Text style={[styles.multiHint, { color: theme.muted, marginTop: 4 }]}>
+                {FOCUS_LENGTHS.find((f) => f.id === focusLength)?.hint}
+              </Text>
+            )}
+          </FormSection>
+
+          {/* Break style */}
+          <FormSection title="How do you like to break?">
+            <View style={styles.chipGrid}>
+              {BREAK_STYLES.map((b) => {
+                const selected = breakStyle === b.id;
+                return (
+                  <TouchableOpacity
+                    key={b.id}
+                    style={[styles.chip, selected && styles.chipSelected, { borderColor: selected ? COLORS.primary : theme.border, backgroundColor: selected ? COLORS.primary : theme.card }]}
+                    onPress={() => setBreakStyle(selected ? '' : b.id)}
+                    activeOpacity={0.75}
+                  >
+                    <Text style={[styles.chipLabel, { color: selected ? '#fff' : theme.text }]}>{b.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            {breakStyle && (
+              <Text style={[styles.multiHint, { color: theme.muted, marginTop: 4 }]}>
+                {BREAK_STYLES.find((b) => b.id === breakStyle)?.hint}
+              </Text>
+            )}
+          </FormSection>
+
+          {/* Distraction triggers */}
+          <FormSection title="What pulls you off track most?">
+            <Text style={[styles.multiHint, { color: theme.muted }]}>
+              Select all that apply. Adds tailored apps to the block-suggestions below.
+            </Text>
+            <View style={styles.chipGrid}>
+              {DISTRACTION_TRIGGERS.map((t) => {
+                const selected = triggers.includes(t.id);
+                return (
+                  <TouchableOpacity
+                    key={t.id}
+                    style={[styles.chip, selected && styles.chipSelected, { borderColor: selected ? COLORS.primary : theme.border, backgroundColor: selected ? COLORS.primary : theme.card }]}
+                    onPress={() => setTriggers((prev) => prev.includes(t.id) ? prev.filter((x) => x !== t.id) : [...prev, t.id])}
+                    activeOpacity={0.75}
+                  >
+                    <Ionicons name={t.icon as any} size={15} color={selected ? '#fff' : theme.muted} />
+                    <Text style={[styles.chipLabel, { color: selected ? '#fff' : theme.text }]}>{t.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </FormSection>
+
+          {/* Motivation style */}
+          <FormSection title="What motivates you?">
+            <Text style={[styles.multiHint, { color: theme.muted }]}>
+              We'll lean into the styles you pick across the app.
+            </Text>
+            <View style={styles.chipGrid}>
+              {MOTIVATION_STYLES.map((m) => {
+                const selected = motivation.includes(m.id);
+                return (
+                  <TouchableOpacity
+                    key={m.id}
+                    style={[styles.chip, selected && styles.chipSelected, { borderColor: selected ? COLORS.primary : theme.border, backgroundColor: selected ? COLORS.primary : theme.card }]}
+                    onPress={() => setMotivation((prev) => prev.includes(m.id) ? prev.filter((x) => x !== m.id) : [...prev, m.id])}
+                    activeOpacity={0.75}
+                  >
+                    <Ionicons name={m.icon as any} size={15} color={selected ? '#fff' : theme.muted} />
+                    <Text style={[styles.chipLabel, { color: selected ? '#fff' : theme.text }]}>{m.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </FormSection>
+
+          {/* Weekly review day */}
+          <FormSection title="Weekly review day">
+            <Text style={[styles.multiHint, { color: theme.muted }]}>
+              We'll send a recap of your week on this day.
+            </Text>
+            <View style={styles.chipRow}>
+              {REVIEW_DAYS.map((d) => {
+                const selected = reviewDay === d.id;
+                return (
+                  <TouchableOpacity
+                    key={d.id}
+                    style={[styles.chip, selected && styles.chipSelected, { borderColor: selected ? COLORS.primary : theme.border, backgroundColor: selected ? COLORS.primary : theme.card }]}
+                    onPress={() => setReviewDay(selected ? '' : d.id)}
+                    activeOpacity={0.75}
+                  >
+                    <Text style={[styles.chipLabel, { color: selected ? '#fff' : theme.text }]}>{d.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </FormSection>
+
           {/* App block suggestions — shown when occupation or goals are set */}
           {suggestedApps.length > 0 && (
             <FormSection title="Apps to consider blocking">
@@ -666,6 +865,69 @@ export default function UserProfileScreen() {
               label="Name"
               value={name || 'Not set'}
               detail={name ? 'Used in your morning digest greeting and journey panel.' : 'Add a name to personalise your morning digest.'}
+              theme={theme}
+            />
+            <UsageRow
+              icon="moon-outline"
+              label="Sleep time"
+              value={sleepTime ? formatTimeId(sleepTime) : 'Not set'}
+              detail={sleepTime
+                ? 'Defines your available focus window with wake time, and powers a future wind-down nudge.'
+                : 'Add a sleep time to define your day\'s focus window.'}
+              theme={theme}
+            />
+            <UsageRow
+              icon="sunny-outline"
+              label="Best focus time"
+              value={chronotype ? labelForChronotype(chronotype) : 'Not set'}
+              detail={chronotype
+                ? 'Used to suggest the best slots when you create new tasks.'
+                : 'Tell us when you focus best for smarter task scheduling.'}
+              theme={theme}
+            />
+            <UsageRow
+              icon="hourglass-outline"
+              label="Ideal focus block"
+              value={focusLength ? `${focusLength} min` : 'Not set'}
+              detail={focusLength
+                ? 'Used as the default duration for new tasks and Pomodoro sessions.'
+                : 'Pick a length and we\'ll use it as your default for new tasks.'}
+              theme={theme}
+            />
+            <UsageRow
+              icon="pause-circle-outline"
+              label="Break style"
+              value={breakStyle ? (BREAK_STYLES.find((b) => b.id === breakStyle)?.label ?? '') : 'Not set'}
+              detail={breakStyle
+                ? `Sets your Pomodoro break length (${BREAK_STYLES.find((b) => b.id === breakStyle)?.mins ?? 0} min).`
+                : 'Pick a style to set your default Pomodoro break length.'}
+              theme={theme}
+            />
+            <UsageRow
+              icon="ban-outline"
+              label="Distraction triggers"
+              value={triggers.length > 0 ? `${triggers.length} selected` : 'None'}
+              detail={triggers.length > 0
+                ? 'Adds tailored apps to your block-suggestions list above.'
+                : 'Pick triggers (social, video, games…) for tailored block suggestions.'}
+              theme={theme}
+            />
+            <UsageRow
+              icon="trophy-outline"
+              label="Motivation style"
+              value={motivation.length > 0 ? `${motivation.length} selected` : 'None'}
+              detail={motivation.length > 0
+                ? 'Drives which gamification (streaks, charts, milestones, quotes) we surface most.'
+                : 'Pick what motivates you so we lean into it across the app.'}
+              theme={theme}
+            />
+            <UsageRow
+              icon="calendar-outline"
+              label="Weekly review day"
+              value={reviewDay ? labelForDay(reviewDay) : 'Not set'}
+              detail={reviewDay
+                ? 'A weekly recap notification will fire on this day.'
+                : 'Pick a day to receive your weekly recap.'}
               theme={theme}
               isLast
             />
@@ -779,6 +1041,24 @@ function formatWake(id: string): string {
 
 function labelFor(items: { id: string; label: string }[], id: string): string {
   return items.find((i) => i.id === id)?.label ?? id;
+}
+
+// Generic "HH:MM" → friendly label fallback used by sleep time and any other
+// time fields that don't have a dedicated lookup table.
+function formatTimeId(id: string): string {
+  const fromSleep = SLEEP_TIMES.find((t) => t.id === id)?.label;
+  if (fromSleep) return fromSleep;
+  const fromWake = WAKE_UP_TIMES.find((t) => t.id === id)?.label;
+  if (fromWake) return fromWake;
+  return id;
+}
+
+function labelForChronotype(id: NonNullable<UserProfile['chronotype']>): string {
+  return CHRONOTYPES.find((c) => c.id === id)?.label ?? id;
+}
+
+function labelForDay(id: NonNullable<UserProfile['weeklyReviewDay']>): string {
+  return REVIEW_DAYS.find((d) => d.id === id)?.label ?? id;
 }
 
 // ── Styles ────────────────────────────────────────────────────────────────────
