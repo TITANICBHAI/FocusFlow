@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useTheme } from '@/hooks/useTheme';
-import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
+import { COLORS, RADIUS, SPACING } from '@/styles/theme';
 
 type Entry = {
   version: string;
@@ -357,7 +357,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   backBtn: { width: 40, alignItems: 'flex-start' },
-  topTitle: { fontSize: 17, fontFamily: FONT.semiBold, letterSpacing: 0.2 },
+  topTitle: { fontSize: 17, fontWeight: '600', letterSpacing: 0.2 },
   content: { padding: SPACING.md, paddingBottom: 48 },
   header: { alignItems: 'center', marginBottom: SPACING.lg },
   logoCircle: {
@@ -369,8 +369,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 14,
   },
-  title: { fontSize: 24, fontFamily: FONT.bold, marginBottom: 6 },
-  subtitle: { fontSize: 14, fontFamily: FONT.regular, textAlign: 'center', lineHeight: 20 },
+  title: { fontSize: 24, fontWeight: '700', marginBottom: 6 },
+  subtitle: { fontSize: 14, fontWeight: '400', textAlign: 'center', lineHeight: 20 },
   card: {
     borderRadius: RADIUS.lg,
     borderWidth: StyleSheet.hairlineWidth,
@@ -385,13 +385,13 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     marginRight: 10,
   },
-  versionText: { color: '#fff', fontSize: 13, fontFamily: FONT.bold },
-  dateText: { fontSize: 13, fontFamily: FONT.regular },
+  versionText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+  dateText: { fontSize: 13, fontWeight: '400' },
   section: { marginTop: SPACING.sm },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
-  sectionTitle: { fontSize: 14, fontFamily: FONT.semiBold },
+  sectionTitle: { fontSize: 14, fontWeight: '600' },
   itemRow: { flexDirection: 'row', marginBottom: 4, paddingLeft: 4 },
   bullet: { fontSize: 14, marginRight: 6, lineHeight: 20 },
-  itemText: { fontSize: 13, fontFamily: FONT.regular, lineHeight: 20, flex: 1 },
+  itemText: { fontSize: 13, fontWeight: '400', lineHeight: 20, flex: 1 },
   footer: { textAlign: 'center', fontSize: 12, marginTop: 8 },
 });
