@@ -130,6 +130,10 @@ export default function UserProfileScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation();
   const isEditMode = navigation.canGoBack(); // came from settings — back is available
+  // When opened from Settings the screen starts in read-only "view" mode and
+  // the user has to tap the Edit pencil in the top bar to start editing.
+  // During onboarding everything is editable from the first frame.
+  const [isEditing, setIsEditing] = useState(!isEditMode);
 
   const existing = state.settings.userProfile ?? {};
   const [name, setName]           = useState(existing.name ?? '');
@@ -292,7 +296,12 @@ export default function UserProfileScreen() {
               <Text style={styles.skipText}>Skip</Text>
             </TouchableOpacity>
           )}
-          {isEditMode && <View style={{ width: 40 }} />}
+          {isEditMode && !isEditing && (
+            <TouchableOpacity onPress={() => setIsEditing(true)} style={styles.iconBtn} hitSlop={12}>
+              <Ionicons name="create-outline" size={22} color={COLORS.primary} />
+            </TouchableOpacity>
+          )}
+          {isEditMode && isEditing && <View style={{ width: 40 }} />}
         </View>
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
@@ -368,6 +377,12 @@ export default function UserProfileScreen() {
               )}
             </View>
           )}
+
+          {/* All editable form sections live inside this wrapper.  When the
+              user is in view-mode (opened from Settings, hasn't tapped Edit),
+              pointerEvents='none' lets touches fall through to the ScrollView
+              so scrolling still works but no field can be tapped. */}
+          <View pointerEvents={isEditing ? 'auto' : 'none'} style={{ opacity: isEditing ? 1 : 0.55, gap: SPACING.xl }}>
 
           {/* Name */}
           <FormSection title="What's your name?">
@@ -635,6 +650,9 @@ export default function UserProfileScreen() {
             </View>
           </FormSection>
 
+          </View>
+          {/* /editable-form-wrapper */}
+
           {/* "How your profile is used" — shows the user exactly which parts
               of the app react to each profile field, so the form doesn't feel
               like a black hole of preferences. Always rendered. */}
@@ -756,17 +774,21 @@ export default function UserProfileScreen() {
             />
           </View>
 
-          {/* Save button */}
-          <TouchableOpacity
-            style={[styles.saveBtn, saving && { opacity: 0.7 }]}
-            onPress={handleSave}
-            activeOpacity={0.85}
-            disabled={saving}
-          >
-            <Text style={styles.saveBtnText}>
-              {saving ? 'Saving…' : isEditMode ? 'Save Changes' : 'Save & Continue →'}
-            </Text>
-          </TouchableOpacity>
+          {/* Save button — only shown while the form is editable.  In view
+              mode (opened from Settings, Edit pencil not yet tapped) we hide
+              it so the screen reads as a profile summary rather than a form. */}
+          {isEditing && (
+            <TouchableOpacity
+              style={[styles.saveBtn, saving && { opacity: 0.7 }]}
+              onPress={handleSave}
+              activeOpacity={0.85}
+              disabled={saving}
+            >
+              <Text style={styles.saveBtnText}>
+                {saving ? 'Saving…' : isEditMode ? 'Save Changes' : 'Save & Continue →'}
+              </Text>
+            </TouchableOpacity>
+          )}
 
           {!isEditMode && (
             <TouchableOpacity onPress={handleSkip} activeOpacity={0.7} style={styles.skipLink}>

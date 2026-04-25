@@ -272,6 +272,30 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
         promise.resolve(null)
     }
 
+    @ReactMethod
+    fun setBlockInstallActionsEnabled(enabled: Boolean, promise: Promise) {
+        prefs().edit()
+            .putBoolean(AppBlockerAccessibilityService.PREF_BLOCK_INSTALL_ACTIONS, enabled)
+            .apply()
+        promise.resolve(null)
+    }
+
+    @ReactMethod
+    fun setBlockYoutubeShortsEnabled(enabled: Boolean, promise: Promise) {
+        prefs().edit()
+            .putBoolean(AppBlockerAccessibilityService.PREF_BLOCK_YT_SHORTS, enabled)
+            .apply()
+        promise.resolve(null)
+    }
+
+    @ReactMethod
+    fun setBlockInstagramReelsEnabled(enabled: Boolean, promise: Promise) {
+        prefs().edit()
+            .putBoolean(AppBlockerAccessibilityService.PREF_BLOCK_IG_REELS, enabled)
+            .apply()
+        promise.resolve(null)
+    }
+
     /**
      * Writes the rich daily allowance config JSON to SharedPreferences.
      * Format: JSON array of DailyAllowanceEntry objects with fields:

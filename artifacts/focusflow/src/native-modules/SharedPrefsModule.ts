@@ -117,6 +117,21 @@ export const SharedPrefsModule = {
     return SharedPrefs.setSystemGuardEnabled(enabled);
   },
 
+  async setBlockInstallActionsEnabled(enabled: boolean): Promise<void> {
+    if (!hasSharedPrefsMethod('setBlockInstallActionsEnabled')) return;
+    return SharedPrefs.setBlockInstallActionsEnabled(enabled);
+  },
+
+  async setBlockYoutubeShortsEnabled(enabled: boolean): Promise<void> {
+    if (!hasSharedPrefsMethod('setBlockYoutubeShortsEnabled')) return;
+    return SharedPrefs.setBlockYoutubeShortsEnabled(enabled);
+  },
+
+  async setBlockInstagramReelsEnabled(enabled: boolean): Promise<void> {
+    if (!hasSharedPrefsMethod('setBlockInstagramReelsEnabled')) return;
+    return SharedPrefs.setBlockInstagramReelsEnabled(enabled);
+  },
+
   async putString(key: string, value: string): Promise<void> {
     if (!hasSharedPrefsMethod('putString')) return;
     return SharedPrefs.putString(key, value);

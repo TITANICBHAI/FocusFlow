@@ -129,6 +129,9 @@ const defaultSettings: AppSettings = {
   weeklyReportEnabled: false,
   greyoutSchedule: [],
   systemGuardEnabled: true,
+  blockInstallActionsEnabled: false,
+  blockYoutubeShortsEnabled: false,
+  blockInstagramReelsEnabled: false,
   overlayWallpaper: '',
   overlayQuotes: [],
   customNodeRules: [],
@@ -497,6 +500,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       await SharedPrefsModule.setSystemGuardEnabled(settings.systemGuardEnabled ?? true);
     } catch (e) {
       void logger.warn('AppContext', `system guard sync failed: ${String(e)}`);
+    }
+    try {
+      await SharedPrefsModule.setBlockInstallActionsEnabled(settings.blockInstallActionsEnabled ?? false);
+    } catch (e) {
+      void logger.warn('AppContext', `install-actions guard sync failed: ${String(e)}`);
+    }
+    try {
+      await SharedPrefsModule.setBlockYoutubeShortsEnabled(settings.blockYoutubeShortsEnabled ?? false);
+    } catch (e) {
+      void logger.warn('AppContext', `youtube-shorts guard sync failed: ${String(e)}`);
+    }
+    try {
+      await SharedPrefsModule.setBlockInstagramReelsEnabled(settings.blockInstagramReelsEnabled ?? false);
+    } catch (e) {
+      void logger.warn('AppContext', `instagram-reels guard sync failed: ${String(e)}`);
     }
   }
 

@@ -30,6 +30,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   weeklyReportEnabled: false,
   greyoutSchedule: [],
   systemGuardEnabled: true,
+  blockInstallActionsEnabled: false,
+  blockYoutubeShortsEnabled: false,
+  blockInstagramReelsEnabled: false,
   customNodeRules: [],
   recurringBlockSchedules: [],
 };

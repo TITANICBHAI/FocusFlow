@@ -149,6 +149,39 @@ function SettingsScreen() {
     await update({ systemGuardEnabled: enabled });
   };
 
+  const handleBlockInstallActionsToggle = async (enabled: boolean) => {
+    if (!enabled && blockProtectionActive) {
+      Alert.alert(
+        'Protection is active',
+        'Install / uninstall protection cannot be turned off while Focus Mode or an app block is active.',
+      );
+      return;
+    }
+    await update({ blockInstallActionsEnabled: enabled });
+  };
+
+  const handleBlockYoutubeShortsToggle = async (enabled: boolean) => {
+    if (!enabled && blockProtectionActive) {
+      Alert.alert(
+        'Protection is active',
+        'YouTube Shorts protection cannot be turned off while Focus Mode or an app block is active.',
+      );
+      return;
+    }
+    await update({ blockYoutubeShortsEnabled: enabled });
+  };
+
+  const handleBlockInstagramReelsToggle = async (enabled: boolean) => {
+    if (!enabled && blockProtectionActive) {
+      Alert.alert(
+        'Protection is active',
+        'Instagram Reels protection cannot be turned off while Focus Mode or an app block is active.',
+      );
+      return;
+    }
+    await update({ blockInstagramReelsEnabled: enabled });
+  };
+
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
       <View style={[styles.header, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
@@ -305,6 +338,57 @@ function SettingsScreen() {
               disabled={blockProtectionActive && (settings.systemGuardEnabled ?? true)}
               trackColor={{ false: COLORS.border, true: COLORS.primary + '88' }}
               thumbColor={(settings.systemGuardEnabled ?? true) ? COLORS.primary : COLORS.muted}
+            />
+          </SettingRow>
+
+          <SettingRow
+            label="Block install / uninstall actions"
+            description={
+              blockProtectionActive && (settings.blockInstallActionsEnabled ?? false)
+                ? 'Locked on until Focus Mode or the active app block ends'
+                : 'Intercepts Play Store install / update and any uninstall confirmation dialogs during active blocks'
+            }
+          >
+            <Switch
+              value={settings.blockInstallActionsEnabled ?? false}
+              onValueChange={handleBlockInstallActionsToggle}
+              disabled={blockProtectionActive && (settings.blockInstallActionsEnabled ?? false)}
+              trackColor={{ false: COLORS.border, true: COLORS.primary + '88' }}
+              thumbColor={(settings.blockInstallActionsEnabled ?? false) ? COLORS.primary : COLORS.muted}
+            />
+          </SettingRow>
+
+          <SettingRow
+            label="Block YouTube Shorts"
+            description={
+              blockProtectionActive && (settings.blockYoutubeShortsEnabled ?? false)
+                ? 'Locked on until Focus Mode or the active app block ends'
+                : 'Redirects to home whenever the YouTube Shorts player opens (regular YouTube stays usable)'
+            }
+          >
+            <Switch
+              value={settings.blockYoutubeShortsEnabled ?? false}
+              onValueChange={handleBlockYoutubeShortsToggle}
+              disabled={blockProtectionActive && (settings.blockYoutubeShortsEnabled ?? false)}
+              trackColor={{ false: COLORS.border, true: COLORS.primary + '88' }}
+              thumbColor={(settings.blockYoutubeShortsEnabled ?? false) ? COLORS.primary : COLORS.muted}
+            />
+          </SettingRow>
+
+          <SettingRow
+            label="Block Instagram Reels"
+            description={
+              blockProtectionActive && (settings.blockInstagramReelsEnabled ?? false)
+                ? 'Locked on until Focus Mode or the active app block ends'
+                : 'Redirects to home whenever the Instagram Reels viewer opens (the rest of Instagram stays usable)'
+            }
+          >
+            <Switch
+              value={settings.blockInstagramReelsEnabled ?? false}
+              onValueChange={handleBlockInstagramReelsToggle}
+              disabled={blockProtectionActive && (settings.blockInstagramReelsEnabled ?? false)}
+              trackColor={{ false: COLORS.border, true: COLORS.primary + '88' }}
+              thumbColor={(settings.blockInstagramReelsEnabled ?? false) ? COLORS.primary : COLORS.muted}
             />
           </SettingRow>
         </Section>

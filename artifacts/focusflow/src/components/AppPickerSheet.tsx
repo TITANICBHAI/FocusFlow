@@ -249,27 +249,25 @@ export function AppPickerSheet({
     });
   }, [selected, removePkg]);
 
+  // Pre-computed set of installed sensitive packages (launcher, dialer,
+  // Settings, Play Services, FocusFlow, etc.). Bulk operations keep these
+  // *allowed* so the device stays usable mid-session — without this guard
+  // a single tap on "Deselect All" can soft-brick the phone.
+  const sensitiveInstalled = useMemo(
+    () => new Set(apps.map((a) => a.packageName).filter((p) => SENSITIVE_APPS.has(p))),
+    [apps],
+  );
+
   const selectAll = useCallback(() => {
     setSelected(new Set(apps.map((a) => a.packageName)));
   }, [apps]);
 
   const deselectAll = useCallback(() => {
-    const sensitivePresent = apps
-      .map((a) => a.packageName)
-      .filter((p) => SENSITIVE_APPS.has(p) && selected.has(p));
-    if (sensitivePresent.length > 0) {
-      Alert.alert(
-        'Block all apps?',
-        `This will also block ${sensitivePresent.length} sensitive app${sensitivePresent.length === 1 ? '' : 's'} (launcher, dialer, Settings, etc.). The device may become hard to use until the session ends.`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Block everything', style: 'destructive', onPress: () => setSelected(new Set()) },
-        ],
-      );
-      return;
-    }
-    setSelected(new Set());
-  }, [apps, selected]);
+    // Keep sensitive apps allowed — they are protected by design.  If the
+    // user really wants to block one of them they can untick it manually
+    // (the per-app toggle still surfaces the warning dialog).
+    setSelected(new Set(sensitiveInstalled));
+  }, [sensitiveInstalled]);
 
   const applyPreset = useCallback(
     (preset: AllowedAppPreset) => {
@@ -277,13 +275,17 @@ export function AppPickerSheet({
         // [] sentinel → all apps allowed
         setSelected(new Set(apps.map((a) => a.packageName)));
       } else if (preset.packages.includes('__block_all__')) {
-        // '__block_all__' sentinel → block everything (none selected)
-        setSelected(new Set());
+        // '__block_all__' sentinel → block everything *except* sensitive
+        // apps. Same protection as the Deselect-All button so a saved
+        // "Block all" preset cannot accidentally lock the user out.
+        setSelected(new Set(sensitiveInstalled));
       } else {
-        setSelected(new Set(preset.packages));
+        // Honour the explicit preset list, but always keep sensitives
+        // allowed regardless of how the preset was authored.
+        setSelected(new Set([...preset.packages, ...sensitiveInstalled]));
       }
     },
-    [apps],
+    [apps, sensitiveInstalled],
   );
 
   const confirmDeletePreset = useCallback(
@@ -296,32 +298,43 @@ export function AppPickerSheet({
     [onDeletePreset],
   );
 
+  // "Effectively none selected" = no real user-pickable apps remain — only
+  // sensitive system apps that the picker keeps allowed for safety. This is
+  // what the user means when they tap Deselect All and we treat it as the
+  // "block everything" save state.
+  const onlySensitivesSelected =
+    apps.length > 0 &&
+    selected.size > 0 &&
+    selected.size === sensitiveInstalled.size &&
+    Array.from(selected).every((p) => sensitiveInstalled.has(p));
+
   const handleSavePreset = useCallback(() => {
     const name = presetName.trim();
     if (!name) return;
     const allChecked = apps.length > 0 && selected.size === apps.length;
-    const noneSelected = apps.length > 0 && selected.size === 0;
-    const packages = allChecked ? [] : noneSelected ? ['__block_all__'] : Array.from(selected);
+    const blockAll = apps.length > 0 && (selected.size === 0 || onlySensitivesSelected);
+    const packages = allChecked ? [] : blockAll ? ['__block_all__'] : Array.from(selected);
     onSavePreset({ id: Date.now().toString(), name, packages });
     setShowPresetInput(false);
     setPresetName('');
-  }, [presetName, selected, apps, onSavePreset]);
+  }, [presetName, selected, apps, onSavePreset, onlySensitivesSelected]);
 
   const handleSave = useCallback(() => {
     // all checked  → [] sentinel (all apps allowed, no blocking)
-    // none checked → ['__block_all__'] sentinel (all apps blocked)
-    //   The AccessibilityService checks: allowedList.isNotEmpty() && pkg not in allowedList → block.
-    //   '__block_all__' is not a real package so every real app gets blocked.
+    // block-all    → ['__block_all__'] sentinel (everything except sensitive
+    //                apps is blocked).  Sensitive apps are always passed
+    //                through by the AccessibilityService anyway, so the
+    //                stored allow-list does not need to include them.
     // some checked → explicit allow-list (only those apps pass through during Focus)
     const allChecked = apps.length > 0 && selected.size === apps.length;
-    const noneSelected = apps.length > 0 && selected.size === 0;
-    const packages = allChecked ? [] : noneSelected ? ['__block_all__'] : Array.from(selected);
+    const blockAll = apps.length > 0 && (selected.size === 0 || onlySensitivesSelected);
+    const packages = allChecked ? [] : blockAll ? ['__block_all__'] : Array.from(selected);
     onSave(packages);
     onClose();
-  }, [selected, apps, onSave, onClose]);
+  }, [selected, apps, onSave, onClose, onlySensitivesSelected]);
 
   const allChecked = apps.length > 0 && selected.size === apps.length;
-  const noneSelected = apps.length > 0 && selected.size === 0;
+  const noneSelected = apps.length > 0 && (selected.size === 0 || onlySensitivesSelected);
 
   const renderApp = ({ item }: { item: InstalledApp }) => {
     const checked = selected.has(item.packageName);
@@ -446,23 +459,37 @@ export function AppPickerSheet({
         )}
       </View>
 
-      {/* Select All / Deselect All + count */}
+      {/* Select All / Deselect All + count.  Both buttons are always
+          visible so the user can jump from any state to "allow all" or
+          "block all" in a single tap (no more two-tap toggle dance). */}
       <View style={styles.controlRow}>
         <Text style={styles.countText}>
           {allChecked
             ? `All ${apps.length} apps allowed`
             : noneSelected
-            ? 'All apps blocked'
+            ? `All apps blocked · ${sensitiveInstalled.size} sensitive kept allowed`
             : `${selected.size} of ${apps.length} allowed`}
         </Text>
-        <TouchableOpacity
-          onPress={allChecked ? deselectAll : selectAll}
-          style={styles.selectAllBtn}
-        >
-          <Text style={styles.selectAllText}>
-            {allChecked ? 'Deselect All' : 'Select All'}
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.controlBtnRow}>
+          <TouchableOpacity
+            onPress={selectAll}
+            style={[styles.selectAllBtn, allChecked && styles.selectAllBtnDisabled]}
+            disabled={allChecked}
+          >
+            <Text style={[styles.selectAllText, allChecked && styles.selectAllTextDisabled]}>
+              Select All
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={deselectAll}
+            style={[styles.selectAllBtn, noneSelected && styles.selectAllBtnDisabled]}
+            disabled={noneSelected}
+          >
+            <Text style={[styles.selectAllText, noneSelected && styles.selectAllTextDisabled]}>
+              Deselect All
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Search bar */}
@@ -674,11 +701,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginTop: SPACING.md,
+    gap: SPACING.sm,
+    flexWrap: 'wrap',
+  },
+  controlBtnRow: {
+    flexDirection: 'row',
+    gap: SPACING.xs,
   },
   countText: {
     fontSize: FONT.sm,
     color: COLORS.textSecondary,
     fontWeight: '500',
+    flexShrink: 1,
   },
   selectAllBtn: {
     paddingVertical: SPACING.xs,
@@ -688,10 +722,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
   },
+  selectAllBtnDisabled: {
+    opacity: 0.4,
+  },
   selectAllText: {
     fontSize: FONT.sm,
     color: COLORS.primary,
     fontWeight: '600',
+  },
+  selectAllTextDisabled: {
+    color: COLORS.muted,
   },
   searchBar: {
     flexDirection: 'row',

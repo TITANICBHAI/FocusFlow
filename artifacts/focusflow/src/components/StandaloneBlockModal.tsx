@@ -41,10 +41,13 @@ interface AppCategory {
 //   • Home launchers → no way back to home screen (soft brick)
 //   • SystemUI → status bar / quick settings disappear (device unusable without ADB)
 //   • Phone/dialer → user cannot dial 112 / 911 in an emergency
-//   • Settings → cannot open Android Settings to revoke or adjust permissions
 //   • Google Play Services → nearly all apps crash or fail authentication
 //   • Package installers → OTA updates silently fail
 //   • Digital wallets → user stranded at payment terminal
+//
+// Note: Android Settings IS allowed in the standalone block list — the user
+// has explicitly asked to be able to block it.  AppPickerSheet still surfaces
+// it as a sensitive category with a warning before adding it to the list.
 
 const SYSTEM_NEVER_BLOCK = new Set([
   'com.android.launcher', 'com.android.launcher2', 'com.android.launcher3',
@@ -60,7 +63,6 @@ const SYSTEM_NEVER_BLOCK = new Set([
   'com.android.phone', 'com.android.server.telecom',
   'com.samsung.android.incallui', 'com.google.android.dialer',
   'com.google.android.apps.googledialer',
-  'com.android.settings', 'com.sec.android.app.SecSetupWizard',
   'com.google.android.gms',
   'com.android.packageinstaller', 'com.google.android.packageinstaller',
   'com.samsung.android.packageinstaller',

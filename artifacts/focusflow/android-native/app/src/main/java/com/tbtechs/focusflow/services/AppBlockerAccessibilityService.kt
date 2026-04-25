@@ -89,6 +89,12 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         const val PREF_BLOCKED_WORDS = "blocked_words"
         const val PREF_SYSTEM_GUARD_ENABLED = "system_guard_enabled"
 
+        // Content-specific guard flags (opt-in). Each follows the same enforcement
+        // pattern as PREF_SYSTEM_GUARD_ENABLED: gated by (focusActive || saActive).
+        const val PREF_BLOCK_INSTALL_ACTIONS = "block_install_actions"   // Play Store / packageinstaller install/update/uninstall confirmations
+        const val PREF_BLOCK_YT_SHORTS       = "block_yt_shorts"          // YouTube Shorts player (YouTube otherwise allowed)
+        const val PREF_BLOCK_IG_REELS        = "block_ig_reels"           // Instagram Reels / clips viewer (Instagram otherwise allowed)
+
         /**
          * JSON array of CustomNodeRule objects imported from NodeSpy NodeSpyCaptureV1 exports.
          * Each rule has: id, label, pkg, matchResId?, matchText?, matchCls?, action ("overlay"|"home")
@@ -405,6 +411,9 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             }
         }
         val systemGuardEnabled = prefs.getBoolean(PREF_SYSTEM_GUARD_ENABLED, true)
+        val blockInstallActions = prefs.getBoolean(PREF_BLOCK_INSTALL_ACTIONS, false)
+        val blockYoutubeShorts  = prefs.getBoolean(PREF_BLOCK_YT_SHORTS, false)
+        val blockInstagramReels = prefs.getBoolean(PREF_BLOCK_IG_REELS, false)
 
         // ── Cooldown reset: fired when user taps ✕ to dismiss the overlay ───
         // BlockOverlayActivity writes this flag on intentional dismiss so the
@@ -628,6 +637,29 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                 }
             }
             return
+        }
+
+        // ── Content-specific guards ──────────────────────────────────────────
+        // Each toggle is opt-in. They run during any active block session
+        // (focusActive || saActive) for the relevant package only.
+        //
+        //   • blockInstallActions  — Play Store / packageinstaller install,
+        //                            update, and uninstall confirmation dialogs.
+        //   • blockYoutubeShorts   — YouTube Shorts player (rest of YouTube OK).
+        //   • blockInstagramReels  — Instagram Reels / clips viewer (rest of IG OK).
+        if (focusActive || saActive) {
+            if (blockInstallActions && isInstallActionContext(ev, pkg)) {
+                handleBlockedApp(pkg)
+                return
+            }
+            if (blockYoutubeShorts && pkg == "com.google.android.youtube" && isYoutubeShorts(ev)) {
+                handleBlockedApp(pkg)
+                return
+            }
+            if (blockInstagramReels && pkg == "com.instagram.android" && isInstagramReels(ev)) {
+                handleBlockedApp(pkg)
+                return
+            }
         }
 
         // ── Word blocking ─────────────────────────────────────────────────────
@@ -2425,6 +2457,168 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                 }
             }
         }
+    }
+
+    /**
+     * Returns true when the current window represents an install / update / uninstall
+     * confirmation flow that originates from the Play Store, the system package
+     * installer (any OEM), or an OEM "App ops" Settings page surfacing the same dialog.
+     *
+     * Detection is multi-signal to minimise false positives:
+     *   1. Package must be Play Store, packageinstaller (any OEM), or Settings.
+     *   2. Either the activity class name OR the visible text must contain a confirm
+     *      keyword ("install", "update", "uninstall", "remove app", "delete app").
+     *
+     * Intentionally does NOT block ordinary Play Store browsing — only the actual
+     * "Install" / "Update" / "Uninstall" prompt screens.
+     */
+    private fun isInstallActionContext(event: AccessibilityEvent, pkg: String): Boolean {
+        val installerPkgs = setOf(
+            "com.android.vending",                       // Google Play Store
+            "com.android.packageinstaller",              // AOSP package installer
+            "com.google.android.packageinstaller",       // Google package installer
+            "com.samsung.android.packageinstaller",      // Samsung package installer
+            "com.miui.packageinstaller",                 // MIUI package installer
+            "com.coloros.packageinstaller",              // OPPO / ColorOS
+            "com.oppo.packageinstaller",                 // OPPO legacy
+            "com.huawei.packageinstaller",               // Huawei
+            "com.android.settings",                      // OEM "App info" → Uninstall flows
+            "com.samsung.android.app.settings",
+            "com.samsung.android.settings"
+        )
+        if (pkg !in installerPkgs) return false
+
+        val confirmKeywords = listOf("install", "update", "uninstall", "remove app", "delete app")
+        val className = event.className?.toString()?.lowercase() ?: ""
+        if (confirmKeywords.any { it in className }) return true
+
+        val eventText = buildString {
+            event.text.forEach { append(it); append(' ') }
+            event.contentDescription?.let { append(it); append(' ') }
+        }.lowercase()
+        if (confirmKeywords.any { it in eventText }) return true
+
+        val root = event.source ?: return false
+        return try {
+            val nodeText = collectNodeText(root).lowercase()
+            confirmKeywords.any { it in nodeText }
+        } finally {
+            root.recycle()
+        }
+    }
+
+    /**
+     * Returns true when the YouTube app is currently showing the Shorts player.
+     *
+     * Multi-signal detection (any one is sufficient):
+     *   • Activity / view className contains "shorts" or YouTube's internal "reel" id.
+     *   • Window contains a node with viewIdResourceName matching one of the known
+     *     Shorts player resource ids (reel_recycler / reel_player_page_container).
+     *   • Visible text/contentDescription contains a Shorts-specific phrase.
+     *
+     * Returns false when the user is on the regular YouTube home / search / video
+     * watch page, so blocking Shorts does not break ordinary YouTube usage.
+     */
+    private fun isYoutubeShorts(event: AccessibilityEvent): Boolean {
+        val className = event.className?.toString()?.lowercase() ?: ""
+        if ("shortsactivity" in className || "shorts.activity" in className) return true
+
+        val eventText = buildString {
+            event.text.forEach { append(it); append(' ') }
+            event.contentDescription?.let { append(it); append(' ') }
+        }.lowercase()
+        // "shorts player" / "shorts video" only appear inside the Shorts player itself.
+        if ("shorts player" in eventText || "shorts video" in eventText) return true
+
+        val shortsResIds = listOf(
+            "reel_player_page_container",
+            "reel_recycler",
+            "reel_watch_player",
+            "shorts_video_container",
+            "shorts_player"
+        )
+        val root = event.source ?: return false
+        return try {
+            if (containsAnyResId(root, shortsResIds)) return@try true
+            val nodeText = collectNodeText(root).lowercase()
+            // "Remix" + "Subscribe" + "Shorts" together = Shorts player UI signature.
+            ("shorts" in nodeText && ("remix" in nodeText || "shorts player" in nodeText))
+        } finally {
+            root.recycle()
+        }
+    }
+
+    /**
+     * Returns true when the Instagram app is currently showing the Reels viewer
+     * (full-screen Reels player or the Reels tab).
+     *
+     * Multi-signal detection (any one is sufficient):
+     *   • Activity / view className contains "clips" or "reels" (Instagram's internal
+     *     name for Reels is "clips").
+     *   • Window contains a node with viewIdResourceName matching one of the known
+     *     Reels viewer resource ids (clips_viewer_view_pager / reel_viewer_*).
+     *   • Visible text contains the Reels playback header signature.
+     *
+     * Returns false on the Instagram home feed / DMs / profile / explore grid so
+     * blocking Reels does not break ordinary Instagram usage.
+     */
+    private fun isInstagramReels(event: AccessibilityEvent): Boolean {
+        val className = event.className?.toString()?.lowercase() ?: ""
+        if ("clipsviewer" in className || "reelviewer" in className || "reelsviewer" in className) return true
+
+        val eventText = buildString {
+            event.text.forEach { append(it); append(' ') }
+            event.contentDescription?.let { append(it); append(' ') }
+        }.lowercase()
+        if ("reels player" in eventText) return true
+
+        val reelsResIds = listOf(
+            "clips_viewer_view_pager",
+            "clips_viewer",
+            "reel_viewer_root",
+            "reel_viewer_texture_view",
+            "reels_viewer_root",
+            "clips_video_player"
+        )
+        val root = event.source ?: return false
+        return try {
+            if (containsAnyResId(root, reelsResIds)) return@try true
+            // Final fallback: Reels-only tab/header text combined with a video-player
+            // contentDescription — avoids matching "Reels" mentions on the home feed.
+            val nodeText = collectNodeText(root).lowercase()
+            ("clips" in nodeText && ("video player" in nodeText || "reel" in nodeText))
+        } finally {
+            root.recycle()
+        }
+    }
+
+    /**
+     * Walks the node tree rooted at [root] and returns true if any node's
+     * viewIdResourceName ends with any of the supplied lower-case suffixes.
+     * Suffix match (rather than equality) ignores the package prefix
+     * ("com.google.android.youtube:id/") so matches survive minor rename
+     * variations across app versions.
+     */
+    private fun containsAnyResId(root: AccessibilityNodeInfo, suffixes: List<String>): Boolean {
+        val match = booleanArrayOf(false)
+        fun walk(node: AccessibilityNodeInfo?) {
+            if (node == null || match[0]) return
+            val resId = node.viewIdResourceName?.lowercase()
+            if (resId != null && suffixes.any { resId.endsWith("/$it") || resId == it }) {
+                match[0] = true
+                return
+            }
+            for (i in 0 until node.childCount) {
+                if (match[0]) break
+                val child = node.getChild(i)
+                if (child != null) {
+                    walk(child)
+                    child.recycle()
+                }
+            }
+        }
+        walk(root)
+        return match[0]
     }
 
     private fun collectNodeText(root: AccessibilityNodeInfo): String {

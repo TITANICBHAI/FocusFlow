@@ -155,6 +155,12 @@ export interface AppSettings {
   // Greyout schedule — time-window blocks independent of any focus session
   greyoutSchedule: GreyoutWindow[];
   systemGuardEnabled: boolean;
+  // Content-specific guards — opt-in per category. Behave like systemGuardEnabled:
+  //   • Locked on while Focus Mode or an app block is active (toggle disabled).
+  //   • Enforced by AppBlockerAccessibilityService during focusActive || saActive.
+  blockInstallActionsEnabled: boolean;   // Intercept Play Store / packageinstaller install/update/uninstall confirmation dialogs
+  blockYoutubeShortsEnabled: boolean;    // Intercept the YouTube Shorts player (YouTube itself stays usable)
+  blockInstagramReelsEnabled: boolean;   // Intercept the Instagram Reels player / clips viewer (Instagram itself stays usable)
   // Block overlay appearance
   overlayWallpaper?: string;        // Absolute path to custom background image (empty = use gradient)
   overlayQuotes?: string[];         // Custom quote pool (empty = use built-in quotes)
