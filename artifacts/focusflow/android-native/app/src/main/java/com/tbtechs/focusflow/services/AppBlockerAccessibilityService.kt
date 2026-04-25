@@ -152,6 +152,33 @@ class AppBlockerAccessibilityService : AccessibilityService() {
          * passed through unconditionally before any other check.
          */
         val NEVER_BLOCK: Set<String> = setOf(
+            // ── Home launchers ─────────────────────────────────────────────────
+            // If a launcher is blocked the user has no way to reach the home
+            // screen during a session — pressing HOME just lands back on the
+            // block overlay. This protection cannot be overridden.
+            "com.android.launcher", "com.android.launcher2", "com.android.launcher3",
+            "com.sec.android.app.launcher",            // Samsung OneUI
+            "com.samsung.android.app.launcher",
+            "com.google.android.apps.nexuslauncher",   // Pixel / stock
+            "com.miui.home", "com.miui.launcher",      // Xiaomi / MIUI
+            "com.huawei.android.launcher",             // Huawei / EMUI
+            "com.hihonor.launcher",                    // Honor
+            "com.coloros.launcher",                    // Oppo / ColorOS
+            "com.oppo.launcher",                       // Oppo legacy
+            "com.oneplus.launcher",                    // OnePlus OxygenOS
+            "com.bbk.launcher2", "com.vivo.launcher",  // Vivo
+            "com.iqoo.launcher",                       // iQOO / Funtouch
+            "com.realme.launcher",                     // Realme UI
+            "com.motorola.launcher3",                  // Motorola
+            "com.nothing.launcher",                    // Nothing OS
+            "com.asus.launcher", "com.ZenUI.launcher", // Asus
+            "com.lge.launcher3",                       // LG
+            "com.htc.launcher",                        // HTC
+            "com.sonyericsson.home",                   // Sony Xperia
+            "com.tcl.launcher",                        // TCL
+            "com.nokia.launcher",                      // Nokia
+            "com.infinix.launcher",                    // Infinix
+            "com.transsion.launcher",                  // Transsion / itel / Tecno
             // ── Emergency / in-call UI ────────────────────────────────────────
             "com.android.phone",                       // AOSP telephony
             "com.android.dialer",                      // AOSP dialer
