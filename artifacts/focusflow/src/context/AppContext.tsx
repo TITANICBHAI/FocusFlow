@@ -1106,26 +1106,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // ── Settings ─────────────────────────────────────────────────────────────────
 
   const updateSettings = useCallback(async (settings: AppSettings) => {
+    // Optimistic UI: dispatch first so toggles flip instantly. The DB write
+    // and the half-dozen native bridge syncs below were previously awaited
+    // serially before the dispatch, which made every Switch feel laggy.
+    dispatch({ type: 'SET_SETTINGS', payload: settings });
     try {
       await dbSaveSettings(settings);
-      dispatch({ type: 'SET_SETTINGS', payload: settings });
-      if (state.focusSession !== null) {
-        await SharedPrefsModule.setAllowedPackages(
-          settings.allowedInFocus.filter((p) => p.includes('.')),
-        );
-      }
-      // Always sync standalone block — it works independently of task focus.
-      await _syncStandaloneBlock(settings);
-      // Sync daily allowance packages.
-      await _syncDailyAllowance(settings);
-      // Sync aversion deterrent flags.
-      await _syncAversions(settings);
-      // Sync greyout schedule (combined: user windows + recurring schedule windows).
-      const combinedGreyout = _recurringSchedulesToGreyoutWindows(settings);
-      await GreyoutModule.setSchedule(combinedGreyout).catch((e) =>
-        void logger.warn('AppContext', `greyout sync failed: ${String(e)}`),
-      );
-      await _syncSystemGuard(settings);
+      // Run all native syncs concurrently — they are independent of each other.
+      await Promise.all([
+        state.focusSession !== null
+          ? SharedPrefsModule.setAllowedPackages(
+              settings.allowedInFocus.filter((p) => p.includes('.')),
+            )
+          : Promise.resolve(),
+        _syncStandaloneBlock(settings),
+        _syncDailyAllowance(settings),
+        _syncAversions(settings),
+        GreyoutModule.setSchedule(_recurringSchedulesToGreyoutWindows(settings)).catch((e) =>
+          void logger.warn('AppContext', `greyout sync failed: ${String(e)}`),
+        ),
+        _syncSystemGuard(settings),
+      ]);
     } catch (e) {
       void logger.error('AppContext', `updateSettings failed: ${String(e)}`);
       throw e;
