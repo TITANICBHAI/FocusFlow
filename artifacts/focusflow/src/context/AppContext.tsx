@@ -53,7 +53,7 @@ import { TaskAlarmModule } from '@/native-modules/TaskAlarmModule';
 import { EventBridge } from '@/services/eventBridge';
 import { AversionsModule } from '@/native-modules/AversionsModule';
 import { GreyoutModule } from '@/native-modules/GreyoutModule';
-import { logger } from '@/services/startupLogger';
+import { logBootMarker, logger } from '@/services/startupLogger';
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
@@ -241,6 +241,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   async function init() {
+    // Drop a clear cold-vs-warm boundary before any other log entry from this
+    // session. Cold = first launch since install or last "Clear logs". Warm =
+    // any subsequent relaunch where we still have prior session entries on
+    // disk. Without this marker, every session looks identical in the shared
+    // log file and there's no way to tell which entries belong to which
+    // launch — especially confusing when investigating bugs that only repro
+    // on the second or third app open.
+    try {
+      await logBootMarker();
+    } catch {
+      // Marker is diagnostic only — never let it block init.
+    }
     void logger.info('AppContext', '[STARTUP_BEGIN] init() called');
     dispatch({ type: 'SET_LOADING', payload: true });
     try {

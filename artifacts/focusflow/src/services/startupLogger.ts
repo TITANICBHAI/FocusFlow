@@ -156,6 +156,51 @@ export const logger = {
   error: (tag: string, message: string) => log('ERROR', tag, message),
 };
 
+/**
+ * Per-process boot session ID — generated lazily on first call to
+ * `logBootMarker`. Subsequent calls within the same process reuse the
+ * same ID so a single launch/restart is easy to grep for in the persisted
+ * log file.
+ */
+let bootSessionId: string | null = null;
+
+/**
+ * Append a clearly-tagged boundary line at the start of every app launch.
+ *
+ *   - `[COLD_START …]` when the persisted log is empty (first launch since
+ *     install, or right after the user pressed "Clear logs"). Nothing
+ *     to compare against — this is the very first session in the file.
+ *   - `[WARM_START …]` when the persisted log already has entries. The
+ *     previous session(s) are preserved above this marker so you can scroll
+ *     up to inspect what happened before the app was relaunched.
+ *
+ * The marker also contains a session ID (e.g. `boot-l1c2k3m4`) that's
+ * appended to every other log line in this process's output, making it
+ * trivial to slice the log by session when sharing it.
+ *
+ * Call this once at the very top of AppContext.init(), before any other
+ * logger.* call from app code, so the boundary lands above the rest of
+ * this session's entries.
+ */
+export async function logBootMarker(): Promise<string> {
+  await ensureLoaded();
+  const isWarmStart = memoryLog.length > 0;
+  bootSessionId = `boot-${Date.now().toString(36)}`;
+  const marker = isWarmStart
+    ? `[WARM_START ${bootSessionId}] App relaunched — previous session(s) preserved above this line`
+    : `[COLD_START ${bootSessionId}] First session since install or last log clear`;
+  await log('INFO', 'startupLogger', marker);
+  return bootSessionId;
+}
+
+/**
+ * Returns the boot session ID for the current process, or null if
+ * `logBootMarker` hasn't run yet.
+ */
+export function getBootSessionId(): string | null {
+  return bootSessionId;
+}
+
 /** Return last N entries from the in-memory log (most recent last). */
 export async function getRecentLogs(n = 100): Promise<LogEntry[]> {
   await ensureLoaded();
