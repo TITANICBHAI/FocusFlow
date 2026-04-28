@@ -56,9 +56,10 @@ export async function startFocusMode(
   await dbStartFocusSession(session);
 
   const nextTask = getUpcomingTask([task]);
+  const startMs = new Date(task.startTime).getTime();
   const endMs = new Date(task.endTime).getTime();
 
-  await ForegroundServiceModule.startService(task.id, task.title, endMs, nextTask?.title ?? null);
+  await ForegroundServiceModule.startService(task.id, task.title, startMs, endMs, nextTask?.title ?? null);
   await ForegroundServiceModule.requestBatteryOptimizationExemption();
 
   // Send the user to the home screen so focus mode starts with a clean slate,

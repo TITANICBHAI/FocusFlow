@@ -323,24 +323,26 @@ class BlockOverlayActivity : Activity() {
                 }
             } catch (_: Exception) { }
         } else {
-            // No custom image — show the system wallpaper at 82 % opacity so the
-            // overlay still looks contextual (user recognises their own wallpaper)
-            // while remaining clearly distinct from the home screen.
-            try {
-                val wm = WallpaperManager.getInstance(this)
-                val wallpaperDrawable = wm.drawable
-                if (wallpaperDrawable != null) {
-                    root.addView(ImageView(this).apply {
-                        layoutParams = FrameLayout.LayoutParams(
-                            FrameLayout.LayoutParams.MATCH_PARENT,
-                            FrameLayout.LayoutParams.MATCH_PARENT
-                        )
-                        setImageDrawable(wallpaperDrawable)
-                        scaleType = ImageView.ScaleType.CENTER_CROP
-                        alpha = 0.82f
-                    })
-                }
-            } catch (_: Exception) { }
+            // No custom image — try to show the system (home screen) wallpaper so
+            // the overlay still looks contextual.
+            //
+            // Android 13+ restricts READ_WALLPAPER_INTERNAL to system apps, so
+            // WallpaperManager may return null on newer devices. We try three paths
+            // in order: peekDrawable() → drawable → fallback gradient (already set).
+            val wallpaperDrawable = resolveSystemWallpaper()
+            if (wallpaperDrawable != null) {
+                root.addView(ImageView(this).apply {
+                    layoutParams = FrameLayout.LayoutParams(
+                        FrameLayout.LayoutParams.MATCH_PARENT,
+                        FrameLayout.LayoutParams.MATCH_PARENT
+                    )
+                    setImageDrawable(wallpaperDrawable)
+                    scaleType = ImageView.ScaleType.CENTER_CROP
+                    alpha = 0.82f
+                })
+            }
+            // If both methods return null (Android 13+ permission restriction),
+            // the branded gradient fallback set on `root` above is already in place.
         }
 
         // Dark scrim — keeps text legible regardless of background
@@ -497,6 +499,40 @@ class BlockOverlayActivity : Activity() {
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────────────
+
+    /**
+     * Attempts to retrieve the user's current home-screen wallpaper as a Drawable.
+     *
+     * Android 13+ (API 33) restricts READ_WALLPAPER_INTERNAL to system/privileged apps,
+     * so both WallpaperManager methods may return null on those devices.  We try three
+     * paths in order and return the first non-null result:
+     *
+     *   1. peekDrawable()  — returns a cached copy; no I/O, lower permission requirement.
+     *   2. drawable        — the standard accessor; works on API ≤ 32 for regular apps.
+     *   3. null            — let the caller fall back to the branded gradient.
+     *
+     * Both calls are wrapped individually so a SecurityException from one doesn't
+     * prevent the other from running.
+     */
+    private fun resolveSystemWallpaper(): android.graphics.drawable.Drawable? {
+        val wm = try { WallpaperManager.getInstance(this) } catch (_: Exception) { return null }
+
+        // Path 1: peekDrawable — backed by a cached bitmap, may succeed where
+        // getDrawable fails because it avoids the permission check on some ROMs.
+        try {
+            val peeked = wm.peekDrawable()
+            if (peeked != null) return peeked
+        } catch (_: Exception) { }
+
+        // Path 2: getDrawable — standard path, works on Android ≤ 12.
+        try {
+            val drawn = wm.drawable
+            if (drawn != null) return drawn
+        } catch (_: Exception) { }
+
+        // Path 3: give up — caller will use the branded gradient fallback.
+        return null
+    }
 
     private fun dp(value: Int): Int =
         (value * resources.displayMetrics.density + 0.5f).toInt()

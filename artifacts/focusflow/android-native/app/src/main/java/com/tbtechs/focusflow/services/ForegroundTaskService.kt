@@ -58,6 +58,7 @@ class ForegroundTaskService : Service() {
         const val EXTRA_TASK_ID     = "taskId"
         const val EXTRA_TASK_NAME   = "taskName"
         const val EXTRA_END_MS      = "endTimeMs"
+        const val EXTRA_START_MS    = "startTimeMs"
         const val EXTRA_NEXT_NAME   = "nextName"
 
         private const val PREFS_NAME = "focusday_prefs"
@@ -187,6 +188,11 @@ class ForegroundTaskService : Service() {
     private var nextName: String? = null
     private var isActiveMode: Boolean = false
 
+    /** Wall-clock ms when this service process first called onCreate(). Used
+     *  by the idle notification chronometer so it always counts up from when
+     *  monitoring started, not from when the latest goIdle() was called. */
+    private var serviceStartMs: Long = 0L
+
     // ── Fallback blocker state (used only when accessibility is not granted) ──
     private lateinit var blockPrefs: SharedPreferences
     private var fallbackLastBlockedPkg: String? = null
@@ -306,6 +312,7 @@ class ForegroundTaskService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        serviceStartMs = System.currentTimeMillis()
         blockPrefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, buildIdleNotification())
@@ -330,10 +337,11 @@ class ForegroundTaskService : Service() {
                 return START_STICKY
             }
             else -> {
-                val id    = intent?.getStringExtra(EXTRA_TASK_ID)
-                val name  = intent?.getStringExtra(EXTRA_TASK_NAME)
-                val endMs = intent?.getLongExtra(EXTRA_END_MS, 0L) ?: 0L
-                val next  = intent?.getStringExtra(EXTRA_NEXT_NAME)
+                val id      = intent?.getStringExtra(EXTRA_TASK_ID)
+                val name    = intent?.getStringExtra(EXTRA_TASK_NAME)
+                val endMs   = intent?.getLongExtra(EXTRA_END_MS, 0L) ?: 0L
+                val startMs = intent?.getLongExtra(EXTRA_START_MS, 0L) ?: 0L
+                val next    = intent?.getStringExtra(EXTRA_NEXT_NAME)
 
                 if (name != null && endMs > 0L) {
                     taskId    = id ?: ""
@@ -346,7 +354,9 @@ class ForegroundTaskService : Service() {
                     // a +15m / +30m extend) — preserve the original startTimeMs so the
                     // notification progress bar continues from where it was, not from 0%.
                     if (!isActiveMode) {
-                        startTimeMs  = System.currentTimeMillis()
+                        // Prefer the actual task startTime from the JS layer (EXTRA_START_MS).
+                        // Fall back to System.currentTimeMillis() only when not provided.
+                        startTimeMs  = if (startMs > 0L) startMs else System.currentTimeMillis()
                         isActiveMode = true
                         // Persist start time so the widget can compute progress correctly
                         getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -534,6 +544,12 @@ class ForegroundTaskService : Service() {
             this, PI_TAP, tapIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+        // Chronometer base: convert the wall-clock serviceStartMs to an
+        // elapsedRealtime value so the chronometer counts UP from that point.
+        // This shows the true "monitoring active since X" elapsed time rather
+        // than resetting to zero every time goIdle() rebuilds the notification.
+        val idleChronometerBase = SystemClock.elapsedRealtime() -
+                (System.currentTimeMillis() - serviceStartMs)
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("FocusFlow")
             .setContentText("Monitoring active — tap to open")
@@ -542,6 +558,10 @@ class ForegroundTaskService : Service() {
             .setOnlyAlertOnce(true)
             .setContentIntent(tapPending)
             .setPriority(NotificationCompat.PRIORITY_MIN)
+            .setWhen(idleChronometerBase)
+            .setUsesChronometer(true)
+            .setChronometerCountDown(false)
+            .setShowWhen(true)
             .build()
     }
 

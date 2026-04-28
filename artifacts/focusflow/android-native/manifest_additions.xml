@@ -50,6 +50,8 @@
     KILL_BACKGROUND_PROCESSES   (terminate the blocked app process after HOME press)
     USE_FULL_SCREEN_INTENT      (required to launch BlockOverlayActivity AND TaskAlarmActivity via full-screen notification)
     EXPAND_STATUS_BAR           (allows collapsing the notification panel via StatusBarManager)
+    READ_EXTERNAL_STORAGE       (legacy API ≤ 32 — lets WallpaperManager.getDrawable() succeed
+                                 when reading the home-screen wallpaper for BlockOverlayActivity)
 
   AndroidManifest.xml components (patched automatically):
 

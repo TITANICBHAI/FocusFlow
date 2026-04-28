@@ -30,9 +30,9 @@ export const ForegroundServiceModule = {
     }
   },
 
-  async startService(taskId: string, taskName: string, endTimeMs: number, nextTaskName: string | null): Promise<void> {
+  async startService(taskId: string, taskName: string, startTimeMs: number, endTimeMs: number, nextTaskName: string | null): Promise<void> {
     if (!ForegroundService) return;
-    return ForegroundService.startService(taskId, taskName, endTimeMs, nextTaskName);
+    return ForegroundService.startService(taskId, taskName, startTimeMs, endTimeMs, nextTaskName);
   },
 
   /**

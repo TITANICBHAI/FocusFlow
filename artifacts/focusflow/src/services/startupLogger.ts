@@ -165,14 +165,29 @@ export const logger = {
 let bootSessionId: string | null = null;
 
 /**
+ * True until the FIRST `logBootMarker()` call in this JS process.
+ *
+ * React Native's JS runtime is a new process every time the Android process
+ * is killed and relaunched. A module-level boolean therefore acts as a
+ * reliable process-birth detector:
+ *   - true  → this is the first call since the OS created this process
+ *             (genuine cold start — app was killed or installed fresh)
+ *   - false → `logBootMarker` has already run in this process lifetime
+ *             (warm resume — same process, AppContext re-initialised, e.g.
+ *             React strict-mode double mount or forced JS reload)
+ */
+let _isNewProcess = true;
+
+/**
  * Append a clearly-tagged boundary line at the start of every app launch.
  *
- *   - `[COLD_START …]` when the persisted log is empty (first launch since
- *     install, or right after the user pressed "Clear logs"). Nothing
- *     to compare against — this is the very first session in the file.
- *   - `[WARM_START …]` when the persisted log already has entries. The
- *     previous session(s) are preserved above this marker so you can scroll
- *     up to inspect what happened before the app was relaunched.
+ *   - `[COLD_START …]` — first call in a fresh OS process AND no previous
+ *     log entries exist. True first-ever launch or post-"Clear logs" cold boot.
+ *   - `[NEW_PROCESS …]` — first call in a fresh OS process but previous
+ *     log entries DO exist. The app was killed and relaunched; earlier
+ *     sessions are preserved above this marker.
+ *   - `[WARM_RESUME …]` — same OS process, AppContext re-initialised (e.g.
+ *     React strict-mode double mount). The process was never killed.
  *
  * The marker also contains a session ID (e.g. `boot-l1c2k3m4`) that's
  * appended to every other log line in this process's output, making it
@@ -184,12 +199,23 @@ let bootSessionId: string | null = null;
  */
 export async function logBootMarker(): Promise<string> {
   await ensureLoaded();
-  const isWarmStart = memoryLog.length > 0;
-  bootSessionId = `boot-${Date.now().toString(36)}`;
-  const marker = isWarmStart
-    ? `[WARM_START ${bootSessionId}] App relaunched — previous session(s) preserved above this line`
-    : `[COLD_START ${bootSessionId}] First session since install or last log clear`;
-  await log('INFO', 'startupLogger', marker);
+
+  const isFirstCallInProcess = _isNewProcess;
+  _isNewProcess = false; // all subsequent calls in this process are warm resumes
+
+  const hasPreviousData = memoryLog.length > 0;
+  bootSessionId = bootSessionId ?? `boot-${Date.now().toString(36)}`;
+
+  let kind: string;
+  if (isFirstCallInProcess && !hasPreviousData) {
+    kind = `[COLD_START ${bootSessionId}] First session since install or last log clear`;
+  } else if (isFirstCallInProcess && hasPreviousData) {
+    kind = `[NEW_PROCESS ${bootSessionId}] App relaunched after kill — previous session(s) preserved above`;
+  } else {
+    kind = `[WARM_RESUME ${bootSessionId}] AppContext re-initialised within the same process`;
+  }
+
+  await log('INFO', 'startupLogger', kind);
   return bootSessionId;
 }
 

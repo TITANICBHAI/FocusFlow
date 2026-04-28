@@ -1616,8 +1616,27 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             val allowedJson = prefs.getString(PREF_ALLOWED_PKG, "[]") ?: "[]"
             val allowedList = parseJsonArray(allowedJson)
             if (allowedList.isNotEmpty()) {
+                // Explicit per-task allow-list: block anything not on it.
                 val isAllowed = allowedList.any { a -> pkg.equals(a, ignoreCase = true) }
                 if (!isAllowed) return true
+            } else {
+                // No explicit allow-list.
+                // If daily allowance entries are configured, treat those packages
+                // as the effective allow-list so everything else is blocked.
+                // This enforces "only your budgeted apps can be opened in focus mode."
+                val allowanceConfig = prefs.getString(PREF_DAILY_ALLOWANCE_CONFIG, null)
+                if (!allowanceConfig.isNullOrBlank() && allowanceConfig != "null") {
+                    try {
+                        val arr = org.json.JSONArray(allowanceConfig)
+                        if (arr.length() > 0) {
+                            val inAllowance = (0 until arr.length()).any {
+                                arr.getJSONObject(it).optString("packageName", "")
+                                    .equals(pkg, ignoreCase = true)
+                            }
+                            if (!inAllowance) return true
+                        }
+                    } catch (_: Exception) {}
+                }
             }
         }
 

@@ -132,6 +132,10 @@ export default function PrivacyPolicyScreen() {
               FocusFlow does not collect personal information and is safe for all ages. No accounts, analytics, or advertising are involved.
             </PolicyCard>
 
+            <PolicyCard title="Policy changes" icon="refresh-outline">
+              This Privacy Policy may be updated at any time without prior notice. Continued use of FocusFlow after any change constitutes your acceptance of the revised policy. The current version is always the one in effect.
+            </PolicyCard>
+
             <TouchableOpacity
               style={[styles.fullLinkBtn, { borderColor: COLORS.primary + '44', backgroundColor: COLORS.primaryLight }]}
               onPress={() => Linking.openURL(PRIVACY_URL)}
@@ -144,27 +148,23 @@ export default function PrivacyPolicyScreen() {
         ) : (
           <>
             <PolicyCard title="Acceptance of terms" icon="checkmark-circle-outline">
-              By using FocusFlow you agree to these Terms of Service. If you do not agree, please uninstall the app. These terms may be updated; continued use constitutes acceptance of any changes.
-            </PolicyCard>
-
-            <PolicyCard title="Permitted use" icon="thumbs-up-outline">
-              FocusFlow is provided for personal productivity. You may not reverse-engineer, decompile, resell, or create derivative works from the app or its source code without explicit written permission.
+              By using FocusFlow you agree to these Terms of Service. These Terms may be changed at any time without prior notice. Continued use constitutes immediate, irrevocable acceptance of the current Terms.
             </PolicyCard>
 
             <PolicyCard title="No warranty" icon="warning-outline">
-              FocusFlow is provided "as is". We make no warranty that the app will be error-free or uninterrupted. App blocking relies on Android permissions that the OS may revoke at any time.
+              FocusFlow is provided "AS IS" without any warranty of any kind. We make no guarantee it will function on your device, Android version, or OEM configuration. Blocking relies on Android permissions the OS may revoke at any time, for any reason.
+            </PolicyCard>
+
+            <PolicyCard title="Emergency access" icon="medkit-outline">
+              FocusFlow attempts to permit emergency calls, but makes NO guarantee that emergency services will be reachable during an active session. Device or OS restrictions may override any permission. Do not rely on FocusFlow in safety-critical situations.
             </PolicyCard>
 
             <PolicyCard title="Limitation of liability" icon="shield-outline">
-              To the maximum extent permitted by law, TBTechs is not liable for any indirect, incidental, or consequential damages arising from your use of or inability to use FocusFlow.
+              To the maximum extent permitted by law, TBTechs shall not be liable for any damages — including missed emergencies, personal injury, or data loss — arising from use of or inability to use FocusFlow, regardless of cause or legal theory.
             </PolicyCard>
 
             <PolicyCard title="Accessibility Service disclosure" icon="eye-outline">
-              FocusFlow's Accessibility Service is used solely to detect foreground apps and enforce app-blocking rules you configure. It is not used for any other purpose. This declaration is required by Google Play policy.
-            </PolicyCard>
-
-            <PolicyCard title="Governing law" icon="globe-outline">
-              These terms are governed by the laws of the jurisdiction in which TBTechs operates, without regard to conflict-of-law provisions.
+              FocusFlow's Accessibility Service is used solely to detect foreground apps and enforce blocking rules you configure. It is not used for any other purpose. This declaration is required by Google Play policy.
             </PolicyCard>
 
             <TouchableOpacity

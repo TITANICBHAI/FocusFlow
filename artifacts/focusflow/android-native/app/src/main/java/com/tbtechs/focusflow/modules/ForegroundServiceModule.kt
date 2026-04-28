@@ -59,16 +59,19 @@ class ForegroundServiceModule(private val reactContext: ReactApplicationContext)
     /**
      * Starts the foreground task service in ACTIVE mode with countdown and task name.
      *
-     * @param taskName  Display name of the active focus task
-     * @param endTimeMs Epoch milliseconds when the task ends
-     * @param nextName  (nullable) Display name of the next task shown in sub-text
+     * @param taskId     DB id of the active task
+     * @param taskName   Display name of the active focus task
+     * @param startTimeMs Epoch ms when the task actually started (from task.startTime)
+     * @param endTimeMs  Epoch milliseconds when the task ends
+     * @param nextName   (nullable) Display name of the next task shown in sub-text
      */
     @ReactMethod
-    fun startService(taskId: String, taskName: String, endTimeMs: Double, nextName: String?, promise: Promise) {
+    fun startService(taskId: String, taskName: String, startTimeMs: Double, endTimeMs: Double, nextName: String?, promise: Promise) {
         try {
             val intent = Intent(reactContext, ForegroundTaskService::class.java).apply {
                 putExtra(ForegroundTaskService.EXTRA_TASK_ID,   taskId)
                 putExtra(ForegroundTaskService.EXTRA_TASK_NAME, taskName)
+                putExtra(ForegroundTaskService.EXTRA_START_MS,  startTimeMs.toLong())
                 putExtra(ForegroundTaskService.EXTRA_END_MS,    endTimeMs.toLong())
                 nextName?.let { putExtra(ForegroundTaskService.EXTRA_NEXT_NAME, it) }
             }

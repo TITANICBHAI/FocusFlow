@@ -1,10 +1,12 @@
 /**
  * stats.tsx — FocusFlow Stats Screen
  *
- * Three tabs:
- *  Today    — focus time hero, session count, task summary, blocked attempts
- *  Week     — task productivity trend, focus time bar chart, app discipline
- *  All Time — lifetime hero numbers, 12-week calendar heatmap, milestone badges
+ * Four tabs:
+ *  Yesterday — morning digest: individual task rows (name, scheduled vs actual,
+ *              on-time/early/late/extended), distractions, bitter-truth summary
+ *  Today     — focus time hero, session count, task summary, blocked attempts
+ *  Week      — task productivity trend, focus time bar chart, app discipline
+ *  All Time  — lifetime hero numbers, 12-week calendar heatmap, milestone badges
  */
 
 import React, { useMemo, useEffect, useState, useCallback } from 'react';
@@ -32,12 +34,38 @@ import {
 import { GreyoutModule, TemptationEntry } from '@/native-modules/GreyoutModule';
 import type { Task } from '@/data/types';
 
-type Filter = 'today' | 'week' | 'alltime';
+type Filter = 'yesterday' | 'today' | 'week' | 'alltime';
 
 interface AppStat  { pkg: string; appName: string; count: number }
 interface DayStat  { day: string; date: string; count: number }
 interface WeekDay  { day: string; date: string; isToday: boolean; total: number; completed: number; focusMinutes: number }
-interface HeatDay  { date: string; rate: number; hasData: boolean } // rate 0-1
+interface HeatDay  { date: string; rate: number; hasData: boolean }
+
+interface TaskRow {
+  id: string;
+  title: string;
+  scheduledMins: number;
+  actualMins: number;
+  status: 'completed' | 'skipped' | 'overdue' | 'remaining';
+  timing: 'ontime' | 'early' | 'late' | 'extended' | null;
+  focusMode: boolean;
+}
+
+interface YesterdayBreakdown {
+  total: number;
+  completed: number;
+  skipped: number;
+  overdue: number;
+  remaining: number;
+  onTime: number;
+  late: number;
+  early: number;
+  extended: number;
+  scheduledMins: number;
+  actualMins: number;
+  diffMins: number;
+  rows: TaskRow[];
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -48,7 +76,7 @@ function StatsScreen() {
   const { tasks }       = state;
   const { width }       = useWindowDimensions();
 
-  const [filter, setFilter] = useState<Filter>('today');
+  const [filter, setFilter] = useState<Filter>('yesterday');
 
   // ── TODAY DB data ─────────────────────────────────────────────────────────
   const [focusMinutes,  setFocusMinutes]  = useState(0);
@@ -67,6 +95,72 @@ function StatsScreen() {
       setStreak(s);
     })();
   }, []);
+
+  // ── YESTERDAY breakdown ───────────────────────────────────────────────────
+  const yesterdayBreakdown = useMemo<YesterdayBreakdown>(() => {
+    const yd       = dayjs().subtract(1, 'day');
+    const ydStr    = yd.format('YYYY-MM-DD');
+    const inWindow = tasks.filter((t) => dayjs(t.startTime).format('YYYY-MM-DD') === ydStr);
+
+    const completed = inWindow.filter((t) => t.status === 'completed');
+    const skipped   = inWindow.filter((t) => t.status === 'skipped');
+    const overdue   = inWindow.filter((t) => t.status === 'overdue');
+    const remaining = inWindow.filter((t) => t.status === 'scheduled' || t.status === 'active');
+
+    let onTime = 0, late = 0, early = 0, extended = 0;
+    const rows: TaskRow[] = inWindow.map((t) => {
+      const startMs      = new Date(t.startTime).getTime();
+      const endMs        = new Date(t.endTime).getTime();
+      const updatedMs    = new Date(t.updatedAt).getTime();
+      const scheduledMin = t.durationMinutes;
+      const actualMin    = t.status === 'completed'
+        ? Math.max(0, Math.min(Math.round((updatedMs - startMs) / 60000), scheduledMin * 4))
+        : 0;
+
+      let timing: TaskRow['timing'] = null;
+      if (t.status === 'completed') {
+        const isExtended = scheduledMin > Math.round((endMs - startMs) / 60000) + 1;
+        if (isExtended)           { timing = 'extended'; extended++; }
+        else if (updatedMs > endMs + 60_000) { timing = 'late';     late++; }
+        else if (actualMin > 0 && actualMin < scheduledMin - 1) { timing = 'early'; early++; }
+        else                      { timing = 'ontime';  onTime++; }
+      }
+
+      const status: TaskRow['status'] =
+        t.status === 'completed' ? 'completed'
+        : t.status === 'skipped' ? 'skipped'
+        : t.status === 'overdue' ? 'overdue'
+        : 'remaining';
+
+      return {
+        id: t.id, title: t.title,
+        scheduledMins: scheduledMin,
+        actualMins:    actualMin,
+        status, timing,
+        focusMode: t.focusMode,
+      };
+    });
+
+    const scheduledMins = inWindow.reduce((s, t) => s + t.durationMinutes, 0);
+    const actualMins    = completed.reduce((s, t) => {
+      const diff = Math.round((new Date(t.updatedAt).getTime() - new Date(t.startTime).getTime()) / 60000);
+      return s + Math.max(0, Math.min(diff, t.durationMinutes * 4));
+    }, 0);
+
+    return {
+      total: inWindow.length, completed: completed.length,
+      skipped: skipped.length, overdue: overdue.length, remaining: remaining.length,
+      onTime, late, early, extended, scheduledMins, actualMins,
+      diffMins: actualMins - scheduledMins, rows,
+    };
+  }, [tasks]);
+
+  const yesterdayFocusMins = useMemo(() => {
+    const ydStr = dayjs().subtract(1, 'day').format('YYYY-MM-DD');
+    return tasks
+      .filter((t) => dayjs(t.startTime).format('YYYY-MM-DD') === ydStr && t.status === 'completed' && t.focusMode)
+      .reduce((s, t) => s + t.durationMinutes, 0);
+  }, [tasks]);
 
   // ── TODAY computed stats ──────────────────────────────────────────────────
   const todayStats = useMemo(() => {
@@ -124,8 +218,9 @@ function StatsScreen() {
   const maxWeekCompleted = Math.max(...weeklyDays.map((d) => d.completed), 1);
   const maxWeekFocus     = Math.max(...weeklyDays.map((d) => d.focusMinutes), 1);
 
-  // ── TEMPTATION LOG (week view + all-time) ─────────────────────────────
+  // ── TEMPTATION LOG (yesterday + week view + all-time) ─────────────────────────────
   const [weekLoading,    setWeekLoading]    = useState(false);
+  const [allTemptations, setAllTemptations] = useState<TemptationEntry[]>([]);
   const [appStats,       setAppStats]       = useState<AppStat[]>([]);
   const [dayStats,       setDayStats]       = useState<DayStat[]>([]);
   const [totalThisWeek,  setTotalThisWeek]  = useState(0);
@@ -140,10 +235,11 @@ function StatsScreen() {
   }, []);
 
   useEffect(() => {
-    if (filter === 'week' || filter === 'alltime') void loadWeekly();
+    if (filter === 'yesterday' || filter === 'week' || filter === 'alltime') void loadWeekly();
   }, [filter, loadWeekly]);
 
   function processWeeklyData(log: TemptationEntry[]) {
+    setAllTemptations(log);
     const cutoff   = Date.now() - 7 * 24 * 60 * 60 * 1000;
     const thisWeek = log.filter((e) => e.timestamp >= cutoff);
     setTotalThisWeek(thisWeek.length);
@@ -165,6 +261,21 @@ function StatsScreen() {
     for (let i = days.length - 1; i >= 0; i--) { if (days[i].count === 0) cs++; else break; }
     setCleanStreak(cs);
   }
+
+  // Yesterday distractions derived from full temptation log
+  const yesterdayDistractions = useMemo<AppStat[]>(() => {
+    const yd = dayjs().subtract(1, 'day');
+    const inWindow = allTemptations.filter(
+      (e) => e.timestamp >= yd.startOf('day').valueOf() && e.timestamp <= yd.endOf('day').valueOf(),
+    );
+    const map = new Map<string, AppStat>();
+    for (const e of inWindow) {
+      const cur = map.get(e.pkg);
+      if (cur) cur.count++;
+      else map.set(e.pkg, { pkg: e.pkg, appName: e.appName || e.pkg, count: 1 });
+    }
+    return Array.from(map.values()).sort((a, b) => b.count - a.count);
+  }, [allTemptations]);
 
   const handleClearLog = () => {
     Alert.alert('Clear Temptation Log', 'Permanently delete all blocked-app intercept data?', [
@@ -188,12 +299,11 @@ function StatsScreen() {
         dbGetAllTimeFocusMinutes(),
         dbGetAllTimeFocusSessions(),
         dbGetBestStreak(),
-        dbGetRecentDayCompletions(84), // 12 weeks
+        dbGetRecentDayCompletions(84),
       ]);
       setAllTimeMins(atm);
       setAllTimeSess(ats);
       setBestStreak(bs);
-      // Build 84-slot heatmap (12 weeks × 7 days)
       const map = new Map(rows.map((r) => [r.date, r]));
       const heat: HeatDay[] = [];
       for (let i = 83; i >= 0; i--) {
@@ -218,6 +328,11 @@ function StatsScreen() {
 
   const maxDay = Math.max(...dayStats.map((d) => d.count), 1);
   const maxApp = appStats[0]?.count ?? 1;
+  const maxYdApp = yesterdayDistractions[0]?.count ?? 1;
+
+  const ydCompletionRate = yesterdayBreakdown.total > 0
+    ? Math.round((yesterdayBreakdown.completed / yesterdayBreakdown.total) * 100)
+    : 0;
 
   // ─── Render ────────────────────────────────────────────────────────────────
   return (
@@ -228,9 +343,10 @@ function StatsScreen() {
         <View>
           <Text style={[styles.title, { color: theme.text }]}>Stats</Text>
           <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-            {filter === 'today'   ? dayjs().format('MMMM D, YYYY')
-           : filter === 'week'    ? `${dayjs().subtract(6, 'day').format('MMM D')} – ${dayjs().format('MMM D')}`
-           :                        'All time'}
+            {filter === 'yesterday' ? dayjs().subtract(1, 'day').format('ddd, MMM D')
+           : filter === 'today'    ? dayjs().format('MMMM D, YYYY')
+           : filter === 'week'     ? `${dayjs().subtract(6, 'day').format('MMM D')} – ${dayjs().format('MMM D')}`
+           :                         'All time'}
           </Text>
         </View>
         {filter === 'week' && (
@@ -243,15 +359,169 @@ function StatsScreen() {
 
       {/* ── Tab pills ─────────────────────────────────────────────────── */}
       <View style={[styles.filterRow, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
-        {(['today', 'week', 'alltime'] as const).map((f) => (
+        {(['yesterday', 'today', 'week', 'alltime'] as const).map((f) => (
           <TouchableOpacity key={f} style={[styles.filterPill, filter === f && { backgroundColor: COLORS.primary }]}
             onPress={() => setFilter(f)}>
             <Text style={[styles.filterLabel, { color: filter === f ? '#fff' : theme.textSecondary }]}>
-              {f === 'today' ? 'Today' : f === 'week' ? 'Week' : 'All Time'}
+              {f === 'yesterday' ? 'Yesterday' : f === 'today' ? 'Today' : f === 'week' ? 'Week' : 'All Time'}
             </Text>
           </TouchableOpacity>
         ))}
       </View>
+
+      {/* ════════════════ YESTERDAY ═════════════════════════════════════ */}
+      {filter === 'yesterday' && (
+        weekLoading ? (
+          <View style={styles.center}><ActivityIndicator size="large" color={COLORS.primary} /></View>
+        ) : (
+          <ScrollView style={styles.scroll}
+            contentContainerStyle={[styles.content, { paddingBottom: 60 + insets.bottom + 24 }]}
+            showsVerticalScrollIndicator={false}>
+
+            {/* Streak banner */}
+            {streak > 0 && (
+              <View style={[styles.streakBanner, { borderColor: COLORS.orange + '40' }]}>
+                <Text style={styles.streakFire}>🔥</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.streakTitle, { color: COLORS.orange }]}>{streak}-day streak</Text>
+                  <Text style={[styles.streakSub, { color: theme.textSecondary }]}>Keep completing tasks daily</Text>
+                </View>
+              </View>
+            )}
+
+            {/* Bitter truth motivational card */}
+            {yesterdayBreakdown.total > 0 && (
+              <View style={[styles.bitterCard, {
+                backgroundColor: ydCompletionRate >= 80 ? COLORS.green + '0E' : ydCompletionRate >= 50 ? COLORS.orange + '0E' : COLORS.red + '0E',
+                borderColor:     ydCompletionRate >= 80 ? COLORS.green + '33' : ydCompletionRate >= 50 ? COLORS.orange + '33' : COLORS.red + '33',
+              }]}>
+                <Text style={[styles.bitterText, {
+                  color: ydCompletionRate >= 80 ? COLORS.green : ydCompletionRate >= 50 ? COLORS.orange : COLORS.red,
+                }]}>
+                  {getBitterTruth(ydCompletionRate, yesterdayBreakdown, yesterdayFocusMins)}
+                </Text>
+              </View>
+            )}
+
+            {/* Focus hero */}
+            <View style={[styles.heroCard, { backgroundColor: theme.card, borderColor: COLORS.primary + '22' }]}>
+              <Text style={[styles.heroEyebrow, { color: theme.muted }]}>FOCUSED TIME YESTERDAY</Text>
+              {yesterdayFocusMins > 0 ? (
+                <Text style={[styles.heroTime, { color: COLORS.primary }]}>
+                  {Math.floor(yesterdayFocusMins / 60) > 0 ? `${Math.floor(yesterdayFocusMins / 60)}h ` : ''}
+                  <Text style={styles.heroTimeSmall}>{yesterdayFocusMins % 60}m</Text>
+                </Text>
+              ) : (
+                <View style={styles.heroEmpty}>
+                  <Ionicons name="moon-outline" size={36} color={theme.border} />
+                  <Text style={[styles.heroEmptyText, { color: theme.muted }]}>No focus sessions yesterday</Text>
+                </View>
+              )}
+            </View>
+
+            {/* Task list */}
+            {yesterdayBreakdown.total === 0 ? (
+              <View style={styles.emptyState}>
+                <Ionicons name="calendar-outline" size={52} color={theme.border} />
+                <Text style={[styles.emptyTitle, { color: theme.text }]}>No tasks yesterday</Text>
+                <Text style={[styles.emptySub, { color: theme.muted }]}>Schedule tasks to start tracking daily performance</Text>
+              </View>
+            ) : (
+              <>
+                {/* Summary header */}
+                <View style={[styles.card, { backgroundColor: theme.card }]}>
+                  <View style={styles.cardHeader}>
+                    <Text style={[styles.cardTitle, { color: theme.text }]}>Task Summary</Text>
+                    <Text style={[styles.cardBadge, {
+                      color: ydCompletionRate >= 80 ? COLORS.green : ydCompletionRate >= 50 ? COLORS.orange : COLORS.red,
+                      backgroundColor: (ydCompletionRate >= 80 ? COLORS.green : ydCompletionRate >= 50 ? COLORS.orange : COLORS.red) + '18',
+                    }]}>{ydCompletionRate}% done</Text>
+                  </View>
+
+                  {/* On time / Early / Late / Extended mini-grid */}
+                  {yesterdayBreakdown.completed > 0 && (
+                    <View style={styles.miniGrid}>
+                      <MiniStat color={COLORS.green}   label="On time"  value={yesterdayBreakdown.onTime}   theme={theme} />
+                      <MiniStat color={COLORS.blue}    label="Early"    value={yesterdayBreakdown.early}    theme={theme} />
+                      <MiniStat color={COLORS.orange}  label="Late"     value={yesterdayBreakdown.late}     theme={theme} />
+                      <MiniStat color={COLORS.primary} label="Extended" value={yesterdayBreakdown.extended} theme={theme} />
+                    </View>
+                  )}
+
+                  {/* Scheduled vs Actual vs Diff */}
+                  {yesterdayBreakdown.scheduledMins > 0 && (
+                    <>
+                      <View style={[styles.divider, { backgroundColor: theme.border }]} />
+                      <View style={styles.timeRow}>
+                        <Text style={[styles.timeRowLabel, { color: theme.muted }]}>Scheduled</Text>
+                        <Text style={[styles.timeRowVal, { color: theme.text }]}>{fmtMins(yesterdayBreakdown.scheduledMins)}</Text>
+                      </View>
+                      <View style={styles.timeRow}>
+                        <Text style={[styles.timeRowLabel, { color: theme.muted }]}>Actual</Text>
+                        <Text style={[styles.timeRowVal, { color: COLORS.primary }]}>{fmtMins(yesterdayBreakdown.actualMins)}</Text>
+                      </View>
+                      <View style={styles.timeRow}>
+                        <Text style={[styles.timeRowLabel, { color: theme.muted }]}>Difference</Text>
+                        <Text style={[styles.timeRowVal, {
+                          color: yesterdayBreakdown.diffMins > 5 ? COLORS.red : yesterdayBreakdown.diffMins < -5 ? COLORS.green : theme.text,
+                        }]}>
+                          {yesterdayBreakdown.diffMins > 0 ? '+' : ''}{fmtMins(Math.abs(yesterdayBreakdown.diffMins))}
+                          {yesterdayBreakdown.diffMins > 5 ? ' over' : yesterdayBreakdown.diffMins < -5 ? ' under' : ' on target'}
+                        </Text>
+                      </View>
+                    </>
+                  )}
+                </View>
+
+                {/* Individual task rows */}
+                <View style={[styles.card, { backgroundColor: theme.card }]}>
+                  <Text style={[styles.cardTitle, { color: theme.text }]}>Task Breakdown</Text>
+                  {yesterdayBreakdown.rows.map((row, i) => (
+                    <YesterdayTaskRow key={row.id} row={row} isLast={i === yesterdayBreakdown.rows.length - 1} theme={theme} />
+                  ))}
+                </View>
+              </>
+            )}
+
+            {/* Distractions yesterday */}
+            <View style={[styles.card, { backgroundColor: theme.card }]}>
+              <View style={styles.cardHeader}>
+                <Text style={[styles.cardTitle, { color: theme.text }]}>Distractions blocked</Text>
+                <Text style={[styles.cardBadge, {
+                  color: yesterdayDistractions.length === 0 ? COLORS.green : COLORS.orange,
+                  backgroundColor: (yesterdayDistractions.length === 0 ? COLORS.green : COLORS.orange) + '18',
+                }]}>
+                  {yesterdayDistractions.reduce((s, r) => s + r.count, 0)}
+                </Text>
+              </View>
+              {yesterdayDistractions.length === 0 ? (
+                <View style={styles.emptyInline}>
+                  <Ionicons name="checkmark-circle-outline" size={36} color={COLORS.green} />
+                  <Text style={[styles.emptyInlineText, { color: theme.muted }]}>Clean slate — no blocked-app intercepts yesterday</Text>
+                </View>
+              ) : (
+                yesterdayDistractions.slice(0, 6).map((r, i) => (
+                  <View key={r.pkg} style={[styles.appRow, { borderBottomColor: theme.border }]}>
+                    <View style={[styles.rankBadge, { backgroundColor: i === 0 ? COLORS.red + '18' : theme.surface }]}>
+                      <Text style={[styles.rankText, { color: i === 0 ? COLORS.red : theme.muted }]}>#{i + 1}</Text>
+                    </View>
+                    <View style={styles.appInfo}>
+                      <Text style={[styles.appName, { color: theme.text }]} numberOfLines={1}>{r.appName}</Text>
+                      <View style={[styles.trackFull, { backgroundColor: theme.border }]}>
+                        <View style={[styles.trackFill, { width: `${(r.count / maxYdApp) * 100}%`, backgroundColor: i === 0 ? COLORS.red : COLORS.orange }]} />
+                      </View>
+                    </View>
+                    <View style={[styles.countBadge, { backgroundColor: i === 0 ? COLORS.red + '18' : theme.surface }]}>
+                      <Text style={[styles.countText, { color: i === 0 ? COLORS.red : theme.text }]}>{r.count}×</Text>
+                    </View>
+                  </View>
+                ))
+              )}
+            </View>
+
+          </ScrollView>
+        )
+      )}
 
       {/* ════════════════ TODAY ═════════════════════════════════════════ */}
       {filter === 'today' && (
@@ -521,6 +791,58 @@ function StatsScreen() {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
+function YesterdayTaskRow({ row, isLast, theme }: { row: TaskRow; isLast: boolean; theme: any }) {
+  const timingColor =
+    row.timing === 'ontime'  ? COLORS.green  :
+    row.timing === 'early'   ? COLORS.blue   :
+    row.timing === 'late'    ? COLORS.orange :
+    row.timing === 'extended'? COLORS.primary:
+    row.status === 'skipped' ? theme.muted   :
+    row.status === 'overdue' ? COLORS.red    : theme.muted;
+
+  const timingLabel =
+    row.timing === 'ontime'  ? 'On time'  :
+    row.timing === 'early'   ? 'Early'    :
+    row.timing === 'late'    ? 'Late'     :
+    row.timing === 'extended'? 'Extended' :
+    row.status === 'skipped' ? 'Skipped'  :
+    row.status === 'overdue' ? 'Overdue'  :
+    row.status === 'remaining'? 'Upcoming' : '—';
+
+  const icon =
+    row.status === 'completed' ? 'checkmark-circle' :
+    row.status === 'skipped'   ? 'remove-circle-outline' :
+    row.status === 'overdue'   ? 'alert-circle' :
+    'ellipse-outline';
+
+  return (
+    <View style={[styles.ydTaskRow, !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.border }]}>
+      <Ionicons name={icon as any} size={18} color={timingColor} style={{ marginTop: 1 }} />
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.ydTaskTitle, { color: theme.text }]} numberOfLines={1}>{row.title}</Text>
+        <Text style={[styles.ydTaskMeta, { color: theme.muted }]}>
+          {row.focusMode ? '⚡ ' : ''}{fmtMins(row.scheduledMins)} scheduled
+          {row.status === 'completed' && row.actualMins > 0 ? ` · ${fmtMins(row.actualMins)} actual` : ''}
+        </Text>
+      </View>
+      <View style={[styles.ydTimingBadge, { backgroundColor: timingColor + '18' }]}>
+        <Text style={[styles.ydTimingLabel, { color: timingColor }]}>{timingLabel}</Text>
+      </View>
+    </View>
+  );
+}
+
+function MiniStat({ color, label, value, theme }: {
+  color: string; label: string; value: number; theme: { card: string; muted: string; text: string };
+}) {
+  return (
+    <View style={[styles.miniTile, { borderColor: color + '22', backgroundColor: color + '0E' }]}>
+      <Text style={[styles.miniValue, { color }]}>{String(value)}</Text>
+      <Text style={[styles.miniLabel, { color: theme.muted }]}>{label}</Text>
+    </View>
+  );
+}
+
 function SectionLabel({ label, theme }: { label: string; theme: any }) {
   return <Text style={[styles.sectionLabel, { color: theme.muted }]}>{label}</Text>;
 }
@@ -627,7 +949,7 @@ function getTopTags(tasks: Task[]): { tag: string; count: number }[] {
 }
 
 function getMotivation(focusMins: number, rate: number, streak: number): string {
-  if (streak >= 7)    return `🏆 ${streak} days straight — elite consistency.`;
+  if (streak >= 7)      return `🏆 ${streak} days straight — elite consistency.`;
   if (focusMins >= 120) return `🔥 ${Math.floor(focusMins / 60)}h+ of deep work today. That's rare.`;
   if (focusMins >= 60)  return `⚡ An hour of focus done. Keep the momentum going.`;
   if (rate >= 80)       return `✅ ${rate}% completion — productive day. Stay on it.`;
@@ -636,16 +958,41 @@ function getMotivation(focusMins: number, rate: number, streak: number): string 
   return `🎯 Start a focus session to build your streak.`;
 }
 
+function getBitterTruth(rate: number, bd: YesterdayBreakdown, focusMins: number): string {
+  if (bd.total === 0) return `No tasks scheduled. Nothing to show for yesterday.`;
+  if (rate === 100)   return `💯 Perfect day — every task done. Now do it again.`;
+  if (rate >= 80) {
+    return focusMins >= 60
+      ? `✅ Strong day. ${bd.completed}/${bd.total} done with ${fmtMins(focusMins)} of focused work.`
+      : `✅ ${bd.completed}/${bd.total} tasks done. Good, but where was the deep focus?`;
+  }
+  if (rate >= 50) {
+    if (bd.late > 0 && bd.late >= bd.onTime)
+      return `⚠️ Half done, but ${bd.late} task${bd.late > 1 ? 's' : ''} ran late. You're dragging.`;
+    if (bd.skipped > 0)
+      return `📋 ${bd.completed}/${bd.total} done. ${bd.skipped} skipped — avoidance or bad planning?`;
+    return `📈 ${bd.completed}/${bd.total} tasks. Decent, but ${bd.total - bd.completed} left unfinished.`;
+  }
+  if (rate > 0) {
+    if (bd.overdue > 1)
+      return `🚨 ${bd.overdue} tasks went overdue. Time management needs serious work.`;
+    if (bd.skipped >= bd.completed)
+      return `💔 More tasks skipped than done. Be honest — was yesterday actually productive?`;
+    return `😬 Only ${bd.completed}/${bd.total} done. Yesterday's promises, today's backlog.`;
+  }
+  return `🛑 Zero tasks completed yesterday. Every unfinished task carries over as debt.`;
+}
+
 function getMilestones(mins: number, tasks: number, streak: number, blocked: number) {
   return [
-    { icon: '⏱', label: '1 Hour',       sub: 'focus time',     color: COLORS.primary, earned: mins >= 60 },
-    { icon: '🕐', label: '10 Hours',     sub: 'focus time',     color: COLORS.primary, earned: mins >= 600 },
-    { icon: '🏅', label: '10 Tasks',     sub: 'completed',      color: COLORS.green,   earned: tasks >= 10 },
-    { icon: '🥇', label: '100 Tasks',    sub: 'completed',      color: COLORS.green,   earned: tasks >= 100 },
-    { icon: '🔥', label: '7-Day Streak', sub: 'in a row',       color: COLORS.orange,  earned: streak >= 7 },
-    { icon: '💪', label: '30-Day Streak',sub: 'in a row',       color: COLORS.orange,  earned: streak >= 30 },
-    { icon: '🛡', label: '10 Blocked',   sub: 'distractions',   color: COLORS.blue,    earned: blocked >= 10 },
-    { icon: '⚔️', label: '100 Blocked',  sub: 'distractions',   color: COLORS.blue,    earned: blocked >= 100 },
+    { icon: '⏱', label: '1 Hour',        sub: 'focus time',    color: COLORS.primary, earned: mins >= 60 },
+    { icon: '🕐', label: '10 Hours',      sub: 'focus time',    color: COLORS.primary, earned: mins >= 600 },
+    { icon: '🏅', label: '10 Tasks',      sub: 'completed',     color: COLORS.green,   earned: tasks >= 10 },
+    { icon: '🥇', label: '100 Tasks',     sub: 'completed',     color: COLORS.green,   earned: tasks >= 100 },
+    { icon: '🔥', label: '7-Day Streak',  sub: 'in a row',      color: COLORS.orange,  earned: streak >= 7 },
+    { icon: '💪', label: '30-Day Streak', sub: 'in a row',      color: COLORS.orange,  earned: streak >= 30 },
+    { icon: '🛡', label: '10 Blocked',    sub: 'distractions',  color: COLORS.blue,    earned: blocked >= 10 },
+    { icon: '⚔️', label: '100 Blocked',   sub: 'distractions',  color: COLORS.blue,    earned: blocked >= 100 },
   ];
 }
 
@@ -667,25 +1014,26 @@ const styles = StyleSheet.create({
 
   filterRow: { flexDirection: 'row', padding: SPACING.xs, gap: SPACING.xs, borderBottomWidth: StyleSheet.hairlineWidth },
   filterPill: { flex: 1, paddingVertical: SPACING.sm, borderRadius: RADIUS.md, alignItems: 'center' },
-  filterLabel: { fontSize: FONT.sm, fontWeight: '700' },
+  filterLabel: { fontSize: FONT.xs, fontWeight: '700' },
 
   card: { borderRadius: RADIUS.lg, padding: SPACING.md, gap: SPACING.sm },
   cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   cardTitle: { fontSize: FONT.md, fontWeight: '700' },
-  cardBadge: { fontSize: FONT.xs, fontWeight: '700', paddingHorizontal: 8, paddingVertical: 3, borderRadius: RADIUS.full },
+  cardBadge: { fontSize: FONT.xs, fontWeight: '700', paddingHorizontal: 8, paddingVertical: 3, borderRadius: RADIUS.full, overflow: 'hidden' },
   sectionLabel: { fontSize: FONT.xs, fontWeight: '700', letterSpacing: 0.8, paddingLeft: SPACING.xs },
+  divider: { height: StyleSheet.hairlineWidth },
 
   // Hero card
   heroCard: {
     borderRadius: RADIUS.xl, padding: SPACING.lg, alignItems: 'center', gap: SPACING.sm,
     borderWidth: 1.5,
   },
-  heroEyebrow: { fontSize: FONT.xs, fontWeight: '700', letterSpacing: 1 },
-  heroTime:    { fontSize: 64, fontWeight: '900', lineHeight: 70 },
+  heroEyebrow:   { fontSize: FONT.xs, fontWeight: '700', letterSpacing: 1 },
+  heroTime:      { fontSize: 64, fontWeight: '900', lineHeight: 70 },
   heroTimeSmall: { fontSize: 36, fontWeight: '700' },
-  heroSub:     { fontSize: FONT.sm },
-  heroRow:     { flexDirection: 'row', gap: SPACING.xs, flexWrap: 'wrap', justifyContent: 'center' },
-  heroEmpty:   { alignItems: 'center', gap: SPACING.sm, paddingVertical: SPACING.sm },
+  heroSub:       { fontSize: FONT.sm },
+  heroRow:       { flexDirection: 'row', gap: SPACING.xs, flexWrap: 'wrap', justifyContent: 'center' },
+  heroEmpty:     { alignItems: 'center', gap: SPACING.sm, paddingVertical: SPACING.sm },
   heroEmptyText: { fontSize: FONT.sm, textAlign: 'center', maxWidth: 240 },
 
   // Streak
@@ -695,6 +1043,10 @@ const styles = StyleSheet.create({
   },
   streakFire: { fontSize: 24 }, streakTitle: { fontSize: FONT.md, fontWeight: '700' }, streakSub: { fontSize: FONT.xs, marginTop: 1 },
 
+  // Bitter truth
+  bitterCard: { borderRadius: RADIUS.lg, padding: SPACING.md, borderWidth: 1.5, alignItems: 'center' },
+  bitterText: { fontSize: FONT.md, fontWeight: '700', textAlign: 'center', lineHeight: 22 },
+
   // Breakdown bars
   breakdownRow:   { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
   breakdownLabel: { fontSize: FONT.sm, width: 70 },
@@ -703,6 +1055,31 @@ const styles = StyleSheet.create({
   trackFill:      { height: '100%', borderRadius: 4 },
   progLabels:     { flexDirection: 'row', justifyContent: 'space-between' },
   progText:       { fontSize: FONT.xs },
+
+  // Mini stat grid (on-time / early / late / extended)
+  miniGrid: { flexDirection: 'row', gap: SPACING.sm },
+  miniTile: { flex: 1, alignItems: 'center', paddingVertical: SPACING.sm, borderRadius: RADIUS.md, borderWidth: 1 },
+  miniValue: { fontSize: FONT.lg, fontWeight: '800' },
+  miniLabel: { fontSize: FONT.xs, fontWeight: '600', textAlign: 'center' },
+
+  // Time rows (scheduled/actual/diff)
+  timeRow:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 2 },
+  timeRowLabel: { fontSize: FONT.sm },
+  timeRowVal:   { fontSize: FONT.sm, fontWeight: '700' },
+
+  // Yesterday task rows
+  ydTaskRow: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm,
+    paddingVertical: SPACING.sm,
+  },
+  ydTaskTitle:   { fontSize: FONT.sm, fontWeight: '600' },
+  ydTaskMeta:    { fontSize: FONT.xs, marginTop: 2 },
+  ydTimingBadge: { paddingHorizontal: SPACING.sm, paddingVertical: 3, borderRadius: RADIUS.full },
+  ydTimingLabel: { fontSize: FONT.xs, fontWeight: '700' },
+
+  // Empty inline (inside cards)
+  emptyInline:     { alignItems: 'center', paddingVertical: SPACING.md, gap: SPACING.xs },
+  emptyInlineText: { fontSize: FONT.sm, textAlign: 'center', maxWidth: 260 },
 
   // Pill tags
   pill:     { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: RADIUS.full, borderWidth: 1 },
@@ -739,7 +1116,7 @@ const styles = StyleSheet.create({
   legendLabel:{ fontSize: FONT.xs },
 
   // App rows
-  appRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, paddingVertical: SPACING.sm, borderBottomWidth: StyleSheet.hairlineWidth },
+  appRow:    { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, paddingVertical: SPACING.sm, borderBottomWidth: StyleSheet.hairlineWidth },
   rankBadge: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
   rankText:  { fontSize: FONT.xs, fontWeight: '700' },
   appInfo:   { flex: 1, gap: 5 },

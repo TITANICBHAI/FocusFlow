@@ -81,12 +81,11 @@ Notifications.addNotificationResponseReceivedListener((response) => {
     return;
   }
 
-  // ── Morning digest tap → open the Reports screen ───────────────────────
-  // The morning notification is a recap of yesterday + plan for today, so
-  // funneling it into the dedicated reports screen gives the user the most
-  // useful first interaction of the day.
+  // ── Morning digest tap → open Stats on the Yesterday tab ──────────────
+  // The morning notification is a recap of yesterday, so landing on the
+  // Yesterday tab of Stats gives the user the most useful first view.
   if (data?.type === 'morning-digest') {
-    try { router.push('/reports'); } catch { /* headless */ }
+    try { router.push('/(tabs)/stats'); } catch { /* headless */ }
     return;
   }
 
@@ -355,9 +354,10 @@ export default function RootLayout() {
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
               <Stack.Screen name="privacy-policy" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
               <Stack.Screen name="terms-of-service" options={{ headerShown: false }} />
-              <Stack.Screen name="reports" options={{ headerShown: false, presentation: 'card' }} />
               <Stack.Screen name="onboarding" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
               <Stack.Screen name="permissions" options={{ headerShown: false }} />
+              <Stack.Screen name="block-defense" options={{ headerShown: false, presentation: 'card' }} />
+              <Stack.Screen name="how-to-use" options={{ headerShown: false, presentation: 'card' }} />
               <Stack.Screen name="+not-found" />
             </Stack>
             <ThemedStatusBar />

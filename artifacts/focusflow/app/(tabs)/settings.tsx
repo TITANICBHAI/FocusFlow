@@ -552,13 +552,13 @@ function SettingsScreen() {
           <SettingButton
             icon="cloud-upload-outline"
             label={backupBusy ? 'Working…' : 'Export Backup'}
-            description="Save a JSON of your settings, profile and tasks"
+            description="Save a .focusflow file — share to Drive, Files, or email"
             onPress={handleExportBackup}
           />
           <SettingButton
             icon="cloud-download-outline"
             label="Import Backup"
-            description="Restore a FocusFlow backup file from this device"
+            description="Restore from a .focusflow backup file"
             onPress={handleImportBackup}
           />
         </Section>
@@ -599,9 +599,9 @@ function SettingsScreen() {
         <Section title="About">
           <SettingButton
             icon="bar-chart-outline"
-            label="Reports"
-            description="Focus time, completed tasks, blocked apps, streak"
-            onPress={() => router.push('/reports')}
+            label="Stats"
+            description="Yesterday's digest, focus time, completed tasks, blocked apps, streak"
+            onPress={() => router.push('/(tabs)/stats')}
           />
           <SettingButton
             icon="rocket-outline"
