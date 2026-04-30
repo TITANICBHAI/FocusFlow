@@ -62,12 +62,21 @@ export default function ActiveScreen() {
   const greyoutWindows = settings.greyoutSchedule ?? [];
   const activeWindows = computeActiveWindows(greyoutWindows, recurringSchedules);
 
-  const enforcementLayers = [
-    { key: 'systemGuard', label: 'System Protection', on: settings.systemGuardEnabled ?? false, icon: 'lock-closed-outline' as const },
-    { key: 'install', label: 'Install/Uninstall Block', on: settings.blockInstallActionsEnabled ?? false, icon: 'download-outline' as const },
-    { key: 'shorts', label: 'YouTube Shorts Block', on: settings.blockYoutubeShortsEnabled ?? false, icon: 'logo-youtube' as const },
-    { key: 'reels', label: 'Instagram Reels Block', on: settings.blockInstagramReelsEnabled ?? false, icon: 'logo-instagram' as const },
-    { key: 'keywords', label: 'Keyword Blocker', on: (settings.blockedWords ?? []).length > 0, icon: 'text-outline' as const, count: (settings.blockedWords ?? []).length },
+  // Each layer row optionally has a `route` so tapping it deep-links to the
+  // dedicated management page. Layers without a route stay informational.
+  const enforcementLayers: Array<{
+    key: string;
+    label: string;
+    on: boolean;
+    icon: 'lock-closed-outline' | 'download-outline' | 'logo-youtube' | 'logo-instagram' | 'text-outline';
+    count?: number;
+    route?: string;
+  }> = [
+    { key: 'systemGuard', label: 'System Protection',     on: settings.systemGuardEnabled ?? false,         icon: 'lock-closed-outline', route: '/block-defense?tab=system' },
+    { key: 'install',     label: 'Install/Uninstall Block', on: settings.blockInstallActionsEnabled ?? false, icon: 'download-outline',    route: '/block-defense?tab=system' },
+    { key: 'shorts',      label: 'YouTube Shorts Block',  on: settings.blockYoutubeShortsEnabled ?? false,  icon: 'logo-youtube',        route: '/block-defense?tab=system' },
+    { key: 'reels',       label: 'Instagram Reels Block', on: settings.blockInstagramReelsEnabled ?? false, icon: 'logo-instagram',      route: '/block-defense?tab=system' },
+    { key: 'keywords',    label: 'Keyword Blocker',       on: (settings.blockedWords ?? []).length > 0,     icon: 'text-outline', count: (settings.blockedWords ?? []).length, route: '/keyword-blocker' },
   ];
   const enforcementOnCount = enforcementLayers.filter((l) => l.on).length;
 
@@ -310,28 +319,42 @@ export default function ActiveScreen() {
           title={`Enforcement Layers (${enforcementOnCount}/${enforcementLayers.length})`}
           theme={theme}
         >
-          {enforcementLayers.map((layer, i) => (
-            <View
-              key={layer.key}
-              style={[
-                styles.layerRow,
-                i < enforcementLayers.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.border },
-              ]}
-            >
-              <Ionicons name={layer.icon} size={14} color={layer.on ? COLORS.primary : theme.muted} />
-              <Text style={[styles.layerLabel, { color: theme.text, flex: 1 }]}>{layer.label}</Text>
-              <View
-                style={[
-                  styles.pill,
-                  { backgroundColor: layer.on ? COLORS.green + '22' : theme.muted + '22' },
-                ]}
-              >
-                <Text style={[styles.pillText, { color: layer.on ? COLORS.green : theme.muted }]}>
-                  {layer.on ? (layer.count ? `ON · ${layer.count}` : 'ON') : 'OFF'}
-                </Text>
-              </View>
-            </View>
-          ))}
+          {enforcementLayers.map((layer, i) => {
+            const rowContent = (
+              <>
+                <Ionicons name={layer.icon} size={14} color={layer.on ? COLORS.primary : theme.muted} />
+                <Text style={[styles.layerLabel, { color: theme.text, flex: 1 }]}>{layer.label}</Text>
+                <View
+                  style={[
+                    styles.pill,
+                    { backgroundColor: layer.on ? COLORS.green + '22' : theme.muted + '22' },
+                  ]}
+                >
+                  <Text style={[styles.pillText, { color: layer.on ? COLORS.green : theme.muted }]}>
+                    {layer.on ? (layer.count ? `ON · ${layer.count}` : 'ON') : 'OFF'}
+                  </Text>
+                </View>
+                {layer.route && <Ionicons name="chevron-forward" size={12} color={theme.muted} />}
+              </>
+            );
+            const rowStyle = [
+              styles.layerRow,
+              i < enforcementLayers.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.border },
+            ];
+            if (layer.route) {
+              return (
+                <TouchableOpacity
+                  key={layer.key}
+                  style={rowStyle}
+                  onPress={() => router.push(layer.route as never)}
+                  activeOpacity={0.7}
+                >
+                  {rowContent}
+                </TouchableOpacity>
+              );
+            }
+            return <View key={layer.key} style={rowStyle}>{rowContent}</View>;
+          })}
         </SectionCard>
 
         {/* 6. Today's daily allowance ──────────────────────── */}

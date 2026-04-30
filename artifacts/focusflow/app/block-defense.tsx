@@ -26,23 +26,20 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useApp } from '@/context/AppContext';
 import { useTheme } from '@/hooks/useTheme';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
-import { BlockedWordsModal } from '@/components/BlockedWordsModal';
 import { GreyoutScheduleModal } from '@/components/GreyoutScheduleModal';
 import type { GreyoutWindow } from '@/data/types';
 
 export default function BlockDefenseScreen() {
   const insets = useSafeAreaInsets();
   const { theme, isDark } = useTheme();
-  const { state, updateSettings, setBlockedWords } = useApp();
+  const { state, updateSettings } = useApp();
   const { settings } = state;
   const params = useLocalSearchParams<{ tab?: string }>();
 
-  const [wordsModalVisible, setWordsModalVisible] = useState(false);
   const [greyoutModalVisible, setGreyoutModalVisible] = useState(false);
 
   const scrollRef = useRef<ScrollView>(null);
   const sectionRefs = {
-    keywords: useRef<View>(null),
     system: useRef<View>(null),
     aversion: useRef<View>(null),
     greyout: useRef<View>(null),
@@ -67,6 +64,11 @@ export default function BlockDefenseScreen() {
   useEffect(() => {
     const tab = params.tab;
     if (!tab) return;
+    // Keyword Blocker has moved to its own page; redirect any old deep-links.
+    if (tab === 'keywords') {
+      router.replace('/keyword-blocker');
+      return;
+    }
     const timeout = setTimeout(() => {
       const ref = sectionRefs[tab as keyof typeof sectionRefs];
       if (ref?.current) {
@@ -79,7 +81,6 @@ export default function BlockDefenseScreen() {
         );
       }
       // Auto-open the appropriate modal
-      if (tab === 'keywords') setWordsModalVisible(true);
       if (tab === 'greyout') setGreyoutModalVisible(true);
     }, 400);
     return () => clearTimeout(timeout);
@@ -185,29 +186,6 @@ export default function BlockDefenseScreen() {
               theme={theme}
               isLast
             />
-          </View>
-        </View>
-
-        {/* ── Keyword Blocker ──────────────────────────────────────── */}
-        <View ref={sectionRefs.keywords} collapsable={false}>
-          <SectionHeader
-            icon="text-outline"
-            title="Keyword Blocker"
-            description="Redirects to home the moment any of your blocked words appear on screen — in URLs, search bars, or visible text."
-            theme={theme}
-          />
-          <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            <TouchableOpacity style={styles.cardButton} onPress={() => setWordsModalVisible(true)}>
-              <View style={styles.cardButtonContent}>
-                <Text style={[styles.cardButtonLabel, { color: theme.text }]}>Manage Blocked Keywords</Text>
-                <Text style={[styles.cardButtonDesc, { color: theme.muted }]}>
-                  {(settings.blockedWords ?? []).length === 0
-                    ? 'No keywords set — tap to add'
-                    : `${(settings.blockedWords ?? []).length} keyword${(settings.blockedWords ?? []).length !== 1 ? 's' : ''} active`}
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color={theme.border} />
-            </TouchableOpacity>
           </View>
         </View>
 
@@ -331,14 +309,6 @@ export default function BlockDefenseScreen() {
       </ScrollView>
 
       {/* Modals */}
-      <BlockedWordsModal
-        visible={wordsModalVisible}
-        words={settings.blockedWords ?? []}
-        locked={standaloneActive}
-        onSave={async (words) => { await setBlockedWords(words); }}
-        onClose={() => setWordsModalVisible(false)}
-      />
-
       <GreyoutScheduleModal
         visible={greyoutModalVisible}
         windows={settings.greyoutSchedule ?? []}

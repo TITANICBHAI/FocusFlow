@@ -384,6 +384,7 @@ export default function RootLayout() {
               <Stack.Screen name="onboarding" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
               <Stack.Screen name="permissions" options={{ headerShown: false }} />
               <Stack.Screen name="block-defense" options={{ headerShown: false, presentation: 'card' }} />
+              <Stack.Screen name="keyword-blocker" options={{ headerShown: false, presentation: 'card' }} />
               <Stack.Screen name="how-to-use" options={{ headerShown: false, presentation: 'card' }} />
               <Stack.Screen name="+not-found" />
             </Stack>
