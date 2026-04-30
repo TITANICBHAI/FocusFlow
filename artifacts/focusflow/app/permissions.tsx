@@ -20,6 +20,7 @@ import { isSharedPrefsAvailable } from '@/native-modules/SharedPrefsModule';
 import { ForegroundLaunchModule } from '@/native-modules/ForegroundLaunchModule';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 import { TroubleshootModal } from '@/components/TroubleshootModal';
+import { RestrictedSettingsBanner } from '@/components/RestrictedSettingsBanner';
 import { useApp } from '@/context/AppContext';
 import { useTheme } from '@/hooks/useTheme';
 
@@ -366,6 +367,11 @@ export default function PermissionsScreen() {
             </View>
           </View>
         )}
+
+        {/* Restricted-settings unlock banner — only renders on Android 13+ when
+            the OS is currently blocking the Accessibility toggle for this
+            install. Auto-hides when the user completes the unlock flow. */}
+        <RestrictedSettingsBanner />
 
         {/* Tutorial Banner */}
         <View style={[styles.tutorialBanner, { backgroundColor: theme.card, borderColor: theme.border }]}>

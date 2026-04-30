@@ -36,6 +36,7 @@ import { ForegroundServiceModule } from '@/native-modules/ForegroundServiceModul
 import { UsageStatsModule } from '@/native-modules/UsageStatsModule';
 import { ForegroundLaunchModule } from '@/native-modules/ForegroundLaunchModule';
 import { ImportFromOtherAppModal } from '@/components/ImportFromOtherAppModal';
+import { RestrictedSettingsBanner } from '@/components/RestrictedSettingsBanner';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 
 type PermStatus = 'granted' | 'denied' | 'unknown';
@@ -285,6 +286,14 @@ export default function OnboardingScreen() {
           </View>
           <Text style={[styles.appName, { color: theme.text }]}>FocusFlow</Text>
           <Text style={[styles.tagline, { color: theme.muted }]}>Your discipline operating system</Text>
+        </View>
+
+        {/* Restricted-settings unlock banner — shown above everything else
+            on the first-run flow when the OS is currently locking the
+            Accessibility toggle. Auto-hides the moment the user completes
+            the App Info → ⋮ → Allow restricted settings flow. */}
+        <View style={{ marginHorizontal: SPACING.lg, marginBottom: SPACING.md }}>
+          <RestrictedSettingsBanner />
         </View>
 
         {/* Why banner */}

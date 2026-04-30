@@ -391,4 +391,152 @@ class UsageStatsModule(private val reactContext: ReactApplicationContext) :
             promise.resolve(false)
         }
     }
+
+    /**
+     * Returns whether sensitive permissions (Accessibility, Notification Listener,
+     * Device Admin) are currently locked behind Android's "Restricted Settings"
+     * dialog for this app — the OS-level wall introduced in Android 13 (API 33)
+     * and tightened in Android 14/15 that greys out the toggle for sideloaded
+     * apps until the user explicitly unblocks via:
+     *
+     *   App info → ⋮ menu → "Allow restricted settings"
+     *
+     * Detection strategy:
+     *   1. Pre-API 33: always returns false (restricted settings did not exist).
+     *   2. API 33+: queries AppOpsManager.OPSTR_ACCESS_RESTRICTED_SETTINGS for
+     *      our own package. The op resolves to MODE_ALLOWED ONLY after the
+     *      user has tapped "Allow restricted settings". Any other mode
+     *      (MODE_IGNORED, MODE_ERRORED, MODE_DEFAULT) means the toggle is
+     *      currently locked.
+     *   3. As a sanity bypass, also returns false if the app was installed by
+     *      Google Play Store (com.android.vending) or a known trusted OEM
+     *      store — the OS auto-allows restricted settings for those installs
+     *      and the AppOps state may briefly lag behind on first launch.
+     *
+     * Returns:
+     *   true  → the Accessibility / Device Admin toggle will be greyed out;
+     *           the user must do the App Info → ⋮ → Allow restricted settings
+     *           flow first.
+     *   false → toggle works normally (Android < 13, or already unblocked,
+     *           or installed via Play Store / trusted OEM store).
+     */
+    @ReactMethod
+    fun isRestrictedSettingsBlocked(promise: Promise) {
+        try {
+            // Restricted Settings did not exist before API 33.
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+                promise.resolve(false)
+                return
+            }
+
+            // Bypass: trusted installer means the OS has already allowed
+            // restricted settings for this install.
+            val installer = try {
+                val pm = reactContext.packageManager
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    pm.getInstallSourceInfo(reactContext.packageName).installingPackageName
+                } else {
+                    @Suppress("DEPRECATION")
+                    pm.getInstallerPackageName(reactContext.packageName)
+                }
+            } catch (_: Exception) { null }
+
+            val trustedInstallers = setOf(
+                "com.android.vending",                  // Google Play Store
+                "com.google.android.feedback",          // Play Store legacy
+                "com.sec.android.app.samsungapps",      // Samsung Galaxy Store
+                "com.heytap.market",                    // Oppo / Realme / OnePlus App Market
+                "com.oppo.market",                      // Older Oppo store
+                "com.xiaomi.market",                    // Xiaomi GetApps
+                "com.bbk.appstore",                     // Vivo / iQOO App Store
+                "com.huawei.appmarket"                  // Huawei AppGallery
+            )
+            if (installer != null && trustedInstallers.contains(installer)) {
+                promise.resolve(false)
+                return
+            }
+
+            // Query the restricted-settings AppOp directly. The string constant
+            // is used instead of the symbolic OPSTR_ACCESS_RESTRICTED_SETTINGS
+            // so this compiles against any compileSdk >= 33 without needing the
+            // exact symbol (which has been renamed across SDK previews).
+            val appOps = reactContext.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
+            val mode = try {
+                appOps.unsafeCheckOpNoThrow(
+                    "android:access_restricted_settings",
+                    Process.myUid(),
+                    reactContext.packageName
+                )
+            } catch (_: Exception) {
+                // If the op is unknown on this OEM build, treat as not-restricted
+                // rather than block the user with a false positive.
+                promise.resolve(false)
+                return
+            }
+
+            // MODE_ALLOWED means the user has tapped "Allow restricted settings"
+            // (or the OS auto-allowed for this install). Anything else means the
+            // toggle is currently greyed out.
+            promise.resolve(mode != AppOpsManager.MODE_ALLOWED)
+        } catch (_: Exception) {
+            promise.resolve(false)
+        }
+    }
+
+    /**
+     * Opens the system App Info screen for FocusFlow. This is where the user
+     * finds the ⋮ (three-dot) menu containing "Allow restricted settings" — the
+     * one-time unlock required on non-Samsung Android 13+ phones before the
+     * Accessibility / Device Admin toggle becomes tappable.
+     *
+     * Action: Settings.ACTION_APPLICATION_DETAILS_SETTINGS with package URI.
+     * This is the official AOSP intent and works on every OEM (Pixel, Oppo,
+     * Realme, OnePlus, Xiaomi, Vivo, Motorola, Nothing, Sony, Samsung).
+     */
+    @ReactMethod
+    fun openAppInfoSettings(promise: Promise) {
+        try {
+            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                data = Uri.parse("package:${reactContext.packageName}")
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            val activity = reactContext.currentActivity
+            if (activity != null && !activity.isFinishing) {
+                activity.startActivity(intent)
+            } else {
+                reactContext.startActivity(intent)
+            }
+            promise.resolve(null)
+        } catch (e: Exception) {
+            // Last-resort fallback: drop into the global Settings root.
+            try {
+                reactContext.startActivity(Intent(Settings.ACTION_SETTINGS).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                })
+            } catch (_: Exception) {}
+            promise.resolve(null)
+        }
+    }
+
+    /**
+     * Returns the package name of the app that installed FocusFlow on this
+     * device, or null if unknown. Used by the JS layer to show OEM-specific
+     * guidance (e.g. "you installed via Aptoide — Android requires an extra
+     * unlock step before Accessibility can be enabled").
+     */
+    @ReactMethod
+    fun getInstallerPackage(promise: Promise) {
+        try {
+            val pm = reactContext.packageManager
+            val installer = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                pm.getInstallSourceInfo(reactContext.packageName).installingPackageName
+            } else {
+                @Suppress("DEPRECATION")
+                pm.getInstallerPackageName(reactContext.packageName)
+            }
+            promise.resolve(installer)
+        } catch (_: Exception) {
+            promise.resolve(null)
+        }
+    }
 }

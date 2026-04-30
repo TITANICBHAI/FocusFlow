@@ -17,6 +17,9 @@
  *   - openBatteryOptimizationSettings()
  *   - isDeviceAdminActive()               → boolean
  *   - openDeviceAdminSettings()
+ *   - isRestrictedSettingsBlocked()       → boolean   (Android 13+ sideload wall)
+ *   - openAppInfoSettings()                          (App info page → ⋮ menu)
+ *   - getInstallerPackage()               → string | null
  */
 
 import { NativeModules, Platform } from 'react-native';
@@ -73,5 +76,54 @@ export const UsageStatsModule = {
   async openDeviceAdminSettings(): Promise<void> {
     if (!UsageStats) return;
     return UsageStats.openDeviceAdminSettings();
+  },
+
+  /**
+   * Android 13+ "Restricted Settings" detector.
+   *
+   * Returns true when the OS is currently blocking the user from toggling
+   * sensitive permissions (Accessibility, Device Admin) because FocusFlow
+   * was installed from a non-Play-Store source. When true, the user must do:
+   *
+   *   App info → ⋮ menu (top-right) → "Allow restricted settings"
+   *
+   * before the Accessibility toggle becomes tappable.
+   *
+   * Returns false on Android < 13 (the wall didn't exist), on Play Store
+   * installs (the OS auto-allows), and on installs from trusted OEM stores
+   * (Galaxy Store, Oppo Market, Xiaomi GetApps, Vivo App Store, AppGallery).
+   */
+  async isRestrictedSettingsBlocked(): Promise<boolean> {
+    if (!UsageStats) return false;
+    try {
+      return await UsageStats.isRestrictedSettingsBlocked();
+    } catch {
+      return false;
+    }
+  },
+
+  /**
+   * Opens this app's App Info screen — the screen that contains the
+   * ⋮ (three-dot) overflow menu where "Allow restricted settings" lives.
+   * Used to walk the user through the Android 13+ sideload unlock flow.
+   */
+  async openAppInfoSettings(): Promise<void> {
+    if (!UsageStats) return;
+    return UsageStats.openAppInfoSettings();
+  },
+
+  /**
+   * Returns the package name of the app store / installer that placed
+   * FocusFlow on this device, or null if unknown. Used to show targeted
+   * unlock guidance (Play Store → no unlock needed, Aptoide → unlock needed,
+   * sideload via APK → unlock needed, etc.).
+   */
+  async getInstallerPackage(): Promise<string | null> {
+    if (!UsageStats) return null;
+    try {
+      return await UsageStats.getInstallerPackage();
+    } catch {
+      return null;
+    }
   },
 };
