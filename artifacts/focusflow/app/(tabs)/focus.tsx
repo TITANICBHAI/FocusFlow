@@ -242,12 +242,13 @@ function FocusScreen() {
     }
 
     // ── State 2: Nothing active — prompt to create a task ─────────────────────
-    const alwaysOnPkgs = settings.standaloneBlockPackages ?? [];
+    const alwaysOnPkgs = settings.alwaysOnPackages ?? [];
     const alwaysOnHasList = alwaysOnPkgs.length > 0;
     // Master enforcement switch — defaults to ON when undefined.
     const enforcementOn = settings.alwaysOnEnforcementEnabled !== false;
     // "Active" = list has packages AND enforcement is on (drives icon colour).
     const alwaysOnActive = alwaysOnHasList && enforcementOn;
+    const autoCopyOn = settings.autoCopyToAlwaysOn ?? false;
     const handleToggleEnforcement = (next: boolean) => {
       void updateSettings({ ...settings, alwaysOnEnforcementEnabled: next });
     };
@@ -256,15 +257,15 @@ function FocusScreen() {
     const scheduleCount  = (settings.recurringBlockSchedules ?? []).filter((s) => s.enabled).length;
     const handleClearAlwaysOn = () => {
       Alert.alert(
-        'Clear standalone block list?',
-        `This removes ${alwaysOnPkgs.length} app${alwaysOnPkgs.length !== 1 ? 's' : ''} from the always-on block list. Daily allowance rules are not affected.`,
+        'Clear always-on block list?',
+        `This removes ${alwaysOnPkgs.length} app${alwaysOnPkgs.length !== 1 ? 's' : ''} from the permanent block list. They will no longer be blocked 24/7.`,
         [
           { text: 'Cancel', style: 'cancel' },
           {
             text: 'Clear',
             style: 'destructive',
             onPress: () => {
-              void setStandaloneBlockAndAllowance([], null, settings.dailyAllowanceEntries ?? []);
+              void updateSettings({ ...settings, alwaysOnPackages: [] });
             },
           },
         ],
@@ -317,12 +318,19 @@ function FocusScreen() {
                 thumbColor={enforcementOn ? COLORS.orange : theme.muted}
               />
             </View>
+            {autoCopyOn && (
+              <View style={[styles.autoCopyBadge, { backgroundColor: COLORS.primary + '18', borderColor: COLORS.primary + '40' }]}>
+                <Ionicons name="copy-outline" size={11} color={COLORS.primary} />
+                <Text style={[styles.autoCopyText, { color: COLORS.primary }]}>Auto-copy from standalone block is ON</Text>
+              </View>
+            )}
             <View style={styles.alwaysOnActions}>
               <TouchableOpacity
                 style={[styles.alwaysOnBtn, { backgroundColor: COLORS.primary + '14', borderColor: COLORS.primary + '44' }]}
-                onPress={() => setBlockModalVisible(true)}
+                onPress={() => router.push('/always-on')}
                 activeOpacity={0.7}
               >
+                <Ionicons name="list-outline" size={13} color={COLORS.primary} />
                 <Text style={[styles.alwaysOnBtnText, { color: COLORS.primary }]}>
                   {alwaysOnHasList ? 'Edit list' : 'Add apps'}
                 </Text>
@@ -361,6 +369,16 @@ function FocusScreen() {
               <Ionicons name="calendar-outline" size={14} color={scheduleCount > 0 ? COLORS.orange : theme.muted} />
               <Text style={[styles.slimHintText, { color: theme.muted }]}>
                 Block Schedules · <Text style={{ color: theme.text, fontWeight: '700' }}>{scheduleCount}</Text>
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.slimHint, { borderColor: alwaysOnActive ? COLORS.orange + '66' : theme.border, backgroundColor: theme.card }]}
+              onPress={() => router.push('/always-on')}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="infinite-outline" size={14} color={alwaysOnActive ? COLORS.orange : theme.muted} />
+              <Text style={[styles.slimHintText, { color: theme.muted }]}>
+                Always-On · <Text style={{ color: theme.text, fontWeight: '700' }}>{alwaysOnPkgs.length}</Text>
               </Text>
             </TouchableOpacity>
           </View>
@@ -1071,6 +1089,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   slimHintText: { fontSize: FONT.xs, flexShrink: 1 },
+  autoCopyBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: SPACING.sm,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 4,
+    borderRadius: RADIUS.sm,
+    borderWidth: 1,
+    alignSelf: 'flex-start',
+  },
+  autoCopyText: { fontSize: 10, fontWeight: '600' },
   alwaysOnActions: { flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.xs },
   alwaysOnBtn: {
     flex: 1,
