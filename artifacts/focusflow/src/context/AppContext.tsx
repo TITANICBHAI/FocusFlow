@@ -123,6 +123,8 @@ const defaultSettings: AppSettings = {
   onboardingComplete: false,
   standaloneBlockPackages: [],
   standaloneBlockUntil: null,
+  alwaysOnPackages: [],
+  autoCopyToAlwaysOn: false,
   dailyAllowanceEntries: [],
   blockedWords: [],
   aversionDimmerEnabled: false,
@@ -503,16 +505,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
    * no timed session (focus task or standalone block with expiry) is running.
    */
   async function _syncAlwaysBlock(settings: AppSettings): Promise<void> {
-    const packages = settings.standaloneBlockPackages ?? [];
+    // Use the dedicated always-on list (separate from timed standalone block)
+    const packages = settings.alwaysOnPackages ?? [];
     const allowanceEntries = settings.dailyAllowanceEntries ?? [];
-    // Master enforcement switch — when false, the user has explicitly paused
-    // the always-on list. Packages stay in `standaloneBlockPackages` so the
-    // list isn't lost, but we tell the native side to deactivate enforcement.
     const enforcementOn = settings.alwaysOnEnforcementEnabled !== false;
     const active = enforcementOn && (packages.length > 0 || allowanceEntries.length > 0);
     try {
-      // When enforcement is paused we still pass the package list through so
-      // the native side knows what would be enforced if re-enabled.
       await SharedPrefsModule.setAlwaysBlockActive(active, packages);
     } catch (e) {
       void logger.warn('AppContext', `always block sync failed: ${String(e)}`);
@@ -1378,19 +1376,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const setStandaloneBlock = useCallback(async (packages: string[], untilMs: number | null) => {
     const untilIso = untilMs ? new Date(untilMs).toISOString() : null;
+    // Auto-copy to always-on list if the toggle is on and packages are being added
+    let alwaysOnPackages = state.settings.alwaysOnPackages ?? [];
+    if ((state.settings.autoCopyToAlwaysOn ?? false) && packages.length > 0) {
+      const merged = new Set([...alwaysOnPackages, ...packages]);
+      alwaysOnPackages = Array.from(merged);
+    }
     const newSettings: AppSettings = {
       ...state.settings,
       standaloneBlockPackages: packages,
       standaloneBlockUntil: untilIso,
+      alwaysOnPackages,
     };
     await dbSaveSettings(newSettings);
     dispatch({ type: 'SET_SETTINGS', payload: newSettings });
     const active = packages.length > 0 && untilMs !== null && untilMs > Date.now();
     await SharedPrefsModule.setStandaloneBlock(active, packages, untilMs ?? 0);
-    // Always enforce the block list even without an active timed session.
+    // Sync always-on enforcement using the dedicated alwaysOnPackages list
     const allowanceEntries = newSettings.dailyAllowanceEntries ?? [];
-    const alwaysActive = packages.length > 0 || allowanceEntries.length > 0;
-    await SharedPrefsModule.setAlwaysBlockActive(alwaysActive, packages).catch(() => {});
+    const alwaysOnActive = (newSettings.alwaysOnEnforcementEnabled !== false) &&
+      ((newSettings.alwaysOnPackages ?? []).length > 0 || allowanceEntries.length > 0);
+    await SharedPrefsModule.setAlwaysBlockActive(alwaysOnActive, newSettings.alwaysOnPackages ?? []).catch(() => {});
     // Schedule or cancel the expiry warning notification
     if (active && untilMs) {
       void scheduleStandaloneBlockExpiry(untilMs, packages.length).catch(() => {});
@@ -1414,20 +1420,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     allowanceEntries: DailyAllowanceEntry[],
   ) => {
     const untilIso = untilMs ? new Date(untilMs).toISOString() : null;
+    // Auto-copy to always-on list if the toggle is on and packages are being added
+    let alwaysOnPackages = state.settings.alwaysOnPackages ?? [];
+    if ((state.settings.autoCopyToAlwaysOn ?? false) && packages.length > 0) {
+      const merged = new Set([...alwaysOnPackages, ...packages]);
+      alwaysOnPackages = Array.from(merged);
+    }
     const newSettings: AppSettings = {
       ...state.settings,
       standaloneBlockPackages: packages,
       standaloneBlockUntil: untilIso,
       dailyAllowanceEntries: allowanceEntries,
+      alwaysOnPackages,
     };
     await dbSaveSettings(newSettings);
     dispatch({ type: 'SET_SETTINGS', payload: newSettings });
     const active = packages.length > 0 && untilMs !== null && untilMs > Date.now();
     await SharedPrefsModule.setStandaloneBlock(active, packages, untilMs ?? 0);
     await SharedPrefsModule.setDailyAllowanceConfig(allowanceEntries);
-    // Always enforce both lists even without an active timed session.
-    const alwaysActive = packages.length > 0 || allowanceEntries.length > 0;
-    await SharedPrefsModule.setAlwaysBlockActive(alwaysActive, packages).catch(() => {});
+    // Sync always-on enforcement using the dedicated alwaysOnPackages list
+    const alwaysOnActive2 = (newSettings.alwaysOnEnforcementEnabled !== false) &&
+      ((newSettings.alwaysOnPackages ?? []).length > 0 || allowanceEntries.length > 0);
+    await SharedPrefsModule.setAlwaysBlockActive(alwaysOnActive2, newSettings.alwaysOnPackages ?? []).catch(() => {});
     // Schedule or cancel the expiry warning notification
     if (active && untilMs) {
       void scheduleStandaloneBlockExpiry(untilMs, packages.length).catch(() => {});
