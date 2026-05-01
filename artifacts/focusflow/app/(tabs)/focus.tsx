@@ -114,7 +114,17 @@ function FocusScreen() {
     );
   };
 
-  const pulseAnim = React.useRef(new Animated.Value(1)).current;
+  // ── Animation refs ──────────────────────────────────────────────────────
+  const pulseAnim      = React.useRef(new Animated.Value(1)).current;
+  const rotateAnim     = React.useRef(new Animated.Value(0)).current;
+  const ripple1Scale   = React.useRef(new Animated.Value(1)).current;
+  const ripple1Opacity = React.useRef(new Animated.Value(0)).current;
+  const ripple2Scale   = React.useRef(new Animated.Value(1)).current;
+  const ripple2Opacity = React.useRef(new Animated.Value(0)).current;
+  const ripple3Scale   = React.useRef(new Animated.Value(1)).current;
+  const ripple3Opacity = React.useRef(new Animated.Value(0)).current;
+  const innerGlow      = React.useRef(new Animated.Value(0.7)).current;
+  const rotateInterp   = rotateAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
 
   useEffect(() => {
     const checkPermission = async () => {
@@ -150,16 +160,66 @@ function FocusScreen() {
   }, []);
 
   useEffect(() => {
-    if (!isFocusing) return;
     pulseAnim.setValue(1);
-    const pulse = Animated.loop(
+    rotateAnim.setValue(0);
+    [ripple1Scale, ripple2Scale, ripple3Scale].forEach(v => v.setValue(1));
+    [ripple1Opacity, ripple2Opacity, ripple3Opacity].forEach(v => v.setValue(0));
+
+    if (!isFocusing) {
+      // Idle — gentle breathe only
+      const idle = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, { toValue: 1.04, duration: 1800, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1,    duration: 1800, useNativeDriver: true }),
+        ]),
+      );
+      idle.start();
+      return () => idle.stop();
+    }
+
+    // Active focus: full suite
+    const breathe = Animated.loop(
       Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.08, duration: 1200, useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 1, duration: 1200, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1.10, duration: 1600, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1,    duration: 1600, useNativeDriver: true }),
       ]),
     );
-    pulse.start();
-    return () => pulse.stop();
+    const rotate = Animated.loop(
+      Animated.timing(rotateAnim, { toValue: 1, duration: 12000, useNativeDriver: true }),
+    );
+    const glow = Animated.loop(
+      Animated.sequence([
+        Animated.timing(innerGlow, { toValue: 1,    duration: 900, useNativeDriver: true }),
+        Animated.timing(innerGlow, { toValue: 0.55, duration: 900, useNativeDriver: true }),
+      ]),
+    );
+    const makeRipple = (scale: Animated.Value, opacity: Animated.Value, delay: number) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.parallel([
+            Animated.timing(scale,   { toValue: 1.65, duration: 2200, useNativeDriver: true }),
+            Animated.sequence([
+              Animated.timing(opacity, { toValue: 0.45, duration: 200,  useNativeDriver: true }),
+              Animated.timing(opacity, { toValue: 0,    duration: 2000, useNativeDriver: true }),
+            ]),
+          ]),
+          Animated.parallel([
+            Animated.timing(scale,   { toValue: 1, duration: 0, useNativeDriver: true }),
+            Animated.timing(opacity, { toValue: 0, duration: 0, useNativeDriver: true }),
+          ]),
+        ]),
+      );
+    const r1 = makeRipple(ripple1Scale, ripple1Opacity, 0);
+    const r2 = makeRipple(ripple2Scale, ripple2Opacity, 800);
+    const r3 = makeRipple(ripple3Scale, ripple3Opacity, 1600);
+
+    breathe.start(); rotate.start(); glow.start();
+    r1.start(); r2.start(); r3.start();
+    return () => {
+      breathe.stop(); rotate.stop(); glow.stop();
+      r1.stop(); r2.stop(); r3.stop();
+    };
   }, [isFocusing, task?.id]);
 
   if (!task) {
@@ -560,6 +620,29 @@ function FocusScreen() {
 
       {/* Central ring + timer */}
       <View style={styles.centerContent}>
+        {/* Sonar ripple rings */}
+        {([
+          [ripple1Scale, ripple1Opacity],
+          [ripple2Scale, ripple2Opacity],
+          [ripple3Scale, ripple3Opacity],
+        ] as [Animated.Value, Animated.Value][]).map(([scale, opacity], idx) => (
+          <Animated.View
+            key={idx}
+            pointerEvents="none"
+            style={{
+              position: 'absolute',
+              width: ringSize,
+              height: ringSize,
+              borderRadius: ringSize / 2,
+              borderWidth: 1.5,
+              borderColor: task.color,
+              transform: [{ scale }],
+              opacity,
+            }}
+          />
+        ))}
+
+        {/* Outer ring — slow rotation + breathe */}
         <Animated.View
           style={[
             styles.ringOuter,
@@ -567,19 +650,22 @@ function FocusScreen() {
               width: ringSize,
               height: ringSize,
               borderRadius: ringSize / 2,
-              borderColor: task.color + '33',
-              transform: [{ scale: pulseAnim }],
+              borderColor: task.color + (isFocusing ? '55' : '28'),
+              borderStyle: isFocusing ? 'dashed' : 'solid',
+              transform: [{ scale: pulseAnim }, { rotate: rotateInterp }],
             },
           ]}
         >
-          <View
+          {/* Inner ring — opacity glow pulse */}
+          <Animated.View
             style={[
               styles.ringInner,
               {
                 width: innerSize,
                 height: innerSize,
                 borderRadius: innerSize / 2,
-                borderColor: task.color + '88',
+                borderColor: task.color + 'cc',
+                opacity: innerGlow,
               },
             ]}
           >
@@ -591,12 +677,17 @@ function FocusScreen() {
                   height: coreSize,
                   borderRadius: coreSize / 2,
                   backgroundColor: task.color,
+                  shadowColor: task.color,
+                  shadowOffset: { width: 0, height: 0 },
+                  shadowOpacity: isFocusing ? 0.65 : 0.25,
+                  shadowRadius: isFocusing ? 22 : 8,
+                  elevation: isFocusing ? 16 : 5,
                 },
               ]}
             >
               <TimerDisplay startTime={task.startTime} endTime={task.endTime} color={task.color} ringSize={ringSize} />
             </View>
-          </View>
+          </Animated.View>
         </Animated.View>
 
         {/* Task title */}
@@ -1228,6 +1319,11 @@ const styles = StyleSheet.create({
   statusText: { fontSize: FONT.sm, fontWeight: '600', color: COLORS.textSecondary },
   scrollContent: { flexGrow: 1 },
   centerContent: { alignItems: 'center', justifyContent: 'center', gap: SPACING.md, paddingVertical: SPACING.xl },
+  rippleRing: {
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   ringOuter: {
     borderWidth: 16,
     alignItems: 'center',
