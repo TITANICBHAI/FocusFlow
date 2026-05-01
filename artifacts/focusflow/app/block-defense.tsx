@@ -284,6 +284,47 @@ export default function BlockDefenseScreen() {
           </View>
         </View>
 
+        {/* ── Always-On Enforcement ───────────────────────────────── */}
+        <View collapsable={false}>
+          <SectionHeader
+            icon="infinite-outline"
+            title="Always-On Block List"
+            description="A permanent list of apps that are blocked 24/7 — no session, no timer. Use auto-copy to build this list automatically from your standalone blocks."
+            theme={theme}
+          />
+          <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <SwitchRow
+              label="Enable always-on enforcement"
+              description={
+                (settings.alwaysOnEnforcementEnabled ?? true)
+                  ? `On — ${(settings.alwaysOnPackages ?? []).length} app${(settings.alwaysOnPackages ?? []).length !== 1 ? 's' : ''} blocked 24/7`
+                  : 'Off — always-on list is paused (list is preserved, not deleted)'
+              }
+              value={settings.alwaysOnEnforcementEnabled ?? true}
+              onValueChange={(v) => update({ alwaysOnEnforcementEnabled: v })}
+              theme={theme}
+            />
+            <SwitchRow
+              label="Auto-copy from standalone block"
+              description="When you add apps to a standalone block, they are automatically added to this always-on list too — so they stay blocked after the timer ends"
+              value={settings.autoCopyToAlwaysOn ?? false}
+              onValueChange={(v) => update({ autoCopyToAlwaysOn: v })}
+              theme={theme}
+            />
+            <TouchableOpacity style={styles.cardButton} onPress={() => router.push('/always-on')}>
+              <View style={styles.cardButtonContent}>
+                <Text style={[styles.cardButtonLabel, { color: theme.text }]}>Manage Always-On App List</Text>
+                <Text style={[styles.cardButtonDesc, { color: theme.muted }]}>
+                  {(settings.alwaysOnPackages ?? []).length === 0
+                    ? 'No apps — tap to add apps to block permanently'
+                    : `${(settings.alwaysOnPackages ?? []).length} app${(settings.alwaysOnPackages ?? []).length !== 1 ? 's' : ''} blocked around the clock`}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={theme.border} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* ── Block Schedules ─────────────────────────────────────── */}
         <View ref={sectionRefs.greyout} collapsable={false}>
           <SectionHeader
