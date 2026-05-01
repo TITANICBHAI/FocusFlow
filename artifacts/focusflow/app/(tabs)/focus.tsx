@@ -255,6 +255,8 @@ function FocusScreen() {
     // Slim hint counts shown below the card — quick at-a-glance status.
     const allowanceCount = (settings.dailyAllowanceEntries ?? []).length;
     const scheduleCount  = (settings.recurringBlockSchedules ?? []).filter((s) => s.enabled).length;
+    const blockedWords   = settings.blockedWords ?? [];
+    const keywordCount   = blockedWords.length;
     const handleClearAlwaysOn = () => {
       Alert.alert(
         'Clear always-on block list?',
@@ -347,6 +349,35 @@ function FocusScreen() {
             </View>
           </View>
 
+          {/* Keyword Blocker card */}
+          <View style={[styles.keywordCard, { backgroundColor: theme.card, borderColor: keywordCount > 0 ? COLORS.primary + '66' : theme.border }]}>
+            <View style={styles.keywordRow}>
+              <Ionicons
+                name={keywordCount > 0 ? 'text' : 'text-outline'}
+                size={18}
+                color={keywordCount > 0 ? COLORS.primary : theme.muted}
+              />
+              <View style={{ flex: 1, gap: 2 }}>
+                <Text style={[styles.alwaysOnTitle, { color: theme.text }]}>Keyword Blocker</Text>
+                <Text style={[styles.alwaysOnDesc, { color: theme.muted }]}>
+                  {keywordCount === 0
+                    ? 'No keywords set — add words to block content on screen during focus'
+                    : `${keywordCount} keyword${keywordCount !== 1 ? 's' : ''} — apps are sent home when any appear on screen`}
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              style={[styles.alwaysOnBtn, { backgroundColor: COLORS.primary + '14', borderColor: COLORS.primary + '44', marginTop: SPACING.sm }]}
+              onPress={() => router.push('/keyword-blocker')}
+              activeOpacity={0.7}
+            >
+              <Ionicons name={keywordCount > 0 ? 'create-outline' : 'add-circle-outline'} size={13} color={COLORS.primary} />
+              <Text style={[styles.alwaysOnBtnText, { color: COLORS.primary }]}>
+                {keywordCount > 0 ? 'Manage Keywords' : 'Add Keywords'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
           {/* Slim status hints — quick at-a-glance summary of related blockers.
               Only shown on the Focus idle screen (deliberately omitted from
               other pages so they don't become noisy). */}
@@ -379,6 +410,16 @@ function FocusScreen() {
               <Ionicons name="infinite-outline" size={14} color={alwaysOnActive ? COLORS.orange : theme.muted} />
               <Text style={[styles.slimHintText, { color: theme.muted }]}>
                 Always-On · <Text style={{ color: theme.text, fontWeight: '700' }}>{alwaysOnPkgs.length}</Text>
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.slimHint, { borderColor: keywordCount > 0 ? COLORS.primary + '55' : theme.border, backgroundColor: theme.card }]}
+              onPress={() => router.push('/keyword-blocker')}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="text-outline" size={14} color={keywordCount > 0 ? COLORS.primary : theme.muted} />
+              <Text style={[styles.slimHintText, { color: theme.muted }]}>
+                Keywords · <Text style={{ color: theme.text, fontWeight: '700' }}>{keywordCount}</Text>
               </Text>
             </TouchableOpacity>
           </View>
@@ -1061,6 +1102,12 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.lg,
     width: '100%',
   },
+  keywordCard: {
+    borderWidth: 1,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+  },
+  keywordRow: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm },
   alwaysOnCard: {
     width: '100%',
     borderRadius: RADIUS.lg,
