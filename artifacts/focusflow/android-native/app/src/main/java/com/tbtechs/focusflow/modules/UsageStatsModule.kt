@@ -456,22 +456,38 @@ class UsageStatsModule(private val reactContext: ReactApplicationContext) :
                 return
             }
 
-            // Query the restricted-settings AppOp directly. The string constant
-            // is used instead of the symbolic OPSTR_ACCESS_RESTRICTED_SETTINGS
-            // so this compiles against any compileSdk >= 33 without needing the
-            // exact symbol (which has been renamed across SDK previews).
             val appOps = reactContext.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
-            val mode = try {
-                appOps.unsafeCheckOpNoThrow(
-                    "android:access_restricted_settings",
-                    Process.myUid(),
-                    reactContext.packageName
+            val uid = Process.myUid()
+            val pkg = reactContext.packageName
+
+            // Primary: call checkOpNoThrow(int, int, String) via reflection using
+            // op code 111 (OP_ACCESS_RESTRICTED_SETTINGS, added in API 33).
+            // This is more reliable than the string-based unsafeCheckOpNoThrow
+            // across OEM builds where the string constant may be remapped.
+            val mode: Int = try {
+                val method = AppOpsManager::class.java.getMethod(
+                    "checkOpNoThrow",
+                    Int::class.java,
+                    Int::class.java,
+                    String::class.java
                 )
+                method.invoke(appOps, 111, uid, pkg) as Int
             } catch (_: Exception) {
-                // If the op is unknown on this OEM build, treat as not-restricted
-                // rather than block the user with a false positive.
-                promise.resolve(false)
-                return
+                // Fallback: string-based lookup used on devices where reflection
+                // fails (heavily customised OEM builds, future API changes).
+                try {
+                    appOps.unsafeCheckOpNoThrow(
+                        "android:access_restricted_settings",
+                        uid,
+                        pkg
+                    )
+                } catch (_: Exception) {
+                    // Both methods failed — can't determine. Show banner only
+                    // when installer is unknown (sideloaded APK) to minimise
+                    // false positives on OEM builds that don't support this op.
+                    promise.resolve(installer == null)
+                    return
+                }
             }
 
             // MODE_ALLOWED means the user has tapped "Allow restricted settings"
@@ -538,5 +554,16 @@ class UsageStatsModule(private val reactContext: ReactApplicationContext) :
         } catch (_: Exception) {
             promise.resolve(null)
         }
+    }
+
+    /**
+     * Returns the device manufacturer string in lower-case (e.g. "samsung",
+     * "xiaomi", "oneplus", "realme", "oppo", "google"). Used by the JS layer
+     * to pre-select the correct brand in the Troubleshoot modal so users don't
+     * have to pick manually.
+     */
+    @ReactMethod
+    fun getDeviceManufacturer(promise: Promise) {
+        promise.resolve(Build.MANUFACTURER.lowercase())
     }
 }

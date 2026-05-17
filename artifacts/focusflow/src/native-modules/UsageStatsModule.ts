@@ -20,6 +20,7 @@
  *   - isRestrictedSettingsBlocked()       → boolean   (Android 13+ sideload wall)
  *   - openAppInfoSettings()                          (App info page → ⋮ menu)
  *   - getInstallerPackage()               → string | null
+ *   - getDeviceManufacturer()             → string   (e.g. "samsung", "xiaomi")
  */
 
 import { NativeModules, Platform } from 'react-native';
@@ -124,6 +125,20 @@ export const UsageStatsModule = {
       return await UsageStats.getInstallerPackage();
     } catch {
       return null;
+    }
+  },
+
+  /**
+   * Returns the device manufacturer in lower-case (e.g. "samsung", "xiaomi",
+   * "oneplus", "realme", "oppo", "google"). Used to pre-select the correct
+   * brand in the Troubleshoot modal automatically.
+   */
+  async getDeviceManufacturer(): Promise<string> {
+    if (!UsageStats) return 'unknown';
+    try {
+      return await UsageStats.getDeviceManufacturer();
+    } catch {
+      return 'unknown';
     }
   },
 };
