@@ -50,6 +50,10 @@ args = "Start FocusFlow Feature Videos"
 task = "workflow.run"
 args = "Deploy Feature Videos to GitHub Pages"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Deploy Feature Videos to New Repo"
+
 [[workflows.workflow]]
 name = "Push to GitHub"
 author = "agent"
@@ -139,6 +143,17 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "pnpm --filter @workspace/scripts run github:deploy-pages"
+
+[workflows.workflow.metadata]
+outputType = "console"
+
+[[workflows.workflow]]
+name = "Deploy Feature Videos to New Repo"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pnpm --filter @workspace/scripts run github:deploy-feature-videos-repo"
 
 [workflows.workflow.metadata]
 outputType = "console"
