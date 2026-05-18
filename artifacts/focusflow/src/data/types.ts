@@ -262,6 +262,27 @@ export interface AppSettings {
   recurringBlockSchedules: RecurringBlockSchedule[];
   userProfile?: UserProfile;
 
+  // ── Face Lock ──────────────────────────────────────────────────────────────
+  // Periodically checks the front camera to identify the enrolled person.
+  // Restrictions (block schedules, greyed apps, etc.) only apply when the
+  // enrolled face is detected — a different face or no face does not trigger
+  // a block (except for the brightness-boost → timeout edge case).
+  /**
+   * When true, the background FaceCheckService runs periodic face checks
+   * and applies configured restrictions when the enrolled person is detected.
+   */
+  faceLockEnabled?: boolean;
+  /**
+   * Minutes between background face checks. Minimum 1, default 10.
+   */
+  faceLockCheckIntervalMinutes?: number;
+  /**
+   * Convenience flag — true when a face profile has been successfully enrolled.
+   * The actual embedding lives in the native SharedPreferences; this flag is
+   * kept in sync by the JS layer after enrollment/clear operations.
+   */
+  faceLockEnrolled?: boolean;
+
   /**
    * User-selected UI language. When null/undefined, the device locale is used.
    * Stored as an i18n language code: 'en' | 'zh' | 'fr' | 'de' | 'ja' | 'ko' | 'es'

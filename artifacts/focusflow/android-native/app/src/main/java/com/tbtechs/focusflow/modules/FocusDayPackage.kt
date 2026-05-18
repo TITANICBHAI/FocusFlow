@@ -35,6 +35,7 @@ import com.facebook.react.uimanager.ViewManager
  *   NativeImagePicker — system photo picker replacing expo-image-picker (zero deps)
  *   NativeFilePicker  — ACTION_OPEN_DOCUMENT file picker returning name + content
  *   SessionPin        — PIN-based protection for session-ending native methods
+ *   FaceRecognition   — On-device FaceNet enrollment/verification for Face Lock
  */
 class FocusDayPackage : ReactPackage {
 
@@ -55,6 +56,7 @@ class FocusDayPackage : ReactPackage {
             NativeFilePickerModule(reactContext),
             SessionPinModule(reactContext),
             TaskAlarmModule(reactContext),
+            FaceRecognitionModule(reactContext),
         )
 
     override fun createViewManagers(reactContext: ReactApplicationContext): List<ViewManager<*, *>> =

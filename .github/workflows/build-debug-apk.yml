@@ -1,0 +1,129 @@
+name: Build Debug APK
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build FocusFlow Debug APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ~/.pnpm-store
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('artifacts/focusflow/android*/**/*.gradle*', 'artifacts/focusflow/android*/**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Install workspace dependencies
+        # --no-frozen-lockfile: the monorepo lockfile contains platform-specific
+        # esbuild/rollup/lightningcss overrides that resolve differently on Linux
+        # CI vs. the Replit dev environment. pnpm regenerates only the affected
+        # entries; no package versions change.
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Expo prebuild (Android)
+        run: npx expo prebuild --platform android --clean --no-install
+        working-directory: artifacts/focusflow
+
+      - name: Install native Kotlin modules
+        run: |
+          chmod +x android-native/install.sh
+          ./android-native/install.sh
+        working-directory: artifacts/focusflow
+
+      - name: Patch MainApplication.kt — register FocusDayPackage
+        run: |
+          MAIN_APP=$(find artifacts/focusflow/android -name "MainApplication.kt" 2>/dev/null | head -1)
+          if [ -z "$MAIN_APP" ]; then
+            echo "ERROR: MainApplication.kt not found after prebuild"
+            exit 1
+          fi
+          echo "Found: $MAIN_APP"
+          if grep -q "FocusDayPackage" "$MAIN_APP"; then
+            echo "FocusDayPackage already registered — skipping"
+          else
+            # Insert import after the last existing import line
+            sed -i '/^import com\.facebook\.react\.ReactNativeHost/a import com.tbtechs.focusflow.modules.FocusDayPackage' "$MAIN_APP"
+            # Add to getPackages() — insert after PackageList line
+            sed -i 's/packages\.addAll(PackageList(this)\.packages)/packages.addAll(PackageList(this).packages)\n          packages.add(FocusDayPackage())/' "$MAIN_APP"
+            # Fallback pattern if above didn't match
+            if ! grep -q "FocusDayPackage()" "$MAIN_APP"; then
+              sed -i 's/return PackageList(this)\.packages/val pkgs = PackageList(this).packages\n            pkgs.add(FocusDayPackage())\n            return pkgs/' "$MAIN_APP"
+            fi
+            echo "FocusDayPackage registered"
+          fi
+          grep -n "FocusDayPackage\|getPackages\|PackageList" "$MAIN_APP"
+
+      - name: Stub FaceNet TFLite model for build
+        run: |
+          # The real model must be supplied for Face Lock to work at runtime.
+          # A zero-byte stub here lets the build succeed so the APK is produced.
+          # Replace this step with a download or Git LFS pull in production.
+          ASSETS_DIR="artifacts/focusflow/android/app/src/main/assets"
+          mkdir -p "$ASSETS_DIR"
+          if [ ! -f "$ASSETS_DIR/facenet_mobilenet.tflite" ]; then
+            touch "$ASSETS_DIR/facenet_mobilenet.tflite"
+            echo "Stub facenet_mobilenet.tflite created — replace with real model for production"
+          fi
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x gradlew
+        working-directory: artifacts/focusflow/android
+
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+        working-directory: artifacts/focusflow/android
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.daemon=false"
+
+      - name: Upload Debug APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: focusflow-debug-${{ github.run_number }}
+          path: artifacts/focusflow/android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Print APK info
+        run: |
+          APK="artifacts/focusflow/android/app/build/outputs/apk/debug/app-debug.apk"
+          if [ -f "$APK" ]; then
+            ls -lh "$APK"
+            echo "Build complete — download the artifact from the Actions run summary"
+          fi

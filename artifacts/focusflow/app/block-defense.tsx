@@ -40,6 +40,8 @@ import { PinVerifyModal } from '@/components/PinVerifyModal';
 import { PinSetupModal } from '@/components/PinSetupModal';
 import { PinRotationModal } from '@/components/PinRotationModal';
 import { VpnConsentModal } from '@/components/VpnConsentModal';
+import { FaceEnrollmentModal } from '@/components/FaceEnrollmentModal';
+import { FaceRecognitionModule } from '@/native-modules/FaceRecognitionModule';
 import type { GreyoutWindow } from '@/data/types';
 
 type PinModalState =
@@ -67,6 +69,8 @@ export default function BlockDefenseScreen() {
   const [defensePinSet, setDefensePinSet] = useState(false);
   const [alwaysOnPinRotationVisible, setAlwaysOnPinRotationVisible] = useState(false);
   const [vpnConsentVisible, setVpnConsentVisible] = useState(false);
+  const [faceEnrollVisible, setFaceEnrollVisible] = useState(false);
+  const [faceEnrolled, setFaceEnrolled] = useState(false);
   // Holds the resolve callback for the VPN consent modal promise
   const vpnConsentResolveRef = React.useRef<((confirmed: boolean) => void) | null>(null);
 
@@ -89,15 +93,17 @@ export default function BlockDefenseScreen() {
   const allowanceEntryCount = (settings.dailyAllowanceEntries ?? []).length;
   const alwaysOnActive = standalonePkgCount > 0 || allowanceEntryCount > 0;
 
-  // Load PIN status on mount and after any PIN change
+  // Load PIN + face enrollment status on mount and after any change
   const loadPinStatus = useCallback(async () => {
     try {
-      const [focusSet, defenseHash] = await Promise.all([
+      const [focusSet, defenseHash, enrolled] = await Promise.all([
         SessionPinModule.isPinSet(),
         SharedPrefsModule.getString('defense_pin_hash'),
+        FaceRecognitionModule.isEnrolled(),
       ]);
       setFocusPinSet(focusSet);
       setDefensePinSet(!!defenseHash);
+      setFaceEnrolled(enrolled);
     } catch {}
   }, []);
 
@@ -494,6 +500,163 @@ export default function BlockDefenseScreen() {
           </View>
         </View>
 
+        {/* ── Face Lock ────────────────────────────────────────────── */}
+        <View collapsable={false}>
+          <SectionHeader
+            icon="scan-outline"
+            title="Face Lock"
+            description="Periodically checks the front camera to confirm who is using the device. Restrictions apply only when your enrolled face is detected — a different person's face or no face at all does not trigger a block."
+            theme={theme}
+          />
+          <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            {/* Enable / disable toggle — gated by defense PIN to turn off */}
+            <SwitchRow
+              label="Enable Face Lock"
+              description={
+                (settings.faceLockEnabled ?? false)
+                  ? faceEnrolled
+                    ? `On — checking every ${settings.faceLockCheckIntervalMinutes ?? 10} min`
+                    : 'On — no face enrolled yet, tap "Enroll Face" below to get started'
+                  : 'Off — face-based restrictions are not active'
+              }
+              value={settings.faceLockEnabled ?? false}
+              onValueChange={(v) => {
+                if (!v) {
+                  requireDefensePin(
+                    'Disable Face Lock',
+                    'Enter your defense password to turn off face-based restrictions.',
+                    () => {
+                      void update({ faceLockEnabled: false });
+                      void FaceRecognitionModule.setFaceLockConfig(false, settings.faceLockCheckIntervalMinutes ?? 10);
+                    },
+                  );
+                  return;
+                }
+                if (!faceEnrolled) {
+                  Alert.alert(
+                    'No face enrolled',
+                    'You need to enroll your face before enabling Face Lock. Tap "Enroll Face" below first.',
+                    [{ text: 'OK' }],
+                  );
+                  return;
+                }
+                void update({ faceLockEnabled: true });
+                void FaceRecognitionModule.setFaceLockConfig(true, settings.faceLockCheckIntervalMinutes ?? 10);
+              }}
+              theme={theme}
+            />
+
+            <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: theme.border }} />
+
+            {/* Check interval */}
+            <View style={[styles.switchRow, { flexDirection: 'column', alignItems: 'flex-start', gap: SPACING.xs }]}>
+              <Text style={[styles.switchLabel, { color: theme.text }]}>Check interval</Text>
+              <Text style={[styles.switchDesc, { color: theme.muted }]}>
+                How often the camera silently checks for your face in the background
+              </Text>
+              <View style={{ flexDirection: 'row', gap: SPACING.xs, flexWrap: 'wrap', marginTop: SPACING.xs }}>
+                {([5, 10, 15, 30] as const).map((mins) => {
+                  const selected = (settings.faceLockCheckIntervalMinutes ?? 10) === mins;
+                  return (
+                    <TouchableOpacity
+                      key={mins}
+                      style={[
+                        styles.intervalChip,
+                        {
+                          backgroundColor: selected ? COLORS.primary : theme.card,
+                          borderColor: selected ? COLORS.primary : theme.border,
+                        },
+                      ]}
+                      onPress={() => {
+                        void update({ faceLockCheckIntervalMinutes: mins });
+                        void FaceRecognitionModule.setFaceLockConfig(
+                          settings.faceLockEnabled ?? false,
+                          mins,
+                        );
+                      }}
+                    >
+                      <Text style={[styles.intervalChipText, { color: selected ? '#fff' : theme.text }]}>
+                        {mins} min
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+
+            <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: theme.border }} />
+
+            {/* Enroll / Re-enroll row — defense PIN gated */}
+            <FaceRow
+              icon="camera-outline"
+              label={faceEnrolled ? 'Re-enroll Face' : 'Enroll Face'}
+              description={
+                faceEnrolled
+                  ? 'Replace your current face profile with a new enrollment (5 captures)'
+                  : 'Capture your face profile — 5 quick photos at different angles'
+              }
+              actionLabel={faceEnrolled ? 'Re-enroll' : 'Enroll'}
+              actionColor={COLORS.primary}
+              onAction={() => {
+                const doEnroll = () => setFaceEnrollVisible(true);
+                if (faceEnrolled) {
+                  requireDefensePin(
+                    'Re-enroll Face',
+                    'Enter your defense password to replace the existing face profile.',
+                    doEnroll,
+                  );
+                } else {
+                  doEnroll();
+                }
+              }}
+              theme={theme}
+            />
+
+            <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: theme.border }} />
+
+            {/* Clear face data row — defense PIN gated, only shown when enrolled */}
+            <FaceRow
+              icon="trash-outline"
+              label="Clear Face Data"
+              description={
+                faceEnrolled
+                  ? 'Permanently delete your face profile from this device'
+                  : 'No face profile is stored on this device'
+              }
+              actionLabel="Clear"
+              actionColor={faceEnrolled ? COLORS.red : theme.muted}
+              onAction={() => {
+                if (!faceEnrolled) return;
+                requireDefensePin(
+                  'Clear Face Data',
+                  'Enter your defense password to permanently delete your face profile.',
+                  () => {
+                    Alert.alert(
+                      'Delete face profile?',
+                      'This will permanently remove your face profile from this device. You will need to re-enroll to use Face Lock again.',
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        {
+                          text: 'Delete',
+                          style: 'destructive',
+                          onPress: async () => {
+                            await FaceRecognitionModule.clearFaceData().catch(() => {});
+                            await update({ faceLockEnabled: false, faceLockEnrolled: false });
+                            setFaceEnrolled(false);
+                          },
+                        },
+                      ],
+                    );
+                  },
+                );
+              }}
+              disabled={!faceEnrolled}
+              isLast
+              theme={theme}
+            />
+          </View>
+        </View>
+
         {/* ── Focus Session Behaviour ──────────────────────────────── */}
         <View collapsable={false}>
           <SectionHeader
@@ -837,6 +1000,18 @@ export default function BlockDefenseScreen() {
         visible={nuclearModeVisible}
         onClose={() => setNuclearModeVisible(false)}
       />
+      <FaceEnrollmentModal
+        visible={faceEnrollVisible}
+        onDone={async () => {
+          setFaceEnrollVisible(false);
+          const enrolled = await FaceRecognitionModule.isEnrolled().catch(() => false);
+          setFaceEnrolled(enrolled);
+          if (enrolled) {
+            await update({ faceLockEnrolled: true }).catch(() => {});
+          }
+        }}
+        onCancel={() => setFaceEnrollVisible(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -910,6 +1085,62 @@ function PinRow({
             </TouchableOpacity>
           </>
         )}
+      </View>
+    </View>
+  );
+}
+
+function FaceRow({
+  icon,
+  label,
+  description,
+  actionLabel,
+  actionColor,
+  onAction,
+  disabled = false,
+  isLast = false,
+  theme,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  description: string;
+  actionLabel: string;
+  actionColor: string;
+  onAction: () => void;
+  disabled?: boolean;
+  isLast?: boolean;
+  theme: ReturnType<typeof useTheme>['theme'];
+}) {
+  return (
+    <View
+      style={[
+        styles.pinRow,
+        !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.border },
+      ]}
+    >
+      <View style={styles.pinRowTop}>
+        <View style={[styles.pinIcon, { backgroundColor: COLORS.primary + '18' }]}>
+          <Ionicons name={icon} size={16} color={disabled ? theme.muted : COLORS.primary} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.pinLabel, { color: disabled ? theme.muted : theme.text }]}>{label}</Text>
+          <Text style={[styles.pinDesc, { color: theme.muted }]} numberOfLines={2}>
+            {description}
+          </Text>
+        </View>
+      </View>
+      <View style={styles.pinBtns}>
+        <TouchableOpacity
+          style={[
+            styles.pinBtn,
+            { borderWidth: 1, borderColor: disabled ? theme.border : actionColor + 'AA', opacity: disabled ? 0.4 : 1 },
+          ]}
+          onPress={onAction}
+          disabled={disabled}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.pinBtnText, { color: disabled ? theme.muted : actionColor }]}>{actionLabel}</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -1100,4 +1331,11 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.md,
   },
   pinBtnText: { fontSize: FONT.xs, fontWeight: '700' },
+  intervalChip: {
+    paddingVertical: SPACING.xs,
+    paddingHorizontal: SPACING.sm + 2,
+    borderRadius: RADIUS.full,
+    borderWidth: 1,
+  },
+  intervalChipText: { fontSize: FONT.xs, fontWeight: '600' },
 });

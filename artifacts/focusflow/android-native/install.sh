@@ -145,6 +145,9 @@ patch_permission "android.permission.PACKAGE_USAGE_STATS"        ' tools:ignore=
 patch_permission "android.permission.SYSTEM_ALERT_WINDOW"
 patch_permission "android.permission.FOREGROUND_SERVICE"
 patch_permission "android.permission.FOREGROUND_SERVICE_SPECIAL_USE"
+# Required for FaceCheckService to access the front camera while running in the
+# background (Android 14+). Declared alongside FOREGROUND_SERVICE_SPECIAL_USE.
+patch_permission "android.permission.FOREGROUND_SERVICE_CAMERA"
 patch_permission "android.permission.RECEIVE_BOOT_COMPLETED"
 patch_permission "android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"
 patch_permission "android.permission.BIND_ACCESSIBILITY_SERVICE"  ' tools:ignore="ProtectedPermissions"'
@@ -157,6 +160,9 @@ patch_permission "android.permission.EXPAND_STATUS_BAR"
 patch_permission "android.permission.QUERY_ALL_PACKAGES"          ' tools:ignore="QueryAllPackagesPermission"'
 # Required by NuclearModeModule to launch the system uninstall dialog for a package.
 patch_permission "android.permission.REQUEST_DELETE_PACKAGES"
+# Camera access — used by FaceRecognitionModule for on-device face enrollment/verify.
+# Must NOT appear in blockedPermissions in app.json or Expo will strip it from the manifest.
+patch_permission "android.permission.CAMERA"
 
 # ── ForegroundTaskService ─────────────────────────────────────────────────────
 
