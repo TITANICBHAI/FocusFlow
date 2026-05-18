@@ -1,13 +1,13 @@
 /**
  * OnboardingScreen
  *
- * Shown on first launch as a full-screen modal over the tabs.
- * Rich expandable permission cards matching the detail level of
- * the manage-permissions screen.
+ * Three-step onboarding flow:
+ *   Step 1 — Required permissions (accessibility, usage, overlay, notifications, battery)
+ *   Step 2 — Optional permissions  (VPN, device admin, media)
+ *   Step 3 — Quick how-to-use guide + PIN protection toggle
  *
- * - Auto-checks all permission statuses on mount and on every app-resume.
- * - Button is always enabled; if permissions are missing a tip points the
- *   user to Settings → Permissions instead of blocking entry.
+ * The "Continue" button is always enabled so users who skip permissions
+ * can still reach the app; a tip points them to Settings → Permissions.
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -56,20 +56,6 @@ interface PermItem {
 }
 
 const PERMISSIONS: PermItem[] = [
-  {
-    id: 'media',
-    icon: 'images-outline',
-    title: 'Media & Files',
-    description: 'Access your photo library to set a custom wallpaper on the block screen.',
-    whyNeeded:
-      'Only needed if you want to pick a custom background image for the block overlay. The default wallpaper works without this.',
-    brokenWithout: [
-      'You cannot pick a custom wallpaper for the block screen',
-      'The default built-in wallpaper will be used instead',
-    ],
-    deepLinkLabel: 'Allow Media Access',
-    grantAction: 'auto',
-  },
   {
     id: 'notifications',
     icon: 'notifications-outline',
@@ -174,6 +160,60 @@ const PERMISSIONS: PermItem[] = [
     grantAction: 'manual',
     optional: true,
   },
+  {
+    id: 'media',
+    icon: 'images-outline',
+    title: 'Media & Files',
+    description: 'Access your photo library to set a custom wallpaper on the block screen.',
+    whyNeeded:
+      'Only needed if you want to pick a custom background image for the block overlay. The default wallpaper works without this.',
+    brokenWithout: [
+      'You cannot pick a custom wallpaper for the block screen',
+      'The default built-in wallpaper will be used instead',
+    ],
+    deepLinkLabel: 'Allow Media Access',
+    grantAction: 'auto',
+    optional: true,
+  },
+];
+
+const HOW_TO_SECTIONS = [
+  {
+    icon: 'calendar-outline' as const,
+    title: 'Schedule Your Focus',
+    color: COLORS.primary,
+    tip: 'Add tasks on the Schedule tab → tap Focus Mode when one is active to start blocking.',
+  },
+  {
+    icon: 'ban-outline' as const,
+    title: 'Block Apps',
+    color: COLORS.red,
+    tip: 'Side menu → Standalone Block to block any app for a set time — no task needed. Use Daily Allowance for soft limits.',
+  },
+  {
+    icon: 'shield-checkmark-outline' as const,
+    title: 'Lock It Down',
+    color: COLORS.orange,
+    tip: 'Block Enforcement has System Protection, Keyword Blocker, VPN blocking, and Aversion Deterrents. Stack them for maximum resistance.',
+  },
+  {
+    icon: 'time-outline' as const,
+    title: 'Block Schedules',
+    color: COLORS.purple,
+    tip: 'Set time-window batches (e.g. no Instagram 9–17 Mon–Fri). They run forever without needing a focus session.',
+  },
+  {
+    icon: 'bar-chart-outline' as const,
+    title: 'Track Progress',
+    color: COLORS.green,
+    tip: 'Stats tab shows daily & weekly focus charts, yesterday\'s task digest, and an all-time heatmap.',
+  },
+  {
+    icon: 'menu-outline' as const,
+    title: 'Side Menu',
+    color: COLORS.blue,
+    tip: 'Swipe right from the left edge (or tap the › tab) to reach every blocking tool without going through Settings.',
+  },
 ];
 
 async function checkStatus(id: string): Promise<PermStatus> {
@@ -222,15 +262,20 @@ async function checkStatus(id: string): Promise<PermStatus> {
 export default function OnboardingScreen() {
   const { state, updateSettings } = useApp();
   const { theme } = useTheme();
+
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const scrollRef = useRef<ScrollView>(null);
+
   const [statuses, setStatuses] = useState<Record<string, PermStatus>>({});
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+
   const [pinProtectionChoice, setPinProtectionChoice] = useState(false);
   const [defensePinSet, setDefensePinSet] = useState(false);
   const [pinSetupVisible, setPinSetupVisible] = useState(false);
+
   const appStateRef = useRef(AppState.currentState);
 
-  // Check whether a defense PIN is already stored (e.g. user came back to onboarding)
   useEffect(() => {
     SharedPrefsModule.getString('defense_pin_hash')
       .then((hash) => setDefensePinSet(!!hash))
@@ -247,9 +292,7 @@ export default function OnboardingScreen() {
     setStatuses(result);
   }, []);
 
-  useEffect(() => {
-    void checkAll();
-  }, [checkAll]);
+  useEffect(() => { void checkAll(); }, [checkAll]);
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', async (next) => {
@@ -299,350 +342,331 @@ export default function OnboardingScreen() {
         }, 800);
       }
     } catch {
-      try {
-        await Linking.openSettings();
-      } catch { /* ignore */ }
+      try { await Linking.openSettings(); } catch { /* ignore */ }
     } finally {
       setActionLoading(null);
     }
   };
 
-  const requiredPerms = PERMISSIONS.filter((p) => !p.optional);
-  const optionalPerms = PERMISSIONS.filter((p) => p.optional);
-  const grantedCount = requiredPerms.filter((p) => statuses[p.id] === 'granted').length;
-  const allGranted = grantedCount === requiredPerms.length;
-
   const handleFinish = async () => {
-    // Don't mark onboardingComplete here — user-profile.tsx does that
-    // so we know the user has seen (or skipped) the profile setup step.
     try {
       await updateSettings({ ...state.settings, pinProtectionEnabled: pinProtectionChoice });
-    } catch { /* non-blocking — preference is saved on best-effort */ }
-    // Write background service consent flag so BootReceiver knows the user
-    // has completed onboarding and explicitly authorised background operation.
-    // Huawei AppGallery rule 2.19: foreground services must not start without
-    // user authorisation. This flag gates the idle auto-start on reboot.
+    } catch { /* non-blocking */ }
     try {
       await SharedPrefsModule.putString('user_consented_background_service', 'true');
     } catch { /* non-fatal */ }
     router.replace('/user-profile');
   };
 
+  const advanceStep = () => {
+    setExpandedId(null);
+    setStep((s) => (s < 3 ? ((s + 1) as 1 | 2 | 3) : s));
+    setTimeout(() => scrollRef.current?.scrollTo({ y: 0, animated: false }), 50);
+  };
+
+  const requiredPerms = PERMISSIONS.filter((p) => !p.optional);
+  const optionalPerms = PERMISSIONS.filter((p) => p.optional);
+  const reqGranted = requiredPerms.filter((p) => statuses[p.id] === 'granted').length;
+  const allRequiredGranted = reqGranted === requiredPerms.length;
+
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]}>
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.logoCircle}>
-            <Ionicons name="shield-checkmark" size={38} color="#fff" />
-          </View>
-          <Text style={[styles.appName, { color: theme.text }]}>FocusFlow</Text>
-          <Text style={[styles.tagline, { color: theme.muted }]}>Your discipline operating system</Text>
-        </View>
-
-        {/* Restricted-settings unlock banner — shown above everything else
-            on the first-run flow when the OS is currently locking the
-            Accessibility toggle. Auto-hides the moment the user completes
-            the App Info → ⋮ → Allow restricted settings flow. */}
-        <View style={{ marginHorizontal: SPACING.lg, marginBottom: SPACING.md }}>
-          <RestrictedSettingsBanner />
-        </View>
-
-        {/* Why banner */}
-        <View style={styles.tutorialBanner}>
-          <View style={styles.tutorialIconWrap}>
-            <Ionicons name="shield-checkmark" size={24} color={COLORS.primary} />
-          </View>
-          <View style={styles.tutorialTextWrap}>
-            <Text style={styles.tutorialTitle}>Why these permissions?</Text>
-            <Text style={styles.tutorialBody}>
-              FocusFlow enforces focus at the system level — not just reminders.
-              To actually block apps and keep your session running, Android requires
-              special access that regular apps don't need.
-            </Text>
-          </View>
-        </View>
-
-        {/* Progress bar */}
-        <View style={styles.progressSection}>
-          <View style={styles.progressLabelRow}>
-            <Text style={[styles.progressLabel, { color: theme.muted }]}>Permissions granted</Text>
-            <Text style={[styles.progressCount, allGranted && styles.progressCountDone]}>
-              {grantedCount} / {requiredPerms.length}
-            </Text>
-          </View>
-          <View style={[styles.progressBar, { backgroundColor: theme.border }]}>
+      {/* ── Step indicator ──────────────────────────────────────────── */}
+      <View style={[styles.stepBar, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
+        {([1, 2, 3] as const).map((n) => (
+          <View key={n} style={styles.stepItem}>
             <View
               style={[
-                styles.progressFill,
-                {
-                  width: `${(grantedCount / requiredPerms.length) * 100}%` as any,
-                  backgroundColor: allGranted ? COLORS.green : COLORS.primary,
-                },
+                styles.stepDot,
+                step === n && { backgroundColor: COLORS.primary },
+                step > n && { backgroundColor: COLORS.green },
+                step < n && { backgroundColor: theme.border },
               ]}
-            />
-          </View>
-          {allGranted && (
-            <Text style={styles.allSetText}>
-              All permissions granted — blocking is fully active.
-            </Text>
-          )}
-        </View>
-
-        {/* Section label */}
-        <Text style={[styles.sectionLabel, { color: theme.muted }]}>REQUIRED — TAP A CARD TO SEE DETAILS</Text>
-
-        {/* Required permission cards */}
-        {requiredPerms.map((perm) => {
-          const status = statuses[perm.id] ?? 'unknown';
-          const isExpanded = expandedId === perm.id;
-          const isLoading = actionLoading === perm.id;
-
-          return (
-            <View
-              key={perm.id}
-              style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }, status === 'granted' && styles.cardGranted]}
             >
-              <TouchableOpacity
-                style={styles.cardMain}
-                onPress={() => setExpandedId(isExpanded ? null : perm.id)}
-                activeOpacity={0.75}
-              >
-                <View style={[styles.iconWrap, { backgroundColor: statusColor(status) + '22' }]}>
-                  <Ionicons name={perm.icon} size={22} color={statusColor(status)} />
-                </View>
-
-                <View style={styles.cardBody}>
-                  <View style={styles.cardTitleRow}>
-                    <Text style={[styles.cardTitle, { color: theme.text }]}>{perm.title}</Text>
-                    <StatusBadge status={status} />
-                  </View>
-                  <Text style={[styles.cardDesc, { color: theme.muted }]} numberOfLines={isExpanded ? undefined : 2}>
-                    {perm.description}
-                  </Text>
-                </View>
-
-                <Ionicons
-                  name={isExpanded ? 'chevron-up' : 'chevron-down'}
-                  size={16}
-                  color={theme.muted}
-                />
-              </TouchableOpacity>
-
-              {isExpanded && (
-                <View style={[styles.expandedSection, { backgroundColor: theme.surface, borderTopColor: theme.border }]}>
-                  {/* Why needed */}
-                  <View style={styles.whyBox}>
-                    <Ionicons name="bulb-outline" size={14} color={COLORS.orange} />
-                    <Text style={styles.whyText}>{perm.whyNeeded}</Text>
-                  </View>
-
-                  {/* What breaks without it */}
-                  {status !== 'granted' && (
-                    <View style={styles.brokenSection}>
-                      <Text style={[styles.brokenTitle, { color: theme.text }]}>Without this permission:</Text>
-                      {perm.brokenWithout.map((item, i) => (
-                        <View key={i} style={styles.brokenRow}>
-                          <Ionicons name="close-circle" size={14} color={COLORS.red} />
-                          <Text style={[styles.brokenText, { color: theme.textSecondary }]}>{item}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  )}
-
-                  {/* Grant button */}
-                  {status !== 'granted' && (
-                    <TouchableOpacity
-                      style={styles.grantBtn}
-                      onPress={() => handleGrant(perm)}
-                      disabled={isLoading}
-                    >
-                      {isLoading ? (
-                        <ActivityIndicator size="small" color="#fff" />
-                      ) : (
-                        <>
-                          <Ionicons name="open-outline" size={14} color="#fff" />
-                          <Text style={styles.grantBtnText}>{perm.deepLinkLabel}</Text>
-                        </>
-                      )}
-                    </TouchableOpacity>
-                  )}
-                </View>
-              )}
+              {step > n
+                ? <Ionicons name="checkmark" size={12} color="#fff" />
+                : <Text style={[styles.stepDotText, { color: step === n ? '#fff' : theme.muted }]}>{n}</Text>
+              }
             </View>
-          );
-        })}
-
-        {/* Optional permission cards */}
-        <Text style={[styles.sectionLabel, { color: theme.muted, marginTop: SPACING.sm }]}>OPTIONAL ENHANCEMENTS</Text>
-        <Text style={[styles.optionalHint, { color: theme.muted }]}>
-          These are not required to use FocusFlow, but unlock additional features.
-        </Text>
-        {optionalPerms.map((perm) => {
-          const status = statuses[perm.id] ?? 'unknown';
-          const isExpanded = expandedId === perm.id;
-          const isLoading = actionLoading === perm.id;
-
-          return (
-            <View
-              key={perm.id}
-              style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }, status === 'granted' && styles.cardGranted]}
-            >
-              <TouchableOpacity
-                style={styles.cardMain}
-                onPress={() => setExpandedId(isExpanded ? null : perm.id)}
-                activeOpacity={0.75}
-              >
-                <View style={[styles.iconWrap, { backgroundColor: statusColor(status) + '22' }]}>
-                  <Ionicons name={perm.icon} size={22} color={statusColor(status)} />
-                </View>
-
-                <View style={styles.cardBody}>
-                  <View style={styles.cardTitleRow}>
-                    <Text style={[styles.cardTitle, { color: theme.text }]}>{perm.title}</Text>
-                    <View style={[badge.wrap, { backgroundColor: COLORS.primary + '18', borderColor: COLORS.primary + '33', marginRight: 4 }]}>
-                      <Text style={[badge.text, { color: COLORS.primary }]}>Optional</Text>
-                    </View>
-                    <StatusBadge status={status} />
-                  </View>
-                  <Text style={[styles.cardDesc, { color: theme.muted }]} numberOfLines={isExpanded ? undefined : 2}>
-                    {perm.description}
-                  </Text>
-                </View>
-
-                <Ionicons
-                  name={isExpanded ? 'chevron-up' : 'chevron-down'}
-                  size={16}
-                  color={theme.muted}
-                />
-              </TouchableOpacity>
-
-              {isExpanded && (
-                <View style={[styles.expandedSection, { backgroundColor: theme.surface, borderTopColor: theme.border }]}>
-                  <View style={styles.whyBox}>
-                    <Ionicons name="bulb-outline" size={14} color={COLORS.orange} />
-                    <Text style={styles.whyText}>{perm.whyNeeded}</Text>
-                  </View>
-                  {status !== 'granted' && (
-                    <View style={styles.brokenSection}>
-                      <Text style={[styles.brokenTitle, { color: theme.text }]}>Without this permission:</Text>
-                      {perm.brokenWithout.map((item, i) => (
-                        <View key={i} style={styles.brokenRow}>
-                          <Ionicons name="close-circle" size={14} color={COLORS.red} />
-                          <Text style={[styles.brokenText, { color: theme.textSecondary }]}>{item}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  )}
-                  {status !== 'granted' && (
-                    <TouchableOpacity
-                      style={styles.grantBtn}
-                      onPress={() => handleGrant(perm)}
-                      disabled={isLoading}
-                    >
-                      {isLoading ? (
-                        <ActivityIndicator size="small" color="#fff" />
-                      ) : (
-                        <>
-                          <Ionicons name="open-outline" size={14} color="#fff" />
-                          <Text style={styles.grantBtnText}>{perm.deepLinkLabel}</Text>
-                        </>
-                      )}
-                    </TouchableOpacity>
-                  )}
-                </View>
-              )}
-            </View>
-          );
-        })}
-
-        {/* Missing perms tip — points to manage perms instead of blocking */}
-        {!allGranted && (
-          <View style={styles.manageTip}>
-            <Ionicons name="information-circle-outline" size={18} color={COLORS.primary} />
-            <Text style={[styles.manageTipText, { color: theme.textSecondary }]}>
-              Missing permissions can be fixed anytime in{' '}
-              <Text style={styles.manageTipHighlight}>Settings → Permissions</Text>
-              {' '}where you'll also find troubleshooting help.
+            <Text style={[styles.stepLabel, { color: step === n ? theme.text : theme.muted }]}>
+              {n === 1 ? 'Permissions' : n === 2 ? 'Optional' : 'Get Started'}
             </Text>
           </View>
-        )}
+        ))}
+        <View style={[styles.stepConnector, { backgroundColor: theme.border, left: '33%' }]} />
+        <View style={[styles.stepConnector, { backgroundColor: theme.border, left: '66%' }]} />
+      </View>
 
-        {/* ── PIN Protection preference ─────────────────────────────────── */}
-        <Text style={[styles.sectionLabel, { color: theme.muted, marginTop: SPACING.sm }]}>
-          SECURITY PREFERENCE
-        </Text>
-        <View style={[styles.pinCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <View style={styles.pinCardMain}>
-            <View style={[styles.pinCardIcon, { backgroundColor: COLORS.primary + '1A' }]}>
-              <Ionicons name="lock-closed-outline" size={22} color={COLORS.primary} />
+      <ScrollView
+        ref={scrollRef}
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+
+        {/* ══════════════════════════════════════════════════════════════
+            STEP 1 — Required permissions
+        ══════════════════════════════════════════════════════════════ */}
+        {step === 1 && (
+          <>
+            {/* Header */}
+            <View style={styles.header}>
+              <View style={styles.logoCircle}>
+                <Ionicons name="shield-checkmark" size={38} color="#fff" />
+              </View>
+              <Text style={[styles.appName, { color: theme.text }]}>FocusFlow</Text>
+              <Text style={[styles.tagline, { color: theme.muted }]}>Your discipline operating system</Text>
             </View>
-            <View style={styles.pinCardBody}>
-              <Text style={[styles.pinCardTitle, { color: theme.text }]}>
-                PIN Protection
-              </Text>
-              <Text style={[styles.pinCardDesc, { color: theme.muted }]}>
-                Require a password to disable block enforcement toggles. Prevents impulsive self-sabotage mid-session.
-              </Text>
+
+            {/* Restricted-settings banner */}
+            <View style={{ marginBottom: SPACING.xs }}>
+              <RestrictedSettingsBanner />
             </View>
-            <Switch
-              value={pinProtectionChoice}
-              onValueChange={setPinProtectionChoice}
-              trackColor={{ false: COLORS.border, true: COLORS.primary + '88' }}
-              thumbColor={pinProtectionChoice ? COLORS.primary : COLORS.muted}
-            />
-          </View>
-          {pinProtectionChoice && defensePinSet && (
-            <View style={[styles.pinCardHint, { backgroundColor: COLORS.green + '12', borderTopColor: theme.border }]}>
-              <Ionicons name="checkmark-circle-outline" size={14} color={COLORS.green} />
-              <Text style={[styles.pinCardHintText, { color: COLORS.green }]}>
-                Defense Password set — your protections are locked.
-              </Text>
-            </View>
-          )}
-          {pinProtectionChoice && !defensePinSet && (
-            <View style={[styles.pinCardHint, { backgroundColor: COLORS.primary + '0D', borderTopColor: theme.border }]}>
-              <View style={{ flex: 1, gap: SPACING.xs }}>
-                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.xs }}>
-                  <Ionicons name="information-circle-outline" size={14} color={COLORS.primary} style={{ marginTop: 1 }} />
-                  <Text style={[styles.pinCardHintText, { color: theme.muted, flex: 1 }]}>
-                    Set your Defense Password now — or add it later in Block Enforcement.
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  style={styles.setPinBtn}
-                  onPress={() => setPinSetupVisible(true)}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="key-outline" size={14} color="#fff" />
-                  <Text style={styles.setPinBtnText}>Set Password Now</Text>
-                </TouchableOpacity>
+
+            {/* Why banner */}
+            <View style={[styles.infoBanner, { backgroundColor: COLORS.primary + '12', borderColor: COLORS.primary + '33' }]}>
+              <View style={[styles.bannerIcon, { backgroundColor: COLORS.primary + '18' }]}>
+                <Ionicons name="shield-checkmark" size={22} color={COLORS.primary} />
+              </View>
+              <View style={styles.bannerText}>
+                <Text style={[styles.bannerTitle, { color: COLORS.primary }]}>Why these permissions?</Text>
+                <Text style={[styles.bannerBody, { color: COLORS.primary + 'cc' }]}>
+                  FocusFlow enforces focus at the system level — not just reminders.
+                  To actually block apps and keep your session running, Android requires
+                  special access that regular apps don't need.
+                </Text>
               </View>
             </View>
-          )}
-          {!pinProtectionChoice && (
-            <View style={[styles.pinCardHint, { backgroundColor: theme.border + '33', borderTopColor: theme.border }]}>
-              <Ionicons name="information-circle-outline" size={14} color={theme.muted} />
-              <Text style={[styles.pinCardHintText, { color: theme.muted }]}>
-                You can enable this anytime in Settings → PIN Protection or Block Enforcement.
+
+            {/* Progress bar */}
+            <View style={styles.progressSection}>
+              <View style={styles.progressLabelRow}>
+                <Text style={[styles.progressLabel, { color: theme.muted }]}>Permissions granted</Text>
+                <Text style={[styles.progressCount, allRequiredGranted && styles.progressCountDone]}>
+                  {reqGranted} / {requiredPerms.length}
+                </Text>
+              </View>
+              <View style={[styles.progressBar, { backgroundColor: theme.border }]}>
+                <View
+                  style={[
+                    styles.progressFill,
+                    {
+                      width: `${(reqGranted / requiredPerms.length) * 100}%` as any,
+                      backgroundColor: allRequiredGranted ? COLORS.green : COLORS.primary,
+                    },
+                  ]}
+                />
+              </View>
+              {allRequiredGranted && (
+                <Text style={styles.allSetText}>All required permissions granted — blocking is fully active.</Text>
+              )}
+            </View>
+
+            <Text style={[styles.sectionLabel, { color: theme.muted }]}>REQUIRED — TAP A CARD TO SEE DETAILS</Text>
+
+            {requiredPerms.map((perm) => (
+              <PermCard
+                key={perm.id}
+                perm={perm}
+                status={statuses[perm.id] ?? 'unknown'}
+                isExpanded={expandedId === perm.id}
+                isLoading={actionLoading === perm.id}
+                onToggleExpand={() => setExpandedId(expandedId === perm.id ? null : perm.id)}
+                onGrant={() => handleGrant(perm)}
+                theme={theme}
+                showOptionalBadge={false}
+              />
+            ))}
+
+            {!allRequiredGranted && (
+              <View style={[styles.manageTip, { backgroundColor: COLORS.primary + '0E', borderColor: COLORS.primary + '33' }]}>
+                <Ionicons name="information-circle-outline" size={18} color={COLORS.primary} />
+                <Text style={[styles.manageTipText, { color: theme.muted }]}>
+                  Missing permissions can be fixed anytime in{' '}
+                  <Text style={styles.manageTipHighlight}>Settings → Permissions</Text>
+                  {' '}where you'll also find troubleshooting help.
+                </Text>
+              </View>
+            )}
+
+            <TouchableOpacity
+              style={[styles.continueBtn, { backgroundColor: allRequiredGranted ? COLORS.primary : COLORS.primary + 'AA' }]}
+              onPress={advanceStep}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.continueBtnText}>
+                {allRequiredGranted ? 'Continue →' : 'Continue anyway →'}
+              </Text>
+            </TouchableOpacity>
+
+            <Text style={[styles.footerNote, { color: theme.muted }]}>
+              All permissions can be managed in Settings at any time.
+            </Text>
+          </>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════
+            STEP 2 — Optional permissions
+        ══════════════════════════════════════════════════════════════ */}
+        {step === 2 && (
+          <>
+            <View style={styles.stepHeader}>
+              <Text style={[styles.stepTitle, { color: theme.text }]}>Optional Enhancements</Text>
+              <Text style={[styles.stepSubtitle, { color: theme.muted }]}>
+                These unlock extra features but are not required for core blocking to work.
               </Text>
             </View>
-          )}
-        </View>
 
-        {/* Enter button — always enabled */}
-        <TouchableOpacity
-          style={[styles.enterBtn, allGranted && styles.enterBtnReady]}
-          onPress={handleFinish}
-          activeOpacity={0.85}
-        >
-          <Text style={styles.enterBtnText}>Continue →</Text>
-        </TouchableOpacity>
+            {optionalPerms.map((perm) => (
+              <PermCard
+                key={perm.id}
+                perm={perm}
+                status={statuses[perm.id] ?? 'unknown'}
+                isExpanded={expandedId === perm.id}
+                isLoading={actionLoading === perm.id}
+                onToggleExpand={() => setExpandedId(expandedId === perm.id ? null : perm.id)}
+                onGrant={() => handleGrant(perm)}
+                theme={theme}
+                showOptionalBadge
+              />
+            ))}
 
-        <Text style={[styles.footerNote, { color: theme.muted }]}>
-          All permissions can be managed in Settings at any time.
-        </Text>
+            <View style={[styles.manageTip, { backgroundColor: theme.card, borderColor: theme.border }]}>
+              <Ionicons name="checkmark-circle-outline" size={18} color={COLORS.green} />
+              <Text style={[styles.manageTipText, { color: theme.muted }]}>
+                You can enable any of these later in{' '}
+                <Text style={styles.manageTipHighlight}>Settings → Permissions</Text>.
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.continueBtn, { backgroundColor: COLORS.primary }]}
+              onPress={advanceStep}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.continueBtnText}>Continue →</Text>
+            </TouchableOpacity>
+          </>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════
+            STEP 3 — How to use + PIN
+        ══════════════════════════════════════════════════════════════ */}
+        {step === 3 && (
+          <>
+            <View style={styles.stepHeader}>
+              <Text style={[styles.stepTitle, { color: theme.text }]}>How FocusFlow Works</Text>
+              <Text style={[styles.stepSubtitle, { color: theme.muted }]}>
+                A quick tour of the tools you now have access to.
+              </Text>
+            </View>
+
+            {HOW_TO_SECTIONS.map((s) => (
+              <View
+                key={s.title}
+                style={[styles.howToCard, { backgroundColor: theme.card, borderColor: theme.border }]}
+              >
+                <View style={[styles.howToIcon, { backgroundColor: s.color + '18' }]}>
+                  <Ionicons name={s.icon} size={20} color={s.color} />
+                </View>
+                <View style={styles.howToBody}>
+                  <Text style={[styles.howToTitle, { color: theme.text }]}>{s.title}</Text>
+                  <Text style={[styles.howToTip, { color: theme.muted }]}>{s.tip}</Text>
+                </View>
+              </View>
+            ))}
+
+            <TouchableOpacity
+              style={[styles.howToMoreBtn, { borderColor: COLORS.primary + '55' }]}
+              onPress={() => router.push('/how-to-use')}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="book-outline" size={15} color={COLORS.primary} />
+              <Text style={[styles.howToMoreText, { color: COLORS.primary }]}>Read the full guide</Text>
+              <Ionicons name="chevron-forward" size={14} color={COLORS.primary} />
+            </TouchableOpacity>
+
+            {/* ── PIN Protection preference ─────────────────────────── */}
+            <View style={styles.divider}>
+              <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
+              <Text style={[styles.dividerText, { color: theme.muted }]}>SECURITY</Text>
+              <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
+            </View>
+
+            <View style={[styles.pinCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+              <View style={styles.pinCardMain}>
+                <View style={[styles.pinCardIcon, { backgroundColor: COLORS.primary + '1A' }]}>
+                  <Ionicons name="lock-closed-outline" size={22} color={COLORS.primary} />
+                </View>
+                <View style={styles.pinCardBody}>
+                  <Text style={[styles.pinCardTitle, { color: theme.text }]}>PIN Protection</Text>
+                  <Text style={[styles.pinCardDesc, { color: theme.muted }]}>
+                    Require a password to disable block enforcement toggles. Prevents impulsive self-sabotage mid-session.
+                  </Text>
+                </View>
+                <Switch
+                  value={pinProtectionChoice}
+                  onValueChange={setPinProtectionChoice}
+                  trackColor={{ false: COLORS.border, true: COLORS.primary + '88' }}
+                  thumbColor={pinProtectionChoice ? COLORS.primary : COLORS.muted}
+                />
+              </View>
+
+              {pinProtectionChoice && defensePinSet && (
+                <View style={[styles.pinCardHint, { backgroundColor: COLORS.green + '12', borderTopColor: theme.border }]}>
+                  <Ionicons name="checkmark-circle-outline" size={14} color={COLORS.green} />
+                  <Text style={[styles.pinCardHintText, { color: COLORS.green }]}>
+                    Defense Password set — your protections are locked.
+                  </Text>
+                </View>
+              )}
+
+              {pinProtectionChoice && !defensePinSet && (
+                <View style={[styles.pinCardHint, { backgroundColor: COLORS.primary + '0D', borderTopColor: theme.border }]}>
+                  <View style={{ flex: 1, gap: SPACING.xs }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.xs }}>
+                      <Ionicons name="information-circle-outline" size={14} color={COLORS.primary} style={{ marginTop: 1 }} />
+                      <Text style={[styles.pinCardHintText, { color: theme.muted, flex: 1 }]}>
+                        Set your Defense Password now — or add it later in Block Enforcement.
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.setPinBtn}
+                      onPress={() => setPinSetupVisible(true)}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="key-outline" size={14} color="#fff" />
+                      <Text style={styles.setPinBtnText}>Set Password Now</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+
+              {!pinProtectionChoice && (
+                <View style={[styles.pinCardHint, { backgroundColor: theme.border + '33', borderTopColor: theme.border }]}>
+                  <Ionicons name="information-circle-outline" size={14} color={theme.muted} />
+                  <Text style={[styles.pinCardHintText, { color: theme.muted }]}>
+                    You can enable this anytime in Settings → PIN Protection or Block Enforcement.
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            <TouchableOpacity
+              style={[styles.continueBtn, { backgroundColor: COLORS.primary }]}
+              onPress={handleFinish}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.continueBtnText}>Enter FocusFlow →</Text>
+            </TouchableOpacity>
+
+            <Text style={[styles.footerNote, { color: theme.muted }]}>
+              All settings can be changed at any time from the app.
+            </Text>
+          </>
+        )}
+
       </ScrollView>
 
       <PinSetupModal
@@ -658,6 +682,97 @@ export default function OnboardingScreen() {
   );
 }
 
+// ── PermCard sub-component ─────────────────────────────────────────────────────
+
+function PermCard({
+  perm,
+  status,
+  isExpanded,
+  isLoading,
+  onToggleExpand,
+  onGrant,
+  theme,
+  showOptionalBadge,
+}: {
+  perm: PermItem;
+  status: PermStatus;
+  isExpanded: boolean;
+  isLoading: boolean;
+  onToggleExpand: () => void;
+  onGrant: () => void;
+  theme: ReturnType<typeof useTheme>['theme'];
+  showOptionalBadge: boolean;
+}) {
+  return (
+    <View
+      style={[
+        styles.card,
+        { backgroundColor: theme.card, borderColor: theme.border },
+        status === 'granted' && styles.cardGranted,
+      ]}
+    >
+      <TouchableOpacity style={styles.cardMain} onPress={onToggleExpand} activeOpacity={0.75}>
+        <View style={[styles.iconWrap, { backgroundColor: statusColor(status) + '22' }]}>
+          <Ionicons name={perm.icon} size={22} color={statusColor(status)} />
+        </View>
+
+        <View style={styles.cardBody}>
+          <View style={styles.cardTitleRow}>
+            <Text style={[styles.cardTitle, { color: theme.text }]}>{perm.title}</Text>
+            {showOptionalBadge && (
+              <View style={[badge.wrap, { backgroundColor: COLORS.primary + '18', borderColor: COLORS.primary + '33', marginRight: 2 }]}>
+                <Text style={[badge.text, { color: COLORS.primary }]}>Optional</Text>
+              </View>
+            )}
+            <StatusBadge status={status} />
+          </View>
+          <Text style={[styles.cardDesc, { color: theme.muted }]} numberOfLines={isExpanded ? undefined : 2}>
+            {perm.description}
+          </Text>
+        </View>
+
+        <Ionicons name={isExpanded ? 'chevron-up' : 'chevron-down'} size={16} color={theme.muted} />
+      </TouchableOpacity>
+
+      {isExpanded && (
+        <View style={[styles.expandedSection, { backgroundColor: theme.surface ?? theme.background, borderTopColor: theme.border }]}>
+          <View style={styles.whyBox}>
+            <Ionicons name="bulb-outline" size={14} color={COLORS.orange} />
+            <Text style={styles.whyText}>{perm.whyNeeded}</Text>
+          </View>
+
+          {status !== 'granted' && (
+            <View style={styles.brokenSection}>
+              <Text style={[styles.brokenTitle, { color: theme.text }]}>Without this permission:</Text>
+              {perm.brokenWithout.map((item, i) => (
+                <View key={i} style={styles.brokenRow}>
+                  <Ionicons name="close-circle" size={14} color={COLORS.red} />
+                  <Text style={[styles.brokenText, { color: theme.muted }]}>{item}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {status !== 'granted' && (
+            <TouchableOpacity style={styles.grantBtn} onPress={onGrant} disabled={isLoading}>
+              {isLoading ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <>
+                  <Ionicons name="open-outline" size={14} color="#fff" />
+                  <Text style={styles.grantBtnText}>{perm.deepLinkLabel}</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+    </View>
+  );
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
 function statusColor(status: PermStatus): string {
   if (status === 'granted') return COLORS.green;
   if (status === 'denied') return COLORS.red;
@@ -665,8 +780,7 @@ function statusColor(status: PermStatus): string {
 }
 
 function StatusBadge({ status }: { status: PermStatus }) {
-  const label =
-    status === 'granted' ? 'Granted' : status === 'denied' ? 'Missing' : 'Checking…';
+  const label = status === 'granted' ? 'Granted' : status === 'denied' ? 'Missing' : 'Checking…';
   const color = statusColor(status);
   return (
     <View style={[badge.wrap, { backgroundColor: color + '22', borderColor: color + '44' }]}>
@@ -674,6 +788,8 @@ function StatusBadge({ status }: { status: PermStatus }) {
     </View>
   );
 }
+
+// ── Styles ────────────────────────────────────────────────────────────────────
 
 const badge = StyleSheet.create({
   wrap: {
@@ -686,174 +802,124 @@ const badge = StyleSheet.create({
 });
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: COLORS.background },
+  safe: { flex: 1 },
   scroll: { padding: SPACING.lg, paddingBottom: 56, gap: SPACING.md },
 
-  // Header
+  // Step indicator bar
+  stepBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    paddingVertical: SPACING.sm + 2,
+    paddingHorizontal: SPACING.xl,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    position: 'relative',
+  },
+  stepItem: { alignItems: 'center', gap: 4, zIndex: 1 },
+  stepDot: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepDotText: { fontSize: FONT.xs, fontWeight: '800' },
+  stepLabel: { fontSize: 10, fontWeight: '600', letterSpacing: 0.3 },
+  stepConnector: {
+    position: 'absolute',
+    top: '40%',
+    width: 1,
+    height: 26,
+  },
+
+  // Header (step 1)
   header: {
     alignItems: 'center',
-    paddingVertical: SPACING.xl,
+    paddingVertical: SPACING.lg,
     gap: SPACING.sm,
   },
   logoCircle: {
-    width: 84,
-    height: 84,
-    borderRadius: 42,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
     elevation: 6,
   },
-  appName: {
-    fontSize: FONT.xxl + 4,
-    fontWeight: '900',
-    color: COLORS.text,
-    letterSpacing: -1,
-  },
-  tagline: { fontSize: FONT.sm, color: COLORS.muted, textAlign: 'center' },
+  appName: { fontSize: FONT.xxl + 4, fontWeight: '900', letterSpacing: -1 },
+  tagline: { fontSize: FONT.sm, textAlign: 'center' },
 
-  // Tutorial banner
-  tutorialBanner: {
+  // Step header (steps 2 & 3)
+  stepHeader: { paddingTop: SPACING.sm, gap: 4 },
+  stepTitle: { fontSize: FONT.xl, fontWeight: '900' },
+  stepSubtitle: { fontSize: FONT.sm, lineHeight: 20 },
+
+  // Info banner
+  infoBanner: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: COLORS.primaryLight,
     borderRadius: RADIUS.lg,
     padding: SPACING.md,
     gap: SPACING.md,
     borderWidth: 1,
-    borderColor: COLORS.primary + '33',
   },
-  tutorialIconWrap: {
-    width: 44,
-    height: 44,
+  bannerIcon: {
+    width: 42,
+    height: 42,
     borderRadius: RADIUS.md,
-    backgroundColor: COLORS.primary + '18',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
   },
-  tutorialTextWrap: { flex: 1, gap: 4 },
-  tutorialTitle: {
-    fontSize: FONT.sm,
-    fontWeight: '800',
-    color: COLORS.primary,
-  },
-  tutorialBody: {
-    fontSize: FONT.xs,
-    color: COLORS.primary + 'cc',
-    lineHeight: 17,
-  },
+  bannerText: { flex: 1, gap: 4 },
+  bannerTitle: { fontSize: FONT.sm, fontWeight: '800' },
+  bannerBody: { fontSize: FONT.xs, lineHeight: 17 },
 
   // Progress
   progressSection: { gap: SPACING.xs },
-  progressLabelRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  progressLabel: { fontSize: FONT.xs, color: COLORS.muted, fontWeight: '600' },
+  progressLabelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  progressLabel: { fontSize: FONT.xs, fontWeight: '600' },
   progressCount: { fontSize: FONT.xs, fontWeight: '800', color: COLORS.primary },
   progressCountDone: { color: COLORS.green },
-  progressBar: {
-    height: 6,
-    backgroundColor: COLORS.border,
-    borderRadius: RADIUS.full,
-    overflow: 'hidden',
-  },
+  progressBar: { height: 6, borderRadius: RADIUS.full, overflow: 'hidden' },
   progressFill: { height: 6, borderRadius: RADIUS.full },
-  allSetText: {
-    fontSize: FONT.xs,
-    color: COLORS.green,
-    fontWeight: '600',
-    textAlign: 'center',
-    marginTop: 2,
-  },
+  allSetText: { fontSize: FONT.xs, color: COLORS.green, fontWeight: '600', textAlign: 'center', marginTop: 2 },
 
-  sectionLabel: {
-    fontSize: FONT.xs,
-    fontWeight: '700',
-    color: COLORS.muted,
-    letterSpacing: 1,
-  },
+  sectionLabel: { fontSize: FONT.xs, fontWeight: '700', letterSpacing: 1 },
 
-  optionalHint: {
-    fontSize: FONT.sm,
-    lineHeight: 18,
-    marginTop: -SPACING.xs,
-    marginBottom: SPACING.xs,
-  },
-
-  // Cards
+  // Permission cards
   card: {
-    backgroundColor: COLORS.card,
     borderRadius: RADIUS.lg,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: COLORS.border,
     overflow: 'hidden',
   },
   cardGranted: { borderColor: COLORS.green + '55' },
-  cardMain: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    padding: SPACING.md,
-    gap: SPACING.md,
-  },
-  iconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: RADIUS.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-    marginTop: 2,
-  },
+  cardMain: { flexDirection: 'row', alignItems: 'flex-start', padding: SPACING.md, gap: SPACING.md },
+  iconWrap: { width: 44, height: 44, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 },
   cardBody: { flex: 1, gap: 4 },
-  cardTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-    flexWrap: 'wrap',
-  },
-  cardTitle: { fontSize: FONT.md, fontWeight: '700', color: COLORS.text },
-  cardDesc: { fontSize: FONT.xs, color: COLORS.muted, lineHeight: 17 },
+  cardTitleRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, flexWrap: 'wrap' },
+  cardTitle: { fontSize: FONT.md, fontWeight: '700' },
+  cardDesc: { fontSize: FONT.xs, lineHeight: 17 },
 
-  // Expanded
   expandedSection: {
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: COLORS.border,
     padding: SPACING.md,
     gap: SPACING.sm,
-    backgroundColor: COLORS.surface,
   },
   whyBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 6,
-    backgroundColor: COLORS.orangeLight,
+    backgroundColor: COLORS.orange + '15',
     borderRadius: RADIUS.md,
     padding: SPACING.sm,
   },
-  whyText: {
-    flex: 1,
-    fontSize: FONT.xs,
-    color: COLORS.orange,
-    lineHeight: 17,
-    fontWeight: '600',
-  },
+  whyText: { flex: 1, fontSize: FONT.xs, color: COLORS.orange, lineHeight: 17, fontWeight: '600' },
   brokenSection: { gap: 6 },
-  brokenTitle: {
-    fontSize: FONT.xs,
-    fontWeight: '700',
-    color: COLORS.text,
-    marginBottom: 2,
-  },
+  brokenTitle: { fontSize: FONT.xs, fontWeight: '700', marginBottom: 2 },
   brokenRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
-  brokenText: {
-    flex: 1,
-    fontSize: FONT.xs,
-    color: COLORS.textSecondary,
-    lineHeight: 17,
-  },
+  brokenText: { flex: 1, fontSize: FONT.xs, lineHeight: 17 },
   grantBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -865,48 +931,52 @@ const styles = StyleSheet.create({
   },
   grantBtnText: { fontSize: FONT.xs, fontWeight: '700', color: '#fff' },
 
-  // Manage permissions tip
+  // Manage tip
   manageTip: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: SPACING.sm,
-    backgroundColor: COLORS.primaryLight,
     borderRadius: RADIUS.lg,
     padding: SPACING.md,
     borderWidth: 1,
-    borderColor: COLORS.primary + '33',
   },
-  manageTipText: {
-    flex: 1,
-    fontSize: FONT.xs,
-    color: COLORS.textSecondary,
-    lineHeight: 17,
-  },
-  manageTipHighlight: {
-    color: COLORS.primary,
-    fontWeight: '700',
-  },
+  manageTipText: { flex: 1, fontSize: FONT.xs, lineHeight: 17 },
+  manageTipHighlight: { color: COLORS.primary, fontWeight: '700' },
 
-  // PIN Protection card
-  pinCard: {
+  // How-to cards (step 3)
+  howToCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
     borderRadius: RADIUS.lg,
     borderWidth: StyleSheet.hairlineWidth,
-    overflow: 'hidden',
-  },
-  pinCardMain: {
-    flexDirection: 'row',
-    alignItems: 'center',
     padding: SPACING.md,
     gap: SPACING.md,
   },
-  pinCardIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: RADIUS.md,
+  howToIcon: { width: 38, height: 38, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 },
+  howToBody: { flex: 1, gap: 3 },
+  howToTitle: { fontSize: FONT.sm, fontWeight: '700' },
+  howToTip: { fontSize: FONT.xs, lineHeight: 17 },
+
+  howToMoreBtn: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    flexShrink: 0,
+    gap: SPACING.xs,
+    paddingVertical: SPACING.sm,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
   },
+  howToMoreText: { fontSize: FONT.sm, fontWeight: '600' },
+
+  // Divider
+  divider: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginTop: SPACING.xs },
+  dividerLine: { flex: 1, height: StyleSheet.hairlineWidth },
+  dividerText: { fontSize: FONT.xs, fontWeight: '700', letterSpacing: 1 },
+
+  // PIN card
+  pinCard: { borderRadius: RADIUS.lg, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
+  pinCardMain: { flexDirection: 'row', alignItems: 'center', padding: SPACING.md, gap: SPACING.md },
+  pinCardIcon: { width: 44, height: 44, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   pinCardBody: { flex: 1, gap: 3 },
   pinCardTitle: { fontSize: FONT.md, fontWeight: '700' },
   pinCardDesc: { fontSize: FONT.xs, lineHeight: 17 },
@@ -932,20 +1002,14 @@ const styles = StyleSheet.create({
   },
   setPinBtnText: { fontSize: FONT.xs, fontWeight: '700', color: '#fff' },
 
-  // Enter button
-  enterBtn: {
-    backgroundColor: COLORS.primaryLight,
+  // Continue / finish button
+  continueBtn: {
     borderRadius: RADIUS.lg,
-    padding: SPACING.md,
+    paddingVertical: SPACING.md + 2,
     alignItems: 'center',
     marginTop: SPACING.xs,
   },
-  enterBtnReady: { backgroundColor: COLORS.primary },
-  enterBtnText: { fontSize: FONT.md, fontWeight: '800', color: '#fff' },
+  continueBtnText: { fontSize: FONT.md, fontWeight: '800', color: '#fff' },
 
-  footerNote: {
-    fontSize: FONT.xs,
-    color: COLORS.muted,
-    textAlign: 'center',
-  },
+  footerNote: { fontSize: FONT.xs, textAlign: 'center' },
 });

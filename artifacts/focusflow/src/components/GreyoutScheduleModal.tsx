@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   ScrollView,
   TextInput,
+  Switch,
   StyleSheet,
   Alert,
   ActivityIndicator,
@@ -41,6 +42,8 @@ const BLANK_WINDOW: GreyoutWindow = {
   endHour: 18,
   endMin: 0,
   days: [2, 3, 4, 5, 6],
+  name: '',
+  enabled: true,
 };
 
 type SelectedApp = { pkg: string; name: string };
@@ -152,6 +155,12 @@ export function GreyoutScheduleModal({ visible, windows, onSave, onClose }: Prop
     setMode('add');
   };
 
+  const toggleWindowEnabled = (idx: number) => {
+    setLocalWindows((prev) =>
+      prev.map((w, i) => (i === idx ? { ...w, enabled: w.enabled === false ? true : false } : w)),
+    );
+  };
+
   const commitDraft = () => {
     if (selectedApps.length === 0) {
       Alert.alert(
@@ -166,7 +175,13 @@ export function GreyoutScheduleModal({ visible, windows, onSave, onClose }: Prop
     }
     const pkgs = selectedApps.map((a) => a.pkg);
     const updated = [...localWindows];
-    const window: GreyoutWindow = { ...draft, pkg: pkgs[0], pkgs };
+    const window: GreyoutWindow = {
+      ...draft,
+      pkg: pkgs[0],
+      pkgs,
+      name: draft.name?.trim() || undefined,
+      enabled: draft.enabled !== false,
+    };
     if (editIndex !== null) {
       updated[editIndex] = window;
     } else {
@@ -257,18 +272,36 @@ export function GreyoutScheduleModal({ visible, windows, onSave, onClose }: Prop
                 )}
                 {localWindows.map((w, idx) => {
                   const count = windowAppCount(w);
+                  const isEnabled = w.enabled !== false;
                   return (
                     <View
                       key={idx}
                       style={[
                         styles.windowCard,
-                        { borderColor: theme.border, backgroundColor: theme.surface },
+                        { borderColor: isEnabled ? theme.border : theme.border + '55', backgroundColor: theme.surface },
+                        !isEnabled && { opacity: 0.55 },
                       ]}
                     >
+                      {/* Enable / disable toggle */}
+                      <Switch
+                        value={isEnabled}
+                        onValueChange={() => toggleWindowEnabled(idx)}
+                        trackColor={{ false: COLORS.border, true: COLORS.primary + '88' }}
+                        thumbColor={isEnabled ? COLORS.primary : COLORS.muted}
+                        style={styles.windowSwitch}
+                      />
                       <TouchableOpacity style={styles.windowMain} onPress={() => openEdit(idx)}>
                         <View style={{ flex: 1 }}>
+                          {w.name ? (
+                            <Text style={[styles.windowName, { color: theme.text }]} numberOfLines={1}>
+                              {w.name}
+                            </Text>
+                          ) : null}
                           <View style={styles.windowLabelRow}>
-                            <Text style={[styles.windowPkg, { color: theme.text }]} numberOfLines={1}>
+                            <Text
+                              style={[styles.windowPkg, { color: w.name ? theme.muted : theme.text }]}
+                              numberOfLines={1}
+                            >
                               {windowDisplayLabel(w)}
                             </Text>
                             {count > 1 && (
@@ -277,7 +310,7 @@ export function GreyoutScheduleModal({ visible, windows, onSave, onClose }: Prop
                               </View>
                             )}
                           </View>
-                          <Text style={[styles.windowTime, { color: COLORS.primary }]}>
+                          <Text style={[styles.windowTime, { color: isEnabled ? COLORS.primary : theme.muted }]}>
                             {formatTime(w.startHour, w.startMin)} – {formatTime(w.endHour, w.endMin)}
                           </Text>
                           <Text style={[styles.windowDays, { color: theme.muted }]}>
@@ -324,6 +357,22 @@ export function GreyoutScheduleModal({ visible, windows, onSave, onClose }: Prop
               contentContainerStyle={{ paddingBottom: 24 }}
               keyboardShouldPersistTaps="handled"
             >
+              {/* Schedule name */}
+              <Text style={[styles.formLabel, { color: theme.muted }]}>SCHEDULE NAME (optional)</Text>
+              <View style={[styles.searchBox, { borderColor: theme.border, backgroundColor: theme.surface, marginBottom: SPACING.md }]}>
+                <Ionicons name="bookmark-outline" size={16} color={theme.muted} style={{ marginRight: 6 }} />
+                <TextInput
+                  style={[styles.searchInput, { color: theme.text }]}
+                  value={draft.name ?? ''}
+                  onChangeText={(t) => setDraft((d) => ({ ...d, name: t }))}
+                  placeholder="e.g. Morning Focus, Night Wind-down…"
+                  placeholderTextColor={theme.muted}
+                  autoCapitalize="sentences"
+                  autoCorrect={false}
+                  maxLength={40}
+                />
+              </View>
+
               {/* App search */}
               <Text style={[styles.formLabel, { color: theme.muted }]}>APPS</Text>
 
@@ -573,12 +622,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     overflow: 'hidden',
   },
+  windowSwitch: {
+    marginLeft: SPACING.sm,
+    flexShrink: 0,
+  },
   windowMain: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     padding: SPACING.md,
   },
+  windowName: { fontSize: FONT.sm, fontWeight: '700', marginBottom: 1 },
   windowLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   windowPkg: { fontSize: FONT.sm, fontWeight: '600' },
   countBadge: {

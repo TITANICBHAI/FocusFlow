@@ -69,6 +69,14 @@ export interface GreyoutWindow {
   endMin: number;
   days: number[]; // Calendar.DAY_OF_WEEK: 1=Sun 2=Mon 3=Tue 4=Wed 5=Thu 6=Fri 7=Sat
   scheduleId?: string; // if set, this window was auto-generated from a RecurringBlockSchedule
+  /** Optional human-readable name for this window (e.g. "Morning Focus"). */
+  name?: string;
+  /**
+   * Whether this window is currently active. Defaults to true when absent —
+   * existing windows without this field are treated as enabled.
+   * Toggling this pauses the window without deleting it.
+   */
+  enabled?: boolean;
 }
 
 /**

@@ -3444,6 +3444,11 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             for (i in 0 until arr.length()) {
                 val entry = arr.optJSONObject(i) ?: continue
                 // Support multi-app windows (pkgs array) and legacy single-pkg string
+                // Skip windows that have been explicitly disabled (enabled=false).
+                // Absent or true → active. false → paused.
+                val isEnabled = entry.optBoolean("enabled", true)
+                if (!isEnabled) continue
+
                 val pkgsArr = entry.optJSONArray("pkgs")
                 val matchesPkg = if (pkgsArr != null && pkgsArr.length() > 0) {
                     (0 until pkgsArr.length()).any { pkgsArr.optString(it).equals(pkg, ignoreCase = true) }

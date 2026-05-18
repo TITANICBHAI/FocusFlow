@@ -742,17 +742,36 @@ export default function BlockDefenseScreen() {
           <SectionHeader
             icon="time-outline"
             title="Block Schedules"
-            description="Create one or more batches — each batch picks a group of apps and the hours/days they should be blocked. Set once, runs forever, no focus session needed."
+            description="Create one or more batches — each batch picks a group of apps and the hours/days they should be blocked. Set once, runs forever, no focus session needed. Protected by your defense password."
             theme={theme}
           />
           <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            <TouchableOpacity style={styles.cardButton} onPress={() => setGreyoutModalVisible(true)}>
+            <TouchableOpacity
+              style={styles.cardButton}
+              onPress={() =>
+                requireDefensePin(
+                  'Manage Block Schedules',
+                  'Enter your defense password to add, edit, or remove schedule batches.',
+                  () => setGreyoutModalVisible(true),
+                )
+              }
+            >
               <View style={styles.cardButtonContent}>
-                <Text style={[styles.cardButtonLabel, { color: theme.text }]}>Manage Schedule Batches</Text>
+                <View style={styles.cardButtonLabelRow}>
+                  <Text style={[styles.cardButtonLabel, { color: theme.text }]}>Manage Schedule Batches</Text>
+                  {defensePinSet && (
+                    <Ionicons name="lock-closed" size={13} color={COLORS.primary} style={{ marginLeft: 4 }} />
+                  )}
+                </View>
                 <Text style={[styles.cardButtonDesc, { color: theme.muted }]}>
-                  {(settings.greyoutSchedule ?? []).length === 0
-                    ? 'No batches set — tap to add your first one'
-                    : `${(settings.greyoutSchedule ?? []).length} batch${(settings.greyoutSchedule ?? []).length !== 1 ? 'es' : ''} active`}
+                  {(() => {
+                    const all = settings.greyoutSchedule ?? [];
+                    if (all.length === 0) return 'No batches set — tap to add your first one';
+                    const active = all.filter((w) => w.enabled !== false).length;
+                    const paused = all.length - active;
+                    if (paused === 0) return `${all.length} batch${all.length !== 1 ? 'es' : ''} active`;
+                    return `${active} active · ${paused} paused`;
+                  })()}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color={theme.border} />
@@ -1042,6 +1061,7 @@ const styles = StyleSheet.create({
     borderTopColor: 'transparent',
   },
   cardButtonContent: { flex: 1, gap: 2 },
+  cardButtonLabelRow: { flexDirection: 'row', alignItems: 'center' },
   cardButtonLabel: { fontSize: FONT.sm, fontWeight: '600' },
   cardButtonDesc: { fontSize: FONT.xs, lineHeight: 16 },
 

@@ -677,7 +677,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
    */
   async function _syncGreyoutSchedule(settings: AppSettings): Promise<void> {
     try {
-      await GreyoutModule.setSchedule(settings.greyoutSchedule ?? []);
+      // Only push windows that are enabled (enabled !== false). Disabled windows
+      // are kept in storage so the user can re-enable them, but the native layer
+      // must not enforce them.
+      const activeWindows = (settings.greyoutSchedule ?? []).filter((w) => w.enabled !== false);
+      await GreyoutModule.setSchedule(activeWindows);
     } catch (e) {
       void logger.warn('AppContext', `greyout sync failed: ${String(e)}`);
     }
@@ -690,8 +694,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
    */
   function _recurringSchedulesToGreyoutWindows(settings: AppSettings): GreyoutWindow[] {
     const schedules = settings.recurringBlockSchedules ?? [];
-    // Keep user-created windows (no scheduleId) untouched
-    const userWindows = (settings.greyoutSchedule ?? []).filter((w) => !w.scheduleId);
+    // Keep user-created windows (no scheduleId) that are currently enabled.
+    // Disabled windows are preserved in storage but must not reach the native layer.
+    const userWindows = (settings.greyoutSchedule ?? []).filter((w) => !w.scheduleId && w.enabled !== false);
     const scheduleWindows: GreyoutWindow[] = [];
     for (const sched of schedules) {
       if (!sched.enabled || sched.packages.length === 0) continue;
