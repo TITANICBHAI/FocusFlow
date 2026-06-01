@@ -13,6 +13,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
+import { useApp } from '@/context/AppContext';
+import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -25,7 +27,7 @@ const SLIDES: { icon: IoniconName; label: string; title: string; body: string }[
   {
     icon: 'time-outline',
     label: 'Why FocusFlow?',
-    title: 'You open it for a second.\nAn hour disappears.',
+    title: 'Open a social app.\nAn hour disappears.',
     body: 'Social media, short videos, notifications — they are engineered to keep you hooked. FocusFlow enforces the blocks so you do not have to rely on willpower.',
   },
   {
@@ -43,6 +45,7 @@ const SLIDES: { icon: IoniconName; label: string; title: string; body: string }[
 ];
 
 export default function WelcomeScreen() {
+  const { state, updateSettings } = useApp();
   const scrollRef = useRef<ScrollView>(null);
   const [activeIndex, setActiveIndex] = useState(0);
 
@@ -56,11 +59,26 @@ export default function WelcomeScreen() {
     if (index !== activeIndex) setActiveIndex(index);
   };
 
+  const acceptAndProceed = async () => {
+    try {
+      const updated = { ...state.settings, privacyAccepted: true };
+      await updateSettings(updated);
+      try {
+        await SharedPrefsModule.putString('privacy_accepted', 'true');
+      } catch {
+        // Non-fatal — DB save is the primary path
+      }
+    } catch {
+      // Non-fatal — proceed anyway
+    }
+    router.replace('/onboarding');
+  };
+
   const handleNext = () => {
     if (activeIndex < SLIDES.length - 1) {
       goToSlide(activeIndex + 1);
     } else {
-      router.replace('/onboarding');
+      void acceptAndProceed();
     }
   };
 
@@ -103,7 +121,7 @@ export default function WelcomeScreen() {
         </TouchableOpacity>
 
         {activeIndex < SLIDES.length - 1 && (
-          <TouchableOpacity onPress={() => router.replace('/onboarding')} hitSlop={12}>
+          <TouchableOpacity onPress={() => void acceptAndProceed()} hitSlop={12}>
             <Text style={styles.skipText}>Skip</Text>
           </TouchableOpacity>
         )}
