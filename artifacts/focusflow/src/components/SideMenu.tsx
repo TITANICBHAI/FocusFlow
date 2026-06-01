@@ -23,7 +23,6 @@ import {
   Dimensions,
   PanResponder,
   ScrollView,
-  Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -304,14 +303,6 @@ export function SideMenu({ visible, onOpen, onClose, tabBarHeight }: SideMenuPro
 
         {/* ── Footer ───────────────────────────────────────────────── */}
         <View style={[styles.footer, { borderTopColor: isDark ? COLORS.darkBorder : COLORS.border }]}>
-          {/* Windows PC link — full-width row above the other links */}
-          <TouchableOpacity
-            style={styles.footerPcBtn}
-            onPress={() => Linking.openURL('https://focusflowpc.pages.dev/')}
-          >
-            <Ionicons name="desktop-outline" size={13} color={COLORS.primary} />
-            <Text style={[styles.footerText, { color: COLORS.primary, fontWeight: '600' }]}>Also on Windows — focusflowpc.pages.dev</Text>
-          </TouchableOpacity>
           {/* Standard links row */}
           <View style={styles.footerLinks}>
             <TouchableOpacity style={styles.footerBtn} onPress={() => navigate('/privacy-policy')}>
