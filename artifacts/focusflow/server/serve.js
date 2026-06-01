@@ -107,12 +107,148 @@ function serveStaticFile(urlPath, res) {
 const landingPageTemplate = fs.readFileSync(TEMPLATE_PATH, "utf-8");
 const appName = getAppName();
 
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    let data = "";
+    req.on("data", (chunk) => { data += chunk; });
+    req.on("end", () => resolve(data));
+    req.on("error", reject);
+  });
+}
+
+function cors(res) {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+}
+
+function starBar(n) {
+  return "⭐".repeat(n) + "☆".repeat(5 - n);
+}
+
+function ratingColor(n) {
+  if (n <= 2) return 0xef4444;
+  if (n === 3) return 0xf59e0b;
+  if (n === 4) return 0x84cc16;
+  return 0x10b981;
+}
+
+async function handleReview(req, res) {
+  cors(res);
+
+  if (req.method === "OPTIONS") {
+    res.writeHead(204);
+    res.end();
+    return;
+  }
+
+  if (req.method !== "POST") {
+    res.writeHead(405, { "content-type": "application/json" });
+    res.end(JSON.stringify({ error: "Method not allowed" }));
+    return;
+  }
+
+  const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
+  if (!webhookUrl) {
+    res.writeHead(503, { "content-type": "application/json" });
+    res.end(JSON.stringify({ error: "Webhook not configured" }));
+    return;
+  }
+
+  let body;
+  try {
+    const raw = await readBody(req);
+    body = JSON.parse(raw);
+  } catch {
+    res.writeHead(400, { "content-type": "application/json" });
+    res.end(JSON.stringify({ error: "Invalid JSON" }));
+    return;
+  }
+
+  const stars = Number(body.stars) || 0;
+  const text = String(body.text || "").slice(0, 500);
+
+  if (stars < 1 || stars > 5) {
+    res.writeHead(400, { "content-type": "application/json" });
+    res.end(JSON.stringify({ error: "stars must be 1–5" }));
+    return;
+  }
+
+  const labels = ["", "Not great", "Needs work", "It's okay", "Pretty good", "Love it!"];
+
+  const embed = {
+    title: `${starBar(stars)}  New FocusFlow Review`,
+    color: ratingColor(stars),
+    fields: [
+      { name: "Rating", value: `**${stars}/5** — ${labels[stars]}`, inline: true },
+      { name: "Submitted", value: new Date().toUTCString(), inline: true },
+    ],
+    footer: { text: "FocusFlow · In-app review" },
+    timestamp: new Date().toISOString(),
+  };
+
+  if (text) {
+    embed.fields.push({ name: "Review", value: text, inline: false });
+  }
+
+  const payload = JSON.stringify({ embeds: [embed] });
+
+  try {
+    const { URL: NodeURL } = require("url");
+    const https = require("https");
+    const http2 = require("http");
+    const parsedUrl = new NodeURL(webhookUrl);
+    const lib = parsedUrl.protocol === "https:" ? https : http2;
+
+    await new Promise((resolve, reject) => {
+      const discordReq = lib.request(
+        {
+          hostname: parsedUrl.hostname,
+          path: parsedUrl.pathname + parsedUrl.search,
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Content-Length": Buffer.byteLength(payload),
+          },
+        },
+        (discordRes) => {
+          discordRes.resume();
+          if (discordRes.statusCode >= 200 && discordRes.statusCode < 300) {
+            resolve();
+          } else {
+            reject(new Error(`Discord responded ${discordRes.statusCode}`));
+          }
+        }
+      );
+      discordReq.on("error", reject);
+      discordReq.write(payload);
+      discordReq.end();
+    });
+
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify({ ok: true }));
+  } catch (err) {
+    console.error("[review] Discord delivery failed:", err.message);
+    res.writeHead(502, { "content-type": "application/json" });
+    res.end(JSON.stringify({ error: "Failed to deliver to Discord" }));
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 const server = http.createServer((req, res) => {
   const url = new URL(req.url || "/", `http://${req.headers.host}`);
   let pathname = url.pathname;
 
   if (basePath && pathname.startsWith(basePath)) {
     pathname = pathname.slice(basePath.length) || "/";
+  }
+
+  // ── Review API ─────────────────────────────────────────────────────────────
+  if (pathname === "/api/review") {
+    return handleReview(req, res);
   }
 
   if (pathname === "/" || pathname === "/manifest") {

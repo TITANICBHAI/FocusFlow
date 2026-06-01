@@ -42,6 +42,8 @@ import { VpnPermissionLostBanner } from '@/components/VpnPermissionLostBanner';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { ErrorAlertBanner } from '@/components/ErrorAlertBanner';
 import { logger } from '@/services/startupLogger';
+import { ReviewModal } from '@/components/ReviewModal';
+import { useReviewPrompt } from '@/hooks/useReviewPrompt';
 
 // ─── Deferred notification action store ──────────────────────────────────────
 // Stores action from background notification tap so the app can handle it on resume.
@@ -340,6 +342,20 @@ function AchievementCelebrationHost() {
   return <AchievementCelebrationModal milestone={milestone} onDismiss={handleDismiss} />;
 }
 
+// ─── Review prompt host ───────────────────────────────────────────────────────
+// Watches for completed focus sessions and surfaces ReviewModal at the right time.
+
+function ReviewHost() {
+  const { visible, dismissWithoutReview, dismissAfterReview } = useReviewPrompt();
+  return (
+    <ReviewModal
+      visible={visible}
+      onDismiss={dismissWithoutReview}
+      onReviewed={dismissAfterReview}
+    />
+  );
+}
+
 // ─── VPN permission guard ─────────────────────────────────────────────────────
 // Shows VpnPermissionLostBanner whenever VPN blocking is enabled but the
 // Android system VPN permission has been silently revoked. Runs inside
@@ -410,6 +426,7 @@ export default function RootLayout() {
             <BlockedAppOverlay />
             <AchievementCelebrationHost />
             <VpnPermissionHost />
+            <ReviewHost />
             <ErrorAlertBanner />
             <Stack screenOptions={{ headerShown: false }}>
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />

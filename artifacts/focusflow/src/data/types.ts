@@ -249,6 +249,18 @@ export interface AppSettings {
   launcherClockStyle?: 'digital' | 'analog'; // Clock widget style on the home screen
   launcherBlockUninstall?: boolean;       // Intercept long-press "Uninstall" option in any launcher during active blocks
   launcherLockDuringStandalone?: boolean; // Prevent changing the default home app while a standalone block is active
+
+  // ── In-app review prompt ────────────────────────────────────────────────────
+  /** ISO timestamp of the last time the review prompt was shown. */
+  lastReviewPromptAt?: string | null;
+  /** Running count of completed focus sessions — used to trigger first review prompt. */
+  reviewSessionCount?: number;
+  /**
+   * How many times the user has dismissed the review prompt without submitting.
+   * Once this reaches 2 the prompt is silenced permanently.
+   */
+  reviewDismissCount?: number;
+
   // Focus session behaviour
   // When true, finishing a task before its scheduled end time keeps the focus session
   // running until the original end time (the task is marked done in your stats, but
