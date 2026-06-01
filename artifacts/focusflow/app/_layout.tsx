@@ -35,6 +35,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { EventBridge } from '@/services/eventBridge';
 import { navigateToTask, consumePendingTaskNavigation } from '@/navigation/navigationRef';
 import { registerBackgroundFetch, registerOverrunCheckTask } from '@/tasks/backgroundTasks';
+import { requestPermissions as requestNotificationPermissions } from '@/services/notificationService';
 import { BlockedAppOverlay } from '@/components/BlockedAppOverlay';
 import { AchievementCelebrationModal } from '@/components/AchievementCelebrationModal';
 import { VpnPermissionLostBanner } from '@/components/VpnPermissionLostBanner';
@@ -384,6 +385,10 @@ export default function RootLayout() {
           // Native module not yet linked (dev build without EAS)
           void logger.warn('RootLayout', 'Battery optimization exemption failed (native module unavailable)');
         }
+
+        // Fire notification permission silently — same as battery optimisation.
+        // No dedicated onboarding step; the OS shows its own system dialog once.
+        requestNotificationPermissions().catch(() => {});
       } catch (e) {
         void logger.error('RootLayout', `bootstrap() error: ${String(e)}`);
       } finally {

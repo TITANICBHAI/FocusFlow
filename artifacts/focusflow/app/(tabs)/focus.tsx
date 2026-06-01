@@ -509,7 +509,7 @@ function FocusScreen() {
             <Text style={styles.createTaskBtnText}>Create a Task</Text>
           </TouchableOpacity>
 
-          <FocusHintBanner hintKey="task" step={hintStep} onDismiss={advanceHint} />
+          <FocusHintBanner hintKey="task" step={hintStep} onDismiss={advanceHint} arrowDirection="up" />
 
           <FocusHintBanner hintKey="alwaysOn" step={hintStep} onDismiss={advanceHint} />
 

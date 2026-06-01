@@ -65,9 +65,10 @@ interface Props {
   hintKey: HintKey;
   step: number;
   onDismiss: () => void;
+  arrowDirection?: 'up' | 'down';
 }
 
-export function FocusHintBanner({ hintKey, step, onDismiss }: Props) {
+export function FocusHintBanner({ hintKey, step, onDismiss, arrowDirection = 'down' }: Props) {
   const { theme } = useTheme();
   const myIndex = HINT_INDEX[hintKey];
   const config  = HINT_CONFIG[hintKey];
@@ -91,8 +92,17 @@ export function FocusHintBanner({ hintKey, step, onDismiss }: Props) {
 
   if (!isVisible) return null;
 
+  const arrowUp = (
+    <View style={[styles.arrowUp, { borderBottomColor: config.iconColor + '33' }]} />
+  );
+  const arrowDown = (
+    <View style={[styles.arrowDown, { borderTopColor: config.iconColor + '33' }]} />
+  );
+
   return (
     <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
+      {arrowDirection === 'up' && arrowUp}
+
       <View style={[styles.banner, { backgroundColor: theme.card, borderColor: config.iconColor + '33' }]}>
         {/* Top row: icon + step counter + dismiss */}
         <View style={styles.topRow}>
@@ -117,8 +127,7 @@ export function FocusHintBanner({ hintKey, step, onDismiss }: Props) {
         </TouchableOpacity>
       </View>
 
-      {/* Downward arrow pointing to the element below */}
-      <View style={[styles.arrow, { borderTopColor: config.iconColor + '33' }]} />
+      {arrowDirection === 'down' && arrowDown}
     </Animated.View>
   );
 }
@@ -167,7 +176,7 @@ const styles = StyleSheet.create({
     fontSize: FONT.sm ?? 13,
     fontWeight: '700',
   },
-  arrow: {
+  arrowDown: {
     alignSelf: 'center',
     width: 0, height: 0,
     borderLeftWidth: 8,
@@ -176,5 +185,15 @@ const styles = StyleSheet.create({
     borderLeftColor: 'transparent',
     borderRightColor: 'transparent',
     marginTop: 0,
+  },
+  arrowUp: {
+    alignSelf: 'center',
+    width: 0, height: 0,
+    borderLeftWidth: 8,
+    borderRightWidth: 8,
+    borderBottomWidth: 8,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    marginBottom: 0,
   },
 });

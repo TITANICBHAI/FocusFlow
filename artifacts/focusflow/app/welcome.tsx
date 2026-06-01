@@ -23,24 +23,36 @@ const TERMS_URL   = 'https://focusflowapp.pages.dev/terms-of-service/';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
-const SLIDES: { icon: IoniconName; label: string; title: string; body: string }[] = [
+interface Slide {
+  icon: IoniconName;
+  iconColor?: string;
+  label: string;
+  title: string;
+  body: string;
+  trustBadge?: string;
+}
+
+const SLIDES: Slide[] = [
   {
     icon: 'time-outline',
-    label: 'Why FocusFlow?',
-    title: 'Open a social app.\nAn hour disappears.',
-    body: 'Social media, short videos, notifications — they are engineered to keep you hooked. FocusFlow enforces the blocks so you do not have to rely on willpower.',
+    label: 'Sound familiar?',
+    title: 'Open one app.\nAn hour disappears.',
+    body: 'Social media, short videos, and notifications are designed to keep you hooked. FocusFlow enforces the limits so you never have to white-knuckle it.',
   },
   {
     icon: 'shield-checkmark-outline',
     label: 'How it works',
-    title: 'Real blocking needs\ndeep Android access.',
-    body: 'Most apps use timers you can dismiss. FocusFlow uses Android\'s Accessibility Service and local VPN — the same method as every serious app blocker — so blocks cannot be tapped away. You will be asked to grant 3 permissions on the next screen.',
+    title: 'Blocks that can\'t\nbe tapped away.',
+    body: 'The moment you open a blocked app, FocusFlow covers it and brings you back. No timers you can dismiss. No sneaky workarounds. Just a firm, quiet redirect.',
+    trustBadge: 'Your data never leaves your device.',
   },
   {
-    icon: 'bar-chart-outline',
-    label: 'What you get',
-    title: 'Focus sessions, streaks,\nand full visibility.',
-    body: 'Schedule focus sessions, block any app instantly, and track your progress week over week. Everything stays on your device — nothing is sent to any server.',
+    icon: 'lock-closed-outline',
+    iconColor: '#34C759',
+    label: 'One quick note',
+    title: 'Android will ask\nabout "Accessibility".',
+    body: 'To catch a blocked app the instant it opens, FocusFlow uses Android\'s Accessibility feature.\n\nIt only checks one thing: which app is on screen. It never reads your messages, passwords, or anything inside your apps.',
+    trustBadge: 'Same method used by every serious blocker on Android.',
   },
 ];
 
@@ -82,6 +94,8 @@ export default function WelcomeScreen() {
     }
   };
 
+  const isLastSlide = activeIndex === SLIDES.length - 1;
+
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView
@@ -95,12 +109,19 @@ export default function WelcomeScreen() {
       >
         {SLIDES.map((s, i) => (
           <View key={i} style={[styles.slide, { width: SCREEN_WIDTH }]}>
-            <View style={styles.iconWrap}>
-              <Ionicons name={s.icon} size={44} color={COLORS.primary} />
+            <View style={[styles.iconWrap, s.iconColor ? { backgroundColor: s.iconColor + '18' } : null]}>
+              <Ionicons name={s.icon} size={44} color={s.iconColor ?? COLORS.primary} />
             </View>
             <Text style={styles.slideLabel}>{s.label}</Text>
             <Text style={styles.slideTitle}>{s.title}</Text>
             <Text style={styles.slideBody}>{s.body}</Text>
+
+            {s.trustBadge ? (
+              <View style={styles.trustBadge}>
+                <Ionicons name="checkmark-circle" size={14} color={COLORS.green} />
+                <Text style={styles.trustBadgeText}>{s.trustBadge}</Text>
+              </View>
+            ) : null}
           </View>
         ))}
       </ScrollView>
@@ -114,15 +135,16 @@ export default function WelcomeScreen() {
           ))}
         </View>
 
-        <TouchableOpacity style={styles.primaryBtn} onPress={handleNext} activeOpacity={0.85}>
+        <TouchableOpacity style={[styles.primaryBtn, isLastSlide && styles.primaryBtnReady]} onPress={handleNext} activeOpacity={0.85}>
           <Text style={styles.primaryBtnText}>
-            {activeIndex < SLIDES.length - 1 ? 'Next' : 'Get started'}
+            {isLastSlide ? 'Got it — set up FocusFlow' : 'Next'}
           </Text>
+          {isLastSlide && <Ionicons name="arrow-forward" size={16} color="#fff" style={{ marginLeft: 6 }} />}
         </TouchableOpacity>
 
-        {activeIndex < SLIDES.length - 1 && (
+        {!isLastSlide && (
           <TouchableOpacity onPress={() => void acceptAndProceed()} hitSlop={12}>
-            <Text style={styles.skipText}>Skip</Text>
+            <Text style={styles.skipText}>Skip intro</Text>
           </TouchableOpacity>
         )}
 
@@ -186,6 +208,23 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     maxWidth: 310,
   },
+  trustBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: SPACING.xs ?? 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: RADIUS.md ?? 10,
+    backgroundColor: COLORS.greenLight,
+    alignSelf: 'flex-start',
+  },
+  trustBadgeText: {
+    fontSize: FONT.xs ?? 12,
+    fontWeight: '600',
+    color: COLORS.green,
+    flexShrink: 1,
+  },
   footer: {
     paddingHorizontal: SPACING.lg ?? 24,
     paddingBottom: Platform.OS === 'android' ? 24 : 12,
@@ -219,7 +258,16 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.lg ?? 14,
     alignItems: 'center',
     justifyContent: 'center',
+    flexDirection: 'row',
     backgroundColor: COLORS.primary,
+  },
+  primaryBtnReady: {
+    backgroundColor: COLORS.primary,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
   },
   primaryBtnText: {
     color: '#fff',
