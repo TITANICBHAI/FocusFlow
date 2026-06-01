@@ -14,6 +14,22 @@ type Entry = {
 
 const CHANGELOG: Entry[] = [
   {
+    version: '1.0.5',
+    date: 'June 2026',
+    sections: [
+      {
+        heading: 'Onboarding Overhaul',
+        icon: 'rocket-outline',
+        items: [
+          'Fixed a navigation deadlock on the welcome screens — tapping Next, Get Started, or Skip now correctly advances to the permissions setup screen instead of looping back',
+          'Privacy acceptance is now recorded at the point of continuing from the welcome screen, matching the "By continuing you agree" notice shown to users',
+          'Privacy acceptance is dual-written to SQLite and SharedPreferences so the welcome screen never reappears after a device restore or database reset',
+          'Welcome slide copy clarified — first slide now reads "Open a social app. An hour disappears." making it unambiguous that social apps steal your time, not FocusFlow',
+        ],
+      },
+    ],
+  },
+  {
     version: '1.2.0',
     date: 'May 2026',
     sections: [

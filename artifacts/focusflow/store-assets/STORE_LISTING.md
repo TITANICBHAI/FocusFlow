@@ -9,8 +9,8 @@
 |---|---|
 | **App Title** | FocusFlow: App Blocker & Tasks |
 | **Package Name** | com.tbtechs.focusflow |
-| **Version** | 1.0.3 |
-| **Version Code** | 4 |
+| **Version** | 1.0.5 |
+| **Version Code** | 6 |
 | **Developer / Company Name** | TB Techs |
 | **Category** | Productivity |
 | **Age Rating** | Everyone (3+) |
@@ -210,33 +210,25 @@ Build your focus. Protect your time. Get meaningful work done.
 
 ---
 
-## RELEASE NOTES (v1.0.3)
+## RELEASE NOTES (v1.0.5)
 
 ```
-FocusFlow v1.0.3 — Reliability & Enforcement Improvements
-
-This update makes blocking more consistent and reliable across all devices.
+FocusFlow v1.0.5 — Onboarding & First-Run Experience
 
 What's new:
-• Standalone timed block now applies correctly even when the app database
-  is slow to initialise — blocks always go through on first launch
-• Daily allowance entries now save reliably on all Android OEM devices
-• Keyword blocker and recurring schedule saves are now fault-tolerant
-• Block Enforcement screen: all toggle saves now surface errors clearly
-  instead of failing silently
-• Home Launcher settings saves improved for all device configurations
-• Onboarding: settings save failures now show a clear error message
-  instead of getting stuck silently
+• Simplified onboarding — welcome screens now flow directly into
+  permissions setup without getting stuck or looping back
+• Fixed: tapping Next, Get Started, or Skip on the welcome screens now
+  correctly advances to the permissions screen every time
+• Privacy acceptance is now correctly recorded when you continue from the
+  welcome screen — the welcome screens will never reappear after a
+  device restore or app data reset
 
-Bug fixes:
-• Fixed: Save button in Standalone Block modal appearing to do nothing on
-  some devices (root cause: database initialisation race condition)
-• Fixed: Blocked words and recurring schedules not applying after save on
-  cold launch
-• Fixed: Block Defence toggles silently failing on some OEM devices
-
-If you've experienced blocks not applying after saving — this update
-fixes that.
+Improvements:
+• Welcome screen copy updated to make it immediately clear that social
+  apps steal your time — not FocusFlow
+• Privacy consent is now backed up to both the database and device
+  storage, surviving reinstalls and OEM memory management wipes
 ```
 
 ---
@@ -352,7 +344,7 @@ SDK, and makes zero network requests.
 
 | Field | Fill With |
 |---|---|
-| **Version** | 1.0.3 |
+| **Version** | 1.0.5 |
 | **License** | Free |
 | **Development Stage** | Final Release |
 | **Min SDK Version** | 8.0 (Android 8.0) |
