@@ -7,7 +7,7 @@
 
 | Field | Value |
 |---|---|
-| **App Title** | FocusFlow: App Blocker & Tasks |
+| **App Title** | FocusFlow: Block & Focus Timer |
 | **Package Name** | com.tbtechs.focusflow |
 | **Version** | 1.0.5 |
 | **Version Code** | 6 |
@@ -326,17 +326,117 @@ FocusFlow has no analytics SDK, no crash reporting SDK, no advertising
 SDK, and makes zero network requests.
 ```
 
-### Google Play — Sensitive Permissions Summary
+### Google Play — Sensitive Permissions: Full Justification
 
-| Permission | Why It's Needed | Data Collected | Data Transmitted |
-|---|---|---|---|
-| `BIND_ACCESSIBILITY_SERVICE` | Real-time foreground app detection for blocking | Package name of active app only | Never |
-| `PACKAGE_USAGE_STATS` | Show user their own focus violation history | Local usage events | Never |
-| `SYSTEM_ALERT_WINDOW` | Display "App Blocked" overlay | None | Never |
-| `QUERY_ALL_PACKAGES` | Let user browse installed apps to build block list | None | Never |
-| `REQUEST_DELETE_PACKAGES` | Let user remove apps via system uninstall dialog | None | Never |
-| `FOREGROUND_SERVICE` | Keep focus timer running when app is minimised | None | Never |
-| `SCHEDULE_EXACT_ALARM` | Fire task reminders at exact scheduled times | None | Never |
+**`BIND_ACCESSIBILITY_SERVICE`**
+```
+FocusFlow uses the Accessibility Service exclusively to detect in real
+time when the user opens a blocked app during a focus session they
+started. The service listens only to TYPE_WINDOW_STATE_CHANGED events
+and reads only the package name of the active window (e.g.
+"com.instagram.android"). When that package name matches an entry on
+the user's local block list, FocusFlow displays a full-screen blocking
+overlay redirecting the user to their task.
+
+The service does NOT read any on-screen text, messages, passwords,
+keystrokes, or any personal data inside any app. Phone, dialler, and
+all emergency apps are permanently whitelisted and can never be
+blocked. No data read via this permission is ever transmitted off the
+device or shared with any third party. All comparisons happen locally
+in memory against an on-device SQLite database.
+
+There is no alternative Android API capable of real-time foreground
+app detection without root access. UsageStatsManager and
+ActivityManager are polling-based and cannot intercept an app switch
+the instant it happens. The Accessibility Service is the only
+technically viable method for an app blocker to function correctly.
+```
+
+**`PACKAGE_USAGE_STATS`**
+```
+FocusFlow requests PACKAGE_USAGE_STATS so the user can view their own
+focus violation history — a log of which apps they tried to open while
+blocked and when. This data is read from the Android system, processed
+locally, and displayed only within FocusFlow to the device owner.
+
+No usage data is transmitted off the device, shared with any third
+party, or used for any purpose other than showing the user their own
+distraction patterns. The permission is also used to support the Daily
+App Allowance feature, which tracks how long the user has spent in a
+given app during the current day and enforces their self-set time
+limit. All allowance calculations happen entirely on-device.
+```
+
+**`SYSTEM_ALERT_WINDOW` (Draw Over Other Apps)**
+```
+FocusFlow requires permission to draw over other apps in order to
+display the "App Blocked" full-screen overlay the instant a blocked
+app is detected in the foreground. Without this permission, the
+blocking overlay cannot appear on top of the blocked app, making the
+core blocking feature non-functional.
+
+The overlay displays only a static screen showing the name of the
+blocked app, the user's active task, and a button to return to
+FocusFlow. It does not record, capture, or transmit any content
+visible on the screen beneath it. The overlay is dismissed the moment
+the user navigates away from the blocked app.
+```
+
+**`QUERY_ALL_PACKAGES`**
+```
+FocusFlow requests QUERY_ALL_PACKAGES solely to populate the app
+selector screen where users build their personal block list. When a
+user taps "Add apps to block", FocusFlow reads the list of installed
+apps on the device and displays them for the user to choose from.
+
+No app names, package names, or any other app data are collected,
+stored beyond the user's selections, transmitted off the device, or
+shared with any third party. The permission is used exclusively for
+the local UI that lets users pick which apps to block.
+```
+
+**`REQUEST_DELETE_PACKAGES`**
+```
+FocusFlow uses REQUEST_DELETE_PACKAGES to allow users to initiate
+the removal of an app directly from within FocusFlow's interface as
+part of their effort to reduce phone usage. Tapping "Remove app"
+opens the standard Android system uninstall dialog — FocusFlow passes
+the package name to the Android OS and the system handles the entire
+uninstall process.
+
+FocusFlow never uninstalls any app autonomously, silently, or without
+explicit user confirmation through the Android system dialog. This
+permission does not allow FocusFlow to delete apps on its own.
+```
+
+**`FOREGROUND_SERVICE`**
+```
+FocusFlow uses a foreground service to keep the focus timer and app
+blocking session running reliably when the user switches to another
+app or locks their screen. Without a foreground service, Android's
+memory management would terminate the blocking session in the
+background, allowing blocked apps to become accessible again.
+
+The foreground service displays a persistent notification during an
+active focus session so Android keeps it running. The service performs
+no background data collection or network activity. It manages only the
+session timer state and coordinates with the Accessibility Service.
+The service stops automatically when the focus session ends.
+```
+
+**`SCHEDULE_EXACT_ALARM`**
+```
+FocusFlow requests SCHEDULE_EXACT_ALARM to fire task reminders and
+scheduled focus session triggers at the precise times the user has
+set. Without exact alarms, Android may delay alarm delivery by
+several minutes, causing reminders and scheduled sessions to start
+late.
+
+No alarm data is transmitted off the device. Alarms are stored
+locally in the app's SQLite database and evaluated entirely on-device.
+This permission is used only to deliver timely notifications for
+events the user has explicitly created.
+```
 
 ---
 
@@ -357,64 +457,114 @@ SDK, and makes zero network requests.
 
 ---
 
-## UPTODOWN — REVIEWER MESSAGE (Accessibility Permission Appeal)
+## UPTODOWN — REVIEWER MESSAGE (Sensitive Permissions Appeal)
 
 > Paste this into the reviewer notes / appeal form when submitting or resubmitting.
 
 ```
 Dear Uptodown Review Team,
 
-Thank you for reviewing FocusFlow. I'd like to clarify exactly how our
-app uses the Accessibility Service, since I understand this permission
-requires additional scrutiny.
+Thank you for reviewing FocusFlow. I would like to explain clearly how
+each sensitive permission is used, since I understand these require
+additional scrutiny.
 
-WHAT THE ACCESSIBILITY SERVICE DOES IN FOCUSFLOW:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BIND_ACCESSIBILITY_SERVICE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-FocusFlow's entire purpose is to help users block distracting apps during
-focus sessions they choose to start. The Accessibility Service is the
-only Android API that provides real-time foreground app detection without
-root access.
+FocusFlow's core purpose is to block distracting apps during focus
+sessions the user starts. The Accessibility Service is the only Android
+API that provides real-time foreground app detection without root access.
 
-Specifically, the service listens ONLY to TYPE_WINDOW_STATE_CHANGED
-events. When this event fires, FocusFlow reads the package name of the
-newly active app (e.g. "com.instagram.android") and checks it against
-the user's local block list. If the app is blocked, FocusFlow displays a
-full-screen overlay redirecting the user back to their task.
+The service listens ONLY to TYPE_WINDOW_STATE_CHANGED events. When this
+event fires, FocusFlow reads the package name of the active app (e.g.
+"com.instagram.android") and checks it against the user's local block
+list. If the app is blocked, FocusFlow displays a full-screen overlay
+redirecting the user to their task.
 
-WHAT THE ACCESSIBILITY SERVICE DOES NOT DO:
+What it does NOT do:
+• Does NOT read on-screen text, messages, passwords, or any content
+• Does NOT log keystrokes or capture user input
+• Does NOT access contacts, SMS, call logs, or personal data
+• Does NOT transmit any data off the device — ever
+• Phone and emergency apps are permanently whitelisted — calls can
+  never be blocked
 
-• It does NOT read any on-screen text, messages, passwords, or content
-• It does NOT log keystrokes or capture any user input
-• It does NOT access contacts, SMS, call logs, or any personal data
-• It does NOT transmit any data off the device — ever
-• Phone and emergency apps are unconditionally whitelisted and can NEVER
-  be blocked
+Why no alternative API works:
+UsageStatsManager and ActivityManager are polling-based. They cannot
+detect an app switch the instant it happens. Without real-time
+detection, a user could open a blocked app and use it for several
+seconds before a poll could catch it. This is the same approach used
+by Google's own Digital Wellbeing, ActionDash, StayFree, and AppBlock.
 
-WHY NO ALTERNATIVE API WORKS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SYSTEM_ALERT_WINDOW (Draw Over Other Apps)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-UsageStatsManager and ActivityManager only provide historical or polled
-data — they cannot detect an app switch in real time. Without real-time
-detection, a user could open a blocked app and use it for several seconds
-before a polling check could catch it. The Accessibility Service is the
-only way to enforce an immediate redirect.
+Required to display the "App Blocked" full-screen overlay on top of a
+blocked app. Without it, the overlay cannot appear and blocking cannot
+function. The overlay shows only a static screen with the blocked app's
+name and a return button. It does not record, capture, or transmit
+anything visible beneath it. It is dismissed the moment the user
+navigates away.
 
-This is the same approach used by all legitimate parental control and
-focus apps on Android (Google's own Digital Wellbeing, ActionDash,
-StayFree, AppBlock, etc.).
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PACKAGE_USAGE_STATS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-TRANSPARENCY:
+Used to show users their own focus violation history and to enforce
+Daily App Allowances (per-app time budgets set by the user). All data
+is read from the Android system, processed locally, and displayed only
+to the device owner within FocusFlow. No usage data is transmitted off
+the device or shared with any third party.
 
-• The accessibility service description shown to users in Android
-  Settings clearly explains what it does
-• Our full source code is publicly available for inspection:
-  https://github.com/TITANICBHAI/FocusFlow
-  The relevant file is: AppBlockerAccessibilityService.kt
-• Our privacy policy is at:
-  https://titanicbhai.github.io/FocusFlow/privacy-policy
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+QUERY_ALL_PACKAGES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-We believe FocusFlow meets Uptodown's guidelines and are happy to
-provide any additional information or source code access needed.
+Used solely to populate the app selector where users choose which apps
+to block. The installed app list is displayed locally to the user for
+selection. No app data is transmitted off the device or stored beyond
+the user's own block list selections in local SQLite storage.
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+REQUEST_DELETE_PACKAGES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Allows users to initiate app removal from within FocusFlow. Tapping
+"Remove app" passes the package name to Android's standard system
+uninstall dialog. FocusFlow never removes apps autonomously or silently
+— the system dialog always requires explicit user confirmation.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FOREGROUND_SERVICE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Keeps the focus timer and blocking session running when the user
+minimises FocusFlow. Without it, Android would terminate the session
+in the background. A notification is shown during active sessions as
+required by Android. The service makes no network requests and
+collects no data. It stops automatically when the session ends.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SCHEDULE_EXACT_ALARM
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Fires task reminders and scheduled focus sessions at the precise times
+the user has set. Inexact alarms would delay delivery by several
+minutes. All alarm data is stored locally on-device and never
+transmitted.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TRANSPARENCY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Full source code publicly available for inspection:
+https://github.com/TITANICBHAI/FocusFlow
+Accessibility implementation: AppBlockerAccessibilityService.kt
+Privacy policy: https://titanicbhai.github.io/FocusFlow/privacy-policy
+
+We are happy to provide any additional information needed.
 Thank you for your time.
 — TB Techs
 ```
@@ -425,7 +575,7 @@ Thank you for your time.
 
 | Field | Fill With |
 |---|---|
-| **Application Title** | FocusFlow: App Blocker & Tasks |
+| **Application Title** | FocusFlow: Block & Focus Timer |
 | **Privacy Policy URL** | https://titanicbhai.github.io/FocusFlow/privacy-policy |
 | **Support Email** | support@tbtechs.dev |
 | **Website** | https://titanicbhai.github.io/FocusFlow |
@@ -439,39 +589,185 @@ Thank you for your time.
 ### Aptoide — Reviewer Message
 
 ```
-FocusFlow uses Android's Accessibility Service exclusively to detect
-foreground app changes and block non-allowed apps during user-initiated
-focus sessions.
+FocusFlow is a focus and app-blocking productivity app. Below is a
+full explanation of every sensitive permission it uses.
 
-The service listens only to TYPE_WINDOW_STATE_CHANGED events to read the
-package name of the currently active app. It does NOT read on-screen
-text, log keystrokes, capture passwords, or observe any content within
-apps.
+BIND_ACCESSIBILITY_SERVICE
+Detects in real time when the user opens a blocked app during a
+focus session they started. Listens only to
+TYPE_WINDOW_STATE_CHANGED events. Reads only the package name of
+the active app. Does NOT read screen content, messages, passwords,
+or keystrokes. No data is transmitted off the device. Phone and
+emergency apps are permanently whitelisted and can never be
+blocked.
 
-All data stays on-device. No network requests. Full source code:
-https://github.com/TITANICBHAI/FocusFlow
-Relevant file: AppBlockerAccessibilityService.kt
+SYSTEM_ALERT_WINDOW
+Displays the "App Blocked" full-screen overlay on top of a blocked
+app. The overlay shows only a static screen with the app name and
+a return button. No content beneath it is recorded or transmitted.
+Dismissed immediately when the user navigates away.
+
+PACKAGE_USAGE_STATS
+Shows the user their own focus violation history and enforces
+per-app daily time allowances they set themselves. All data is
+processed locally and never transmitted.
+
+QUERY_ALL_PACKAGES
+Populates the block list editor so users can choose which apps to
+block. No app data is transmitted or stored beyond the user's
+own selections in local SQLite storage.
+
+REQUEST_DELETE_PACKAGES
+Opens Android's standard system uninstall dialog when the user
+chooses to remove an app from within FocusFlow. FocusFlow never
+removes apps autonomously.
+
+FOREGROUND_SERVICE
+Keeps the focus timer and blocking session running when the app
+is minimised. Stops when the session ends. No data collected or
+transmitted.
+
+SCHEDULE_EXACT_ALARM
+Fires task reminders and scheduled sessions at the precise times
+the user has set. All data stored locally on-device.
+
+All data stays on-device. No network requests. No analytics. No ads.
+Full source code: https://github.com/TITANICBHAI/FocusFlow
+Accessibility implementation: AppBlockerAccessibilityService.kt
+Privacy policy: https://titanicbhai.github.io/FocusFlow/privacy-policy
 ```
 
 ---
 
-## HUAWEI APPGALLERY — SENSITIVE PERMISSION DESCRIPTION
+## HUAWEI APPGALLERY — SENSITIVE PERMISSION DESCRIPTIONS
 
+> Paste each block into the corresponding permission field in AppGallery Connect
+> under App Information → Sensitive Permissions.
+> For the Accessibility Service scenario checkbox, select **"App management /
+> Productivity tools"** — do NOT select "Display caller IDs and block harassment"
+> (that is for call-blocking apps and will trigger a mismatch review flag).
+
+**`android.permission.BIND_ACCESSIBILITY_SERVICE`**
 ```
-FocusFlow uses android.permission.BIND_ACCESSIBILITY_SERVICE exclusively
-to detect which app is in the foreground by listening to
-TYPE_WINDOW_STATE_CHANGED events. When a user opens a blocked app during
-a focus session, the service reads only the package name of that app and
-displays a blocking overlay. It does not read, access, collect, store, or
-transmit any SMS messages, call logs, passwords, screen content, or
-personal data. Phone and dialer apps are unconditionally whitelisted —
-calls are never blocked. The BIND_ACCESSIBILITY_SERVICE permission is not
-used for any purpose other than real-time foreground app detection for
-user-initiated blocking sessions.
+Function: FocusFlow uses BIND_ACCESSIBILITY_SERVICE exclusively to
+detect in real time when the user opens a blocked app during a
+user-initiated focus session.
+
+Event type listened to: TYPE_WINDOW_STATE_CHANGED only.
+
+Data read: The package name of the foreground app only (e.g.
+"com.instagram.android"). No screen content, text, messages,
+passwords, keystrokes, or any personal data is ever read.
+
+Action taken: The package name is compared locally against the
+user's on-device block list (SQLite database). If the app is
+blocked, a full-screen overlay is displayed redirecting the user
+to their active task. No data is stored beyond what the user
+explicitly saves to their local violation log.
+
+Data transmitted: None. The app makes zero network requests.
+No data is sent to any server, third party, or developer.
+
+Emergency access: Phone, dialler, and all emergency apps are
+permanently whitelisted and can never be blocked under any
+circumstances.
+
+The BIND_ACCESSIBILITY_SERVICE permission is not used for any
+purpose other than real-time foreground app detection for
+user-initiated focus sessions.
 ```
 
-*(Select "Display caller IDs and block harassment" as the closest matching
-scenario checkbox. The description above clarifies no SMS/call data is accessed.)*
+**`android.permission.SYSTEM_ALERT_WINDOW`**
+```
+Function: FocusFlow uses SYSTEM_ALERT_WINDOW (Draw Over Other Apps)
+to display the "App Blocked" full-screen overlay when the user
+opens a blocked app during an active focus session.
+
+Without this permission, the overlay cannot appear on top of the
+blocked app and the core blocking feature cannot function.
+
+Data read or captured: None. The overlay is a static screen
+displaying the blocked app's name, the user's current task title,
+and a return button. It does not record, screenshot, or transmit
+any content visible on the screen beneath it.
+
+The overlay is dismissed immediately when the user navigates away
+from the blocked app. It is never shown outside of active focus
+or block sessions.
+```
+
+**`android.permission.QUERY_ALL_PACKAGES`**
+```
+Function: FocusFlow uses QUERY_ALL_PACKAGES to display the list
+of apps installed on the device inside FocusFlow's block list
+editor. This lets users select which apps to block during focus
+sessions.
+
+Data collected: None. App names and package names are displayed
+locally to the user for selection purposes only. The user's
+chosen block list is stored in a local SQLite database on-device.
+No installed app data is transmitted off the device or shared
+with any third party.
+
+The permission is used exclusively for the local UI that allows
+users to build and manage their personal block list.
+```
+
+**`android.permission.REQUEST_DELETE_PACKAGES`**
+```
+Function: FocusFlow uses REQUEST_DELETE_PACKAGES to allow users
+to initiate removal of an app from within FocusFlow as part of
+reducing their phone usage. Tapping "Remove app" passes the
+package name to the Android OS, which displays the standard
+system uninstall confirmation dialog.
+
+FocusFlow never uninstalls any app autonomously, silently, or
+without the user confirming through the system dialog. This
+permission does not enable FocusFlow to delete apps on its own.
+
+Data collected: None. No data related to uninstall actions is
+transmitted off the device.
+```
+
+**`android.permission.PACKAGE_USAGE_STATS`**
+```
+Function: FocusFlow uses PACKAGE_USAGE_STATS so users can review
+their own focus violation history (which blocked apps they
+attempted to open and when) and to support the Daily App
+Allowance feature (limiting time spent in specific apps per day).
+
+Data read: App usage events from the Android system for the
+device owner only. This data is processed locally and displayed
+only within FocusFlow to the device owner.
+
+Data transmitted: None. All usage data stays on the device and
+is never shared with any third party or developer.
+```
+
+**`android.permission.FOREGROUND_SERVICE`**
+```
+Function: FocusFlow uses a foreground service to keep the focus
+timer and active blocking session running when the user switches
+to another app or locks the screen. Without a foreground service,
+Android's memory management terminates the session in the
+background, disabling blocking.
+
+A persistent notification is shown during active sessions as
+required by Android for foreground services. The service performs
+no background data collection and makes no network requests. It
+is stopped automatically when the focus session ends.
+```
+
+**`android.permission.SCHEDULE_EXACT_ALARM`**
+```
+Function: FocusFlow uses SCHEDULE_EXACT_ALARM to deliver task
+reminders and trigger scheduled focus sessions at the precise
+times set by the user. Inexact alarms would delay these
+notifications by several minutes, causing sessions to start late.
+
+Data transmitted: None. All alarm data is stored locally in the
+app's SQLite database and evaluated entirely on-device.
+```
 
 ---
 
