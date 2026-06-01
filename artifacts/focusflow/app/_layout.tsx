@@ -299,12 +299,12 @@ function OnboardingGuard() {
   useEffect(() => {
     if (!state.isDbReady) return;
     if (!state.settings.privacyAccepted) {
-      if (pathname !== '/privacy-policy') router.replace('/privacy-policy');
+      if (pathname !== '/welcome' && pathname !== '/privacy-policy') {
+        router.replace('/welcome');
+      }
       return;
     }
     if (!state.settings.onboardingComplete) {
-      // Allow both the permissions screen and the profile setup screen;
-      // everything else redirects to the start of the onboarding flow.
       if (pathname !== '/onboarding' && pathname !== '/user-profile') {
         router.replace('/onboarding');
       }
@@ -408,6 +408,7 @@ export default function RootLayout() {
             <ErrorAlertBanner />
             <Stack screenOptions={{ headerShown: false }}>
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              <Stack.Screen name="welcome" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
               <Stack.Screen name="privacy-policy" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
               <Stack.Screen name="terms-of-service" options={{ headerShown: false }} />
               <Stack.Screen name="onboarding" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
