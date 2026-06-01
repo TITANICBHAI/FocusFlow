@@ -33,6 +33,10 @@ import { SessionPinModule } from '@/native-modules/SessionPinModule';
 import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 import { useTheme } from '@/hooks/useTheme';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { FocusHintBanner } from '@/components/FocusHintBanner';
+import { PermNudgeBanner } from '@/components/PermNudgeBanner';
+import { promptBlockingPermissions, getBlockingPermStatus } from '@/services/permissionGuard';
 
 function FocusScreen() {
   const insets = useSafeAreaInsets();
@@ -50,6 +54,98 @@ function FocusScreen() {
   const [defPinVisible, setDefPinVisible] = useState(false);
   const pendingDefAction = useRef<(() => void) | null>(null);
   const [focusStopPinVisible, setFocusStopPinVisible] = useState(false);
+
+  // ── First-run sequential hints ──────────────────────────────────────────
+  // Dual-stored in AsyncStorage (primary) + SharedPrefs (fallback).
+  // If AsyncStorage is wiped (reinstall, storage error), SharedPrefs preserves
+  // the dismissed state so hints don't re-appear unexpectedly.
+  const HINT_STORAGE_KEY = '@focusflow/focusHintStep';
+  const HINT_PREFS_KEY   = 'focus_hint_step';
+  const [hintStep, setHintStep] = useState<number>(-1); // -1 = not loaded yet
+
+  useEffect(() => {
+    if (!state.settings.onboardingComplete) return;
+    const load = async () => {
+      // 1. Try AsyncStorage first (fast local store)
+      let val: string | null = null;
+      try { val = await AsyncStorage.getItem(HINT_STORAGE_KEY); } catch { /* fall through */ }
+      // 2. Fallback to SharedPrefs if AsyncStorage returned nothing
+      if (val === null) {
+        try { val = await SharedPrefsModule.getString(HINT_PREFS_KEY); } catch { /* fall through */ }
+      }
+      if (val === null) {
+        setHintStep(0);           // fresh user — show first hint
+      } else if (val === 'done') {
+        setHintStep(3);           // all dismissed
+      } else {
+        const n = parseInt(val, 10);
+        setHintStep(isNaN(n) ? 3 : n);
+      }
+    };
+    void load();
+  }, [state.settings.onboardingComplete]);
+
+  const advanceHint = async () => {
+    const next = hintStep + 1;
+    setHintStep(next);
+    const stored = next >= 3 ? 'done' : String(next);
+    // Write to both stores — either surviving a wipe is enough to prevent re-show
+    await Promise.allSettled([
+      AsyncStorage.setItem(HINT_STORAGE_KEY, stored),
+      SharedPrefsModule.putString(HINT_PREFS_KEY, stored),
+    ]);
+  };
+  // ────────────────────────────────────────────────────────────────────────
+
+  // ── Permissions nudge — fires on the 10th Focus tab visit while perms are missing ──
+  // Count is dual-stored (AsyncStorage primary, SharedPrefs fallback) so it
+  // survives storage wipes. Guards are re-evaluated at render time from live
+  // state so we never prompt while any active blocking session is running.
+  const VISIT_COUNT_KEY   = '@focusflow/focusTabVisitCount';
+  const VISIT_COUNT_PREFS = 'focus_tab_visit_count';
+  const NUDGE_SEEN_KEY    = '@focusflow/permNudgeSeen';
+  const NUDGE_SEEN_PREFS  = 'perm_nudge_seen';
+  const [nudgeEligible, setNudgeEligible] = useState(false);
+
+  useEffect(() => {
+    if (!state.settings.onboardingComplete) return;
+    const check = async () => {
+      // Already dismissed? — try both stores
+      let seen: string | null = null;
+      try { seen = await AsyncStorage.getItem(NUDGE_SEEN_KEY); } catch {}
+      if (!seen) { try { seen = await SharedPrefsModule.getString(NUDGE_SEEN_PREFS); } catch {} }
+      if (seen === 'true') return;
+
+      // Increment + read visit count (dual-stored)
+      let countVal: string | null = null;
+      try { countVal = await AsyncStorage.getItem(VISIT_COUNT_KEY); } catch {}
+      if (!countVal) { try { countVal = await SharedPrefsModule.getString(VISIT_COUNT_PREFS); } catch {} }
+      const count = (countVal ? (parseInt(countVal, 10) || 0) : 0) + 1;
+      await Promise.allSettled([
+        AsyncStorage.setItem(VISIT_COUNT_KEY, String(count)),
+        SharedPrefsModule.putString(VISIT_COUNT_PREFS, String(count)),
+      ]);
+
+      if (count < 10) return;
+
+      // Still missing any of the 3 required permissions?
+      // Defaults to "all ok" on error so we never nag unnecessarily.
+      const permStatus = await getBlockingPermStatus();
+      if (permStatus.overlay && permStatus.usage && permStatus.accessibility) return;
+
+      setNudgeEligible(true);
+    };
+    void check();
+  }, [state.settings.onboardingComplete]);
+
+  const dismissPermNudge = async () => {
+    setNudgeEligible(false);
+    await Promise.allSettled([
+      AsyncStorage.setItem(NUDGE_SEEN_KEY, 'true'),
+      SharedPrefsModule.putString(NUDGE_SEEN_PREFS, 'true'),
+    ]);
+  };
+  // ─────────────────────────────────────────────────────────────────────────────
 
   const handleActivateFocus = async (taskId: string) => {
     const pinSet = await SessionPinModule.isPinSet().catch(() => false);
@@ -104,25 +200,8 @@ function FocusScreen() {
 
   const handleQuickBlock = async (preset: import('@/data/types').BlockPreset, hours: number) => {
     if (Platform.OS === 'android') {
-      const hasA11y = await UsageStatsModule.hasAccessibilityPermission().catch(() => false);
-      const hasUsage = await UsageStatsModule.hasPermission().catch(() => false);
-      if (!hasA11y || !hasUsage) {
-        Alert.alert(
-          'Permissions Required',
-          'FocusFlow needs Accessibility and Usage Access to block apps.\n\nGo to Settings → Permissions to grant them.',
-          [
-            { text: 'Not Now', style: 'cancel' },
-            {
-              text: 'Open Permissions',
-              onPress: async () => {
-                if (!hasA11y) await UsageStatsModule.openAccessibilitySettings().catch(() => {});
-                else await UsageStatsModule.openUsageAccessSettings().catch(() => {});
-              },
-            },
-          ]
-        );
-        return;
-      }
+      const allGranted = await promptBlockingPermissions();
+      if (!allGranted) return;
     }
     // Additive merge: union the preset's packages with whatever is already
     // blocked. This way tapping a preset NEVER drops apps the user already
@@ -337,6 +416,19 @@ function FocusScreen() {
     // "Active" = list has packages AND enforcement is on (drives icon colour).
     const alwaysOnActive = alwaysOnHasList && enforcementOn;
     const autoCopyOn = settings.autoCopyToAlwaysOn ?? false;
+
+    // Safety guard for the permissions nudge: if the Android Settings app is
+    // in any active block list our own service would redirect the user away
+    // from the Android permission screens. Only show the nudge when that can't happen.
+    const settingsBlocked = [
+      ...(settings.alwaysOnPackages ?? []),
+      ...(settings.standaloneBlockPackages ?? []),
+    ].includes('com.android.settings');
+    const permNudgeVisible =
+      nudgeEligible &&
+      !isFocusing &&         // no active task focus session
+      !standaloneActive &&   // no timed standalone block running
+      !settingsBlocked;      // Android Settings not in any block list
     const withDefensePin = (action: () => void) => {
       if (!(settings.pinProtectionEnabled ?? false)) {
         action();
@@ -353,10 +445,17 @@ function FocusScreen() {
         })
         .catch(() => action());
     };
-    const handleToggleEnforcement = (next: boolean) => {
+    const handleToggleEnforcement = async (next: boolean) => {
       if (!next) {
         withDefensePin(() => void updateSettings({ ...settings, alwaysOnEnforcementEnabled: false }));
         return;
+      }
+      // Guard: always-on blocking requires the same permissions as every other
+      // blocking feature — check before enabling so the user doesn't flip it on
+      // and wonder why nothing is blocked.
+      if (Platform.OS === 'android') {
+        const allGranted = await promptBlockingPermissions();
+        if (!allGranted) return;
       }
       void updateSettings({ ...settings, alwaysOnEnforcementEnabled: true });
     };
@@ -389,6 +488,12 @@ function FocusScreen() {
           contentContainerStyle={[styles.emptyContainer, { paddingBottom: 60 + insets.bottom + 20 }]}
           showsVerticalScrollIndicator={false}
         >
+          <PermNudgeBanner
+            visible={permNudgeVisible}
+            onNotNow={dismissPermNudge}
+            onConfirm={dismissPermNudge}
+          />
+
           <Ionicons name="calendar-outline" size={64} color={theme.border} />
           <Text style={[styles.emptyTitle, { color: theme.muted }]}>No Tasks Yet</Text>
           <Text style={[styles.emptySubtitle, { color: theme.muted }]}>
@@ -403,6 +508,10 @@ function FocusScreen() {
             <Ionicons name="add-circle-outline" size={20} color="#fff" />
             <Text style={styles.createTaskBtnText}>Create a Task</Text>
           </TouchableOpacity>
+
+          <FocusHintBanner hintKey="task" step={hintStep} onDismiss={advanceHint} />
+
+          <FocusHintBanner hintKey="alwaysOn" step={hintStep} onDismiss={advanceHint} />
 
           {/* ── Unified Enforcement Panel ───────────────────────────────
                The always-on toggle is the master switch for all 24/7 enforcement.
@@ -579,6 +688,8 @@ function FocusScreen() {
               ))}
             </View>
           )}
+
+          <FocusHintBanner hintKey="standalone" step={hintStep} onDismiss={advanceHint} />
 
           <TouchableOpacity
             style={[styles.blockScheduleBtn, { backgroundColor: theme.card, borderColor: theme.border }]}
@@ -882,25 +993,8 @@ function FocusScreen() {
             style={[styles.primaryBtn, { backgroundColor: task.color }]}
             onPress={async () => {
               if (Platform.OS === 'android') {
-                const hasA11y = await UsageStatsModule.hasAccessibilityPermission().catch(() => false);
-                const hasUsage = await UsageStatsModule.hasPermission().catch(() => false);
-                if (!hasA11y || !hasUsage) {
-                  Alert.alert(
-                    'Permissions Required',
-                    'Focus Mode needs Accessibility and Usage Access to block apps.\n\nGo to Settings → Permissions to grant them.',
-                    [
-                      { text: 'Not Now', style: 'cancel' },
-                      {
-                        text: 'Open Permissions',
-                        onPress: async () => {
-                          if (!hasA11y) await UsageStatsModule.openAccessibilitySettings().catch(() => {});
-                          else await UsageStatsModule.openUsageAccessSettings().catch(() => {});
-                        },
-                      },
-                    ]
-                  );
-                  return;
-                }
+                const allGranted = await promptBlockingPermissions();
+                if (!allGranted) return;
               }
               void handleActivateFocus(task.id);
             }}

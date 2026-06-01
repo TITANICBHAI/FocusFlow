@@ -2,7 +2,7 @@ import { BlurView } from "expo-blur";
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useState, useEffect, useCallback } from "react";
-import { Platform, StyleSheet, View } from "react-native";
+import { Platform, StyleSheet, View, AppState } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -11,6 +11,7 @@ import { useTheme } from "@/hooks/useTheme";
 import DarkModeToggle from "@/components/DarkModeToggle";
 import { SideMenu, SideMenuToggle, SideMenuGuideTip } from "@/components/SideMenu";
 import { useApp } from "@/context/AppContext";
+import { getBlockingPermStatus } from "@/services/permissionGuard";
 
 const SIDE_MENU_TIP_KEY = "@focusflow/sideMenuTipSeen";
 
@@ -23,6 +24,23 @@ export default function TabLayout() {
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [showGuideTip, setShowGuideTip] = useState(false);
+  const [showPermBadge, setShowPermBadge] = useState(false);
+
+  // Check permission status for the Settings tab badge dot.
+  // Re-runs every time the app comes to foreground so the dot disappears
+  // the moment the user grants the last missing permission.
+  useEffect(() => {
+    if (!state.settings.onboardingComplete) return;
+    const check = async () => {
+      const status = await getBlockingPermStatus();
+      setShowPermBadge(!status.overlay || !status.usage || !status.accessibility);
+    };
+    void check();
+    const sub = AppState.addEventListener("change", (s) => {
+      if (s === "active") void check();
+    });
+    return () => sub.remove();
+  }, [state.settings.onboardingComplete]);
 
   // Show guide tip once after onboarding completes
   useEffect(() => {
@@ -140,11 +158,14 @@ export default function TabLayout() {
           options={{
             title: "Settings",
             tabBarIcon: ({ color, focused }) => (
-              <Ionicons
-                name={focused ? "settings" : "settings-outline"}
-                size={22}
-                color={color}
-              />
+              <View>
+                <Ionicons
+                  name={focused ? "settings" : "settings-outline"}
+                  size={22}
+                  color={color}
+                />
+                {showPermBadge && <View style={styles.permBadge} />}
+              </View>
             ),
           }}
         />
@@ -190,5 +211,14 @@ const styles = StyleSheet.create({
   toggleContainer: {
     position: "absolute",
     zIndex: 999,
+  },
+  permBadge: {
+    position: "absolute",
+    top: -1,
+    right: -3,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: COLORS.red ?? "#ef4444",
   },
 });

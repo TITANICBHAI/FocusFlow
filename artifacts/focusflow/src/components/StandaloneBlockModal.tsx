@@ -19,6 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import dayjs from 'dayjs';
 import { InstalledAppsModule, InstalledApp } from '@/native-modules/InstalledAppsModule';
 import { UsageStatsModule } from '@/native-modules/UsageStatsModule';
+import { promptBlockingPermissions } from '@/services/permissionGuard';
 import { SessionPinModule } from '@/native-modules/SessionPinModule';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 import { useTheme } from '@/hooks/useTheme';
@@ -477,27 +478,10 @@ export function StandaloneBlockModal({
       );
       return;
     }
-    // Check that the required permissions are in place before committing the block.
+    // Check that all three required permissions are in place before committing the block.
     if (Platform.OS === 'android') {
-      const hasAccessibility = await UsageStatsModule.hasAccessibilityPermission().catch(() => false);
-      const hasUsage = await UsageStatsModule.hasPermission().catch(() => false);
-      if (!hasAccessibility || !hasUsage) {
-        Alert.alert(
-          'Permissions Required',
-          'FocusFlow needs Accessibility and Usage Access permissions to block apps.\n\nGo to Settings → Permissions to grant them, then try again.',
-          [
-            { text: 'Not Now', style: 'cancel' },
-            {
-              text: 'Open Permissions',
-              onPress: async () => {
-                if (!hasAccessibility) await UsageStatsModule.openAccessibilitySettings().catch(() => {});
-                else await UsageStatsModule.openUsageAccessSettings().catch(() => {});
-              },
-            },
-          ]
-        );
-        return;
-      }
+      const allGranted = await promptBlockingPermissions();
+      if (!allGranted) return;
     }
     setSaving(true);
     try {
