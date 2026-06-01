@@ -2,6 +2,10 @@
 # Allow all search engines and beneficial AI retrieval bots.
 # Disallow only known training scrapers that do not contribute to visibility.
 
+# Global Metadata & Discovery Directives
+Sitemap: https://focusflowapp.pages.dev/sitemap.xml
+IndexNow: https://focusflowapp.pages.dev/eef30295a2a94ef0a61a1f2ce96cce63.txt
+
 User-agent: *
 Allow: /
 Allow: /llms.txt
@@ -13,10 +17,6 @@ Allow: /privacy-policy/
 Allow: /terms-of-service/
 Allow: /data-subject-rights/
 
-# Sitemaps and AI-specific documentation
-Sitemap: https://focusflowapp.pages.dev/sitemap.xml
-
-indexnow: https://yourdomain.com/eef30295a2a94ef0a61a1f2ce96cce63.txt
 
 # Beneficial AI retrieval / search bots — explicitly allowed
 User-agent: GPTBot
