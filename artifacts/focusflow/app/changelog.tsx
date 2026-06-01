@@ -14,6 +14,24 @@ type Entry = {
 
 const CHANGELOG: Entry[] = [
   {
+    version: '1.0.6',
+    date: 'June 2026',
+    sections: [
+      {
+        heading: 'In-App Review System',
+        icon: 'star-outline',
+        items: [
+          'New review prompt slides up 2 seconds after your 3rd engagement action — completing a focus session, toggling standalone block on or off, or toggling always-on enforcement counts as an action',
+          'Star rating (1–5) with encouraging copy that adapts to your score — positive, neutral, or frustrated: every response is welcomed the same way',
+          'Optional free-text field so you can say exactly what you think — or just tap the stars and send',
+          'Prompt respects your time: after 2 "Maybe later" dismissals it goes silent permanently; submitting any rating also silences it with no dismissal counted against you',
+          'Reviews are delivered via a server-side proxy — your Discord webhook URL is never bundled in the app or visible to the client at any point',
+          '21-day cooldown between repeat prompts so it never feels pushy',
+        ],
+      },
+    ],
+  },
+  {
     version: '1.0.5',
     date: 'June 2026',
     sections: [

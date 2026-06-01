@@ -3,6 +3,23 @@ FocusFlow — Changelog
 Privacy Policy: https://titanicbhai.github.io/FocusFlow/
 
 ────────────────────────────────────────────────────────────────
+v1.0.6  —  June 2026
+────────────────────────────────────────────────────────────────
+
+IN-APP REVIEW SYSTEM
+  • New review prompt slides up 2 seconds after your 3rd engagement
+    action — completing a focus session, toggling standalone block on/off,
+    or toggling always-on enforcement on/off each count as one action.
+  • Star rating (1–5) with copy that adapts to the score — encouraging
+    tone whether the user is happy, frustrated, or neutral.
+  • Optional free-text field (500 char max) for detailed feedback.
+  • Max 2 "Maybe later" dismissals before permanently silenced; submitting
+    any rating silences the prompt without counting as a dismissal.
+  • 21-day cooldown between repeat prompts.
+  • Reviews delivered via server-side proxy — Discord webhook URL is never
+    bundled in the app or visible on the client.
+
+────────────────────────────────────────────────────────────────
 v1.1.0  —  April 2026
 ────────────────────────────────────────────────────────────────
 
