@@ -16,6 +16,8 @@ Allow: /data-subject-rights/
 # Sitemaps and AI-specific documentation
 Sitemap: https://focusflowapp.pages.dev/sitemap.xml
 
+indexnow: https://yourdomain.com/eef30295a2a94ef0a61a1f2ce96cce63.txt
+
 # Beneficial AI retrieval / search bots — explicitly allowed
 User-agent: GPTBot
 Allow: /
