@@ -88,6 +88,10 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         const val PREF_DAILY_ALLOWANCE_CONFIG = "daily_allowance_config"   // rich JSON config (new)
         const val PREF_DAILY_ALLOWANCE_PKGS  = "daily_allowance_packages"  // legacy — no longer written
         const val PREF_DAILY_ALLOWANCE_USED  = "daily_allowance_used"
+        /** Written by JS as "true"/"false". When "true", daily allowance limits are enforced
+         *  24/7 regardless of whether a focus session or standalone block is active.
+         *  This fixes count mode, which never fired without an active session. */
+        const val PREF_DAILY_ALLOWANCE_ON    = "daily_allowance_enforcement_on"
 
         const val PREF_BLOCKED_WORDS = "blocked_words"
         const val PREF_SYSTEM_GUARD_ENABLED = "system_guard_enabled"
@@ -473,6 +477,15 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     private var currentTimedOpenAtMs: Long = 0L
     private var currentTimedSessionEndMs: Long = 0L
     private var timedExpireRunnable: Runnable? = null
+
+    // ── Count-mode dedup guard ────────────────────────────────────────────────
+    // currentTimedPkg is never set for count-mode apps, so without a separate
+    // guard every accessibility event (keyboard show/hide, overlay, etc.) would
+    // increment the count for the same foreground session. A 30-second cooldown
+    // treats back-to-back events as one open; a genuine re-open after ≥ 30 s
+    // (e.g. user left and returned) is counted as a new session.
+    private var lastCountPkg: String? = null
+    private var lastCountAtMs: Long = 0L
 
     override fun onServiceConnected() {
         prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
@@ -1023,8 +1036,56 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             return
         }
 
-        // If neither session nor always-on enforcement is active, nothing to enforce.
+        // ── Daily allowance — 24/7 independent enforcement (fixes count mode) ───
+        // When daily_allowance_enforcement_on is "true", enforce allowance limits even
+        // when no focus session or always-on block is active. Runs only when the
+        // session gate would otherwise return early — so no explicit-block conflict
+        // is possible (there is nothing that could explicitly block the app right now).
         if (!focusActive && !saActive && !alwaysBlockActive) {
+            if (prefs.getString(PREF_DAILY_ALLOWANCE_ON, "false") == "true") {
+                val allowanceEntry = findAllowanceEntry(pkg)
+                if (allowanceEntry != null) {
+                    if (isAllowanceAvailable(pkg, allowanceEntry)) {
+                        if (currentTimedPkg != pkg) {
+                            // For count mode use the 30-second cooldown guard; for timed modes
+                            // use currentTimedPkg (already checked above).
+                            val isNewOpen = allowanceEntry.mode != "count" ||
+                                lastCountPkg != pkg || (now - lastCountAtMs) > 30_000L
+                            if (isNewOpen) {
+                                val sessionEndMs = recordAllowanceOpen(pkg, allowanceEntry)
+                                if (allowanceEntry.mode == "count") {
+                                    lastCountPkg = pkg
+                                    lastCountAtMs = now
+                                } else {
+                                    currentTimedPkg = pkg
+                                    currentTimedOpenAtMs = System.currentTimeMillis()
+                                    if (sessionEndMs > 0L) {
+                                        currentTimedSessionEndMs = sessionEndMs
+                                        scheduleTimedExpiry(pkg, sessionEndMs)
+                                    } else {
+                                        currentTimedSessionEndMs = 0L
+                                        timedExpireRunnable?.let { handler.removeCallbacks(it) }
+                                        timedExpireRunnable = null
+                                    }
+                                }
+                            }
+                        }
+                        lastBlockedPkg = null
+                        return
+                    }
+                    // Allowance exhausted — block even without an active session.
+                    val samePackage    = pkg == lastBlockedPkg
+                    val cooldownExpired = (now - lastBlockedAtMs) > 2_000L
+                    if (!samePackage || cooldownExpired) {
+                        lastBlockedPkg  = pkg
+                        lastBlockedAtMs = now
+                        handleBlockedApp(pkg)
+                        scheduleRetryCheck(pkg, 1, focusActive, saActive, alwaysBlockActive)
+                    }
+                    return
+                }
+            }
+            // No allowance entry and no active session — nothing to enforce.
             lastBlockedPkg = null
             return
         }
@@ -1063,16 +1124,27 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             if (isAllowanceAvailable(pkg, allowanceEntry)) {
                 if (currentTimedPkg != pkg) {
                     // App is newly in foreground — record this open and start tracking.
-                    val sessionEndMs = recordAllowanceOpen(pkg, allowanceEntry)
-                    currentTimedPkg = pkg
-                    currentTimedOpenAtMs = System.currentTimeMillis()
-                    if (allowanceEntry.mode != "count" && sessionEndMs > 0L) {
-                        currentTimedSessionEndMs = sessionEndMs
-                        scheduleTimedExpiry(pkg, sessionEndMs)
-                    } else {
-                        currentTimedSessionEndMs = 0L
-                        timedExpireRunnable?.let { handler.removeCallbacks(it) }
-                        timedExpireRunnable = null
+                    // For count mode, apply the 30-second dedup guard so transient
+                    // accessibility events (keyboard, overlay) don't exhaust opens instantly.
+                    val isNewOpen = allowanceEntry.mode != "count" ||
+                        lastCountPkg != pkg || (now - lastCountAtMs) > 30_000L
+                    if (isNewOpen) {
+                        val sessionEndMs = recordAllowanceOpen(pkg, allowanceEntry)
+                        if (allowanceEntry.mode == "count") {
+                            lastCountPkg = pkg
+                            lastCountAtMs = now
+                        } else {
+                            currentTimedPkg = pkg
+                            currentTimedOpenAtMs = System.currentTimeMillis()
+                            if (sessionEndMs > 0L) {
+                                currentTimedSessionEndMs = sessionEndMs
+                                scheduleTimedExpiry(pkg, sessionEndMs)
+                            } else {
+                                currentTimedSessionEndMs = 0L
+                                timedExpireRunnable?.let { handler.removeCallbacks(it) }
+                                timedExpireRunnable = null
+                            }
+                        }
                     }
                 }
                 // else: same app still in foreground — already recorded, just let it through
@@ -1130,6 +1202,8 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         currentTimedPkg = null
         currentTimedOpenAtMs = 0L
         currentTimedSessionEndMs = 0L
+        lastCountPkg = null
+        lastCountAtMs = 0L
         lastBlockedPkg = null
         dismissWindowOverlay()
         vpnHealthHandler.removeCallbacks(vpnHealthRunnable)

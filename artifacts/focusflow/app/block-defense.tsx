@@ -669,6 +669,29 @@ export default function BlockDefenseScreen() {
           </View>
         </View>
 
+        {/* ── Daily Allowance ─────────────────────────────────────── */}
+        <View collapsable={false}>
+          <SectionHeader
+            icon="time-outline"
+            title="Daily Allowance"
+            description="Cap per-app daily usage with count, time budget, or interval limits — enforced 24/7, independently of focus sessions."
+            theme={theme}
+          />
+          <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <TouchableOpacity style={styles.cardButton} onPress={() => router.push('/(tabs)/focus')}>
+              <View style={styles.cardButtonContent}>
+                <Text style={[styles.cardButtonLabel, { color: theme.text }]}>Manage Daily Allowances</Text>
+                <Text style={[styles.cardButtonDesc, { color: theme.muted }]}>
+                  {(settings.dailyAllowanceEntries ?? []).length === 0
+                    ? 'No limits — tap to set per-app usage caps'
+                    : `${(settings.dailyAllowanceEntries ?? []).length} app${(settings.dailyAllowanceEntries ?? []).length !== 1 ? 's' : ''} with usage limits configured`}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={theme.border} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* ── Home Launcher ────────────────────────────────────────── */}
         <View collapsable={false}>
           <SectionHeader

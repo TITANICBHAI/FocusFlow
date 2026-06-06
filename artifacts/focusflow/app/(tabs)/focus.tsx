@@ -415,6 +415,13 @@ function FocusScreen() {
     const enforcementOn = settings.alwaysOnEnforcementEnabled !== false;
     // "Active" = list has packages AND enforcement is on (drives icon colour).
     const alwaysOnActive = alwaysOnHasList && enforcementOn;
+    // Per-feature effective states: feature is active when its own toggle OR the master is ON.
+    const masterOn = enforcementOn;
+    const appListEffective   = (settings.alwaysOnAppListEnabled   ?? false) || masterOn;
+    const vpnListEffective   = (settings.alwaysOnVpnListEnabled   ?? false) || masterOn;
+    const dailyAllEffective  = (settings.dailyAllowanceEnabled    ?? false) || masterOn;
+    const schedulesEffective = (settings.blockSchedulesEnabled    ?? false) || masterOn;
+    const keywordsEffective  = (settings.keywordBlockerEnabled    ?? false) || masterOn;
     const autoCopyOn = settings.autoCopyToAlwaysOn ?? false;
 
     // Safety guard for the permissions nudge: if the Android Settings app is
@@ -544,7 +551,7 @@ function FocusScreen() {
 
             {/* Row 1 — Always-On App List */}
             <TouchableOpacity
-              style={[styles.enforcementRow, !enforcementOn && { opacity: 0.45 }]}
+              style={[styles.enforcementRow, !appListEffective && { opacity: 0.45 }]}
               onPress={() => router.push('/always-on')}
               activeOpacity={0.7}
             >
@@ -563,6 +570,13 @@ function FocusScreen() {
                   <Text style={[styles.autoCopyText, { color: COLORS.primary }]}>auto-copy</Text>
                 </View>
               )}
+              <Switch
+                value={settings.alwaysOnAppListEnabled ?? false}
+                onValueChange={(v) => void updateSettings({ alwaysOnAppListEnabled: v })}
+                trackColor={{ false: theme.border, true: COLORS.orange + '88' }}
+                thumbColor={(settings.alwaysOnAppListEnabled ?? false) ? COLORS.orange : theme.muted}
+                style={{ transform: [{ scaleX: 0.72 }, { scaleY: 0.72 }], marginRight: -2 }}
+              />
               <Ionicons name="chevron-forward" size={12} color={theme.border} style={{ marginLeft: 4 }} />
             </TouchableOpacity>
 
@@ -574,7 +588,7 @@ function FocusScreen() {
               const vpnCount = vpnPkgs.length;
               return (
                 <TouchableOpacity
-                  style={[styles.enforcementRow, !enforcementOn && { opacity: 0.45 }]}
+                  style={[styles.enforcementRow, !vpnListEffective && { opacity: 0.45 }]}
                   onPress={() => router.push('/vpn-block-list')}
                   activeOpacity={0.7}
                 >
@@ -587,6 +601,13 @@ function FocusScreen() {
                         : 'No apps — tap to cut internet access 24/7'}
                     </Text>
                   </View>
+                  <Switch
+                    value={settings.alwaysOnVpnListEnabled ?? false}
+                    onValueChange={(v) => void updateSettings({ alwaysOnVpnListEnabled: v })}
+                    trackColor={{ false: theme.border, true: COLORS.primary + '88' }}
+                    thumbColor={(settings.alwaysOnVpnListEnabled ?? false) ? COLORS.primary : theme.muted}
+                    style={{ transform: [{ scaleX: 0.72 }, { scaleY: 0.72 }], marginRight: -2 }}
+                  />
                   <Ionicons name="chevron-forward" size={12} color={theme.border} style={{ marginLeft: 4 }} />
                 </TouchableOpacity>
               );
@@ -596,7 +617,7 @@ function FocusScreen() {
 
             {/* Row 3 — Daily Allowance */}
             <TouchableOpacity
-              style={[styles.enforcementRow, !enforcementOn && { opacity: 0.45 }]}
+              style={[styles.enforcementRow, !dailyAllEffective && { opacity: 0.45 }]}
               onPress={() => setDailyAllowanceModalVisible(true)}
               activeOpacity={0.7}
             >
@@ -609,14 +630,21 @@ function FocusScreen() {
                     : 'No limits set — tap to cap per-app daily usage'}
                 </Text>
               </View>
+              <Switch
+                value={settings.dailyAllowanceEnabled ?? false}
+                onValueChange={(v) => void updateSettings({ dailyAllowanceEnabled: v })}
+                trackColor={{ false: theme.border, true: COLORS.orange + '88' }}
+                thumbColor={(settings.dailyAllowanceEnabled ?? false) ? COLORS.orange : theme.muted}
+                style={{ transform: [{ scaleX: 0.72 }, { scaleY: 0.72 }], marginRight: -2 }}
+              />
               <Ionicons name="chevron-forward" size={12} color={theme.border} />
             </TouchableOpacity>
 
             <View style={[styles.enforcementDivider, { backgroundColor: theme.border }]} />
 
-            {/* Row 3 — Block Schedules */}
+            {/* Row 4 — Block Schedules */}
             <TouchableOpacity
-              style={[styles.enforcementRow, !enforcementOn && { opacity: 0.45 }]}
+              style={[styles.enforcementRow, !schedulesEffective && { opacity: 0.45 }]}
               onPress={() => router.push('/block-defense?tab=greyout')}
               activeOpacity={0.7}
             >
@@ -629,14 +657,21 @@ function FocusScreen() {
                     : 'No schedules — tap to block apps on a timetable'}
                 </Text>
               </View>
+              <Switch
+                value={settings.blockSchedulesEnabled ?? false}
+                onValueChange={(v) => void updateSettings({ blockSchedulesEnabled: v })}
+                trackColor={{ false: theme.border, true: COLORS.orange + '88' }}
+                thumbColor={(settings.blockSchedulesEnabled ?? false) ? COLORS.orange : theme.muted}
+                style={{ transform: [{ scaleX: 0.72 }, { scaleY: 0.72 }], marginRight: -2 }}
+              />
               <Ionicons name="chevron-forward" size={12} color={theme.border} />
             </TouchableOpacity>
 
             <View style={[styles.enforcementDivider, { backgroundColor: theme.border }]} />
 
-            {/* Row 4 — Keyword Blocker */}
+            {/* Row 5 — Keyword Blocker */}
             <TouchableOpacity
-              style={[styles.enforcementRow, !enforcementOn && { opacity: 0.45 }]}
+              style={[styles.enforcementRow, !keywordsEffective && { opacity: 0.45 }]}
               onPress={() => router.push('/keyword-blocker')}
               activeOpacity={0.7}
             >
@@ -649,6 +684,13 @@ function FocusScreen() {
                     : 'No keywords — tap to block by on-screen text'}
                 </Text>
               </View>
+              <Switch
+                value={settings.keywordBlockerEnabled ?? false}
+                onValueChange={(v) => void updateSettings({ keywordBlockerEnabled: v })}
+                trackColor={{ false: theme.border, true: COLORS.primary + '88' }}
+                thumbColor={(settings.keywordBlockerEnabled ?? false) ? COLORS.primary : theme.muted}
+                style={{ transform: [{ scaleX: 0.72 }, { scaleY: 0.72 }], marginRight: -2 }}
+              />
               <Ionicons name="chevron-forward" size={12} color={theme.border} />
             </TouchableOpacity>
 

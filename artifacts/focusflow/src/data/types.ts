@@ -163,6 +163,14 @@ export interface AppSettings {
    * temporarily pause enforcement without losing their list). Default true.
    */
   alwaysOnEnforcementEnabled?: boolean;
+  /** Independent per-feature toggles for the Always-On panel.
+   *  Effective enforcement = featureToggle || masterToggle (OR gate).
+   *  All default to false (undefined = false); the master toggle handles the legacy default-on. */
+  alwaysOnAppListEnabled?: boolean;
+  alwaysOnVpnListEnabled?: boolean;
+  dailyAllowanceEnabled?: boolean;
+  blockSchedulesEnabled?: boolean;
+  keywordBlockerEnabled?: boolean;
   /**
    * Dedicated always-on app block list — separate from `standaloneBlockPackages`.
    * These apps are blocked 24/7 regardless of any session state. Never cleared

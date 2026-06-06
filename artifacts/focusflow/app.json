@@ -106,7 +106,8 @@
     "extra": {
       "eas": {
         "projectId": "4ebf877b-d53c-48a7-814b-e6f1e630dbc1"
-      }
+      },
+      "apiUrl": ""
     }
   }
 }

@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Alert,
   Linking,
+  AppState,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -38,6 +39,7 @@ import { LanguagePickerModal } from '@/components/LanguagePickerModal';
 import { withScreenErrorBoundary } from '@/components/withScreenErrorBoundary';
 import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
 import { SUPPORTED_LANGUAGES } from '@/i18n';
+import { getBlockingPermStatus } from '@/services/permissionGuard';
 
 const DURATION_OPTIONS = [30, 45, 60, 90, 120];
 
@@ -61,6 +63,22 @@ function SettingsScreen() {
   const pendingDefAction = useRef<(() => void) | null>(null);
   // Diagnostics section is development-only — hidden entirely in release builds.
   const showDiagnostics = __DEV__;
+
+  // Mirror the tab-bar badge check so Settings can show a contextual banner.
+  const [missingPerms, setMissingPerms] = useState<{ overlay: boolean; usage: boolean; accessibility: boolean } | null>(null);
+
+  useEffect(() => {
+    if (!state.settings.onboardingComplete) return;
+    const check = async () => {
+      const s = await getBlockingPermStatus();
+      setMissingPerms({ overlay: !s.overlay, usage: !s.usage, accessibility: !s.accessibility });
+    };
+    void check();
+    const sub = AppState.addEventListener('change', (st) => {
+      if (st === 'active') void check();
+    });
+    return () => sub.remove();
+  }, [state.settings.onboardingComplete]);
 
   // Current language display label
   const currentLangCode = i18n.language ?? 'en';
@@ -315,11 +333,41 @@ function SettingsScreen() {
     void update({ blockInstagramReelsEnabled: true });
   };
 
+  const anyMissing = missingPerms && (missingPerms.overlay || missingPerms.usage || missingPerms.accessibility);
+  const missingNames = missingPerms
+    ? [
+        missingPerms.accessibility && 'Accessibility Service',
+        missingPerms.usage && 'Usage Access',
+        missingPerms.overlay && 'Display Over Apps',
+      ].filter(Boolean)
+    : [];
+
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
       <View style={[styles.header, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
         <Text style={[styles.title, { color: theme.text }]}>{t('settings.title')}</Text>
       </View>
+
+      {anyMissing && (
+        <TouchableOpacity
+          style={styles.permBanner}
+          onPress={() => router.push('/permissions' as never)}
+          activeOpacity={0.85}
+        >
+          <View style={styles.permBannerLeft}>
+            <Ionicons name="warning-outline" size={20} color="#92400e" />
+            <View style={styles.permBannerText}>
+              <Text style={styles.permBannerTitle}>App blocking may not work</Text>
+              <Text style={styles.permBannerDesc}>
+                {missingNames.length === 1
+                  ? `${missingNames[0]} permission is missing.`
+                  : `Missing: ${missingNames.join(', ')}.`}
+              </Text>
+            </View>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color="#92400e" />
+        </TouchableOpacity>
+      )}
 
       <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { paddingBottom: 60 + insets.bottom + 20 }]}>
 
@@ -1000,6 +1048,33 @@ const styles = StyleSheet.create({
   footerText: { fontSize: FONT.xs, color: COLORS.border },
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   loadingText: { fontSize: FONT.md, color: COLORS.muted },
+  permBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#fef3c7',
+    borderBottomWidth: 1,
+    borderBottomColor: '#fde68a',
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+  },
+  permBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    flex: 1,
+  },
+  permBannerText: { flex: 1 },
+  permBannerTitle: {
+    fontSize: FONT.sm,
+    fontWeight: '700',
+    color: '#92400e',
+  },
+  permBannerDesc: {
+    fontSize: FONT.xs,
+    color: '#78350f',
+    marginTop: 2,
+  },
 });
 
 export default withScreenErrorBoundary(SettingsScreen, 'Settings');

@@ -17,12 +17,19 @@ function getApiBase(): string {
   const extra = Constants.expoConfig?.extra as Record<string, string> | undefined;
   if (extra?.apiUrl) return extra.apiUrl.replace(/\/$/, '');
 
+  // In Expo Go / debug builds, the JS debugger host resolves to the dev machine.
   const debuggerHost = (Constants.expoConfig as any)?.debuggerHost as string | undefined;
   if (debuggerHost) {
     const host = debuggerHost.split(':')[0];
     return `http://${host}:3000`;
   }
 
+  // Production APK with no apiUrl configured — reviews cannot be delivered.
+  // Set expo.extra.apiUrl in app.json (or as an EAS Build env var) to your
+  // deployed server URL, e.g. "https://your-app.replit.app".
+  if (__DEV__) {
+    console.warn('[reviewService] apiUrl not configured — review submission will fail in production builds.');
+  }
   return '';
 }
 

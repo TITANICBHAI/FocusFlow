@@ -456,9 +456,17 @@ export default function ActiveScreen() {
                 label={shortPkgLabel(e.packageName)}
                 value={describeAllowance(e)}
                 theme={theme}
-                isLast={i === allowanceEntries.length - 1}
+                isLast={false}
               />
             ))}
+            <TouchableOpacity
+              onPress={() => router.push('/(tabs)/focus')}
+              style={{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.border, paddingVertical: 9, paddingHorizontal: 12, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center' }}
+              activeOpacity={0.7}
+            >
+              <Text style={{ color: COLORS.orange, fontSize: 12, fontWeight: '600' }}>Manage</Text>
+              <Ionicons name="chevron-forward" size={12} color={COLORS.orange} style={{ marginLeft: 2 }} />
+            </TouchableOpacity>
           </SectionCard>
         )}
 
@@ -510,6 +518,18 @@ export default function ActiveScreen() {
             icon="shield-checkmark-outline"
             label="Block Enforcement Settings"
             onPress={() => router.push('/block-defense')}
+            theme={theme}
+          />
+          <QuickAction
+            icon="time-outline"
+            label="Manage Daily Allowance"
+            onPress={() => router.push('/(tabs)/focus')}
+            theme={theme}
+          />
+          <QuickAction
+            icon="text-outline"
+            label="Keyword Blocker"
+            onPress={() => router.push('/keyword-blocker')}
             theme={theme}
           />
           <QuickAction

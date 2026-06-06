@@ -150,7 +150,17 @@ async function handleReview(req, res) {
     return;
   }
 
-  const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
+  let webhookUrl = process.env.DISCORD_WEBHOOK_URL ?? "";
+  // If the secret was stored as base64, decode it transparently.
+  // A valid Discord webhook always starts with "https://".
+  if (webhookUrl && !webhookUrl.startsWith("http")) {
+    try {
+      const decoded = Buffer.from(webhookUrl, "base64").toString("utf-8").trim();
+      if (decoded.startsWith("http")) webhookUrl = decoded;
+    } catch {
+      // leave as-is — the URL parse below will reject it cleanly
+    }
+  }
   if (!webhookUrl) {
     res.writeHead(503, { "content-type": "application/json" });
     res.end(JSON.stringify({ error: "Webhook not configured" }));

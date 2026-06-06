@@ -611,8 +611,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
    */
   async function _syncDailyAllowance(settings: AppSettings): Promise<void> {
     const entries = settings.dailyAllowanceEntries ?? [];
+    // Compute effective enforcement state: feature-specific toggle OR master toggle.
+    // Written as a string pref so the accessibility service can gate 24/7 enforcement
+    // independently of focus/standalone sessions (fixes count-mode root cause).
+    const masterOn = settings.alwaysOnEnforcementEnabled !== false;
+    const effectiveOn = (settings.dailyAllowanceEnabled ?? false) || masterOn;
     try {
       await SharedPrefsModule.setDailyAllowanceConfig(entries);
+      await SharedPrefsModule.putString('daily_allowance_enforcement_on', effectiveOn ? 'true' : 'false');
     } catch (e) {
       void logger.warn('AppContext', `daily allowance sync failed: ${String(e)}`);
     }
@@ -1592,6 +1598,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try { await dbSaveSettings(newSettings); } catch (e) { void logger.warn('AppContext', `setDailyAllowanceEntries: dbSaveSettings non-fatal: ${String(e)}`); }
     dispatch({ type: 'SET_SETTINGS', payload: newSettings });
     await SharedPrefsModule.setDailyAllowanceConfig(entries);
+    // Write the enforcement flag so the accessibility service gates 24/7 enforcement.
+    const masterOn = newSettings.alwaysOnEnforcementEnabled !== false;
+    const daEffective = (newSettings.dailyAllowanceEnabled ?? false) || masterOn;
+    await SharedPrefsModule.putString('daily_allowance_enforcement_on', daEffective ? 'true' : 'false').catch(() => {});
     // Enable always-on enforcement whenever allowance entries are configured.
     // Must use alwaysOnPackages (the 24/7 block list), NOT standaloneBlockPackages
     // (the timed-session list), so that saving daily allowance entries does not
@@ -1718,6 +1728,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const active = packages.length > 0 && untilMs !== null && untilMs > Date.now();
     await SharedPrefsModule.setStandaloneBlock(active, packages, untilMs ?? 0, pinHash);
     await SharedPrefsModule.setDailyAllowanceConfig(allowanceEntries);
+    // Sync enforcement flag alongside config so the accessibility service is always in sync.
+    const masterOn2 = newSettings.alwaysOnEnforcementEnabled !== false;
+    const daEffective2 = (newSettings.dailyAllowanceEnabled ?? false) || masterOn2;
+    await SharedPrefsModule.putString('daily_allowance_enforcement_on', daEffective2 ? 'true' : 'false').catch(() => {});
     await SharedPrefsModule.setVpnSelectedPackages(resolvedVpnPackages).catch(() => {});
     // Sync always-on enforcement using the dedicated alwaysOnPackages list
     const alwaysOnActive2 = (newSettings.alwaysOnEnforcementEnabled !== false) &&
