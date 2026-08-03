@@ -338,17 +338,17 @@ function FocusScreen() {
     const alwaysOnActive = alwaysOnHasList && enforcementOn;
     const autoCopyOn = settings.autoCopyToAlwaysOn ?? false;
     const withDefensePin = (action: () => void) => {
-      if (!(settings.pinProtectionEnabled ?? false)) {
+      if (!settings.pinProtectionEnabled) {
         action();
         return;
       }
       SharedPrefsModule.getString('defense_pin_hash')
         .then((hash) => {
-          if (!hash) {
-            action();
-          } else {
+          if (hash) {
             pendingDefAction.current = action;
             setDefPinVisible(true);
+          } else {
+            action();
           }
         })
         .catch(() => action());
