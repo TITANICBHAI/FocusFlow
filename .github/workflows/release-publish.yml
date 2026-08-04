@@ -1,0 +1,755 @@
+name: 🚀 Publish Release
+
+# Manual release workflow.
+#
+# What it does
+# ────────────
+#   1. prepare   — reads version + versionCode from app.json, creates/pushes tag
+#   2. build-apks — expo prebuild → assembleRelease → arm64 + armeabi-v7a + universal APKs (parallel)
+#   3. build-aab  — expo prebuild → bundleRelease → AAB for Play Store (parallel with apks)
+#   4. publish    — downloads both artifacts, extracts changelog for this version from
+#                   changelog.txt, writes a rich release body (SAI guide + Restricted Settings
+#                   steps), creates the GitHub Release, notifies Slack
+#
+# Required secrets
+# ────────────────
+#   RELEASE_KEYSTORE_BASE64   base64-encoded .jks keystore
+#   RELEASE_STORE_PASSWORD    keystore store password
+#   RELEASE_KEY_ALIAS         key alias
+#   RELEASE_KEY_PASSWORD      key password
+#   SLACK_WEBHOOK_URL         (optional) Slack incoming webhook
+#
+# Inputs (all optional)
+# ─────────────────────
+#   draft         — save as draft instead of publishing immediately
+#   prerelease    — flag this as a pre-release
+#   tag_override  — use a custom tag; leave blank to auto-derive v{version} from app.json
+
+on:
+  workflow_dispatch:
+    inputs:
+      draft:
+        description: 'Save as draft (review before going public)'
+        type: boolean
+        default: false
+      prerelease:
+        description: 'Mark as pre-release'
+        type: boolean
+        default: false
+      tag_override:
+        description: 'Tag override — blank → auto: v{version from app.json}'
+        type: string
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+env:
+  NPM_CONFIG_NODE_LINKER: hoisted
+  EXPO_ROUTER_APP_ROOT: app
+
+# ── Shared signing-patch script — injected identically into both build jobs ──
+# (Defined as a YAML anchor; GitHub Actions resolves anchors at parse time.)
+
+jobs:
+  # ────────────────────────────────────────────────────────────────────────────
+  # 1. PREPARE — read version, push tag, validate
+  # ────────────────────────────────────────────────────────────────────────────
+  prepare:
+    name: 📋 Read version & push tag
+    runs-on: ubuntu-latest
+    outputs:
+      version:      ${{ steps.meta.outputs.version }}
+      versionCode:  ${{ steps.meta.outputs.versionCode }}
+      tag:          ${{ steps.meta.outputs.tag }}
+
+    steps:
+      - name: Checkout (full history for tag push)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Read version from app.json
+        id: meta
+        working-directory: artifacts/focusflow
+        run: |
+          VERSION=$(node -e "const j=require('./app.json'); console.log(j.expo.version)")
+          VCODE=$(node -e "const j=require('./app.json'); console.log(j.expo.android.versionCode)")
+          TAG="${{ inputs.tag_override }}"
+          [ -z "$TAG" ] && TAG="v${VERSION}"
+
+          echo "version=$VERSION"     >> $GITHUB_OUTPUT
+          echo "versionCode=$VCODE"   >> $GITHUB_OUTPUT
+          echo "tag=$TAG"             >> $GITHUB_OUTPUT
+
+          echo "### 📋 Release Metadata"              >> $GITHUB_STEP_SUMMARY
+          echo "| Field | Value |"                    >> $GITHUB_STEP_SUMMARY
+          echo "|-------|-------|"                    >> $GITHUB_STEP_SUMMARY
+          echo "| Version | \`$VERSION\` |"           >> $GITHUB_STEP_SUMMARY
+          echo "| versionCode | \`$VCODE\` |"         >> $GITHUB_STEP_SUMMARY
+          echo "| Tag | \`$TAG\` |"                   >> $GITHUB_STEP_SUMMARY
+          echo "| Draft | ${{ inputs.draft }} |"      >> $GITHUB_STEP_SUMMARY
+          echo "| Pre-release | ${{ inputs.prerelease }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Triggered by | @${{ github.actor }} |"    >> $GITHUB_STEP_SUMMARY
+
+      - name: Validate tag vs app.json version
+        run: |
+          TAG="${{ steps.meta.outputs.tag }}"
+          VERSION="${{ steps.meta.outputs.version }}"
+          # If a custom tag was supplied, warn if it doesn't match the version
+          if [[ "${{ inputs.tag_override }}" != "" ]]; then
+            if [[ "$TAG" != "v${VERSION}" && "$TAG" != "${VERSION}" ]]; then
+              echo "⚠️  Warning: tag '$TAG' does not match app.json version '$VERSION'."
+              echo "   This is allowed but may cause version confusion."
+            fi
+          fi
+
+      - name: Create & push tag
+        run: |
+          TAG="${{ steps.meta.outputs.tag }}"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "ℹ️  Tag $TAG already exists — reusing it for this release."
+          else
+            git config user.name  "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag -a "$TAG" -m "FocusFlow $TAG"
+            git push origin "$TAG"
+            echo "✅ Created and pushed tag $TAG"
+          fi
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 2a. BUILD APKs — arm64-v8a + armeabi-v7a + universal (runs in parallel with aab)
+  # ────────────────────────────────────────────────────────────────────────────
+  build-apks:
+    name: 🔨 Build APKs (arm64 + arm32 + universal)
+    needs: prepare
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Set up pnpm 9
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Get pnpm store path
+        id: pnpm-cache
+        run: echo "STORE=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/gradle-wrapper.properties') }}
+          restore-keys: ${{ runner.os }}-gradle-
+
+      - name: Install JS dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Expo Prebuild
+        working-directory: artifacts/focusflow
+        run: npx expo prebuild --platform android --clean --no-install
+
+      - name: Inject ProGuard rules
+        working-directory: artifacts/focusflow
+        run: |
+          [ -f proguard-rules.pro ] && cp proguard-rules.pro android/app/proguard-rules.pro || true
+
+      - name: Enable R8 full mode
+        working-directory: artifacts/focusflow/android
+        run: |
+          echo ""                                  >> gradle.properties
+          echo "android.enableR8.fullMode=true"    >> gradle.properties
+
+      - name: Patch signing config (v1 + v2 + v3)
+        working-directory: artifacts/focusflow/android
+        run: |
+          python3 - << 'PYEOF'
+          import re
+
+          path = 'app/build.gradle'
+          text = open(path).read()
+
+          sig_block = '''
+              signingConfigs {
+                  release {
+                      storeFile file("release.keystore")
+                      storePassword (System.getenv("RELEASE_STORE_PASSWORD") ?: "")
+                      keyAlias     (System.getenv("RELEASE_KEY_ALIAS")        ?: "")
+                      keyPassword  (System.getenv("RELEASE_KEY_PASSWORD")     ?: "")
+                      v1SigningEnabled true
+                      v2SigningEnabled true
+                      v3SigningEnabled true
+                  }
+              }'''
+
+          text = re.sub(
+              r'\n?[ \t]*signingConfigs\s*\{(?:[^{}]|\{[^{}]*\})*\}',
+              '', text, flags=re.DOTALL,
+          )
+          text = re.sub(
+              r'(\n[ \t]*buildTypes\s*\{)',
+              sig_block + r'\1', text, count=1,
+          )
+
+          def patch_release(m):
+              s = m.group(0)
+              s = re.sub(r'signingConfig\s+\S+', 'signingConfig signingConfigs.release', s)
+              if 'signingConfig' not in s:
+                  s = re.sub(r'(release\s*\{)',
+                             r'\1\n            signingConfig signingConfigs.release',
+                             s, count=1)
+              return s
+
+          def patch_build_types(m):
+              return re.sub(r'(?s)\brelease\s*\{[^{}]*\}', patch_release, m.group(0))
+
+          text = re.sub(r'(?s)\bbuildTypes\s*\{(?:[^{}]|\{[^{}]*\})*\}', patch_build_types, text)
+          open(path, 'w').write(text)
+          print('✅ v1+v2+v3 signing patched into app/build.gradle')
+          PYEOF
+
+      - name: Decode release keystore
+        working-directory: artifacts/focusflow/android/app
+        run: echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 --decode > release.keystore
+
+      - name: Build release APKs (arm64 + arm32 + universal)
+        working-directory: artifacts/focusflow/android
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx6g -XX:MaxMetaspaceSize=512m -Dorg.gradle.daemon=false"
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS:      ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD:   ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon
+          echo "── APK outputs ──"
+          find app/build/outputs/apk/release/ -name "*.apk" -exec ls -lh {} \;
+
+      - name: Stage APKs with versioned names
+        run: |
+          TAG="${{ needs.prepare.outputs.tag }}"
+          mkdir -p /tmp/release-apks
+          for ARCH in arm64-v8a armeabi-v7a universal; do
+            SRC="artifacts/focusflow/android/app/build/outputs/apk/release/app-${ARCH}-release.apk"
+            DST="/tmp/release-apks/focusflow-${ARCH}-${TAG}.apk"
+            if [ -f "$SRC" ]; then
+              cp "$SRC" "$DST"
+              echo "✅ $(basename $DST) ($(du -sh $DST | cut -f1))"
+            else
+              echo "⚠️  $SRC not found — skipping $ARCH"
+            fi
+          done
+          echo "── Staged files ──"
+          ls -lh /tmp/release-apks/
+
+      - name: Upload APK artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-apks-${{ needs.prepare.outputs.tag }}
+          path: /tmp/release-apks/*.apk
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Remove keystore from runner
+        if: always()
+        working-directory: artifacts/focusflow/android/app
+        run: rm -f release.keystore
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 2b. BUILD AAB — Play Store bundle (runs in parallel with build-apks)
+  # ────────────────────────────────────────────────────────────────────────────
+  build-aab:
+    name: 📦 Build AAB (Play Store)
+    needs: prepare
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Set up pnpm 9
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Get pnpm store path
+        id: pnpm-cache
+        run: echo "STORE=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/gradle-wrapper.properties') }}
+          restore-keys: ${{ runner.os }}-gradle-
+
+      - name: Install JS dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Expo Prebuild
+        working-directory: artifacts/focusflow
+        run: npx expo prebuild --platform android --clean --no-install
+
+      - name: Inject ProGuard rules
+        working-directory: artifacts/focusflow
+        run: |
+          [ -f proguard-rules.pro ] && cp proguard-rules.pro android/app/proguard-rules.pro || true
+
+      - name: Enable R8 full mode
+        working-directory: artifacts/focusflow/android
+        run: |
+          echo ""                               >> gradle.properties
+          echo "android.enableR8.fullMode=true" >> gradle.properties
+
+      - name: Disable ABI splits for AAB
+        # ABI splits + bundleRelease + R8 causes a "Multiple shrunk-resources files found"
+        # crash (issuetracker.google.com/402800800). Splits are unnecessary for AAB
+        # because the Play Store generates per-device splits itself.
+        working-directory: artifacts/focusflow/android
+        run: |
+          sed -i '/splits\s*{/,/^[[:space:]]*}/ { s/enable\s*true/enable false/g }' \
+              app/build.gradle || true
+          echo "android.splits.abi.enable=false"     >> gradle.properties
+          echo "android.splits.density.enable=false" >> gradle.properties
+
+      - name: Patch signing config (v1 + v2 + v3)
+        working-directory: artifacts/focusflow/android
+        run: |
+          python3 - << 'PYEOF'
+          import re
+
+          path = 'app/build.gradle'
+          text = open(path).read()
+
+          sig_block = '''
+              signingConfigs {
+                  release {
+                      storeFile file("release.keystore")
+                      storePassword (System.getenv("RELEASE_STORE_PASSWORD") ?: "")
+                      keyAlias     (System.getenv("RELEASE_KEY_ALIAS")        ?: "")
+                      keyPassword  (System.getenv("RELEASE_KEY_PASSWORD")     ?: "")
+                      v1SigningEnabled true
+                      v2SigningEnabled true
+                      v3SigningEnabled true
+                  }
+              }'''
+
+          text = re.sub(
+              r'\n?[ \t]*signingConfigs\s*\{(?:[^{}]|\{[^{}]*\})*\}',
+              '', text, flags=re.DOTALL,
+          )
+          text = re.sub(
+              r'(\n[ \t]*buildTypes\s*\{)',
+              sig_block + r'\1', text, count=1,
+          )
+
+          def patch_release(m):
+              s = m.group(0)
+              s = re.sub(r'signingConfig\s+\S+', 'signingConfig signingConfigs.release', s)
+              if 'signingConfig' not in s:
+                  s = re.sub(r'(release\s*\{)',
+                             r'\1\n            signingConfig signingConfigs.release',
+                             s, count=1)
+              return s
+
+          def patch_build_types(m):
+              return re.sub(r'(?s)\brelease\s*\{[^{}]*\}', patch_release, m.group(0))
+
+          text = re.sub(r'(?s)\bbuildTypes\s*\{(?:[^{}]|\{[^{}]*\})*\}', patch_build_types, text)
+          open(path, 'w').write(text)
+          print('✅ v1+v2+v3 signing patched into app/build.gradle')
+          PYEOF
+
+      - name: Decode release keystore
+        working-directory: artifacts/focusflow/android/app
+        run: echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 --decode > release.keystore
+
+      - name: Build release AAB
+        working-directory: artifacts/focusflow/android
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx6g -XX:MaxMetaspaceSize=512m -Dorg.gradle.daemon=false"
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS:      ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD:   ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          chmod +x gradlew
+          ./gradlew bundleRelease --no-daemon
+          echo "── AAB output ──"
+          find app/build/outputs/bundle/release/ -name "*.aab" -exec ls -lh {} \;
+
+      - name: Stage AAB with versioned name
+        run: |
+          TAG="${{ needs.prepare.outputs.tag }}"
+          mkdir -p /tmp/release-aab
+          cp artifacts/focusflow/android/app/build/outputs/bundle/release/app-release.aab \
+             /tmp/release-aab/focusflow-${TAG}.aab
+          echo "✅ focusflow-${TAG}.aab ($(du -sh /tmp/release-aab/focusflow-${TAG}.aab | cut -f1))"
+
+      - name: Upload AAB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-aab-${{ needs.prepare.outputs.tag }}
+          path: /tmp/release-aab/*.aab
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Remove keystore from runner
+        if: always()
+        working-directory: artifacts/focusflow/android/app
+        run: rm -f release.keystore
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 3. PUBLISH — assemble release, extract changelog, write body, create release
+  # ────────────────────────────────────────────────────────────────────────────
+  publish:
+    name: 📣 Publish GitHub Release
+    needs: [prepare, build-apks, build-aab]
+    runs-on: ubuntu-latest
+
+    env:
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+    steps:
+      - name: Checkout (for changelog.txt)
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Download APK artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-apks-${{ needs.prepare.outputs.tag }}
+          path: /tmp/release-files/
+
+      - name: Download AAB artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: release-aab-${{ needs.prepare.outputs.tag }}
+          path: /tmp/release-files/
+
+      - name: List release files
+        run: |
+          echo "── Files to attach to release ──"
+          ls -lh /tmp/release-files/
+
+      - name: Generate release body
+        env:
+          APP_VERSION:  ${{ needs.prepare.outputs.version }}
+          VERSION_CODE: ${{ needs.prepare.outputs.versionCode }}
+          TAG:          ${{ needs.prepare.outputs.tag }}
+          COMMIT_SHA:   ${{ github.sha }}
+          RUN_NUMBER:   ${{ github.run_number }}
+          RUN_ID:       ${{ github.run_id }}
+          REPOSITORY:   ${{ github.repository }}
+          ACTOR:        ${{ github.actor }}
+        run: |
+          node << 'JSEOF'
+          const fs = require('fs');
+
+          const ver  = process.env.APP_VERSION;
+          const vc   = process.env.VERSION_CODE;
+          const tag  = process.env.TAG;
+          const sha  = process.env.COMMIT_SHA;
+          const ssha = sha.slice(0, 7);
+          const run  = process.env.RUN_NUMBER;
+          const rid  = process.env.RUN_ID;
+          const repo = process.env.REPOSITORY;
+          const actor = process.env.ACTOR;
+
+          // ── Extract changelog section for this version ─────────────────────
+          let changelogSection = '';
+          try {
+            const text  = fs.readFileSync('changelog.txt', 'utf8');
+            const lines = text.split('\n');
+            const sepRe = /^─{10,}/;
+
+            let inSection    = false;
+            let passedFirstSep = false;
+            const found = [];
+
+            for (let i = 0; i < lines.length; i++) {
+              const line = lines[i];
+
+              if (!inSection) {
+                // Version header: a line that contains vX.Y.Z and an em-dash
+                if (line.includes('v' + ver) && /—/.test(line)) {
+                  inSection = true;
+                  passedFirstSep = false;
+                  continue; // skip the header line itself
+                }
+              } else {
+                if (sepRe.test(line.trim())) {
+                  if (!passedFirstSep) {
+                    passedFirstSep = true; // skip the separator immediately after the header
+                    continue;
+                  }
+                  break; // start of next version section — stop
+                }
+                found.push(line);
+              }
+            }
+
+            // Trim blank edges
+            while (found.length && !found[0].trim())              found.shift();
+            while (found.length && !found[found.length - 1].trim()) found.pop();
+
+            changelogSection = found.length
+              ? found.join('\n')
+              : `_No changelog entry found for v${ver}. See the full [changelog.txt](https://github.com/${repo}/blob/main/changelog.txt)._`;
+
+          } catch (e) {
+            changelogSection = `_Could not read changelog.txt: ${e.message}_`;
+          }
+
+          // ── Compose release body ───────────────────────────────────────────
+          const body = `\
+<div align="center">
+
+# FocusFlow ${tag} · versionCode ${vc}
+
+**Android productivity app** — intelligent task scheduling + OS-level app blocking.  
+Kotlin enforcement engine runs independently of the JS layer.  
+Zero server calls. Zero telemetry. All data stays on device.
+
+[![License](https://img.shields.io/github/license/${repo})](https://github.com/${repo}/blob/main/LICENSE)
+[![Build](https://img.shields.io/github/actions/workflow/status/${repo}/release-publish.yml?label=release%20build)](https://github.com/${repo}/actions/runs/${rid})
+
+</div>
+
+---
+
+## 📋 What's New in ${tag}
+
+${changelogSection}
+
+---
+
+## 📥 Installation Guide
+
+### Which file should I download?
+
+| File | Who it's for |
+|------|-------------|
+| \`focusflow-universal-${tag}.apk\` | **Everyone** — works on all Android devices. Install directly. |
+| \`focusflow-arm64-v8a-${tag}.apk\` | Most phones made after 2016 (64-bit ARM) — smaller download |
+| \`focusflow-armeabi-v7a-${tag}.apk\` | Older / 32-bit ARM devices |
+| \`focusflow-${tag}.aab\` | Play Store internal testing / bundletool only — **not directly installable** |
+
+> **Not sure?** Use the \`universal\` APK — it works on every Android device.
+
+### How to install
+
+1. Download your chosen APK above
+2. On your device: **Settings → Apps → Special app access → Install unknown apps**  
+   Grant permission to your browser or file manager
+3. Open the downloaded APK and tap **Install**
+4. Follow the **Restricted Settings** steps below before running onboarding
+
+---
+
+## ⚠️ Restricted Settings — Required on Android 13 and later
+
+Android 13+ enforces **Restricted Settings** on sideloaded (non-Play-Store) apps.
+This silently prevents the Accessibility Service permission from being granted through
+the normal toggle.
+
+FocusFlow's **entire blocking engine** depends on the Accessibility Service
+(\`AppBlockerAccessibilityService\`). The app will install and open normally,
+but **blocking will not function** until you complete this one-time step.
+
+### Steps
+
+1. Install the APK  
+2. **Do not open FocusFlow yet**  
+3. Go to **Settings → Apps → FocusFlow**  
+4. Tap **⋮** (three-dot menu, top-right corner)  
+5. Tap **"Allow restricted settings"** → confirm  
+6. Now open FocusFlow and complete onboarding  
+7. When prompted, grant **Accessibility Service** — the toggle will now work  
+
+> **Re-installs** over the same certificate signature do not re-trigger this requirement.  
+> Devices running Android 12 or below are not affected.
+
+---
+
+## 📦 SAI — Installing Split APK Bundles
+
+The files attached to this release are **single-file APKs** — they install with any
+file manager or \`adb install\`. You do **not** need SAI for these.
+
+If you built the AAB locally and used **bundletool** to generate an \`.apks\` split bundle
+(e.g. \`bundletool build-apks --bundle=focusflow-${tag}.aab --output=focusflow.apks\`),
+a standard file manager cannot install it. Use **SAI**:
+
+1. Install SAI:  
+   [F-Droid](https://f-droid.org/en/packages/com.aefyr.sai/) ·
+   [GitHub](https://github.com/Aefyr/SAI) ·
+   [Play Store](https://play.google.com/store/apps/details?id=com.aefyr.sai)
+2. Open SAI → **Install APKs** → select your \`.apks\` file
+3. Grant "Install unknown apps" to SAI if prompted
+4. After install, follow the **Restricted Settings** steps above before running onboarding
+
+---
+
+## 🔐 Signing
+
+| Scheme | |
+|--------|-|
+| v1 JAR signing | ✅ |
+| v2 APK Signature Scheme v2 | ✅ |
+| v3 APK Signature Scheme v3 | ✅ |
+
+All APKs and the AAB are signed with the FocusFlow release keystore.  
+See \`KEYSTORE_GUIDE.md\` in the repository for fingerprint verification instructions.
+
+---
+
+## 🏗️ Build Info
+
+| Field | Value |
+|-------|-------|
+| Version | ${ver} |
+| versionCode | ${vc} |
+| Package | \`com.tbtechs.focusflow\` |
+| Commit | [\`${ssha}\`](https://github.com/${repo}/commit/${sha}) |
+| Workflow run | [#${run}](https://github.com/${repo}/actions/runs/${rid}) |
+| Toolchain | Java 17 · Node 20 · pnpm 9 · Expo Prebuild |
+| Runner | ubuntu-latest |
+| Triggered by | @${actor} |
+
+---
+
+<div align="center">
+<sub>
+FocusFlow is built and signed in GitHub Actions on a clean ubuntu-latest runner.<br>
+Source code and build scripts are in this repository.
+</sub>
+</div>
+`;
+
+          fs.writeFileSync('/tmp/release_body.md', body);
+          console.log('✅ Release body written (' + body.split('\n').length + ' lines)');
+          JSEOF
+
+      - name: Preview release body (first 40 lines)
+        run: head -40 /tmp/release_body.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name:       "FocusFlow ${{ needs.prepare.outputs.tag }}"
+          tag_name:   ${{ needs.prepare.outputs.tag }}
+          body_path:  /tmp/release_body.md
+          draft:      ${{ inputs.draft }}
+          prerelease: ${{ inputs.prerelease }}
+          files:      /tmp/release-files/*
+
+      - name: Write step summary
+        run: |
+          TAG="${{ needs.prepare.outputs.tag }}"
+          REPO="${{ github.repository }}"
+          DRAFT="${{ inputs.draft }}"
+
+          echo "### ✅ Release $TAG published"  >> $GITHUB_STEP_SUMMARY
+          echo ""                               >> $GITHUB_STEP_SUMMARY
+          if [ "$DRAFT" = "true" ]; then
+            echo "> 📝 Saved as **draft** — go to GitHub Releases to review and publish." \
+              >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "[🔗 View release on GitHub](https://github.com/${REPO}/releases/tag/${TAG})" \
+            >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Attached files:**" >> $GITHUB_STEP_SUMMARY
+          for f in /tmp/release-files/*; do
+            SIZE=$(du -sh "$f" | cut -f1)
+            echo "- \`$(basename $f)\` · $SIZE" >> $GITHUB_STEP_SUMMARY
+          done
+
+      - name: Notify Slack
+        if: env.SLACK_WEBHOOK_URL != ''
+        run: |
+          TAG="${{ needs.prepare.outputs.tag }}"
+          REPO="${{ github.repository }}"
+          ACTOR="${{ github.actor }}"
+          DRAFT="${{ inputs.draft }}"
+          PRE="${{ inputs.prerelease }}"
+
+          if [ "$DRAFT" = "true" ]; then
+            STATUS="drafted 📝"
+            COLOR="warning"
+          elif [ "$PRE" = "true" ]; then
+            STATUS="published as pre-release 🔬"
+            COLOR="warning"
+          else
+            STATUS="published 🚀"
+            COLOR="good"
+          fi
+
+          curl -s -X POST "$SLACK_WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"attachments\": [{
+                \"color\": \"$COLOR\",
+                \"title\": \"FocusFlow $TAG $STATUS\",
+                \"title_link\": \"https://github.com/${REPO}/releases/tag/${TAG}\",
+                \"fields\": [
+                  { \"title\": \"Version\",    \"value\": \"$TAG\",    \"short\": true },
+                  { \"title\": \"Triggered by\", \"value\": \"@$ACTOR\", \"short\": true }
+                ],
+                \"footer\": \"GitHub Actions\",
+                \"mrkdwn_in\": [\"text\"]
+              }]
+            }"
