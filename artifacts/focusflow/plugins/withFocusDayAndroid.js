@@ -8,14 +8,17 @@
  *   4. Declares AppBlockerAccessibilityService
  *   5. Declares BootReceiver
  *   6. Declares DeviceAdminReceiver (FocusDayDeviceAdminReceiver)
- *   7. Declares NotificationActionReceiver with COMPLETE / EXTEND / SKIP intent-filters
- *   8. Declares FocusFlowWidget (AppWidgetProvider) with APPWIDGET_UPDATE intent-filter
- *   9. Declares TaskAlarmActivity (full-screen alarm, showWhenLocked + turnScreenOn)
- *  10. Declares LauncherActivity with HOME + DEFAULT intent-filter
- *  11. Declares NetworkBlockerVpnService with BIND_VPN_SERVICE permission
- *  12. Adds <queries> block for Android 11+ package visibility
- *  13. Registers FocusDayPackage via withMainApplication (reliable for RN 0.76+)
- *  14. Copies all Kotlin source files from android-native/ into the project
+ *   7. Declares VpnWatchdogReceiver (AlarmManager watchdog for VPN service)
+ *   8. Declares TemptationReportReceiver (weekly Sunday 08:00 report alarm)
+ *   9. Declares NotificationActionReceiver with COMPLETE / EXTEND / SKIP intent-filters
+ *  10. Declares FocusFlowWidget (AppWidgetProvider) with APPWIDGET_UPDATE intent-filter
+ *  11. Declares BlockOverlayActivity (full-screen block fallback, showWhenLocked + turnScreenOn)
+ *  12. Declares TaskAlarmActivity (full-screen alarm, showWhenLocked + turnScreenOn)
+ *  13. Declares LauncherActivity with HOME + DEFAULT intent-filter
+ *  14. Declares NetworkBlockerVpnService with BIND_VPN_SERVICE permission
+ *  15. Adds <queries> block for Android 11+ package visibility
+ *  16. Registers FocusDayPackage via withMainApplication (reliable for RN 0.76+)
+ *  17. Copies all Kotlin source files from android-native/ into the project
  *
  * Applied automatically during `npx expo prebuild --platform android`.
  * No manual XML or Kotlin editing required.
@@ -292,6 +295,42 @@ function withFocusDayManifest(config) {
       });
     }
 
+    // ── VpnWatchdogReceiver ───────────────────────────────────────────────────
+    // Fires every ~60 s via AlarmManager while a network-blocking VPN session is
+    // active. Restarts the VPN service if it has died unexpectedly.
+    // exported=false — only our own AlarmManager alarm triggers it.
+    const vpnWatchdogExists = (app.receiver || []).some(
+      (r) => r.$['android:name'] === 'com.tbtechs.focusflow.services.VpnWatchdogReceiver'
+    );
+    if (!vpnWatchdogExists) {
+      if (!app.receiver) app.receiver = [];
+      app.receiver.push({
+        $: {
+          'android:name':     'com.tbtechs.focusflow.services.VpnWatchdogReceiver',
+          'android:enabled':  'true',
+          'android:exported': 'false',
+        },
+      });
+    }
+
+    // ── TemptationReportReceiver ──────────────────────────────────────────────
+    // Fires every Sunday at 08:00 via AlarmManager to generate the weekly
+    // temptation-attempt summary report.
+    // exported=false — only our own AlarmManager alarm triggers it.
+    const temptationReportExists = (app.receiver || []).some(
+      (r) => r.$['android:name'] === 'com.tbtechs.focusflow.services.TemptationReportReceiver'
+    );
+    if (!temptationReportExists) {
+      if (!app.receiver) app.receiver = [];
+      app.receiver.push({
+        $: {
+          'android:name':     'com.tbtechs.focusflow.services.TemptationReportReceiver',
+          'android:enabled':  'true',
+          'android:exported': 'false',
+        },
+      });
+    }
+
     // ── Notification Action Receiver ──────────────────────────────────────────
     // NotificationActionReceiver is a static BroadcastReceiver that handles taps
     // on the foreground notification action buttons (Done / +15m / +30m / Skip).
@@ -379,6 +418,28 @@ function withFocusDayManifest(config) {
             { $: { 'android:scheme': 'package' } },
           ],
         }],
+      });
+    }
+
+    // ── BlockOverlayActivity ──────────────────────────────────────────────────
+    // Full-screen block overlay activity used as the fallback when
+    // SYSTEM_ALERT_WINDOW is not granted. Shown over the lock screen so the
+    // blocked app is never visible. noHistory=false so the back-stack is intact;
+    // exported=false because it is only launched via our own PendingIntent.
+    const blockOverlayExists = (app.activity || []).some(
+      (a) => a.$['android:name'] === 'com.tbtechs.focusflow.services.BlockOverlayActivity'
+    );
+    if (!blockOverlayExists) {
+      if (!app.activity) app.activity = [];
+      app.activity.push({
+        $: {
+          'android:name':           'com.tbtechs.focusflow.services.BlockOverlayActivity',
+          'android:showWhenLocked': 'true',
+          'android:turnScreenOn':   'true',
+          'android:noHistory':      'false',
+          'android:exported':       'false',
+          'android:theme':          '@android:style/Theme.NoTitleBar.Fullscreen',
+        },
       });
     }
 
