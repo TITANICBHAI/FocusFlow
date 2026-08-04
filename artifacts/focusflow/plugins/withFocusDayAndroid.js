@@ -721,36 +721,45 @@ function withFocusDayBackupRules(config) {
       fs.mkdirSync(xmlDir, { recursive: true });
 
       // backup_rules.xml — used on Android < 12 (API level < 31)
+      // SharedPreferences are explicitly excluded: they contain sensitive
+      // session state (focus_active, task_name, allowed_packages, etc.) that
+      // must not be exported to cloud storage even if allowBackup is ever
+      // re-enabled. Only the SQLite database files are included.
       const backupRules = `<?xml version="1.0" encoding="utf-8"?>
 <!--
   Full-backup content rules for Android < 12 (API < 31).
   expo-sqlite stores databases in Context.getFilesDir()/SQLite/
   so domain="file" with path="SQLite/" covers all DB files.
-  Including the -wal and -shm sidecars ensures the backup is
-  consistent and no recent writes are lost on restore.
+  SharedPreferences are excluded to prevent leakage of sensitive
+  session state (focus_active, task_name, allowed_packages, etc.)
+  to Google Drive or other backup destinations.
 -->
 <full-backup-content>
     <include domain="file" path="SQLite/" />
-    <include domain="sharedpref" path="." />
+    <exclude domain="sharedpref" path="." />
 </full-backup-content>
 `;
 
       // data_extraction_rules.xml — used on Android 12+ (API 31+)
+      // SharedPreferences are excluded from both cloud-backup and
+      // device-transfer for the same reason as backup_rules.xml above.
       const dataExtractionRules = `<?xml version="1.0" encoding="utf-8"?>
 <!--
   Data extraction rules for Android 12+ (API 31+).
   Covers both cloud backup (Google Drive) and device-to-device
   transfer (e.g. tap-to-transfer, Setup Wizard).
   expo-sqlite path: Context.getFilesDir()/SQLite/
+  SharedPreferences are excluded to prevent leakage of sensitive
+  session state to cloud storage or transfer targets.
 -->
 <data-extraction-rules>
     <cloud-backup>
         <include domain="file" path="SQLite/" />
-        <include domain="sharedpref" path="." />
+        <exclude domain="sharedpref" path="." />
     </cloud-backup>
     <device-transfer>
         <include domain="file" path="SQLite/" />
-        <include domain="sharedpref" path="." />
+        <exclude domain="sharedpref" path="." />
     </device-transfer>
 </data-extraction-rules>
 `;
@@ -770,22 +779,24 @@ function withFocusDayBackupRules(config) {
   config = withAndroidManifest(config, (cfg) => {
     const app = cfg.modResults.manifest.application[0];
 
-    // android:allowBackup — must be true for Auto Backup to run
-    if (!app.$['android:allowBackup']) {
-      app.$['android:allowBackup'] = 'true';
-    }
+    // android:allowBackup — enforce false unconditionally to prevent app data
+    // from being backed up to cloud storage, avoiding potential data leakage.
+    // This overrides any existing value (including a pre-set true) so the
+    // final manifest always has allowBackup="false".
+    app.$['android:allowBackup'] = 'false';
 
-    // android:fullBackupContent — API < 31 backup rules
-    if (!app.$['android:fullBackupContent']) {
-      app.$['android:fullBackupContent'] = '@xml/backup_rules';
-      console.log('[withFocusDayAndroid] Set android:fullBackupContent=@xml/backup_rules');
-    }
+    // android:fullBackupContent — API < 31 backup rules.
+    // Set unconditionally (same policy as allowBackup) so a pre-existing value
+    // cannot override the hardened rules file.
+    // Note: these attributes are inert while allowBackup="false", but they act
+    // as a safe default if backup is ever re-enabled in future.
+    app.$['android:fullBackupContent'] = '@xml/backup_rules';
+    console.log('[withFocusDayAndroid] Set android:fullBackupContent=@xml/backup_rules');
 
-    // android:dataExtractionRules — API 31+ backup rules
-    if (!app.$['android:dataExtractionRules']) {
-      app.$['android:dataExtractionRules'] = '@xml/data_extraction_rules';
-      console.log('[withFocusDayAndroid] Set android:dataExtractionRules=@xml/data_extraction_rules');
-    }
+    // android:dataExtractionRules — API 31+ backup rules.
+    // Set unconditionally for the same reason as fullBackupContent above.
+    app.$['android:dataExtractionRules'] = '@xml/data_extraction_rules';
+    console.log('[withFocusDayAndroid] Set android:dataExtractionRules=@xml/data_extraction_rules');
 
     return cfg;
   });
