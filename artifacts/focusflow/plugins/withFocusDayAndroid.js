@@ -735,15 +735,16 @@ function withFocusDayBackupRules(config) {
       const backupRules = `<?xml version="1.0" encoding="utf-8"?>
 <!--
   Full-backup content rules for Android < 12 (API < 31).
-  expo-sqlite stores databases in Context.getFilesDir()/SQLite/
-  so domain="file" with path="SQLite/" covers all DB files.
-  SharedPreferences are excluded to prevent leakage of sensitive
-  session state (focus_active, task_name, allowed_packages, etc.)
-  to Google Drive or other backup destinations.
+  Only the SQLite database directory is explicitly included.
+  SharedPreferences are NOT listed here — Android only backs up
+  what is explicitly included, so omitting sharedpref is sufficient
+  to keep sensitive session state (focus_active, task_name,
+  allowed_packages, etc.) out of Google Drive backups.
+  NOTE: <exclude> is only valid for paths inside an <include>; a
+  bare sharedpref exclude without a matching include is a lint error.
 -->
 <full-backup-content>
     <include domain="file" path="SQLite/" />
-    <exclude domain="sharedpref" path="." />
 </full-backup-content>
 `;
 
@@ -756,17 +757,18 @@ function withFocusDayBackupRules(config) {
   Covers both cloud backup (Google Drive) and device-to-device
   transfer (e.g. tap-to-transfer, Setup Wizard).
   expo-sqlite path: Context.getFilesDir()/SQLite/
-  SharedPreferences are excluded to prevent leakage of sensitive
-  session state to cloud storage or transfer targets.
+  SharedPreferences are intentionally omitted — Android only backs
+  up explicitly included paths, so sensitive session state
+  (focus_active, task_name, allowed_packages, etc.) is never
+  exported. A bare <exclude> without a matching <include> is a
+  lint fatal error (FullBackupContent) and must not be added.
 -->
 <data-extraction-rules>
     <cloud-backup>
         <include domain="file" path="SQLite/" />
-        <exclude domain="sharedpref" path="." />
     </cloud-backup>
     <device-transfer>
         <include domain="file" path="SQLite/" />
-        <exclude domain="sharedpref" path="." />
     </device-transfer>
 </data-extraction-rules>
 `;
