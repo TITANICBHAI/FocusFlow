@@ -161,6 +161,13 @@ function withFocusDayManifest(config) {
       manifest.manifest.$['xmlns:tools'] = 'http://schemas.android.com/tools';
     }
 
+    // ── Cleartext traffic — enforce false unconditionally ─────────────────────
+    // Prevents the app from making unencrypted HTTP requests. FocusFlow has no
+    // external network calls (all data is local SQLite), so this has no
+    // functional cost and closes the door on accidental cleartext connections
+    // from any third-party SDK included transitively.
+    app.$['android:usesCleartextTraffic'] = 'false';
+
     // ── Foreground Task Service ───────────────────────────────────────────────
     const serviceExists = (app.service || []).some(
       (s) => s.$['android:name'] === 'com.tbtechs.focusflow.services.ForegroundTaskService'
