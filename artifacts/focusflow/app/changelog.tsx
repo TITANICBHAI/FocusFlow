@@ -14,9 +14,137 @@ type Entry = {
 
 const CHANGELOG: Entry[] = [
   {
-    version: '1.2.0',
+    version: '1.0.7',
+    date: 'August 2026',
+    sections: [
+      {
+        heading: 'Database Reliability',
+        icon: 'server-outline',
+        items: [
+          'Improved SQLite lifecycle handling so database connections are opened, reused, and closed predictably instead of being recreated unnecessarily',
+          'Added safer transaction boundaries for related task and settings updates so a partial write cannot leave the local database in an inconsistent state',
+          'Database failures now preserve the previous in-memory state and surface a clear recovery path rather than silently losing changes',
+          'Added defensive validation around persisted values and backup data to keep malformed records from breaking normal app startup',
+        ],
+      },
+      {
+        heading: 'Maintenance',
+        icon: 'construct-outline',
+        items: [
+          'Hardened local data access with parameterized queries, explicit error handling, and recovery logging that avoids exposing user content',
+          'Updated release metadata to FocusFlow v1.0.7 (build 7)',
+        ],
+      },
+    ],
+  },
+  {
+    version: '1.0.6',
+    date: 'June 2026',
+    sections: [
+      {
+        heading: 'Daily Allowance Fix',
+        icon: 'hourglass-outline',
+        items: [
+          'Fixed daily allowance not blocking after exhaustion — apps with an active allowance rule (count, time-budget, or interval mode) were silently passing through once the allowance was used up instead of being blocked; the native enforcement layer now correctly transitions to full block once all allowance credits are consumed',
+          'All three allowance modes (count, daily time budget, interval cooldown) now enforce correctly at the boundary — tested across reboots and app-kill scenarios to confirm the SharedPreferences state is read and applied consistently by the AccessibilityService',
+        ],
+      },
+      {
+        heading: 'VPN Revocation Notification',
+        icon: 'wifi-outline',
+        items: [
+          'New VPN status watcher — when the FocusFlow VPN tunnel is revoked or disconnected by the system (e.g. another VPN app takes over, the user manually disconnects, or the system kills the service), the app immediately shows a high-priority notification alerting the user that network blocking is no longer active',
+          'Notification includes a one-tap "Re-enable" action that relaunches the VPN tunnel without opening the full app',
+          'VPN revocation is detected via ConnectivityManager NetworkCallback so the alert fires within seconds of the tunnel going down, not only on the next accessibility event',
+        ],
+      },
+    ],
+  },
+  {
+    version: '1.0.5',
+    date: 'June 2026',
+    sections: [
+      {
+        heading: 'Version Withdrawn',
+        icon: 'warning-outline',
+        items: [
+          'v1.0.5 was pulled before public release — a critical combination of bugs affecting daily allowance enforcement, VPN session state, and notification delivery were discovered during internal testing',
+          'Rather than ship a broken release, the version was skipped entirely; all fixes originally targeted for 1.0.5 were carried forward and resolved in v1.0.6',
+        ],
+      },
+    ],
+  },
+  {
+    version: '1.0.4',
     date: 'May 2026',
     sections: [
+      {
+        heading: 'Bug Fixes — Settings & Security',
+        icon: 'bug-outline',
+        items: [
+          'Fixed autoCopyToAlwaysOn default in the expiry path — the ?? true fallback was silently auto-enrolling packages into Always-On for users who never enabled the feature; changed to ?? false to match the intended off-by-default behaviour',
+          'Fixed PIN protection toggle bypass — the "Require password to disable protections" switch could be turned off without entering the defense PIN, defeating all guards; disabling it now requires passing the defense PIN challenge first',
+          'Fixed updateSettings not rolling back on database failure — the UI was optimistically updated and then left in an unsaved state if SQLite threw; the dispatch is now rolled back to the previous settings on any DB error',
+          'Removed redundant double-write in handleSaveAllowedApps — the Allowed-in-Focus save path was calling setAllowedPackages a second time after updateSettings already did it, creating a race condition that could briefly overwrite the freshly saved list',
+          'Fixed time picker day-overflow in Standalone Block setup — picking a time earlier than the current time of day now auto-advances the date to tomorrow instead of silently creating an already-expired block',
+          'Fixed keyword list not syncing on backup restore — _syncBlockedWords was missing from the updateSettings Promise.all; bulk settings updates (including backup restores) now push the full blocked-word list to SharedPrefs so the AccessibilityService enforces it immediately',
+        ],
+      },
+      {
+        heading: 'Nuclear Mode Fix',
+        icon: 'nuclear-outline',
+        items: [
+          'Fixed Nuclear Mode uninstall button doing nothing — the AccessibilityService was immediately intercepting and dismissing the system uninstall dialog (across all 4 guard paths: launcher long-press, Settings, OEM package installer, and launcher block) before the user could confirm it',
+          'NuclearModeModule now sets a nuclear_mode_bypass flag in SharedPreferences just before launching the system uninstall dialog; all four uninstall-blocking paths in the AccessibilityService check this flag and let the dialog through when it was opened by FocusFlow itself',
+          'Bypass flag auto-clears after 8 seconds so normal uninstall protection resumes immediately after the dialog is dismissed or confirmed',
+          'Uninstall button now shows a clear "native module unavailable" error on Expo Go builds instead of silently doing nothing',
+        ],
+      },
+      {
+        heading: 'Full Feature Audit Fixes',
+        icon: 'checkmark-done-outline',
+        items: [
+          'NetworkBlockModule: added 4 missing JS bridge methods — getNetworkBlockSettings, setNetworkBlockSettings, tryDisableWifi, tryRestoreWifi — now fully accessible from the JS layer to match the complete Kotlin API',
+          'Stats screen: DB error banner now has a retry button (refresh icon) that re-fetches the last 30 days of history instead of showing a permanent dead-end error message',
+          'Today/Schedule screen: initial app load now shows a spinner instead of "No tasks scheduled for today" while the task database is being read on first launch',
+        ],
+      },
+    ],
+  },
+  {
+    version: '1.0.3',
+    date: 'May 2026',
+    sections: [
+      {
+        heading: 'Database Reliability',
+        icon: 'shield-checkmark-outline',
+        items: [
+          'WAL checkpoint on app background — every time FocusFlow moves to the background, a FULL WAL checkpoint is triggered so the on-disk database is always in sync before Android can back it up or trim the process',
+          'Android Auto Backup now correctly includes the SQLite database and its WAL/SHM sidecar files — tasks, settings, and streaks are restored from Google Drive after a reinstall instead of resetting to a blank state',
+          'Backup rules configured for both Android < 12 (fullBackupContent) and Android 12+ (dataExtractionRules), covering cloud backup and device-to-device transfer',
+          'SharedPreferences (privacy accepted, onboarding complete) always included in backups alongside the database, preventing onboarding screens from reappearing after a restore',
+        ],
+      },
+    ],
+  },
+  {
+    version: '1.0.2',
+    date: 'May 2026',
+    sections: [
+      {
+        heading: 'PIN Rotation System',
+        icon: 'key-outline',
+        items: [
+          'Every focus session start now offers a password-rotation prompt — choose to keep your existing password (up to 3 times per day), set a new custom one, or auto-generate a cryptographically random 16-character password',
+          'Always-On Enforcement toggle-off triggers the same rotation prompt — after pausing enforcement you are invited to set the password for next time, keeping the cycle fresh',
+          'Daily reuse counter: three dots in the prompt show exactly how many same-password reuses you have left today; once the limit is hit, a new or auto-generated password is required',
+          'Focus session reuse count and Always-On reuse count are tracked independently — using up your focus-session allowance does not affect your Always-On allowance and vice versa',
+          'Skip option always available — the PIN system is entirely opt-in; tapping "Skip — proceed without changing password" dismisses the prompt and continues the action immediately with no PIN change',
+          'Auto-generate path shows a non-copyable monospace password with a refresh button, a "write it down" warning, and an acknowledgement checkbox before saving',
+          'Turning off individual sub-systems (YouTube Shorts block, Instagram Reels block, System Guard) does NOT trigger the rotation — only the Always-On master toggle does',
+          'Raw passwords are never stored anywhere on the device — only SHA-256 hashes are persisted in SharedPreferences',
+        ],
+      },
       {
         heading: 'Analog Clock Launcher',
         icon: 'time-outline',
@@ -57,42 +185,6 @@ const CHANGELOG: Entry[] = [
           'Privacy Policy and Terms of Service links updated throughout the app to point to focusflowapp.pages.dev',
           'Terms of Service screen now includes a "Read full Terms online" button matching the privacy screen',
           'GitHub reference removed from Terms contact section — replaced with website URL',
-        ],
-      },
-    ],
-  },
-  {
-    version: '1.0.3',
-    date: 'May 2026',
-    sections: [
-      {
-        heading: 'Database Reliability',
-        icon: 'shield-checkmark-outline',
-        items: [
-          'WAL checkpoint on app background — every time FocusFlow moves to the background, a FULL WAL checkpoint is triggered so the on-disk database is always in sync before Android can back it up or trim the process',
-          'Android Auto Backup now correctly includes the SQLite database and its WAL/SHM sidecar files — tasks, settings, and streaks are restored from Google Drive after a reinstall instead of resetting to a blank state',
-          'Backup rules configured for both Android < 12 (fullBackupContent) and Android 12+ (dataExtractionRules), covering cloud backup and device-to-device transfer',
-          'SharedPreferences (privacy accepted, onboarding complete) always included in backups alongside the database, preventing onboarding screens from reappearing after a restore',
-        ],
-      },
-    ],
-  },
-  {
-    version: '1.0.2',
-    date: 'May 2026',
-    sections: [
-      {
-        heading: 'PIN Rotation System',
-        icon: 'key-outline',
-        items: [
-          'Every focus session start now offers a password-rotation prompt — choose to keep your existing password (up to 3 times per day), set a new custom one, or auto-generate a cryptographically random 16-character password',
-          'Always-On Enforcement toggle-off triggers the same rotation prompt — after pausing enforcement you are invited to set the password for next time, keeping the cycle fresh',
-          'Daily reuse counter: three dots in the prompt show exactly how many same-password reuses you have left today; once the limit is hit, a new or auto-generated password is required',
-          'Focus session reuse count and Always-On reuse count are tracked independently — using up your focus-session allowance does not affect your Always-On allowance and vice versa',
-          'Skip option always available — the PIN system is entirely opt-in; tapping "Skip — proceed without changing password" dismisses the prompt and continues the action immediately with no PIN change',
-          'Auto-generate path shows a non-copyable monospace password with a refresh button, a "write it down" warning, and an acknowledgement checkbox before saving',
-          'Turning off individual sub-systems (YouTube Shorts block, Instagram Reels block, System Guard) does NOT trigger the rotation — only the Always-On master toggle does',
-          'Raw passwords are never stored anywhere on the device — only SHA-256 hashes are persisted in SharedPreferences',
         ],
       },
     ],

@@ -1,4 +1,18 @@
-# What's New — FocusFlow v1.0.3
+# What's New — FocusFlow v1.0.7
+
+## Database Reliability
+
+FocusFlow v1.0.7 strengthens the local SQLite data layer:
+
+- Database connections are opened, reused, and closed predictably.
+- Related task and settings updates use safer transaction boundaries.
+- Failed writes preserve the previous in-memory state instead of silently
+  discarding changes.
+- Persisted values and imported backup data receive defensive validation.
+- Local queries use parameters, and diagnostic logging avoids exposing user
+  content.
+
+---
 
 ## Bug Fixes
 

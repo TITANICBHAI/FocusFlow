@@ -9,8 +9,8 @@
 |---|---|
 | **App Title** | FocusFlow — Focus & App Blocker |
 | **Package Name** | com.tbtechs.focusflow |
-| **Version** | 1.0.3 |
-| **Version Code** | 4 |
+| **Version** | 1.0.7 |
+| **Version Code** | 7 |
 | **Developer / Company Name** | TB Techs |
 | **Category** | Productivity |
 | **Age Rating** | Everyone (3+) |
@@ -185,10 +185,10 @@ Build your focus. Protect your time.
 
 ---
 
-## RELEASE NOTES (v1.0.3)
+## RELEASE NOTES (v1.0.7)
 
 ```
-FocusFlow v1.0.3 — Stability & Enforcement Improvements
+FocusFlow v1.0.7 — Database Reliability Improvements
 
 This update focuses on making blocking more reliable and consistent.
 
@@ -220,7 +220,7 @@ fixes that.
 
 | Field | Fill With |
 |---|---|
-| **Version** | 1.0.3 |
+| **Version** | 1.0.7 |
 | **License** | Free |
 | **Development Stage** | Final Release |
 | **Min SDK Version** | 8.0 (Android 8.0) |

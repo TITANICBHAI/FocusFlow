@@ -367,6 +367,11 @@ export async function logDbDiagnostics(): Promise<void> {
 }
 
 async function initSchema(db: SQLite.SQLiteDatabase): Promise<void> {
+  // Enable referential-integrity checks for any foreign keys defined by the
+  // schema. This is connection-scoped and safe for the existing schema, which
+  // currently has no foreign-key constraints.
+  await db.runAsync('PRAGMA foreign_keys = ON');
+
   // ── WAL mode ────────────────────────────────────────────────────────────────
   // Best-effort: some Android filesystems (certain OEM /data partitions) reject
   // WAL mode and throw NullPointerException inside execAsync. If it fails we
@@ -450,6 +455,9 @@ async function initSchema(db: SQLite.SQLiteDatabase): Promise<void> {
   await db.runAsync('CREATE INDEX IF NOT EXISTS idx_tasks_start_time ON tasks(start_time)');
   await db.runAsync('CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status)');
   await db.runAsync('CREATE INDEX IF NOT EXISTS idx_tasks_status_end ON tasks(status, end_time)');
+  await db.runAsync('CREATE INDEX IF NOT EXISTS idx_focus_sessions_task_active ON focus_sessions(task_id, is_active)');
+  await db.runAsync('CREATE INDEX IF NOT EXISTS idx_focus_sessions_started_at ON focus_sessions(started_at)');
+  await db.runAsync('CREATE INDEX IF NOT EXISTS idx_focus_overrides_overridden_at ON focus_overrides(overridden_at)');
 }
 
 // ─── Tasks ────────────────────────────────────────────────────────────────────
