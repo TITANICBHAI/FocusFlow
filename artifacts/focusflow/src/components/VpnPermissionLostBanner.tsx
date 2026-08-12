@@ -54,7 +54,9 @@ export function VpnPermissionLostBanner({ vpnBlockEnabled, vpnPackages }: Props)
   const slideAnim = useRef(new Animated.Value(120)).current;
 
   const check = useCallback(async () => {
-    if (Platform.OS !== 'android' || !vpnBlockEnabled) {
+    // A configured toggle alone is not enough to justify a consent prompt.
+    // Only check/recover when there is an actual saved VPN package list.
+    if (Platform.OS !== 'android' || !vpnBlockEnabled || vpnPackages.length === 0) {
       setPermissionLost(false);
       return;
     }
@@ -128,7 +130,7 @@ export function VpnPermissionLostBanner({ vpnBlockEnabled, vpnPackages }: Props)
     await check();
   };
 
-  if (!vpnBlockEnabled) return null;
+  if (!vpnBlockEnabled || vpnPackages.length === 0) return null;
 
   return (
     <Animated.View
@@ -169,7 +171,7 @@ export function VpnPermissionLostBanner({ vpnBlockEnabled, vpnPackages }: Props)
           activeOpacity={0.8}
         >
           <Ionicons name="refresh" size={14} color="#fff" />
-          <Text style={styles.regrantText}>{regranting ? '…' : 'Retry'}</Text>
+           <Text style={styles.regrantText}>{regranting ? '…' : 'Restore VPN'}</Text>
         </TouchableOpacity>
       </View>
     </Animated.View>

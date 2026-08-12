@@ -154,6 +154,7 @@ patch_permission "android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"
 patch_permission "android.permission.BIND_ACCESSIBILITY_SERVICE"  ' tools:ignore="ProtectedPermissions"'
 patch_permission "android.permission.KILL_BACKGROUND_PROCESSES"
 patch_permission "android.permission.USE_FULL_SCREEN_INTENT"
+patch_permission "android.permission.POST_NOTIFICATIONS"
 patch_permission "android.permission.EXPAND_STATUS_BAR"
 # Required on Android 11+ for InstalledAppsModule.queryIntentActivities() to return
 # a full app list. Without this the app drawer and installed-apps settings screen

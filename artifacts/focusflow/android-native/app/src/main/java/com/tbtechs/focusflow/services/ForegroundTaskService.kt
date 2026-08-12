@@ -715,13 +715,15 @@ class ForegroundTaskService : Service() {
                 untilMs <= 0L || now < untilMs
             }
         }
-        if (!focusActive && !saActive) return
+        val alwaysOn = prefs.getBoolean("always_block_active", false)
+        if (!focusActive && !saActive && !alwaysOn) return
 
         // Cannot restart without VPN permission.
         // Write the permission-lost flag so the JS layer can surface a re-grant prompt.
         try {
             if (android.net.VpnService.prepare(this) != null) {
                 prefs.edit().putBoolean("vpn_permission_lost", true).apply()
+                VpnRecoveryNotifier.postPermissionRequired(this)
                 return
             }
         } catch (_: Exception) { return }

@@ -126,8 +126,9 @@ class VpnWatchdogReceiver : BroadcastReceiver() {
                 untilMs <= 0L || now < untilMs
             }
         }
+        val alwaysOn = prefs.getBoolean("always_block_active", false)
 
-        if (!focusActive && !saActive) {
+        if (!focusActive && !saActive && !alwaysOn) {
             // Session has ended — cancel the alarm so it stops firing
             cancel(context)
             return
@@ -144,6 +145,7 @@ class VpnWatchdogReceiver : BroadcastReceiver() {
         try {
             if (VpnService.prepare(context) != null) {
                 prefs.edit().putBoolean("vpn_permission_lost", true).apply()
+                VpnRecoveryNotifier.postPermissionRequired(context)
                 return
             }
         } catch (_: Exception) { return }

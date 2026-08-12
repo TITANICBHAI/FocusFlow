@@ -137,6 +137,7 @@ class NetworkBlockerVpnService : VpnService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP -> {
+                VpnRecoveryNotifier.clear(this)
                 stopVpn()
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
@@ -152,7 +153,8 @@ class NetworkBlockerVpnService : VpnService() {
                 val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 val focusActive = prefs.getBoolean("focus_active", false)
                 val saActive    = prefs.getBoolean("standalone_block_active", false)
-                if (focusActive || saActive) {
+                val alwaysOn    = prefs.getBoolean("always_block_active", false)
+                if (focusActive || saActive || alwaysOn) {
                     val pkgs = prefs.getString("net_block_packages", "[]") ?: "[]"
                     val mode = prefs.getString("net_block_mode", MODE_PER_APP) ?: MODE_PER_APP
                     startVpn(pkgs, mode)
@@ -197,6 +199,7 @@ class NetworkBlockerVpnService : VpnService() {
                 untilMs <= 0L || now < untilMs
             }
         }
+        val alwaysOn = prefs.getBoolean("always_block_active", false)
 
         stopVpn()   // close the TUN fd first
 
@@ -204,14 +207,15 @@ class NetworkBlockerVpnService : VpnService() {
         // This flag is read by NetworkBlockModule.isVpnPermissionGranted() and
         // used to surface the re-grant prompt in the UI. The flag is cleared
         // by startVpn() if a subsequent restart succeeds.
-        if (focusOn || saOn) {
+        if (focusOn || saOn || alwaysOn) {
             prefs.edit()
                 .putBoolean("vpn_permission_lost", true)
                 .apply()
             writeStatus(STATUS_PERMISSION_MISSING, "VPN permission was revoked or another VPN took over")
+            VpnRecoveryNotifier.postPermissionRequired(this)
         }
 
-        if (selfHeal && (focusOn || saOn)) {
+        if (selfHeal && (focusOn || saOn || alwaysOn)) {
             val ctx  = applicationContext
             val pkgs = prefs.getString("net_block_packages", "[]") ?: "[]"
             val mode = prefs.getString("net_block_mode", MODE_PER_APP) ?: MODE_PER_APP
@@ -276,6 +280,7 @@ class NetworkBlockerVpnService : VpnService() {
                 stopVpn(updateStatus = false)
                 writeStatus(STATUS_PERMISSION_MISSING, "VPN permission is not granted")
                 sp.edit().putBoolean("vpn_permission_lost", true).apply()
+                VpnRecoveryNotifier.postPermissionRequired(this)
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
                 return
@@ -359,6 +364,7 @@ class NetworkBlockerVpnService : VpnService() {
                     .putString("net_block_mode",       mode)
                     .putBoolean("vpn_permission_lost", false)
                     .apply()
+                VpnRecoveryNotifier.clear(this)
                 if (sp.getString(PREF_STATUS, null) != STATUS_PACKAGE_FAILURE) {
                     writeStatus(STATUS_RUNNING)
                 }
@@ -370,6 +376,7 @@ class NetworkBlockerVpnService : VpnService() {
                 // was revoked between the prepare() check and the actual establish() call
                 // (race with the user dismissing the system prompt, another VPN starting, etc.)
                 sp.edit().putBoolean("vpn_permission_lost", true).apply()
+                VpnRecoveryNotifier.postPermissionRequired(this)
                 stopVpn(updateStatus = false)
                 writeStatus(STATUS_STARTUP_FAILED, "Android did not establish the VPN interface")
                 stopForeground(STOP_FOREGROUND_REMOVE)
