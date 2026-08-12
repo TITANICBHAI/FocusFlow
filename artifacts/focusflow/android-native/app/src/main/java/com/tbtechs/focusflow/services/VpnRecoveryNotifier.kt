@@ -115,7 +115,7 @@ object VpnRecoveryNotifier {
      * describe an actual VPN scope. In per-app mode an empty package list means
      * there is nothing to restore; global mode intentionally uses an empty list.
      */
-    fun hasConfiguredVpnProtection(context: Context): Boolean {
+    private fun hasConfiguredVpnProtection(context: Context): Boolean {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         if (!prefs.getBoolean("net_block_enabled", false)) return false
         if (!prefs.getBoolean("net_block_vpn", true)) return false

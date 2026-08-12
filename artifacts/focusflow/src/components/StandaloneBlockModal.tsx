@@ -239,7 +239,6 @@ export function StandaloneBlockModal({
   const [presetNameInput, setPresetNameInput] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [pinVerifyVisible, setPinVerifyVisible] = useState(false);
-  const saveInFlightRef = useRef(false);
 
   const defaultUntil = blockUntil ? new Date(blockUntil) : dayjs().add(1, 'day').toDate();
   const [untilDate, setUntilDate] = useState<Date>(defaultUntil);
@@ -442,67 +441,61 @@ export function StandaloneBlockModal({
   }, [onDeletePreset]);
 
   const handleSave = async () => {
-    if (selected.size === 0 && vpnPkgsSet.size === 0) {
+    if (selected.size === 0) {
       Alert.alert(
         'No Apps Selected',
-        'Select at least one app to block or add at least one app to the VPN list.',
+        'Select at least one app to block, or use Clear Block to disable.',
         [{ text: 'OK' }]
       );
       return;
     }
 
-    if (saveInFlightRef.current) return;
-    saveInFlightRef.current = true;
-    setSaving(true);
-    try {
-      // VPN consent can be revoked outside FocusFlow after this picker was
-      // opened. Re-check before committing any selected VPN packages and keep
-      // the sheet open if the user declines the Android consent dialog.
-      if (vpnPkgsSet.size > 0) {
-        const vpnGranted = await NetworkBlockModule.ensureVpnPermission();
-        if (!vpnGranted) {
-          Alert.alert(
-            'VPN permission required',
-            'Network blocking is selected, but Android VPN permission is not available. Grant it and tap Save again.',
-          );
-          return;
-        }
-      }
-
-      // Accessibility and Usage Access are needed for overlay blocking, but
-      // must not gate a VPN-only selection.
-      if (selected.size > 0 && Platform.OS === 'android') {
-        const hasAccessibility = await UsageStatsModule.hasAccessibilityPermission().catch(() => false);
-        const hasUsage = await UsageStatsModule.hasPermission().catch(() => false);
-        if (!hasAccessibility || !hasUsage) {
-          Alert.alert(
-            'Permissions Required',
-            'FocusFlow needs Accessibility and Usage Access permissions to block apps.\n\nGo to Settings → Permissions to grant them, then try again.',
-            [
-              { text: 'Not Now', style: 'cancel' },
-              {
-                text: 'Open Permissions',
-                onPress: async () => {
-                  if (!hasAccessibility) await UsageStatsModule.openAccessibilitySettings().catch(() => {});
-                  else await UsageStatsModule.openUsageAccessSettings().catch(() => {});
-                },
-              },
-            ]
-          );
-          return;
-        }
-      }
-
-      // A VPN-only selection has no meaningful standalone expiry.
-      if (selected.size > 0 && untilDate.getTime() <= Date.now()) {
+    // VPN consent can be revoked outside FocusFlow after this picker was
+    // opened. Re-check before committing any selected VPN packages and keep
+    // the sheet open if the user declines the Android consent dialog.
+    if (vpnPkgsSet.size > 0) {
+      const vpnGranted = await NetworkBlockModule.ensureVpnPermission();
+      if (!vpnGranted) {
         Alert.alert(
-          'Expiry in the Past',
-          'Please set a future date and time for the block to expire.',
-          [{ text: 'OK' }]
+          'VPN permission required',
+          'Network blocking is selected, but Android VPN permission is not available. Grant it and tap Save again.',
         );
         return;
       }
+    }
 
+    if (untilDate.getTime() <= Date.now()) {
+      Alert.alert(
+        'Expiry in the Past',
+        'Please set a future date and time for the block to expire.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    // Check that the required permissions are in place before committing the block.
+    if (Platform.OS === 'android') {
+      const hasAccessibility = await UsageStatsModule.hasAccessibilityPermission().catch(() => false);
+      const hasUsage = await UsageStatsModule.hasPermission().catch(() => false);
+      if (!hasAccessibility || !hasUsage) {
+        Alert.alert(
+          'Permissions Required',
+          'FocusFlow needs Accessibility and Usage Access permissions to block apps.\n\nGo to Settings → Permissions to grant them, then try again.',
+          [
+            { text: 'Not Now', style: 'cancel' },
+            {
+              text: 'Open Permissions',
+              onPress: async () => {
+                if (!hasAccessibility) await UsageStatsModule.openAccessibilitySettings().catch(() => {});
+                else await UsageStatsModule.openUsageAccessSettings().catch(() => {});
+              },
+            },
+          ]
+        );
+        return;
+      }
+    }
+    setSaving(true);
+    try {
       // Pass both block packages and daily allowance entries together so the
       // parent can save them atomically in a single state + DB update.
       await onSave(Array.from(selected), untilDate.getTime(), Array.from(dailyEntriesMap.values()), Array.from(vpnPkgsSet));
@@ -511,7 +504,6 @@ export function StandaloneBlockModal({
       console.error('[StandaloneBlockModal] Failed to save', e);
       Alert.alert('Error', 'Failed to apply the block. Please try again.');
     } finally {
-      saveInFlightRef.current = false;
       setSaving(false);
     }
   };
@@ -599,8 +591,13 @@ export function StandaloneBlockModal({
 
   const renderVpnControl = (packageName: string) => {
     const isVpn = vpnPkgsSet.has(packageName);
-    // Network blocking is independent of overlay blocking. Show the VPN
-    // control for every app so a VPN-only selection can be created here.
+    // Show VPN toggle for any app — network blocking is independent of overlay blocking.
+    // An app can be VPN-blocked without being in the block overlay list.
+    if (!isVpn && !selected.has(packageName)) {
+      // For unblocked apps, only show the VPN row if VPN is already enabled
+      // (so unselected apps don't clutter with an extra row by default).
+      return null;
+    }
     return (
       <View style={[styles.vpnRow, { backgroundColor: theme.surface, borderTopColor: theme.border }, isVpn && styles.vpnRowActive]}>
         <TouchableOpacity
