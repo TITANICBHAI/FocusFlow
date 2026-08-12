@@ -133,6 +133,7 @@ const defaultSettings: AppSettings = {
   standaloneBlockUntil: null,
   alwaysOnPackages: [],
   autoCopyToAlwaysOn: true,
+  autoCopiedAlwaysOnPackages: [],
   dailyAllowanceEntries: [],
   blockedWords: [],
   aversionDimmerEnabled: false,
@@ -215,6 +216,7 @@ interface AppContextValue {
    * session and a session PIN is configured, [pinHash] must be the SHA-256 hex of the PIN.
    */
   setStandaloneBlock: (packages: string[], untilMs: number | null, pinHash?: string | null) => Promise<void>;
+  setQuickBlockTemporary: (packageName: string, untilMs: number) => Promise<void>;
   /**
    * Atomically sets standalone block + daily allowance. When stopping an active session
    * and a session PIN is configured, [pinHash] must be the SHA-256 hex of the PIN.
@@ -808,11 +810,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         void logger.warn('AppContext', `expired standalone block clear failed: ${String(e)}`);
       }
       let updatedAlwaysOn = settings.alwaysOnPackages ?? [];
+      let updatedAutoCopied = settings.autoCopiedAlwaysOnPackages ?? [];
       if ((settings.autoCopyToAlwaysOn ?? true) && packages.length > 0) {
-        const toRemove = new Set(packages);
+        const autoCopied = new Set(updatedAutoCopied);
+        const toRemove = new Set(packages.filter((pkg) => autoCopied.has(pkg)));
         updatedAlwaysOn = updatedAlwaysOn.filter((p) => !toRemove.has(p));
+        updatedAutoCopied = updatedAutoCopied.filter((p) => !toRemove.has(p));
       }
-      const cleared = { ...settings, standaloneBlockUntil: null, alwaysOnPackages: updatedAlwaysOn };
+      const cleared = {
+        ...settings,
+        standaloneBlockUntil: null,
+        alwaysOnPackages: updatedAlwaysOn,
+        autoCopiedAlwaysOnPackages: updatedAutoCopied,
+      };
       try { await dbSaveSettings(cleared); } catch (e) { void logger.warn('AppContext', `_syncStandaloneBlock expiry clear: dbSaveSettings non-fatal: ${String(e)}`); }
       dispatch({ type: 'SET_SETTINGS', payload: cleared });
     } else {
@@ -1595,22 +1605,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const setStandaloneBlock = useCallback(async (packages: string[], untilMs: number | null, pinHash: string | null = null) => {
     const untilIso = untilMs ? new Date(untilMs).toISOString() : null;
     let alwaysOnPackages = state.settings.alwaysOnPackages ?? [];
+    let autoCopiedAlwaysOnPackages = state.settings.autoCopiedAlwaysOnPackages ?? [];
     const autoCopy = state.settings.autoCopyToAlwaysOn ?? false;
     if (autoCopy && packages.length > 0) {
       // Auto-copy: merge incoming packages into the always-on list
+      const alreadyAlwaysOn = new Set(alwaysOnPackages);
+      const newlyAutoCopied = packages.filter((pkg) => !alreadyAlwaysOn.has(pkg));
       const merged = new Set([...alwaysOnPackages, ...packages]);
       alwaysOnPackages = Array.from(merged);
+      autoCopiedAlwaysOnPackages = Array.from(new Set([...autoCopiedAlwaysOnPackages, ...newlyAutoCopied]));
     } else if (autoCopy && packages.length === 0) {
       // Block is being cleared — remove the previously auto-copied packages so
       // a 30-minute block doesn't silently become a permanent 24/7 block.
       const prevStandalone = state.settings.standaloneBlockPackages ?? [];
-      alwaysOnPackages = alwaysOnPackages.filter((p) => !prevStandalone.includes(p));
+      const autoCopied = new Set(autoCopiedAlwaysOnPackages);
+      const toRemove = new Set(prevStandalone.filter((pkg) => autoCopied.has(pkg)));
+      alwaysOnPackages = alwaysOnPackages.filter((p) => !toRemove.has(p));
+      autoCopiedAlwaysOnPackages = autoCopiedAlwaysOnPackages.filter((p) => !toRemove.has(p));
     }
     const newSettings: AppSettings = {
       ...state.settings,
       standaloneBlockPackages: packages,
       standaloneBlockUntil: untilIso,
       alwaysOnPackages,
+      autoCopiedAlwaysOnPackages,
     };
     try { await dbSaveSettings(newSettings); } catch (e) { void logger.warn('AppContext', `setStandaloneBlock: dbSaveSettings non-fatal: ${String(e)}`); }
     dispatch({ type: 'SET_SETTINGS', payload: newSettings });
@@ -1627,6 +1645,36 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } else {
       void cancelStandaloneBlockExpiry().catch(() => {});
     }
+  }, [state.settings]);
+
+  /**
+   * Adds one package to the existing timed Standalone Block without honoring
+   * autoCopyToAlwaysOn. Quick Block's temporary action must remain temporary.
+   */
+  const setQuickBlockTemporary = useCallback(async (packageName: string, requestedUntilMs: number) => {
+    const currentPackages = state.settings.standaloneBlockPackages ?? [];
+    const currentUntilMs = state.settings.standaloneBlockUntil
+      ? new Date(state.settings.standaloneBlockUntil).getTime()
+      : 0;
+    const untilMs = Math.max(requestedUntilMs, currentUntilMs > Date.now() ? currentUntilMs : 0);
+    const packages = Array.from(new Set([...currentPackages, packageName]));
+    const newSettings: AppSettings = {
+      ...state.settings,
+      standaloneBlockPackages: packages,
+      standaloneBlockUntil: new Date(untilMs).toISOString(),
+      // Deliberately preserve the user's existing Always-On list and its
+      // auto-copy bookkeeping.
+      alwaysOnPackages: state.settings.alwaysOnPackages ?? [],
+      autoCopiedAlwaysOnPackages: state.settings.autoCopiedAlwaysOnPackages ?? [],
+    };
+    try { await dbSaveSettings(newSettings); } catch (e) { void logger.warn('AppContext', `setQuickBlockTemporary: dbSaveSettings non-fatal: ${String(e)}`); }
+    dispatch({ type: 'SET_SETTINGS', payload: newSettings });
+    await SharedPrefsModule.setStandaloneBlock(true, packages, untilMs);
+    const allowanceEntries = newSettings.dailyAllowanceEntries ?? [];
+    const alwaysOnActive = (newSettings.alwaysOnEnforcementEnabled !== false) &&
+      ((newSettings.alwaysOnPackages ?? []).length > 0 || allowanceEntries.length > 0);
+    await SharedPrefsModule.setAlwaysBlockActive(alwaysOnActive, newSettings.alwaysOnPackages ?? []).catch(() => {});
+    void scheduleStandaloneBlockExpiry(untilMs, packages.length).catch(() => {});
   }, [state.settings]);
 
   /**
@@ -1647,16 +1695,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   ) => {
     const untilIso = untilMs ? new Date(untilMs).toISOString() : null;
     let alwaysOnPackages = state.settings.alwaysOnPackages ?? [];
+    let autoCopiedAlwaysOnPackages = state.settings.autoCopiedAlwaysOnPackages ?? [];
     const autoCopy = state.settings.autoCopyToAlwaysOn ?? false;
     if (autoCopy && packages.length > 0) {
       // Auto-copy: merge incoming packages into the always-on list
+      const alreadyAlwaysOn = new Set(alwaysOnPackages);
+      const newlyAutoCopied = packages.filter((pkg) => !alreadyAlwaysOn.has(pkg));
       const merged = new Set([...alwaysOnPackages, ...packages]);
       alwaysOnPackages = Array.from(merged);
+      autoCopiedAlwaysOnPackages = Array.from(new Set([...autoCopiedAlwaysOnPackages, ...newlyAutoCopied]));
     } else if (autoCopy && packages.length === 0) {
       // Block is being cleared — remove previously auto-copied packages so a
       // timed block doesn't silently become a permanent 24/7 always-on block.
       const prevStandalone = state.settings.standaloneBlockPackages ?? [];
-      alwaysOnPackages = alwaysOnPackages.filter((p) => !prevStandalone.includes(p));
+      const autoCopied = new Set(autoCopiedAlwaysOnPackages);
+      const toRemove = new Set(prevStandalone.filter((pkg) => autoCopied.has(pkg)));
+      alwaysOnPackages = alwaysOnPackages.filter((p) => !toRemove.has(p));
+      autoCopiedAlwaysOnPackages = autoCopiedAlwaysOnPackages.filter((p) => !toRemove.has(p));
     }
     // Preserve existing vpnPackages if not explicitly passed
     const resolvedVpnPackages = vpnPackages ?? state.settings.standaloneVpnPackages ?? [];
@@ -1666,6 +1721,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       standaloneBlockUntil: untilIso,
       dailyAllowanceEntries: allowanceEntries,
       alwaysOnPackages,
+      autoCopiedAlwaysOnPackages,
       standaloneVpnPackages: resolvedVpnPackages,
     };
     try { await dbSaveSettings(newSettings); } catch (e) { void logger.warn('AppContext', `setStandaloneBlockAndAllowance: dbSaveSettings non-fatal: ${String(e)}`); }
@@ -1709,6 +1765,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     stopFocusMode,
     updateSettings,
     setStandaloneBlock,
+    setQuickBlockTemporary,
     setStandaloneBlockAndAllowance,
     setDailyAllowanceEntries,
     setBlockedWords,
@@ -1718,7 +1775,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     state, todayTasks, activeTask, currentTask, activeTasks,
     addTask, updateTask, deleteTask, completeTask, skipTask,
     extendTaskTime, startFocusMode, stopFocusMode, updateSettings,
-    setStandaloneBlock, setStandaloneBlockAndAllowance, setDailyAllowanceEntries,
+    setStandaloneBlock, setQuickBlockTemporary, setStandaloneBlockAndAllowance, setDailyAllowanceEntries,
     setBlockedWords, setRecurringBlockSchedules, refreshTasks,
   ]);
 

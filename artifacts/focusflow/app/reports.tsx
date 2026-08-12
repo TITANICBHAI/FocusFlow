@@ -34,6 +34,9 @@ import {
   dbGetRecentDayCompletions,
 } from '@/data/database';
 import { GreyoutModule, type TemptationEntry } from '@/native-modules/GreyoutModule';
+import { UsageInsights } from '@/components/UsageInsights';
+import { QuickBlockSheet } from '@/components/QuickBlockSheet';
+import type { UsageApp } from '@/native-modules/UsageStatsModule';
 import type { Task } from '@/data/types';
 
 type Range = 'yesterday' | 'today' | 'week' | 'alltime';
@@ -62,6 +65,7 @@ function ReportsScreen() {
   const { tasks } = state;
 
   const [range, setRange] = useState<Range>('yesterday');
+  const [quickBlockApp, setQuickBlockApp] = useState<UsageApp | null>(null);
 
   // ── Data sources ───────────────────────────────────────────────────────────
   const [loading, setLoading] = useState(true);
@@ -274,6 +278,18 @@ function ReportsScreen() {
             )}
           </View>
 
+          <UsageInsights
+            startMs={window.startMs}
+            endMs={window.endMs}
+            focusMinutes={focusMinsWindow}
+            blockedAttempts={totalAttempts}
+            standalonePackages={state.settings.standaloneBlockPackages ?? []}
+            standaloneUntil={state.settings.standaloneBlockUntil}
+            alwaysOnPackages={state.settings.alwaysOnPackages ?? []}
+            onAppPress={setQuickBlockApp}
+            showQuickBlockButton
+          />
+
           {/* Task summary */}
           <View style={[styles.card, { backgroundColor: theme.card }]}>
             <View style={styles.cardHeader}>
@@ -407,6 +423,11 @@ function ReportsScreen() {
           </TouchableOpacity>
         </ScrollView>
       )}
+      <QuickBlockSheet
+        visible={quickBlockApp !== null}
+        app={quickBlockApp}
+        onClose={() => setQuickBlockApp(null)}
+      />
     </SafeAreaView>
   );
 }

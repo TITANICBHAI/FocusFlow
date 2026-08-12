@@ -34,13 +34,7 @@ import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 import { InstalledAppsModule, InstalledApp } from '@/native-modules/InstalledAppsModule';
 import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
 import { PinVerifyModal } from '@/components/PinVerifyModal';
-
-const SYSTEM_NEVER_BLOCK = new Set([
-  'com.android.dialer',
-  'com.google.android.dialer',
-  'com.samsung.android.dialer',
-  'com.whatsapp',
-]);
+import { SYSTEM_NEVER_BLOCK } from '@/services/protectedApps';
 
 export default function AlwaysOnScreen() {
   const insets = useSafeAreaInsets();

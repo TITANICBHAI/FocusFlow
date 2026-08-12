@@ -9,6 +9,7 @@
  *
  * Methods exposed to JS:
  *   - getForegroundApp()                  → string | null
+ *   - getUsageSummary(startMs, endMs)     → UsageSummary | null
  *   - hasPermission()                     → boolean  (Usage Access granted)
  *   - openUsageAccessSettings()
  *   - hasAccessibilityPermission()        → boolean
@@ -32,10 +33,31 @@ if (Platform.OS === 'android' && !UsageStats) {
 
 export const isUsageStatsAvailable = Platform.OS === 'android' && UsageStats != null;
 
+export interface UsageApp {
+  packageName: string;
+  appName?: string;
+  foregroundMinutes: number;
+  launchCount: number;
+  lastUsedAt: number;
+}
+
+export interface UsageSummary {
+  totalMinutes: number;
+  apps: UsageApp[];
+}
+
+export const isUsageSummaryAvailable =
+  Platform.OS === 'android' && typeof UsageStats?.getUsageSummary === 'function';
+
 export const UsageStatsModule = {
   async getForegroundApp(): Promise<string | null> {
     if (!UsageStats) return null;
     return UsageStats.getForegroundApp();
+  },
+
+  async getUsageSummary(startMs: number, endMs: number): Promise<UsageSummary | null> {
+    if (!UsageStats?.getUsageSummary) return null;
+    return UsageStats.getUsageSummary(startMs, endMs) as Promise<UsageSummary>;
   },
 
   async hasPermission(): Promise<boolean> {

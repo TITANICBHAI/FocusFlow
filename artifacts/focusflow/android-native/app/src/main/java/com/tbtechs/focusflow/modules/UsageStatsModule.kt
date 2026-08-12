@@ -17,6 +17,7 @@ import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
+import com.facebook.react.bridge.WritableNativeMap
 
 /**
  * UsageStatsModule
@@ -24,6 +25,7 @@ import com.facebook.react.bridge.ReactMethod
  * JS name: NativeModules.UsageStats
  * Methods:
  *   - getForegroundApp()             → Promise<String?>
+ *   - getUsageSummary(startMs, endMs) → Promise<Map> — aggregated app usage
  *   - hasPermission()                → Promise<Boolean>  — Usage Access (AppOps)
  *   - openUsageAccessSettings()      → Promise<null>
  *   - hasAccessibilityPermission()   → Promise<Boolean>  — Accessibility Service enabled
@@ -65,6 +67,71 @@ class UsageStatsModule(private val reactContext: ReactApplicationContext) :
             promise.resolve(foreground)
         } catch (e: Exception) {
             promise.reject("USAGE_STATS_ERROR", e.message, e)
+        }
+    }
+
+    /**
+     * Aggregates observed foreground usage for the requested time range.
+     *
+     * UsageStatsManager keeps this data on-device.  Each UsageStats row is
+     * already aggregated by package for the requested range, so this method
+     * only normalizes the values and resolves display names through the local
+     * PackageManager.  It intentionally reports observed device time rather
+     * than attempting to classify usage as productive or unproductive.
+     */
+    @ReactMethod
+    fun getUsageSummary(startMs: Double, endMs: Double, promise: Promise) {
+        try {
+            val start = startMs.toLong()
+            val end = endMs.toLong()
+            if (start >= end) {
+                val empty = WritableNativeMap()
+                empty.putInt("totalMinutes", 0)
+                empty.putArray("apps", com.facebook.react.bridge.Arguments.createArray())
+                promise.resolve(empty)
+                return
+            }
+
+            val usageManager =
+                reactContext.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
+            val rows = usageManager.queryUsageStats(
+                UsageStatsManager.INTERVAL_DAILY,
+                start,
+                end,
+            ).orEmpty()
+            val packageManager = reactContext.packageManager
+            val apps = rows.mapNotNull { row ->
+                val foregroundMinutes = (row.totalTimeInForeground / 60_000L).toInt()
+                if (foregroundMinutes <= 0) return@mapNotNull null
+
+                val appName = try {
+                    packageManager.getApplicationLabel(
+                        packageManager.getApplicationInfo(row.packageName, 0)
+                    ).toString()
+                } catch (_: Exception) {
+                    row.packageName
+                }
+
+                WritableNativeMap().apply {
+                    putString("packageName", row.packageName)
+                    putString("appName", appName)
+                    putInt("foregroundMinutes", foregroundMinutes)
+                    putInt("launchCount", row.appLaunchCount.coerceAtLeast(0))
+                    putDouble("lastUsedAt", row.lastTimeUsed.toDouble())
+                }
+            }.sortedByDescending { it.getInt("foregroundMinutes") }
+
+            val totalMinutes = apps.sumOf { it.getInt("foregroundMinutes") }
+            val appArray = com.facebook.react.bridge.Arguments.createArray()
+            apps.forEach { appArray.pushMap(it) }
+
+            val result = WritableNativeMap().apply {
+                putInt("totalMinutes", totalMinutes)
+                putArray("apps", appArray)
+            }
+            promise.resolve(result)
+        } catch (e: Exception) {
+            promise.reject("USAGE_SUMMARY_ERROR", e.message, e)
         }
     }
 

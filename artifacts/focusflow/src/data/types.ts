@@ -174,6 +174,12 @@ export interface AppSettings {
    */
   autoCopyToAlwaysOn?: boolean;
   /**
+   * Internal bookkeeping for the existing auto-copy setting. These packages
+   * were added to Always-On by a timed block and may be removed on expiry;
+   * explicitly added Always-On packages are never removed automatically.
+   */
+  autoCopiedAlwaysOnPackages?: string[];
+  /**
    * Highest streak milestone (in days) the user has already been congratulated
    * for. Used to detect new milestones (3, 7, 14, 30, 60, 90, 180, 365) and
    * trigger a one-time celebration modal on the next app open.

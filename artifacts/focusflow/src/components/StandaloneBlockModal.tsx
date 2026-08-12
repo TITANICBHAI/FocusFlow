@@ -24,6 +24,7 @@ import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { PinVerifyModal } from '@/components/PinVerifyModal';
 import type { DailyAllowanceEntry, AllowanceMode, BlockPreset, RecurringBlockSchedule } from '@/data/types';
+import { SYSTEM_NEVER_BLOCK } from '@/services/protectedApps';
 
 // ─── App Categories ───────────────────────────────────────────────────────────
 // Known Android package names for common app categories.
@@ -50,28 +51,6 @@ interface AppCategory {
 // Note: Android Settings IS allowed in the standalone block list — the user
 // has explicitly asked to be able to block it.  AppPickerSheet still surfaces
 // it as a sensitive category with a warning before adding it to the list.
-
-const SYSTEM_NEVER_BLOCK = new Set([
-  'com.android.launcher', 'com.android.launcher2', 'com.android.launcher3',
-  'com.sec.android.app.launcher', 'com.google.android.apps.nexuslauncher',
-  'com.miui.launcher', 'com.huawei.android.launcher', 'com.coloros.launcher',
-  'com.oneplus.launcher', 'com.oppo.launcher', 'com.motorola.launcher3',
-  'com.nothing.launcher', 'com.realme.launcher', 'com.iqoo.launcher',
-  'com.vivo.launcher', 'com.asus.launcher', 'com.ZenUI.launcher',
-  'com.lge.launcher3', 'com.htc.launcher', 'com.sonyericsson.home',
-  'com.tcl.launcher', 'com.nokia.launcher', 'com.infinix.launcher',
-  'com.transsion.launcher', 'com.hihonor.launcher',
-  'com.android.systemui',
-  'com.android.phone', 'com.android.server.telecom',
-  'com.samsung.android.incallui', 'com.google.android.dialer',
-  'com.google.android.apps.googledialer',
-  'com.google.android.gms',
-  'com.android.packageinstaller', 'com.google.android.packageinstaller',
-  'com.samsung.android.packageinstaller',
-  'com.samsung.android.wallet', 'com.samsung.android.samsungpay',
-  'com.google.android.apps.walletnfcrel',
-  'com.tbtechs.focusflow',
-]);
 
 const APP_CATEGORIES: AppCategory[] = [
   {
