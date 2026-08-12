@@ -282,7 +282,7 @@ class ForegroundTaskService : Service() {
             as? android.app.usage.UsageStatsManager ?: return
 
         // Query from midnight today → now so we only count today's foreground time
-        val cal = java.util.Calendar.getInstance().apply {
+        val cal = java.util.Calendar.getInstance(java.util.TimeZone.getDefault()).apply {
             set(java.util.Calendar.HOUR_OF_DAY, 0)
             set(java.util.Calendar.MINUTE, 0)
             set(java.util.Calendar.SECOND, 0)
@@ -290,8 +290,9 @@ class ForegroundTaskService : Service() {
         }
         val startOfDay = cal.timeInMillis
         val now        = System.currentTimeMillis()
-        val today      = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
-                           .format(java.util.Date())
+        val today      = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).apply {
+            timeZone = java.util.TimeZone.getDefault()
+        }.format(java.util.Date())
 
         val statsMap = try {
             usm.queryUsageStats(android.app.usage.UsageStatsManager.INTERVAL_DAILY, startOfDay, now)
@@ -302,11 +303,31 @@ class ForegroundTaskService : Service() {
         val allUsed  = try { org.json.JSONObject(usedJson) } catch (_: Exception) { return }
         var changed  = false
 
+        val activeSessionPkg = blockPrefs.getString(
+            AppBlockerAccessibilityService.PREF_ACTIVE_SESSION_PKG,
+            null,
+        )
+        val usageStatsSync = try {
+            org.json.JSONObject(
+                blockPrefs.getString(
+                    AppBlockerAccessibilityService.PREF_USAGE_STATS_SYNC,
+                    "{}",
+                ) ?: "{}",
+            )
+        } catch (_: Exception) {
+            org.json.JSONObject()
+        }
+
         for ((pkg, budgetMs) in timeBudgetPkgs) {
             // AccessibilityService owns the live session while this signal is
             // fresh. Its checkpoint is already an absolute accumulated total;
             // writing UsageStats on top of it would double-count the session.
             if (hasFreshActiveAllowanceSession(pkg, now)) continue
+            // If the package signal exists but is stale, UsageStats is allowed
+            // to recover it. Record the handoff timestamp so the
+            // AccessibilityService can continue from the absolute total rather
+            // than adding the same stale-heartbeat interval again.
+            val staleActiveSession = activeSessionPkg?.equals(pkg, ignoreCase = true) == true
 
             val actualMs = (statsMap[pkg]?.totalTimeInForeground ?: 0L)
                 .coerceAtMost(budgetMs)
@@ -323,6 +344,9 @@ class ForegroundTaskService : Service() {
                 pkgUsed.put("date",   today)
                 pkgUsed.put("usedMs", actualMs)
                 allUsed.put(pkg, pkgUsed)
+                if (staleActiveSession) {
+                    usageStatsSync.put(pkg, now)
+                }
                 changed = true
             }
         }
@@ -330,6 +354,10 @@ class ForegroundTaskService : Service() {
         if (changed) {
             blockPrefs.edit()
                 .putString("daily_allowance_used", allUsed.toString())
+                .putString(
+                    AppBlockerAccessibilityService.PREF_USAGE_STATS_SYNC,
+                    usageStatsSync.toString(),
+                )
                 .apply()
         }
     }
@@ -345,8 +373,9 @@ class ForegroundTaskService : Service() {
             AppBlockerAccessibilityService.PREF_ACTIVE_SESSION_LAST_CHECKPOINT_MS,
             0L,
         )
+        val checkpointAgeMs = nowMs - lastCheckpointMs
         return lastCheckpointMs > 0L &&
-            nowMs - lastCheckpointMs <= AppBlockerAccessibilityService.ACTIVE_SESSION_SIGNAL_TTL_MS
+            checkpointAgeMs in 0L..AppBlockerAccessibilityService.ACTIVE_SESSION_SIGNAL_TTL_MS
     }
 
     private val tickRunnable = object : Runnable {

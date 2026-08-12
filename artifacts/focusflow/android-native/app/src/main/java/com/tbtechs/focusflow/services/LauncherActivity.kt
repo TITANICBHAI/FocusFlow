@@ -1257,7 +1257,9 @@ class LauncherActivity : Activity() {
 
         val usedJson = prefs.getString(AppBlockerAccessibilityService.PREF_DAILY_ALLOWANCE_USED, "{}") ?: "{}"
         val allUsed  = try { org.json.JSONObject(usedJson) } catch (_: Exception) { org.json.JSONObject() }
-        val today    = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+        val today    = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).apply {
+            timeZone = java.util.TimeZone.getDefault()
+        }.format(Date())
         val now      = System.currentTimeMillis()
         val result   = mutableListOf<AllowanceCardData>()
 

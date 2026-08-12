@@ -99,8 +99,12 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         const val PREF_ACTIVE_SESSION_OPEN_AT_MS = "active_session_open_at_ms"
         const val PREF_ACTIVE_SESSION_LAST_CHECKPOINT_MS = "active_session_last_checkpoint_ms"
         const val PREF_ACTIVE_SESSION_END_MS = "active_session_end_ms"
+        const val PREF_USAGE_STATS_SYNC = "daily_allowance_usage_stats_sync"
         const val ACTIVE_SESSION_CHECKPOINT_INTERVAL_MS = 15_000L
-        const val ACTIVE_SESSION_SIGNAL_TTL_MS = 90_000L
+        // ForegroundTaskService syncs every 60 s. Two missed sync windows are
+        // enough to distinguish a dead/paused AccessibilityService from normal
+        // scheduling jitter without deferring UsageStats recovery forever.
+        const val ACTIVE_SESSION_SIGNAL_TTL_MS = 2 * 60_000L
 
         const val PREF_BLOCKED_WORDS = "blocked_words"
         const val PREF_SYSTEM_GUARD_ENABLED = "system_guard_enabled"
@@ -1898,9 +1902,10 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         val now = System.currentTimeMillis()
         val savedPkg = prefs.getString(PREF_ACTIVE_SESSION_PKG, null)
         val lastCheckpointMs = prefs.getLong(PREF_ACTIVE_SESSION_LAST_CHECKPOINT_MS, 0L)
+        val checkpointAgeMs = now - lastCheckpointMs
         val signalFresh = savedPkg != null &&
             lastCheckpointMs > 0L &&
-            now - lastCheckpointMs <= ACTIVE_SESSION_SIGNAL_TTL_MS
+            checkpointAgeMs in 0L..ACTIVE_SESSION_SIGNAL_TTL_MS
 
         if (signalFresh && savedPkg != null) {
             val entry = findAllowanceEntry(savedPkg)
@@ -2043,11 +2048,15 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     }
 
     private fun persistActiveSessionSignal(pkg: String, openAtMs: Long, sessionEndMs: Long) {
+        // A new foreground session must not inherit a UsageStats handoff marker
+        // from an earlier session of the same package.
+        val syncJson = loadUsageStatsSyncObject().apply { remove(pkg) }
         prefs.edit()
             .putString(PREF_ACTIVE_SESSION_PKG, pkg)
             .putLong(PREF_ACTIVE_SESSION_OPEN_AT_MS, openAtMs)
             .putLong(PREF_ACTIVE_SESSION_LAST_CHECKPOINT_MS, openAtMs)
             .putLong(PREF_ACTIVE_SESSION_END_MS, sessionEndMs)
+            .putString(PREF_USAGE_STATS_SYNC, syncJson.toString())
             .apply()
     }
 
@@ -2077,6 +2086,21 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         val now = System.currentTimeMillis()
         if (entry.mode == "time_budget" || entry.mode == "interval") {
             if (currentTimedOpenAtMs > 0L && now > currentTimedOpenAtMs) {
+                /*
+                 * ForegroundTaskService may have written an absolute UsageStats
+                 * total while this service heartbeat was stale. Resume from
+                 * that handoff timestamp instead of adding the already-accounted
+                 * interval a second time.
+                 */
+                val syncJson = loadUsageStatsSyncObject()
+                val syncedAtMs = syncJson.optLong(pkg, 0L)
+                if (syncedAtMs > currentTimedOpenAtMs) {
+                    currentTimedOpenAtMs = syncedAtMs
+                    syncJson.remove(pkg)
+                    prefs.edit()
+                        .putString(PREF_USAGE_STATS_SYNC, syncJson.toString())
+                        .apply()
+                }
                 accumulateTimedUsage(pkg, entry, currentTimedOpenAtMs)
             }
         }
@@ -2315,16 +2339,23 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         return try { org.json.JSONObject(json) } catch (_: Exception) { org.json.JSONObject() }
     }
 
+    private fun loadUsageStatsSyncObject(): org.json.JSONObject {
+        val json = prefs.getString(PREF_USAGE_STATS_SYNC, "{}") ?: "{}"
+        return try { org.json.JSONObject(json) } catch (_: Exception) { org.json.JSONObject() }
+    }
+
     /** ISO-8601 date string for today in the device's local timezone (e.g. "2025-01-09"). */
     private fun todayDateString(): String =
-        java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
+        java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).apply {
+            timeZone = java.util.TimeZone.getDefault()
+        }.format(java.util.Date())
 
     /**
      * Returns epoch ms for the start of today (midnight) in the device's local timezone.
      * Used to correctly split elapsed time across a midnight boundary.
      */
     private fun getMidnightMs(): Long {
-        val cal = java.util.Calendar.getInstance()
+        val cal = java.util.Calendar.getInstance(java.util.TimeZone.getDefault())
         cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
         cal.set(java.util.Calendar.MINUTE, 0)
         cal.set(java.util.Calendar.SECOND, 0)
