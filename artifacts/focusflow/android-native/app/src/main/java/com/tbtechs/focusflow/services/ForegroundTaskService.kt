@@ -667,8 +667,17 @@ class ForegroundTaskService : Service() {
             val intent = Intent(this, NetworkBlockerVpnService::class.java).apply {
                 action = NetworkBlockerVpnService.ACTION_STOP
             }
-            startService(intent)
-        } catch (_: Exception) { /* service not running — nothing to stop */ }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(intent)
+            } else {
+                startService(intent)
+            }
+        } catch (e: Exception) {
+            prefs.edit()
+                .putString("vpn_status", NetworkBlockerVpnService.STATUS_STARTUP_FAILED)
+                .putString("vpn_error", e.message ?: "ForegroundTaskService could not stop VPN service")
+                .apply()
+        }
     }
 
     // ─── VPN health check ──────────────────────────────────────────────────────
@@ -688,7 +697,7 @@ class ForegroundTaskService : Service() {
     private fun checkAndHealVpn() {
         val prefs = blockPrefs
         if (!prefs.getBoolean("net_block_self_heal", false)) return
-        if (!prefs.getBoolean("net_block_vpn", false)) return
+        if (!prefs.getBoolean("net_block_vpn", true)) return
         if (NetworkBlockerVpnService.isRunning) return
 
         val now = System.currentTimeMillis()
@@ -727,8 +736,17 @@ class ForegroundTaskService : Service() {
                 putExtra(NetworkBlockerVpnService.EXTRA_PACKAGES, pkgs)
                 putExtra(NetworkBlockerVpnService.EXTRA_MODE, mode)
             }
-            startService(intent)
-        } catch (_: Exception) { /* best-effort */ }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(intent)
+            } else {
+                startService(intent)
+            }
+        } catch (e: Exception) {
+            blockPrefs.edit()
+                .putString("vpn_status", NetworkBlockerVpnService.STATUS_STARTUP_FAILED)
+                .putString("vpn_error", e.message ?: "ForegroundTaskService could not start VPN service")
+                .apply()
+        }
     }
 
     // ─── Notification builders ─────────────────────────────────────────────────

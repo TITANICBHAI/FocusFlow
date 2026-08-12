@@ -493,11 +493,35 @@ function withFocusDayManifest(config) {
           'android:name':       'com.tbtechs.focusflow.services.NetworkBlockerVpnService',
           'android:permission': 'android.permission.BIND_VPN_SERVICE',
           'android:exported':   'false',
+          'android:foregroundServiceType': 'specialUse',
         },
+        property: [{
+          $: {
+            'android:name': 'android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE',
+            'android:value': 'network_blocking',
+          },
+        }],
         'intent-filter': [{
           action: [{ $: { 'android:name': 'android.net.VpnService' } }],
         }],
       });
+    } else {
+      // A pre-existing service entry can come from an earlier prebuild. Keep
+      // its foreground-service declaration current on subsequent builds too.
+      const vpnService = app.service.find(
+        (s) => s.$['android:name'] === 'com.tbtechs.focusflow.services.NetworkBlockerVpnService'
+      );
+      vpnService.$['android:foregroundServiceType'] = 'specialUse';
+      vpnService.$['android:permission'] = 'android.permission.BIND_VPN_SERVICE';
+      if (!vpnService.property) vpnService.property = [];
+      if (!vpnService.property.some((p) => p.$['android:name'] === 'android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE')) {
+        vpnService.property.push({
+          $: {
+            'android:name': 'android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE',
+            'android:value': 'network_blocking',
+          },
+        });
+      }
     }
 
     // ── VpnWatchdogReceiver ────────────────────────────────────────────────────

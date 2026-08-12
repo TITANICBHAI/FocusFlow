@@ -364,6 +364,9 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
     fun setNetworkBlockEnabled(enabled: Boolean, promise: Promise) {
         prefs().edit()
             .putBoolean("net_block_enabled", enabled)
+            // Keep the old native mechanism gate synchronized with the UI
+            // toggle. Older services still read both keys.
+            .putBoolean("net_block_vpn", enabled)
             .apply()
         promise.resolve(null)
     }
@@ -380,6 +383,9 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
     fun setVpnSelectedPackages(packagesJson: String, promise: Promise) {
         prefs().edit()
             .putString("vpn_selected_packages", packagesJson)
+            // net_block_packages is the canonical list consumed by the VPN
+            // service, watchdog, AccessibilityService, and restore path.
+            .putString("net_block_packages", packagesJson)
             .apply()
         promise.resolve(null)
     }

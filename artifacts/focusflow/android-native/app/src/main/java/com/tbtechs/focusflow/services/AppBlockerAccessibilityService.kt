@@ -1158,7 +1158,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     private fun checkAndHealVpn() {
         if (!::prefs.isInitialized) return
         if (!prefs.getBoolean("net_block_self_heal", false)) return
-        if (!prefs.getBoolean("net_block_vpn", false)) return
+        if (!prefs.getBoolean("net_block_vpn", true)) return
         if (NetworkBlockerVpnService.isRunning) return
 
         val now = System.currentTimeMillis()
@@ -1195,8 +1195,17 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                 putExtra(NetworkBlockerVpnService.EXTRA_PACKAGES, pkgs)
                 putExtra(NetworkBlockerVpnService.EXTRA_MODE,     mode)
             }
-            startService(intent)
-        } catch (_: Exception) { /* best-effort — do not crash the service */ }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(intent)
+            } else {
+                startService(intent)
+            }
+            } catch (e: Exception) {
+                prefs.edit()
+                    .putString("vpn_status", NetworkBlockerVpnService.STATUS_STARTUP_FAILED)
+                    .putString("vpn_error", e.message ?: "AccessibilityService could not start VPN service")
+                    .apply()
+            }
     }
 
     // ─── Retry mechanism ──────────────────────────────────────────────────────
@@ -2478,23 +2487,20 @@ class AppBlockerAccessibilityService : AccessibilityService() {
      */
     private fun triggerNetworkBlock(blockedPackage: String) {
         if (!prefs.getBoolean("net_block_enabled", false)) return
-        if (!prefs.getBoolean("net_block_vpn", false)) return
+        if (!prefs.getBoolean("net_block_vpn", true)) return
         if (NetworkBlockerVpnService.isRunning) return   // already active
 
-        // Per-app VPN: if a non-empty package selection list is configured,
-        // only apply network blocking to packages that appear in that list.
-        val vpnSelectedJson = prefs.getString("vpn_selected_packages", "[]") ?: "[]"
-        if (vpnSelectedJson != "[]" && vpnSelectedJson != "null") {
-            val inList = try {
-                val arr = org.json.JSONArray(vpnSelectedJson)
-                var found = false
-                for (i in 0 until arr.length()) {
-                    if (arr.optString(i) == blockedPackage) { found = true; break }
-                }
-                found
-            } catch (_: Exception) { true /* malformed JSON — apply to all */ }
-            if (!inList) return
+        // net_block_packages is the single canonical list. If it is empty,
+        // protect the app that triggered the event; otherwise protect the
+        // complete configured set so later blocked apps are not omitted.
+        val canonicalJson = prefs.getString("net_block_packages", "[]") ?: "[]"
+        val canonicalPackages = try {
+            val arr = org.json.JSONArray(canonicalJson)
+            (0 until arr.length()).map { arr.optString(it) }.filter { it.isNotBlank() }
+        } catch (_: Exception) {
+            emptyList()
         }
+        if (canonicalPackages.isNotEmpty() && blockedPackage !in canonicalPackages) return
 
         // VPN permission check — prepare() returns null if permission is already held
         try {
@@ -2505,7 +2511,11 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         val global = prefs.getBoolean("net_block_global", false)
         val mode   = if (global) NetworkBlockerVpnService.MODE_GLOBAL
                      else        NetworkBlockerVpnService.MODE_PER_APP
-        val pkgs   = JSONArray().apply { put(blockedPackage) }.toString()
+        val pkgs   = if (canonicalPackages.isNotEmpty()) {
+            org.json.JSONArray(canonicalPackages).toString()
+        } else {
+            JSONArray().apply { put(blockedPackage) }.toString()
+        }
 
         try {
             val intent = Intent(this, NetworkBlockerVpnService::class.java).apply {
@@ -2513,8 +2523,17 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                 putExtra(NetworkBlockerVpnService.EXTRA_PACKAGES, pkgs)
                 putExtra(NetworkBlockerVpnService.EXTRA_MODE, mode)
             }
-            startService(intent)
-        } catch (_: Exception) { /* service start failed — overlay + HOME are the fallback */ }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(intent)
+            } else {
+                startService(intent)
+            }
+            } catch (e: Exception) {
+                prefs.edit()
+                    .putString("vpn_status", NetworkBlockerVpnService.STATUS_STARTUP_FAILED)
+                    .putString("vpn_error", e.message ?: "AccessibilityService could not start VPN service")
+                    .apply()
+            }
     }
 
     // ─── WindowManager overlay (TYPE_APPLICATION_OVERLAY) ────────────────────

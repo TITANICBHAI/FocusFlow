@@ -105,7 +105,7 @@ class VpnWatchdogReceiver : BroadcastReceiver() {
         // ── Gate checks — bail early if we should not be restarting ────────────
 
         if (!prefs.getBoolean("net_block_enabled",  false)) return
-        if (!prefs.getBoolean("net_block_vpn",      false)) return
+        if (!prefs.getBoolean("net_block_vpn",      true)) return
         if (!prefs.getBoolean("net_block_self_heal", false)) return
 
         // ── Session validity ────────────────────────────────────────────────────
@@ -166,8 +166,11 @@ class VpnWatchdogReceiver : BroadcastReceiver() {
             } else {
                 context.startService(vpnIntent)
             }
-        } catch (_: Exception) {
-            // Best-effort — the next alarm tick will try again
+        } catch (e: Exception) {
+            prefs.edit()
+                .putString("vpn_status", NetworkBlockerVpnService.STATUS_STARTUP_FAILED)
+                .putString("vpn_error", e.message ?: "Watchdog could not start VPN service")
+                .apply()
         }
     }
 }

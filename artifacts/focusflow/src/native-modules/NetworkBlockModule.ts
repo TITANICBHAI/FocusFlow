@@ -20,14 +20,40 @@ if (Platform.OS === 'android' && !NetworkBlock) {
   console.warn('[NetworkBlockModule] NativeModules.NetworkBlock not found. Network blocking is unavailable.');
 }
 
-function has(name: string): boolean {
-  return !!NetworkBlock && typeof NetworkBlock[name] === 'function';
+function requireNetworkBlock(): Record<string, (...args: any[]) => Promise<any>> | null {
+  if (Platform.OS !== 'android') return null;
+  if (!NetworkBlock) {
+    throw new Error(
+      'FocusFlow native NetworkBlock module is missing. Build the Android app with the FocusFlow config plugin; Expo Go cannot provide this module.',
+    );
+  }
+  return NetworkBlock as Record<string, (...args: any[]) => Promise<any>>;
 }
 
+export interface NetworkBlockStatus {
+  state: string;
+  running: boolean;
+  error: string | null;
+  failedPackages: string[];
+}
+
+export type NetworkBlockStartState =
+  | 'starting'
+  | 'running'
+  | 'disabled'
+  | 'permission_missing'
+  | 'another_vpn_active'
+  | 'package_registration_failed'
+  | 'startup_failed';
+
 export const NetworkBlockModule = {
-  async startNetworkBlock(packagesJson: string): Promise<void> {
-    if (!has('startNetworkBlock')) return;
-    return NetworkBlock.startNetworkBlock(packagesJson);
+  async startNetworkBlock(packagesJson: string): Promise<NetworkBlockStartState> {
+    const native = requireNetworkBlock();
+    if (!native) return 'disabled';
+    if (typeof native.startNetworkBlock !== 'function') {
+      throw new Error('FocusFlow native NetworkBlock.startNetworkBlock is missing.');
+    }
+    return native.startNetworkBlock(packagesJson) as Promise<NetworkBlockStartState>;
   },
 
   /**
@@ -36,13 +62,21 @@ export const NetworkBlockModule = {
    * the PIN — otherwise native silently rejects the call.
    */
   async stopNetworkBlock(pinHash: string | null = null): Promise<void> {
-    if (!has('stopNetworkBlock')) return;
-    return NetworkBlock.stopNetworkBlock(pinHash);
+    const native = requireNetworkBlock();
+    if (!native) return;
+    if (typeof native.stopNetworkBlock !== 'function') {
+      throw new Error('FocusFlow native NetworkBlock.stopNetworkBlock is missing.');
+    }
+    return native.stopNetworkBlock(pinHash);
   },
 
   async isNetworkBlockActive(): Promise<boolean> {
-    if (!has('isNetworkBlockActive')) return false;
-    return NetworkBlock.isNetworkBlockActive();
+    const native = requireNetworkBlock();
+    if (!native) return false;
+    if (typeof native.isNetworkBlockActive !== 'function') {
+      throw new Error('FocusFlow native NetworkBlock.isNetworkBlockActive is missing.');
+    }
+    return native.isNetworkBlockActive();
   },
 
   /**
@@ -50,8 +84,12 @@ export const NetworkBlockModule = {
    * VpnService.prepare() returns null when permission is held.
    */
   async isVpnPermissionGranted(): Promise<boolean> {
-    if (!has('isVpnPermissionGranted')) return false;
-    return NetworkBlock.isVpnPermissionGranted();
+    const native = requireNetworkBlock();
+    if (!native) return false;
+    if (typeof native.isVpnPermissionGranted !== 'function') {
+      throw new Error('FocusFlow native NetworkBlock.isVpnPermissionGranted is missing.');
+    }
+    return native.isVpnPermissionGranted();
   },
 
   /**
@@ -61,8 +99,12 @@ export const NetworkBlockModule = {
    * the user returns to the app.
    */
   async requestVpnPermission(): Promise<void> {
-    if (!has('requestVpnPermission')) return;
-    return NetworkBlock.requestVpnPermission();
+    const native = requireNetworkBlock();
+    if (!native) return;
+    if (typeof native.requestVpnPermission !== 'function') {
+      throw new Error('FocusFlow native NetworkBlock.requestVpnPermission is missing.');
+    }
+    return native.requestVpnPermission();
   },
 
   /**
@@ -74,8 +116,61 @@ export const NetworkBlockModule = {
    * would be replaced and warn the user before Android silently kicks it out.
    */
   async isAnotherVpnActive(): Promise<boolean> {
-    if (!has('isAnotherVpnActive')) return false;
-    return NetworkBlock.isAnotherVpnActive();
+    const native = requireNetworkBlock();
+    if (!native) return false;
+    if (typeof native.isAnotherVpnActive !== 'function') {
+      throw new Error('FocusFlow native NetworkBlock.isAnotherVpnActive is missing.');
+    }
+    return native.isAnotherVpnActive();
+  },
+
+  async setNetworkBlockSettings(settings: {
+    enabled: boolean;
+    vpn: boolean;
+    packages: string[];
+  }): Promise<void> {
+    const native = requireNetworkBlock();
+    if (!native) return;
+    if (typeof native.setNetworkBlockSettings !== 'function') {
+      throw new Error('FocusFlow native NetworkBlock.setNetworkBlockSettings is missing.');
+    }
+    await native.setNetworkBlockSettings(JSON.stringify({
+      enabled: settings.enabled,
+      vpn: settings.vpn,
+      packages: JSON.stringify(Array.from(new Set(settings.packages))),
+    }));
+  },
+
+  async getNetworkBlockStatus(): Promise<NetworkBlockStatus> {
+    const native = requireNetworkBlock();
+    if (!native) {
+      return { state: 'disabled', running: false, error: null, failedPackages: [] };
+    }
+    if (typeof native.getNetworkBlockStatus !== 'function') {
+      throw new Error('FocusFlow native NetworkBlock.getNetworkBlockStatus is missing.');
+    }
+    const raw = await native.getNetworkBlockStatus();
+    const parsed = JSON.parse(String(raw)) as {
+      state?: string;
+      running?: boolean;
+      error?: string | null;
+      failedPackages?: string | string[];
+    };
+    let failedPackages: string[] = [];
+    if (Array.isArray(parsed.failedPackages)) {
+      failedPackages = parsed.failedPackages;
+    } else if (typeof parsed.failedPackages === 'string') {
+      try {
+        const value = JSON.parse(parsed.failedPackages);
+        if (Array.isArray(value)) failedPackages = value.filter((p): p is string => typeof p === 'string');
+      } catch { /* native status remains useful without the package detail */ }
+    }
+    return {
+      state: parsed.state ?? 'stopped',
+      running: Boolean(parsed.running),
+      error: parsed.error ?? null,
+      failedPackages,
+    };
   },
 
   /**
@@ -88,7 +183,11 @@ export const NetworkBlockModule = {
    * Both read the "net_block_self_heal" SharedPrefs key set by this call.
    */
   async setVpnSelfHealEnabled(enabled: boolean): Promise<void> {
-    if (!has('setVpnSelfHealEnabled')) return;
-    return NetworkBlock.setVpnSelfHealEnabled(enabled);
+    const native = requireNetworkBlock();
+    if (!native) return;
+    if (typeof native.setVpnSelfHealEnabled !== 'function') {
+      throw new Error('FocusFlow native NetworkBlock.setVpnSelfHealEnabled is missing.');
+    }
+    return native.setVpnSelfHealEnabled(enabled);
   },
 };

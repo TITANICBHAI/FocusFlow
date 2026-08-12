@@ -12,6 +12,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.ParcelFileDescriptor
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.tbtechs.focusflow.MainActivity
 import com.tbtechs.focusflow.R
@@ -76,6 +77,18 @@ class NetworkBlockerVpnService : VpnService() {
         private const val CHANNEL_ID      = "focusday_vpn"
         private const val NOTIFICATION_ID = 1002
         private const val PREFS_NAME      = "focusday_prefs"
+        private const val PREF_STATUS      = "vpn_status"
+        private const val PREF_ERROR       = "vpn_error"
+        private const val PREF_FAILED_PKGS = "vpn_failed_packages"
+
+        const val STATUS_DISABLED = "disabled"
+        const val STATUS_STARTING = "starting"
+        const val STATUS_RUNNING = "running"
+        const val STATUS_STOPPED = "stopped"
+        const val STATUS_PERMISSION_MISSING = "permission_missing"
+        const val STATUS_ANOTHER_VPN = "another_vpn_active"
+        const val STATUS_PACKAGE_FAILURE = "package_registration_failed"
+        const val STATUS_STARTUP_FAILED = "startup_failed"
 
         /**
          * These packages are ALWAYS excluded from VPN routing so that
@@ -98,6 +111,20 @@ class NetworkBlockerVpnService : VpnService() {
     }
 
     private var vpnInterface: ParcelFileDescriptor? = null
+    private var activePackagesJson: String? = null
+    private var activeMode: String? = null
+
+    private fun writeStatus(
+        state: String,
+        error: String? = null,
+        failedPackages: List<String> = emptyList(),
+    ) {
+        getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putString(PREF_STATUS, state)
+            .putString(PREF_ERROR, error)
+            .putString(PREF_FAILED_PKGS, JSONArray(failedPackages).toString())
+            .apply()
+    }
 
     // ─── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -178,7 +205,10 @@ class NetworkBlockerVpnService : VpnService() {
         // used to surface the re-grant prompt in the UI. The flag is cleared
         // by startVpn() if a subsequent restart succeeds.
         if (focusOn || saOn) {
-            prefs.edit().putBoolean("vpn_permission_lost", true).apply()
+            prefs.edit()
+                .putBoolean("vpn_permission_lost", true)
+                .apply()
+            writeStatus(STATUS_PERMISSION_MISSING, "VPN permission was revoked or another VPN took over")
         }
 
         if (selfHeal && (focusOn || saOn)) {
@@ -208,7 +238,11 @@ class NetworkBlockerVpnService : VpnService() {
     }
 
     override fun onDestroy() {
-        stopVpn()
+        val status = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getString(PREF_STATUS, STATUS_STOPPED)
+        // Preserve a useful startup failure while the service shuts itself
+        // down. Normal running/starting teardown is recorded as stopped.
+        stopVpn(updateStatus = status == STATUS_RUNNING || status == STATUS_STARTING)
         super.onDestroy()
     }
 
@@ -224,9 +258,29 @@ class NetworkBlockerVpnService : VpnService() {
      * (emergency apps) and FocusFlow itself.
      */
     private fun startVpn(packagesJson: String, mode: String) {
-        if (vpnInterface != null) return   // already established
+        if (vpnInterface != null &&
+            activePackagesJson == packagesJson &&
+            activeMode == mode
+        ) return   // already established with the same package set
+        if (vpnInterface != null) {
+            // A changed package list must rebuild the TUN configuration; an
+            // existing VpnService.Builder cannot be amended in place.
+            stopVpn(updateStatus = false)
+        }
 
+        val sp = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        writeStatus(STATUS_STARTING)
         try {
+            // Close the race between the JS preflight and service startup.
+            if (VpnService.prepare(this) != null) {
+                stopVpn(updateStatus = false)
+                writeStatus(STATUS_PERMISSION_MISSING, "VPN permission is not granted")
+                sp.edit().putBoolean("vpn_permission_lost", true).apply()
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+                return
+            }
+
             val builder = Builder()
                 .setSession("FocusFlow Network Block")
                 .addAddress("10.0.0.1", 32)          // IPv4 virtual address
@@ -254,14 +308,40 @@ class NetworkBlockerVpnService : VpnService() {
                     if (packages.isEmpty()) {
                         // No packages specified — abort rather than silently becoming a
                         // global block. Caller must provide at least one package for per-app mode.
-                        isRunning = false
+                        stopVpn(updateStatus = false)
+                        writeStatus(STATUS_STARTUP_FAILED, "Per-app VPN requires at least one package")
+                        stopForeground(STOP_FOREGROUND_REMOVE)
                         stopSelf()
                         return
                     }
                     builder.addRoute("0.0.0.0", 0)
                     builder.addRoute("::", 0)
-                    packages.forEach { pkg ->
-                        runCatching { builder.addAllowedApplication(pkg) }
+                    val failedPackages = packages.filter { pkg ->
+                        try {
+                            builder.addAllowedApplication(pkg)
+                            false
+                        } catch (e: Exception) {
+                            Log.e("FocusFlowVPN", "Unable to register package $pkg", e)
+                            true
+                        }
+                    }
+                    if (failedPackages.isNotEmpty()) {
+                        writeStatus(
+                            STATUS_PACKAGE_FAILURE,
+                            "Some selected apps could not be registered with the VPN",
+                            failedPackages,
+                        )
+                    }
+                    if (failedPackages.size == packages.size) {
+                        stopVpn(updateStatus = false)
+                        writeStatus(
+                            STATUS_PACKAGE_FAILURE,
+                            "No selected apps could be registered with the VPN",
+                            failedPackages,
+                        )
+                        stopForeground(STOP_FOREGROUND_REMOVE)
+                        stopSelf()
+                        return
                     }
                 }
             }
@@ -269,8 +349,9 @@ class NetworkBlockerVpnService : VpnService() {
             vpnInterface = builder.establish()
             isRunning = vpnInterface != null
 
-            val sp = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             if (isRunning) {
+                activePackagesJson = packagesJson
+                activeMode = mode
                 // Persist mode and packages so we can restore after an OS restart.
                 // Also clear the permission-lost flag — the tunnel is up again.
                 sp.edit()
@@ -278,6 +359,9 @@ class NetworkBlockerVpnService : VpnService() {
                     .putString("net_block_mode",       mode)
                     .putBoolean("vpn_permission_lost", false)
                     .apply()
+                if (sp.getString(PREF_STATUS, null) != STATUS_PACKAGE_FAILURE) {
+                    writeStatus(STATUS_RUNNING)
+                }
                 // Schedule the AlarmManager watchdog so the VPN is restarted even if
                 // Android kills the entire process (battery optimisers, memory pressure).
                 VpnWatchdogReceiver.schedule(applicationContext)
@@ -285,9 +369,10 @@ class NetworkBlockerVpnService : VpnService() {
                 // builder.establish() returned null — this usually means VPN permission
                 // was revoked between the prepare() check and the actual establish() call
                 // (race with the user dismissing the system prompt, another VPN starting, etc.)
-                sp.edit()
-                    .putBoolean("vpn_permission_lost", true)
-                    .apply()
+                sp.edit().putBoolean("vpn_permission_lost", true).apply()
+                stopVpn(updateStatus = false)
+                writeStatus(STATUS_STARTUP_FAILED, "Android did not establish the VPN interface")
+                stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
             }
 
@@ -297,16 +382,23 @@ class NetworkBlockerVpnService : VpnService() {
 
         } catch (e: Exception) {
             isRunning = false
+            stopVpn(updateStatus = false)
+            writeStatus(STATUS_STARTUP_FAILED, e.message ?: "VPN service failed to start")
+            Log.e("FocusFlowVPN", "VPN startup failed", e)
+            stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
         }
     }
 
-    private fun stopVpn() {
+    private fun stopVpn(updateStatus: Boolean = true) {
         isRunning = false
         try { vpnInterface?.close() } catch (_: Exception) {}
         vpnInterface = null
+        activePackagesJson = null
+        activeMode = null
         // Cancel the AlarmManager watchdog — session is intentionally ending
         VpnWatchdogReceiver.cancel(applicationContext)
+        if (updateStatus) writeStatus(STATUS_STOPPED)
     }
 
     // ─── Notification ─────────────────────────────────────────────────────────

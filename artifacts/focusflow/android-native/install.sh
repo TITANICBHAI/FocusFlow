@@ -145,6 +145,10 @@ patch_permission "android.permission.PACKAGE_USAGE_STATS"        ' tools:ignore=
 patch_permission "android.permission.SYSTEM_ALERT_WINDOW"
 patch_permission "android.permission.FOREGROUND_SERVICE"
 patch_permission "android.permission.FOREGROUND_SERVICE_SPECIAL_USE"
+patch_permission "android.permission.INTERNET"
+patch_permission "android.permission.CHANGE_NETWORK_STATE"
+patch_permission "android.permission.ACCESS_WIFI_STATE"
+patch_permission "android.permission.CHANGE_WIFI_STATE"
 patch_permission "android.permission.RECEIVE_BOOT_COMPLETED"
 patch_permission "android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"
 patch_permission "android.permission.BIND_ACCESSIBILITY_SERVICE"  ' tools:ignore="ProtectedPermissions"'
@@ -183,7 +187,7 @@ fi
 # this as the active VPN tunnel when VpnService.prepare() is called.
 
 if ! grep -q "NetworkBlockerVpnService" "$MANIFEST"; then
-  sedi 's|</application>|        <service\n            android:name="com.tbtechs.focusflow.services.NetworkBlockerVpnService"\n            android:enabled="true"\n            android:exported="false"\n            android:permission="android.permission.BIND_VPN_SERVICE">\n            <intent-filter>\n                <action android:name="android.net.VpnService" />\n            </intent-filter>\n        </service>\n    </application>|' "$MANIFEST"
+  sedi 's|</application>|        <service\n            android:name="com.tbtechs.focusflow.services.NetworkBlockerVpnService"\n            android:enabled="true"\n            android:exported="false"\n            android:foregroundServiceType="specialUse"\n            android:permission="android.permission.BIND_VPN_SERVICE">\n            <property\n                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"\n                android:value="network_blocking" />\n            <intent-filter>\n                <action android:name="android.net.VpnService" />\n            </intent-filter>\n        </service>\n    </application>|' "$MANIFEST"
   echo "   ✓ NetworkBlockerVpnService registered"
 else
   echo "   ✓ NetworkBlockerVpnService already registered"

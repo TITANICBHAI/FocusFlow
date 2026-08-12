@@ -33,7 +33,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { NetworkBlockModule } from '@/native-modules/NetworkBlockModule';
+import { NetworkBlockModule, type NetworkBlockStatus } from '@/native-modules/NetworkBlockModule';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 
 interface Props {
@@ -50,6 +50,7 @@ export function VpnPermissionLostBanner({ vpnBlockEnabled, vpnPackages }: Props)
   const insets = useSafeAreaInsets();
   const [permissionLost, setPermissionLost] = useState(false);
   const [regranting, setRegranting] = useState(false);
+  const [status, setStatus] = useState<NetworkBlockStatus | null>(null);
   const slideAnim = useRef(new Animated.Value(120)).current;
 
   const check = useCallback(async () => {
@@ -59,11 +60,37 @@ export function VpnPermissionLostBanner({ vpnBlockEnabled, vpnPackages }: Props)
     }
     try {
       const granted = await NetworkBlockModule.isVpnPermissionGranted();
-      setPermissionLost(!granted);
+      const nextStatus = await NetworkBlockModule.getNetworkBlockStatus();
+      setStatus(nextStatus);
+      const needsAttention =
+        !granted ||
+        nextStatus.state === 'permission_missing' ||
+        nextStatus.state === 'another_vpn_active' ||
+        nextStatus.state === 'startup_failed' ||
+        nextStatus.state === 'package_registration_failed';
+      setPermissionLost(needsAttention);
+
+      // Re-granting permission is not enough by itself. Once the app becomes
+      // active again, explicitly restart the tunnel with the canonical list.
+      if (granted && nextStatus.state === 'permission_missing' && vpnPackages.length > 0) {
+        try {
+          await NetworkBlockModule.startNetworkBlock(JSON.stringify(vpnPackages));
+          const afterStart = await NetworkBlockModule.getNetworkBlockStatus();
+          setStatus(afterStart);
+          setPermissionLost(
+            afterStart.state === 'startup_failed' ||
+            afterStart.state === 'package_registration_failed' ||
+            afterStart.state === 'another_vpn_active',
+          );
+        } catch {
+          // The next foreground check will expose the persisted native error.
+        }
+      }
     } catch {
-      setPermissionLost(false);
+      setStatus(null);
+      setPermissionLost(true);
     }
-  }, [vpnBlockEnabled]);
+  }, [vpnBlockEnabled, vpnPackages]);
 
   // Check on mount and every time the app returns to the foreground.
   useEffect(() => {
@@ -98,19 +125,7 @@ export function VpnPermissionLostBanner({ vpnBlockEnabled, vpnPackages }: Props)
     // Give the system dialog time to be fully dismissed before re-checking.
     await new Promise<void>((resolve) => setTimeout(resolve, 800));
     setRegranting(false);
-    try {
-      const granted = await NetworkBlockModule.isVpnPermissionGranted();
-      if (granted) {
-        // Permission has been re-granted — restart the VPN tunnel immediately
-        // so blocking resumes without the user needing to go to Settings and save.
-        if (vpnPackages.length > 0) {
-          await NetworkBlockModule.startNetworkBlock(JSON.stringify(vpnPackages));
-        }
-        setPermissionLost(false);
-      }
-    } catch {
-      // check() via AppState listener will handle this on foreground.
-    }
+    await check();
   };
 
   if (!vpnBlockEnabled) return null;
@@ -128,9 +143,23 @@ export function VpnPermissionLostBanner({ vpnBlockEnabled, vpnPackages }: Props)
           <Ionicons name="shield-half-outline" size={20} color="#ff6b35" />
         </View>
         <View style={styles.textWrap}>
-          <Text style={styles.title}>VPN permission lost</Text>
+          <Text style={styles.title}>
+            {status?.state === 'another_vpn_active'
+              ? 'Another VPN is active'
+              : status?.state === 'package_registration_failed'
+                ? 'VPN app list needs attention'
+                : status?.state === 'startup_failed'
+                  ? 'VPN failed to start'
+                  : 'VPN permission required'}
+          </Text>
           <Text style={styles.body}>
-            Network blocking is on but the VPN tunnel isn't running. Tap to re-grant access.
+            {status?.state === 'another_vpn_active'
+              ? 'Android allows one VPN at a time. Stop the other VPN, then retry.'
+              : status?.state === 'package_registration_failed'
+                ? `${status.failedPackages.length} selected app${status.failedPackages.length === 1 ? '' : 's'} could not be registered.`
+                : status?.state === 'startup_failed'
+                  ? 'Android rejected the VPN startup. Tap to retry after checking the app permissions.'
+                  : 'Network blocking is enabled, but Android needs VPN consent again.'}
           </Text>
         </View>
         <TouchableOpacity
@@ -140,7 +169,7 @@ export function VpnPermissionLostBanner({ vpnBlockEnabled, vpnPackages }: Props)
           activeOpacity={0.8}
         >
           <Ionicons name="refresh" size={14} color="#fff" />
-          <Text style={styles.regrantText}>{regranting ? '…' : 'Re-grant'}</Text>
+          <Text style={styles.regrantText}>{regranting ? '…' : 'Retry'}</Text>
         </TouchableOpacity>
       </View>
     </Animated.View>
