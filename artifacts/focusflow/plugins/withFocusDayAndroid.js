@@ -13,9 +13,12 @@
  *   9. Declares TaskAlarmActivity (full-screen alarm, showWhenLocked + turnScreenOn)
  *  10. Declares LauncherActivity with HOME + DEFAULT intent-filter
  *  11. Declares NetworkBlockerVpnService with BIND_VPN_SERVICE permission
- *  12. Adds <queries> block for Android 11+ package visibility
- *  13. Registers FocusDayPackage via withMainApplication (reliable for RN 0.76+)
- *  14. Copies all Kotlin source files from android-native/ into the project
+ *  12. Declares VpnWatchdogReceiver for VPN self-healing
+ *  13. Declares BlockOverlayActivity for full-screen app blocking
+ *  14. Declares TemptationReportReceiver for weekly reports
+ *  15. Adds <queries> block for Android 11+ package visibility
+ *  16. Registers FocusDayPackage via withMainApplication (reliable for RN 0.76+)
+ *  17. Copies all Kotlin source files from android-native/ into the project
  *
  * Applied automatically during `npx expo prebuild --platform android`.
  * No manual XML or Kotlin editing required.
@@ -141,6 +144,14 @@ function withFocusDayManifest(config) {
       // that null-routes packets from blocked apps. Android enforces this separately from
       // FOREGROUND_SERVICE; the service declaration also needs android:permission set.
       'android.permission.BIND_VPN_SERVICE',
+      // Used by NetworkBlockModule's supplementary Wi-Fi/mobile network controls.
+      // The VPN remains the primary network-blocking mechanism on modern Android.
+      'android.permission.CHANGE_WIFI_STATE',
+      'android.permission.ACCESS_WIFI_STATE',
+      'android.permission.CHANGE_NETWORK_STATE',
+      // The local VPN does not forward traffic to an external server, but the
+      // Android network stack still requires the app's normal network permission.
+      'android.permission.INTERNET',
     ];
 
     const existing = (manifest.manifest['uses-permission'] || []).map(
@@ -375,6 +386,46 @@ function withFocusDayManifest(config) {
       });
     }
 
+    // ── BlockOverlayActivity ───────────────────────────────────────────────────
+    // Full-screen fallback overlay used when the preferred WindowManager overlay
+    // path is unavailable. It is launched by an explicit PendingIntent and must
+    // remain private to the app.
+    const blockOverlayExists = (app.activity || []).some(
+      (a) => a.$['android:name'] === 'com.tbtechs.focusflow.services.BlockOverlayActivity'
+    );
+    if (!blockOverlayExists) {
+      if (!app.activity) app.activity = [];
+      app.activity.push({
+        $: {
+          'android:name':               'com.tbtechs.focusflow.services.BlockOverlayActivity',
+          'android:excludeFromRecents': 'true',
+          'android:showWhenLocked':     'true',
+          'android:turnScreenOn':       'true',
+          'android:noHistory':          'false',
+          'android:launchMode':         'singleTask',
+          'android:theme':              '@android:style/Theme.NoTitleBar.Fullscreen',
+          'android:exported':            'false',
+        },
+      });
+    }
+
+    // ── TemptationReportReceiver ───────────────────────────────────────────────
+    // Explicit AlarmManager receiver for the weekly temptation report. It has no
+    // intent-filter because the app's PendingIntent targets this class directly.
+    const temptationReportExists = (app.receiver || []).some(
+      (r) => r.$['android:name'] === 'com.tbtechs.focusflow.services.TemptationReportReceiver'
+    );
+    if (!temptationReportExists) {
+      if (!app.receiver) app.receiver = [];
+      app.receiver.push({
+        $: {
+          'android:name':     'com.tbtechs.focusflow.services.TemptationReportReceiver',
+          'android:enabled':  'true',
+          'android:exported': 'false',
+        },
+      });
+    }
+
     // ── TaskAlarmActivity ─────────────────────────────────────────────────────
     // Full-screen alarm activity shown when a task timer ends. Must be able to
     // render over the lock screen (showWhenLocked + turnScreenOn).  noHistory
@@ -446,6 +497,24 @@ function withFocusDayManifest(config) {
         'intent-filter': [{
           action: [{ $: { 'android:name': 'android.net.VpnService' } }],
         }],
+      });
+    }
+
+    // ── VpnWatchdogReceiver ────────────────────────────────────────────────────
+    // AlarmManager-based recovery receiver for VPN process death on aggressive
+    // OEMs. It is explicitly targeted by the app's own PendingIntent, so it does
+    // not need an intent-filter and must remain non-exported.
+    const vpnWatchdogExists = (app.receiver || []).some(
+      (r) => r.$['android:name'] === 'com.tbtechs.focusflow.services.VpnWatchdogReceiver'
+    );
+    if (!vpnWatchdogExists) {
+      if (!app.receiver) app.receiver = [];
+      app.receiver.push({
+        $: {
+          'android:name':     'com.tbtechs.focusflow.services.VpnWatchdogReceiver',
+          'android:enabled':  'true',
+          'android:exported': 'false',
+        },
       });
     }
 
