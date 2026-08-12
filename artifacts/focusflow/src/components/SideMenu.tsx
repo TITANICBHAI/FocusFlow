@@ -327,6 +327,7 @@ export function SideMenu({ visible, onOpen, onClose, tabBarHeight }: SideMenuPro
         blockUntil={settings.standaloneBlockUntil}
         locked={standaloneActive}
         dailyAllowanceEntries={settings.dailyAllowanceEntries ?? []}
+        vpnPackages={settings.standaloneVpnPackages ?? []}
         blockPresets={settings.blockPresets ?? []}
         onSave={handleSaveStandaloneBlock}
         onSavePreset={async (preset) => {

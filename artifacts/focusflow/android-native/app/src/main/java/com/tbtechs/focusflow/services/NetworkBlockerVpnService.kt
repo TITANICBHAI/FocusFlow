@@ -207,7 +207,8 @@ class NetworkBlockerVpnService : VpnService() {
         // This flag is read by NetworkBlockModule.isVpnPermissionGranted() and
         // used to surface the re-grant prompt in the UI. The flag is cleared
         // by startVpn() if a subsequent restart succeeds.
-        if (focusOn || saOn || alwaysOn) {
+        val vpnConfigured = VpnRecoveryNotifier.hasConfiguredVpnProtection(this)
+        if (vpnConfigured) {
             prefs.edit()
                 .putBoolean("vpn_permission_lost", true)
                 .apply()
@@ -215,7 +216,7 @@ class NetworkBlockerVpnService : VpnService() {
             VpnRecoveryNotifier.postPermissionRequired(this)
         }
 
-        if (selfHeal && (focusOn || saOn || alwaysOn)) {
+        if (selfHeal && vpnConfigured && (focusOn || saOn || alwaysOn)) {
             val ctx  = applicationContext
             val pkgs = prefs.getString("net_block_packages", "[]") ?: "[]"
             val mode = prefs.getString("net_block_mode", MODE_PER_APP) ?: MODE_PER_APP

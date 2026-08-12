@@ -1654,9 +1654,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ...(newSettings.alwaysOnVpnPackages ?? []),
       ...(newSettings.standaloneVpnPackages ?? []),
     ]));
-    if ((newSettings.vpnBlockEnabled ?? false) && active && vpnPkgs.length > 0) {
+    if ((newSettings.vpnBlockEnabled ?? false) && vpnPkgs.length > 0) {
       void NetworkBlockModule.startNetworkBlock(JSON.stringify(vpnPkgs)).catch((e) =>
         void logger.warn('AppContext', `standalone VPN start failed: ${String(e)}`),
+      );
+    } else if (!(newSettings.vpnBlockEnabled ?? false) || vpnPkgs.length === 0) {
+      void NetworkBlockModule.stopNetworkBlock(pinHash).catch((e) =>
+        void logger.warn('AppContext', `standalone VPN stop failed: ${String(e)}`),
       );
     }
     // Sync always-on enforcement using the dedicated alwaysOnPackages list
@@ -1759,9 +1763,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ...(newSettings.alwaysOnVpnPackages ?? []),
       ...(newSettings.standaloneVpnPackages ?? []),
     ]));
-    if ((newSettings.vpnBlockEnabled ?? false) && active && mergedVpnPkgs.length > 0) {
+    if ((newSettings.vpnBlockEnabled ?? false) && mergedVpnPkgs.length > 0) {
       void NetworkBlockModule.startNetworkBlock(JSON.stringify(mergedVpnPkgs)).catch((e) =>
         void logger.warn('AppContext', `standalone VPN start failed: ${String(e)}`),
+      );
+    } else if (!(newSettings.vpnBlockEnabled ?? false) || mergedVpnPkgs.length === 0) {
+      void NetworkBlockModule.stopNetworkBlock(pinHash).catch((e) =>
+        void logger.warn('AppContext', `standalone VPN stop failed: ${String(e)}`),
       );
     }
     // Sync always-on enforcement using the dedicated alwaysOnPackages list

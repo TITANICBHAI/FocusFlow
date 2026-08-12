@@ -127,8 +127,9 @@ class VpnWatchdogReceiver : BroadcastReceiver() {
             }
         }
         val alwaysOn = prefs.getBoolean("always_block_active", false)
+        val vpnConfigured = VpnRecoveryNotifier.hasConfiguredVpnProtection(context)
 
-        if (!focusActive && !saActive && !alwaysOn) {
+        if (!focusActive && !saActive && !alwaysOn && !vpnConfigured) {
             // Session has ended — cancel the alarm so it stops firing
             cancel(context)
             return

@@ -57,6 +57,7 @@ export default function AlwaysOnScreen() {
 
   // Track the original selection at mount time to detect removals
   const originalPkgsRef = useRef<Set<string>>(new Set(settings.alwaysOnPackages ?? []));
+  const originalVpnPkgsRef = useRef<Set<string>>(new Set(settings.alwaysOnVpnPackages ?? []));
 
   useEffect(() => {
     InstalledAppsModule.getInstalledApps()
@@ -80,12 +81,6 @@ export default function AlwaysOnScreen() {
       const next = new Set(prev);
       if (next.has(pkg)) {
         next.delete(pkg);
-        // Also remove VPN if block is removed
-        setVpnSelected((v) => {
-          const vn = new Set(v);
-          vn.delete(pkg);
-          return vn;
-        });
       } else {
         next.add(pkg);
       }
@@ -137,7 +132,10 @@ export default function AlwaysOnScreen() {
   const handleSave = async () => {
     // Detect if any originally-present packages are being removed
     const originalPkgs = originalPkgsRef.current;
-    const isRemoving = [...originalPkgs].some((pkg) => !selected.has(pkg));
+    const originalVpnPkgs = originalVpnPkgsRef.current;
+    const isRemoving =
+      [...originalPkgs].some((pkg) => !selected.has(pkg)) ||
+      [...originalVpnPkgs].some((pkg) => !vpnSelected.has(pkg));
 
     if (isRemoving) {
       try {
@@ -218,32 +216,30 @@ export default function AlwaysOnScreen() {
           </View>
         </TouchableOpacity>
 
-        {/* VPN toggle — shown for selected apps */}
-        {checked && (
-          <TouchableOpacity
-            style={[
-              styles.vpnRow,
-              { backgroundColor: theme.surface, borderBottomColor: theme.border },
-              vpnOn && styles.vpnRowActive,
-            ]}
-            onPress={() => toggleVpn(item.packageName)}
-            activeOpacity={0.7}
-          >
-            <Ionicons
-              name={vpnOn ? 'shield-checkmark-outline' : 'shield-outline'}
-              size={13}
-              color={vpnOn ? COLORS.primary : COLORS.muted}
-            />
-            <Text style={[styles.vpnText, vpnOn && styles.vpnTextActive]}>
-              {vpnOn ? 'Network block (VPN): on' : 'Add network block (VPN)'}
-            </Text>
-            {vpnOn && (
-              <View style={styles.vpnBadge}>
-                <Text style={styles.vpnBadgeText}>ON</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        )}
+        {/* VPN toggle — independent of the overlay selection */}
+        <TouchableOpacity
+          style={[
+            styles.vpnRow,
+            { backgroundColor: theme.surface, borderBottomColor: theme.border },
+            vpnOn && styles.vpnRowActive,
+          ]}
+          onPress={() => toggleVpn(item.packageName)}
+          activeOpacity={0.7}
+        >
+          <Ionicons
+            name={vpnOn ? 'shield-checkmark-outline' : 'shield-outline'}
+            size={13}
+            color={vpnOn ? COLORS.primary : COLORS.muted}
+          />
+          <Text style={[styles.vpnText, vpnOn && styles.vpnTextActive]}>
+            {vpnOn ? 'Network block (VPN): on' : 'Add network block (VPN)'}
+          </Text>
+          {vpnOn && (
+            <View style={styles.vpnBadge}>
+              <Text style={styles.vpnBadgeText}>ON</Text>
+            </View>
+          )}
+        </TouchableOpacity>
       </View>
     );
   };
