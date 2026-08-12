@@ -301,9 +301,9 @@ function OnboardingGuard() {
       return;
     }
     if (!state.settings.onboardingComplete) {
-      // Allow both the permissions screen and the profile setup screen;
-      // everything else redirects to the start of the onboarding flow.
-      if (pathname !== '/onboarding' && pathname !== '/user-profile') {
+      // Keep the first-run path inside the permissions wizard. Personalization
+      // is available later from Settings and is not part of onboarding.
+      if (pathname !== '/onboarding') {
         router.replace('/onboarding');
       }
     }

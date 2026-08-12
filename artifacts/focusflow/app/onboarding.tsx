@@ -3,7 +3,8 @@
  *
  * Shown on first launch as a full-screen modal over the tabs.
  * Rich expandable permission cards matching the detail level of
- * the manage-permissions screen.
+ * the manage-permissions screen. Core access and optional setup are
+ * shown as separate steps; personalization happens later from Settings.
  *
  * - Auto-checks all permission statuses on mount and on every app-resume.
  * - Button is always enabled; if permissions are missing a tip points the
@@ -42,22 +43,25 @@ import { RestrictedSettingsBanner } from '@/components/RestrictedSettingsBanner'
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 
 type PermStatus = 'granted' | 'denied' | 'unknown';
+type OnboardingStep = 'core' | 'optional';
 
 interface PermItem {
   id: string;
   icon: keyof typeof Ionicons.glyphMap;
+  section: OnboardingStep;
+  requiredToContinue?: boolean;
   title: string;
   description: string;
   whyNeeded: string;
   brokenWithout: string[];
   deepLinkLabel: string;
   grantAction: 'auto' | 'manual';
-  optional?: boolean;
 }
 
 const PERMISSIONS: PermItem[] = [
   {
     id: 'media',
+    section: 'optional',
     icon: 'images-outline',
     title: 'Media & Files',
     description: 'Access your photo library to set a custom wallpaper on the block screen.',
@@ -72,6 +76,8 @@ const PERMISSIONS: PermItem[] = [
   },
   {
     id: 'notifications',
+    section: 'core',
+    requiredToContinue: true,
     icon: 'notifications-outline',
     title: 'Notifications',
     description: 'Task reminders and live focus session alerts.',
@@ -87,6 +93,7 @@ const PERMISSIONS: PermItem[] = [
   },
   {
     id: 'battery',
+    section: 'core',
     icon: 'battery-charging-outline',
     title: 'Battery Optimization',
     description: 'Keeps FocusFlow alive in the background on all OEM ROMs.',
@@ -102,6 +109,7 @@ const PERMISSIONS: PermItem[] = [
   },
   {
     id: 'overlay',
+    section: 'core',
     icon: 'layers-outline',
     title: 'Appear on Top',
     description: 'Draws the block screen directly over blocked apps.',
@@ -116,6 +124,8 @@ const PERMISSIONS: PermItem[] = [
   },
   {
     id: 'usage',
+    section: 'core',
+    requiredToContinue: true,
     icon: 'analytics-outline',
     title: 'Usage Access',
     description: 'Lets FocusFlow see which app is in the foreground.',
@@ -131,6 +141,8 @@ const PERMISSIONS: PermItem[] = [
   },
   {
     id: 'accessibility',
+    section: 'core',
+    requiredToContinue: true,
     icon: 'eye-outline',
     title: 'Accessibility Service',
     description: 'Redirects you away from blocked apps the instant you open them.',
@@ -146,6 +158,7 @@ const PERMISSIONS: PermItem[] = [
   },
   {
     id: 'vpn',
+    section: 'optional',
     icon: 'shield-half-outline',
     title: 'VPN Permission',
     description: 'Required to cut the network connection of blocked apps when Network Blocking is enabled.',
@@ -157,10 +170,10 @@ const PERMISSIONS: PermItem[] = [
     ],
     deepLinkLabel: 'Allow VPN',
     grantAction: 'auto',
-    optional: true,
   },
   {
     id: 'device_admin',
+    section: 'optional',
     icon: 'shield-outline',
     title: 'Device Admin',
     description: 'Prevents Samsung, Xiaomi, and other OEM phones from force-stopping FocusFlow via the recent-apps menu.',
@@ -172,7 +185,6 @@ const PERMISSIONS: PermItem[] = [
     ],
     deepLinkLabel: 'Activate Device Admin',
     grantAction: 'manual',
-    optional: true,
   },
 ];
 
@@ -222,6 +234,7 @@ async function checkStatus(id: string): Promise<PermStatus> {
 export default function OnboardingScreen() {
   const { state, updateSettings } = useApp();
   const { theme } = useTheme();
+  const [step, setStep] = useState<OnboardingStep>('core');
   const [statuses, setStatuses] = useState<Record<string, PermStatus>>({});
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -307,17 +320,23 @@ export default function OnboardingScreen() {
     }
   };
 
-  const requiredPerms = PERMISSIONS.filter((p) => !p.optional);
-  const optionalPerms = PERMISSIONS.filter((p) => p.optional);
+  const corePerms = PERMISSIONS.filter((p) => p.section === 'core');
+  const optionalPerms = PERMISSIONS.filter((p) => p.section === 'optional');
+  const requiredPerms = corePerms.filter((p) => p.requiredToContinue);
   const grantedCount = requiredPerms.filter((p) => statuses[p.id] === 'granted').length;
-  const allGranted = grantedCount === requiredPerms.length;
+  const allRequiredReady = grantedCount === requiredPerms.length;
 
   const handleFinish = async () => {
-    // Don't mark onboardingComplete here — user-profile.tsx does that
-    // so we know the user has seen (or skipped) the profile setup step.
     try {
-      await updateSettings({ ...state.settings, pinProtectionEnabled: pinProtectionChoice });
-    } catch { /* non-blocking — preference is saved on best-effort */ }
+      await updateSettings({
+        ...state.settings,
+        onboardingComplete: true,
+        pinProtectionEnabled: pinProtectionChoice,
+      });
+    } catch {
+      Alert.alert('Could not finish setup', 'Please try again.');
+      return;
+    }
     // Write background service consent flag so BootReceiver knows the user
     // has completed onboarding and explicitly authorised background operation.
     // Huawei AppGallery rule 2.19: foreground services must not start without
@@ -325,7 +344,10 @@ export default function OnboardingScreen() {
     try {
       await SharedPrefsModule.putString('user_consented_background_service', 'true');
     } catch { /* non-fatal */ }
-    router.replace('/user-profile');
+    try {
+      await SharedPrefsModule.putString('onboarding_complete', 'true');
+    } catch { /* non-fatal */ }
+    router.replace('/how-to-use?onboarding=1');
   };
 
   return (
@@ -338,9 +360,18 @@ export default function OnboardingScreen() {
             <Ionicons name="shield-checkmark" size={38} color="#fff" />
           </View>
           <Text style={[styles.appName, { color: theme.text }]}>FocusFlow</Text>
-          <Text style={[styles.tagline, { color: theme.muted }]}>Your discipline operating system</Text>
+          <Text style={[styles.stepTitle, { color: theme.text }]}>
+            {step === 'core' ? 'Set up core access' : 'Optional protection'}
+          </Text>
+          <Text style={[styles.tagline, { color: theme.muted }]}>
+            {step === 'core'
+              ? 'These permissions help FocusFlow block reliably.'
+              : 'Add extra protection now or come back later.'}
+          </Text>
         </View>
 
+        {step === 'core' && (
+          <>
         {/* Restricted-settings unlock banner — shown above everything else
             on the first-run flow when the OS is currently locking the
             Accessibility toggle. Auto-hides the moment the user completes
@@ -367,8 +398,8 @@ export default function OnboardingScreen() {
         {/* Progress bar */}
         <View style={styles.progressSection}>
           <View style={styles.progressLabelRow}>
-            <Text style={[styles.progressLabel, { color: theme.muted }]}>Permissions granted</Text>
-            <Text style={[styles.progressCount, allGranted && styles.progressCountDone]}>
+            <Text style={[styles.progressLabel, { color: theme.muted }]}>Required access ready</Text>
+            <Text style={[styles.progressCount, allRequiredReady && styles.progressCountDone]}>
               {grantedCount} / {requiredPerms.length}
             </Text>
           </View>
@@ -378,23 +409,23 @@ export default function OnboardingScreen() {
                 styles.progressFill,
                 {
                   width: `${(grantedCount / requiredPerms.length) * 100}%` as any,
-                  backgroundColor: allGranted ? COLORS.green : COLORS.primary,
+                  backgroundColor: allRequiredReady ? COLORS.green : COLORS.primary,
                 },
               ]}
             />
           </View>
-          {allGranted && (
+          {allRequiredReady && (
             <Text style={styles.allSetText}>
-              All permissions granted — blocking is fully active.
+              Core blocking access is ready.
             </Text>
           )}
         </View>
 
         {/* Section label */}
-        <Text style={[styles.sectionLabel, { color: theme.muted }]}>REQUIRED — TAP A CARD TO SEE DETAILS</Text>
+        <Text style={[styles.sectionLabel, { color: theme.muted }]}>CORE ACCESS — TAP A CARD TO SEE DETAILS</Text>
 
-        {/* Required permission cards */}
-        {requiredPerms.map((perm) => {
+        {/* Core permission cards */}
+        {corePerms.map((perm) => {
           const status = statuses[perm.id] ?? 'unknown';
           const isExpanded = expandedId === perm.id;
           const isLoading = actionLoading === perm.id;
@@ -409,14 +440,14 @@ export default function OnboardingScreen() {
                 onPress={() => setExpandedId(isExpanded ? null : perm.id)}
                 activeOpacity={0.75}
               >
-                <View style={[styles.iconWrap, { backgroundColor: statusColor(status) + '22' }]}>
-                  <Ionicons name={perm.icon} size={22} color={statusColor(status)} />
+                <View style={[styles.iconWrap, { backgroundColor: statusColor(status, perm.requiredToContinue) + '22' }]}>
+                  <Ionicons name={perm.icon} size={22} color={statusColor(status, perm.requiredToContinue)} />
                 </View>
 
                 <View style={styles.cardBody}>
                   <View style={styles.cardTitleRow}>
                     <Text style={[styles.cardTitle, { color: theme.text }]}>{perm.title}</Text>
-                    <StatusBadge status={status} />
+                    <StatusBadge status={status} requiredToContinue={perm.requiredToContinue} />
                   </View>
                   <Text style={[styles.cardDesc, { color: theme.muted }]} numberOfLines={isExpanded ? undefined : 2}>
                     {perm.description}
@@ -474,10 +505,34 @@ export default function OnboardingScreen() {
           );
         })}
 
+        {/* Missing required permissions tip */}
+        {!allRequiredReady && (
+          <View style={styles.manageTip}>
+            <Ionicons name="information-circle-outline" size={18} color={COLORS.primary} />
+            <Text style={[styles.manageTipText, { color: theme.textSecondary }]}>
+              Usage Access, Accessibility Service, and Notifications can be fixed anytime in{' '}
+              <Text style={styles.manageTipHighlight}>Settings → Permissions</Text>.
+            </Text>
+          </View>
+        )}
+          </>
+        )}
+
+        {step === 'optional' && (
+          <>
+        <TouchableOpacity
+          style={styles.backToCore}
+          onPress={() => setStep('core')}
+          activeOpacity={0.75}
+        >
+          <Ionicons name="chevron-back" size={16} color={COLORS.primary} />
+          <Text style={styles.backToCoreText}>Back to core setup</Text>
+        </TouchableOpacity>
+
         {/* Optional permission cards */}
-        <Text style={[styles.sectionLabel, { color: theme.muted, marginTop: SPACING.sm }]}>OPTIONAL ENHANCEMENTS</Text>
+        <Text style={[styles.sectionLabel, { color: theme.muted }]}>OPTIONAL SETUP</Text>
         <Text style={[styles.optionalHint, { color: theme.muted }]}>
-          These are not required to use FocusFlow, but unlock additional features.
+          These features are not required to use FocusFlow and can be configured later.
         </Text>
         {optionalPerms.map((perm) => {
           const status = statuses[perm.id] ?? 'unknown';
@@ -494,8 +549,8 @@ export default function OnboardingScreen() {
                 onPress={() => setExpandedId(isExpanded ? null : perm.id)}
                 activeOpacity={0.75}
               >
-                <View style={[styles.iconWrap, { backgroundColor: statusColor(status) + '22' }]}>
-                  <Ionicons name={perm.icon} size={22} color={statusColor(status)} />
+                <View style={[styles.iconWrap, { backgroundColor: statusColor(status, perm.requiredToContinue) + '22' }]}>
+                  <Ionicons name={perm.icon} size={22} color={statusColor(status, perm.requiredToContinue)} />
                 </View>
 
                 <View style={styles.cardBody}>
@@ -504,7 +559,7 @@ export default function OnboardingScreen() {
                     <View style={[badge.wrap, { backgroundColor: COLORS.primary + '18', borderColor: COLORS.primary + '33', marginRight: 4 }]}>
                       <Text style={[badge.text, { color: COLORS.primary }]}>Optional</Text>
                     </View>
-                    <StatusBadge status={status} />
+                    <StatusBadge status={status} requiredToContinue={perm.requiredToContinue} />
                   </View>
                   <Text style={[styles.cardDesc, { color: theme.muted }]} numberOfLines={isExpanded ? undefined : 2}>
                     {perm.description}
@@ -556,18 +611,6 @@ export default function OnboardingScreen() {
             </View>
           );
         })}
-
-        {/* Missing perms tip — points to manage perms instead of blocking */}
-        {!allGranted && (
-          <View style={styles.manageTip}>
-            <Ionicons name="information-circle-outline" size={18} color={COLORS.primary} />
-            <Text style={[styles.manageTipText, { color: theme.textSecondary }]}>
-              Missing permissions can be fixed anytime in{' '}
-              <Text style={styles.manageTipHighlight}>Settings → Permissions</Text>
-              {' '}where you'll also find troubleshooting help.
-            </Text>
-          </View>
-        )}
 
         {/* ── PIN Protection preference ─────────────────────────────────── */}
         <Text style={[styles.sectionLabel, { color: theme.muted, marginTop: SPACING.sm }]}>
@@ -630,18 +673,32 @@ export default function OnboardingScreen() {
             </View>
           )}
         </View>
+          </>
+        )}
 
-        {/* Enter button — always enabled */}
+        {/* Continue buttons — only the three required core permissions count
+            toward readiness; the button remains available so users can return
+            to Settings later if Android setup is interrupted. */}
         <TouchableOpacity
-          style={[styles.enterBtn, allGranted && styles.enterBtnReady]}
-          onPress={handleFinish}
+          style={[styles.enterBtn, step === 'core' && allRequiredReady && styles.enterBtnReady]}
+          onPress={() => {
+            if (step === 'core') {
+              setStep('optional');
+            } else {
+              void handleFinish();
+            }
+          }}
           activeOpacity={0.85}
         >
-          <Text style={styles.enterBtnText}>Continue →</Text>
+          <Text style={styles.enterBtnText}>
+            {step === 'core' ? 'Continue to optional setup →' : 'Got it — let’s start'}
+          </Text>
         </TouchableOpacity>
 
         <Text style={[styles.footerNote, { color: theme.muted }]}>
-          All permissions can be managed in Settings at any time.
+          {step === 'core'
+            ? 'You can manage permissions in Settings at any time.'
+            : 'Optional features can be enabled later from Settings.'}
         </Text>
       </ScrollView>
 
@@ -658,16 +715,24 @@ export default function OnboardingScreen() {
   );
 }
 
-function statusColor(status: PermStatus): string {
+function statusColor(status: PermStatus, requiredToContinue = false): string {
   if (status === 'granted') return COLORS.green;
-  if (status === 'denied') return COLORS.red;
+  if (status === 'denied') return requiredToContinue ? COLORS.red : COLORS.orange;
   return COLORS.muted;
 }
 
-function StatusBadge({ status }: { status: PermStatus }) {
+function StatusBadge({
+  status,
+  requiredToContinue = false,
+}: {
+  status: PermStatus;
+  requiredToContinue?: boolean;
+}) {
   const label =
-    status === 'granted' ? 'Granted' : status === 'denied' ? 'Missing' : 'Checking…';
-  const color = statusColor(status);
+    status === 'granted' ? 'Ready' : status === 'denied'
+      ? requiredToContinue ? 'Missing' : 'Not set up'
+      : 'Checking…';
+  const color = statusColor(status, requiredToContinue);
   return (
     <View style={[badge.wrap, { backgroundColor: color + '22', borderColor: color + '44' }]}>
       <Text style={[badge.text, { color }]}>{label}</Text>
@@ -709,6 +774,12 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: COLORS.text,
     letterSpacing: -1,
+  },
+  stepTitle: {
+    fontSize: FONT.lg,
+    fontWeight: '800',
+    color: COLORS.text,
+    textAlign: 'center',
   },
   tagline: { fontSize: FONT.sm, color: COLORS.muted, textAlign: 'center' },
 
@@ -781,6 +852,18 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginTop: -SPACING.xs,
     marginBottom: SPACING.xs,
+  },
+  backToCore: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 2,
+    paddingVertical: SPACING.xs,
+  },
+  backToCoreText: {
+    fontSize: FONT.sm,
+    fontWeight: '700',
+    color: COLORS.primary,
   },
 
   // Cards

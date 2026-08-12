@@ -1,1 +1,2 @@
 - [Android usage launch counts](usage-stats-launch-count.md) — derive app-entry counts from UsageEvents, not UsageStats.appLaunchCount, for this Android build.
+- [Onboarding permission tiers](onboarding-permission-tiers.md) — keep first-run focused: three permissions gate readiness, while recommended access and personalization stay non-blocking.
