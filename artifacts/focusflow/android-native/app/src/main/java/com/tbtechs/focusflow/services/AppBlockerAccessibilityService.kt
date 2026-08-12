@@ -3101,10 +3101,6 @@ class AppBlockerAccessibilityService : AccessibilityService() {
      * keyword like "gaming" will match "gaming.com" or "best+gaming+laptops".
      */
     private fun handleTextChanged(event: AccessibilityEvent) {
-        val focusActive = prefs.getBoolean(PREF_FOCUS_ON, false)
-        val saActive    = prefs.getBoolean(PREF_SA_ACTIVE, false)
-        if (!focusActive && !saActive) return
-
         val words = getBlockedWords()
         if (words.isEmpty()) return
 
@@ -3138,9 +3134,6 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         val captured = text
         val capturedPkg = pkg
         val runnable = Runnable {
-            val stillFocusActive = prefs.getBoolean(PREF_FOCUS_ON, false)
-            val stillSaActive    = prefs.getBoolean(PREF_SA_ACTIVE, false)
-            if (!stillFocusActive && !stillSaActive) return@Runnable
             val currentWords = getBlockedWords()
             if (currentWords.isEmpty()) return@Runnable
             if (containsBlockedWordSubstring(captured, currentWords)) {
@@ -3160,10 +3153,6 @@ class AppBlockerAccessibilityService : AccessibilityService() {
      * at most once every [CONTENT_SCAN_THROTTLE_MS] ms per package.
      */
     private fun handleContentChanged(event: AccessibilityEvent) {
-        val focusActive = prefs.getBoolean(PREF_FOCUS_ON, false)
-        val saActive    = prefs.getBoolean(PREF_SA_ACTIVE, false)
-        if (!focusActive && !saActive) return
-
         val pkg = event.packageName?.toString() ?: return
         if (pkg == packageName) return
 

@@ -188,7 +188,7 @@ export default function KeywordBlockerScreen() {
             <Text style={[styles.introTitle, { color: theme.text }]}>Block by keyword</Text>
             <Text style={[styles.introDesc, { color: theme.muted }]}>
               The moment any of your blocked words appear on screen — in URLs, search bars, or visible text —
-              the app is sent home. Active during Focus Mode and whenever the always-on list is enforcing.
+              the app is sent home whenever the Accessibility Service is enabled — no app list, VPN, or session required.
             </Text>
           </View>
         </View>

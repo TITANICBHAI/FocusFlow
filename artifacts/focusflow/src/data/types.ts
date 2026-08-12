@@ -198,8 +198,8 @@ export interface AppSettings {
   //   time_budget: allowed N total minutes per day (resets midnight)
   //   interval:    allowed N minutes every X hours (rolling window)
   dailyAllowanceEntries: DailyAllowanceEntry[];
-  // Word blocking: if any of these words appear on screen during an active blocking session
-  // (task focus or standalone block), the user is immediately redirected to home.
+  // Word blocking: if any of these words appear on screen, the user is
+  // redirected home. This is independent of app lists and timed sessions.
   blockedWords: string[];
   // Aversion deterrents — each applied the instant a blocked app is detected
   aversionDimmerEnabled: boolean;   // near-black WindowManager overlay (dark screen)

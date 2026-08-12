@@ -295,9 +295,9 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
 
     /**
      * Writes the list of blocked words to SharedPreferences.
-     * During any active blocking session (task focus or standalone block),
-     * if any of these words appear in the window content on screen,
-     * AppBlockerAccessibilityService redirects the user to home.
+     * Whenever any of these words appear in window content on screen,
+     * AppBlockerAccessibilityService redirects the user to home. Keyword
+     * blocking is independent of app lists, VPN state, and timed sessions.
      *
      * Pass an empty array to disable word blocking entirely.
      *
