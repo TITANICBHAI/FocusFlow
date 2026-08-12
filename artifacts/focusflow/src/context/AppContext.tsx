@@ -1555,6 +1555,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         _syncDailyAllowance(settings),
         _syncAlwaysBlock(settings),
         _syncAversions(settings),
+        _syncBlockedWords(settings),
         GreyoutModule.setSchedule(_recurringSchedulesToGreyoutWindows(settings)).catch((e) =>
           void logger.warn('AppContext', `greyout sync failed: ${String(e)}`),
         ),
