@@ -89,7 +89,7 @@ const QUICK_PRESETS: QuickPreset[] = [
 export default function KeywordBlockerScreen() {
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
-  const { state, updateSettings } = useApp();
+  const { state, setBlockedWords } = useApp();
   const { settings } = state;
 
   const [modalVisible, setModalVisible] = useState(false);
@@ -106,7 +106,7 @@ export default function KeywordBlockerScreen() {
   })();
 
   const handleSaveWords = async (words: string[]) => {
-    await updateSettings({ ...settings, blockedWords: words });
+    await setBlockedWords(words);
   };
 
   const handleAddPreset = (preset: QuickPreset) => {
@@ -125,7 +125,7 @@ export default function KeywordBlockerScreen() {
           text: 'Add',
           onPress: () => {
             const merged = [...blockedWords, ...additions];
-            void updateSettings({ ...settings, blockedWords: merged });
+            void setBlockedWords(merged);
           },
         },
       ],
@@ -160,7 +160,7 @@ export default function KeywordBlockerScreen() {
           {
             text: 'Clear',
             style: 'destructive',
-            onPress: () => { void updateSettings({ ...settings, blockedWords: [] }); },
+            onPress: () => { void setBlockedWords([]); },
           },
         ],
       );
