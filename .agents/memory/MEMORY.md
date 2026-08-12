@@ -1,0 +1,1 @@
+- [Android usage launch counts](usage-stats-launch-count.md) — derive app-entry counts from UsageEvents, not UsageStats.appLaunchCount, for this Android build.

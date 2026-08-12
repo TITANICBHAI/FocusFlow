@@ -2,6 +2,7 @@ package com.tbtechs.focusflow.modules
 
 import android.app.AppOpsManager
 import android.app.admin.DevicePolicyManager
+import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.ComponentName
@@ -100,6 +101,36 @@ class UsageStatsModule(private val reactContext: ReactApplicationContext) :
                 end,
             ).orEmpty()
             val packageManager = reactContext.packageManager
+            /*
+             * UsageStats rows expose aggregated foreground time, but the public
+             * UsageStats API available to this build does not expose a usable
+             * app-launch count. Count foreground transitions from the device's
+             * event stream instead. De-duplicating consecutive events for the
+             * same package avoids treating in-app activity navigation as a new
+             * launch.
+             */
+            val launchCounts = mutableMapOf<String, Int>()
+            val usageEvents = usageManager.queryEvents(start, end)
+            val event = UsageEvents.Event()
+            val foregroundEventType =
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    UsageEvents.Event.ACTIVITY_RESUMED
+                } else {
+                    UsageEvents.Event.MOVE_TO_FOREGROUND
+                }
+            var lastForegroundPackage: String? = null
+            while (usageEvents.hasNextEvent()) {
+                usageEvents.getNextEvent(event)
+                if (event.eventType != foregroundEventType) continue
+
+                val packageName = event.packageName
+                if (packageName != lastForegroundPackage) {
+                    launchCounts[packageName] =
+                        (launchCounts[packageName] ?: 0) + 1
+                    lastForegroundPackage = packageName
+                }
+            }
+
             val apps = rows.mapNotNull { row ->
                 val foregroundMinutes = (row.totalTimeInForeground / 60_000L).toInt()
                 if (foregroundMinutes <= 0) return@mapNotNull null
@@ -116,7 +147,7 @@ class UsageStatsModule(private val reactContext: ReactApplicationContext) :
                     putString("packageName", row.packageName)
                     putString("appName", appName)
                     putInt("foregroundMinutes", foregroundMinutes)
-                    putInt("launchCount", row.appLaunchCount.coerceAtLeast(0))
+                    putInt("launchCount", launchCounts[row.packageName] ?: 0)
                     putDouble("lastUsedAt", row.lastTimeUsed.toDouble())
                 }
             }.sortedByDescending { it.getInt("foregroundMinutes") }
