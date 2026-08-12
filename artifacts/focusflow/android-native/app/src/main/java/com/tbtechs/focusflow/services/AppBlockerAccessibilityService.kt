@@ -1990,7 +1990,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             mode == android.app.AppOpsManager.MODE_ERRORED) return
 
         val usageManager = getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager ?: return
-        val calendar = java.util.Calendar.getInstance().apply {
+        val calendar = java.util.Calendar.getInstance(java.util.TimeZone.getDefault()).apply {
             set(java.util.Calendar.HOUR_OF_DAY, 0)
             set(java.util.Calendar.MINUTE, 0)
             set(java.util.Calendar.SECOND, 0)
@@ -2062,11 +2062,16 @@ class AppBlockerAccessibilityService : AccessibilityService() {
 
     private fun clearActiveSessionSignal() {
         handler.removeCallbacks(allowanceCheckpointRunnable)
+        val activePkg = prefs.getString(PREF_ACTIVE_SESSION_PKG, null)
+        val syncJson = loadUsageStatsSyncObject().apply {
+            if (activePkg != null) remove(activePkg)
+        }
         prefs.edit()
             .remove(PREF_ACTIVE_SESSION_PKG)
             .remove(PREF_ACTIVE_SESSION_OPEN_AT_MS)
             .remove(PREF_ACTIVE_SESSION_LAST_CHECKPOINT_MS)
             .remove(PREF_ACTIVE_SESSION_END_MS)
+            .putString(PREF_USAGE_STATS_SYNC, syncJson.toString())
             .apply()
     }
 
