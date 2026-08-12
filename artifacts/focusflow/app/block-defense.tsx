@@ -746,7 +746,16 @@ export default function BlockDefenseScreen() {
             theme={theme}
           />
           <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            <TouchableOpacity style={styles.cardButton} onPress={() => setGreyoutModalVisible(true)}>
+            <TouchableOpacity
+              style={styles.cardButton}
+              onPress={() =>
+                requireDefensePin(
+                  'Manage Block Schedules',
+                  'Enter your defense password to add, edit, or remove schedule batches.',
+                  () => setGreyoutModalVisible(true),
+                )
+              }
+            >
               <View style={styles.cardButtonContent}>
                 <Text style={[styles.cardButtonLabel, { color: theme.text }]}>Manage Schedule Batches</Text>
                 <Text style={[styles.cardButtonDesc, { color: theme.muted }]}>
@@ -767,6 +776,8 @@ export default function BlockDefenseScreen() {
         windows={settings.greyoutSchedule ?? []}
         onSave={async (windows: GreyoutWindow[]) => { await update({ greyoutSchedule: windows }); }}
         onClose={() => setGreyoutModalVisible(false)}
+        standaloneActive={standaloneActive}
+        requireDefensePin={requireDefensePin}
       />
 
       <PinVerifyModal

@@ -25,6 +25,10 @@ interface Props {
   windows: GreyoutWindow[];
   onSave: (windows: GreyoutWindow[]) => Promise<void>;
   onClose: () => void;
+  /** Prevent deletion while a standalone block is active. */
+  standaloneActive?: boolean;
+  /** Gate destructive or weakening schedule changes behind the defense PIN. */
+  requireDefensePin?: (title: string, description: string, action: () => void) => void;
 }
 
 const DAY_LABELS  = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
@@ -45,7 +49,14 @@ const BLANK_WINDOW: GreyoutWindow = {
 
 type SelectedApp = { pkg: string; name: string };
 
-export function GreyoutScheduleModal({ visible, windows, onSave, onClose }: Props) {
+export function GreyoutScheduleModal({
+  visible,
+  windows,
+  onSave,
+  onClose,
+  standaloneActive = false,
+  requireDefensePin,
+}: Props) {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const [localWindows, setLocalWindows] = useState<GreyoutWindow[]>([]);
@@ -53,6 +64,7 @@ export function GreyoutScheduleModal({ visible, windows, onSave, onClose }: Prop
   const [draft, setDraft] = useState<GreyoutWindow>(BLANK_WINDOW);
   const [editIndex, setEditIndex] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
+  const [originalWindow, setOriginalWindow] = useState<GreyoutWindow | null>(null);
 
   // ── App search state ──────────────────────────────────────────────────────
   const [allApps, setAllApps] = useState<InstalledApp[]>([]);
@@ -67,6 +79,7 @@ export function GreyoutScheduleModal({ visible, windows, onSave, onClose }: Prop
     setMode('list');
     setDraft(BLANK_WINDOW);
     setEditIndex(null);
+    setOriginalWindow(null);
     setSelectedApps([]);
     setAppSearch('');
     setAppsLoading(true);
@@ -124,14 +137,30 @@ export function GreyoutScheduleModal({ visible, windows, onSave, onClose }: Prop
     setDraft((d) => ({ ...d, [field]: (d[field] + delta + 60) % 60 }));
   };
 
+  /** Returns the duration in minutes, including overnight windows. */
+  const windowDurationMinutes = (w: GreyoutWindow) => {
+    const start = w.startHour * 60 + w.startMin;
+    const end = w.endHour * 60 + w.endMin;
+    return end > start ? end - start : 24 * 60 - start + end;
+  };
+
   const selectApp = useCallback((app: InstalledApp) => {
     setSelectedApps((prev) => [...prev, { pkg: app.packageName, name: app.appName }]);
     setAppSearch('');
   }, []);
 
   const removeSelectedApp = useCallback((pkg: string) => {
-    setSelectedApps((prev) => prev.filter((a) => a.pkg !== pkg));
-  }, []);
+    const remove = () => setSelectedApps((prev) => prev.filter((a) => a.pkg !== pkg));
+    if (requireDefensePin) {
+      requireDefensePin(
+        'Remove App from Window',
+        'Enter your defense password to remove this app from the block window.',
+        remove,
+      );
+    } else {
+      remove();
+    }
+  }, [requireDefensePin]);
 
   const openAdd = () => {
     setDraft(BLANK_WINDOW);
@@ -141,15 +170,28 @@ export function GreyoutScheduleModal({ visible, windows, onSave, onClose }: Prop
     setMode('add');
   };
 
-  const openEdit = (idx: number) => {
+  const doOpenEdit = (idx: number) => {
     const w = localWindows[idx];
     const pkgs = w.pkgs && w.pkgs.length > 0 ? w.pkgs : w.pkg ? [w.pkg] : [];
     const selApps = pkgs.map((pkg) => ({ pkg, name: pkgToName.get(pkg) ?? pkg }));
     setSelectedApps(selApps);
     setDraft({ ...w });
     setEditIndex(idx);
+    setOriginalWindow({ ...w });
     setAppSearch('');
     setMode('add');
+  };
+
+  const openEdit = (idx: number) => {
+    if (requireDefensePin) {
+      requireDefensePin(
+        'Edit Block Window',
+        'Enter your defense password to edit this block window.',
+        () => doOpenEdit(idx),
+      );
+    } else {
+      doOpenEdit(idx);
+    }
   };
 
   const commitDraft = () => {
@@ -165,28 +207,63 @@ export function GreyoutScheduleModal({ visible, windows, onSave, onClose }: Prop
       return;
     }
     const pkgs = selectedApps.map((a) => a.pkg);
-    const updated = [...localWindows];
-    const window: GreyoutWindow = { ...draft, pkg: pkgs[0], pkgs };
-    if (editIndex !== null) {
-      updated[editIndex] = window;
-    } else {
-      updated.push(window);
+    const doCommit = () => {
+      const updated = [...localWindows];
+      const window: GreyoutWindow = { ...draft, pkg: pkgs[0], pkgs };
+      if (editIndex !== null) {
+        updated[editIndex] = window;
+      } else {
+        updated.push(window);
+      }
+      setLocalWindows(updated);
+      setMode('list');
+    };
+
+    if (
+      editIndex !== null &&
+      originalWindow &&
+      requireDefensePin &&
+      windowDurationMinutes(draft) < windowDurationMinutes(originalWindow)
+    ) {
+      requireDefensePin(
+        'Shorten Block Window',
+        'You are decreasing the block duration. Enter your defense password to confirm.',
+        doCommit,
+      );
+      return;
     }
-    setLocalWindows(updated);
-    setMode('list');
+    doCommit();
   };
 
   const deleteWindow = (idx: number) => {
-    const w = localWindows[idx];
-    const label = windowDisplayLabel(w);
-    Alert.alert('Remove Window', `Remove block window for ${label}?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Remove',
-        style: 'destructive',
-        onPress: () => setLocalWindows((prev) => prev.filter((_, i) => i !== idx)),
-      },
-    ]);
+    if (standaloneActive) {
+      Alert.alert(
+        'Block is Active',
+        'Cannot delete a block window while a standalone block is active.',
+      );
+      return;
+    }
+    const doDelete = () => {
+      const w = localWindows[idx];
+      const label = windowDisplayLabel(w);
+      Alert.alert('Remove Window', `Remove block window for ${label}?`, [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: () => setLocalWindows((prev) => prev.filter((_, i) => i !== idx)),
+        },
+      ]);
+    };
+    if (requireDefensePin) {
+      requireDefensePin(
+        'Delete Block Window',
+        'Enter your defense password to delete this block window.',
+        doDelete,
+      );
+    } else {
+      doDelete();
+    }
   };
 
   const handleSave = async () => {
@@ -286,8 +363,15 @@ export function GreyoutScheduleModal({ visible, windows, onSave, onClose }: Prop
                         </View>
                         <Ionicons name="create-outline" size={18} color={theme.muted} style={{ marginRight: 8 }} />
                       </TouchableOpacity>
-                      <TouchableOpacity onPress={() => deleteWindow(idx)} style={styles.deleteBtn}>
-                        <Ionicons name="trash-outline" size={18} color={COLORS.red} />
+                      <TouchableOpacity
+                        onPress={() => deleteWindow(idx)}
+                        style={[styles.deleteBtn, standaloneActive && { opacity: 0.38 }]}
+                      >
+                        {standaloneActive ? (
+                          <Ionicons name="lock-closed-outline" size={16} color={theme.muted} />
+                        ) : (
+                          <Ionicons name="trash-outline" size={18} color={COLORS.red} />
+                        )}
                       </TouchableOpacity>
                     </View>
                   );
