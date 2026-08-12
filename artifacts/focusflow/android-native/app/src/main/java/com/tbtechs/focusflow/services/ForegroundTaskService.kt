@@ -303,6 +303,11 @@ class ForegroundTaskService : Service() {
         var changed  = false
 
         for ((pkg, budgetMs) in timeBudgetPkgs) {
+            // AccessibilityService owns the live session while this signal is
+            // fresh. Its checkpoint is already an absolute accumulated total;
+            // writing UsageStats on top of it would double-count the session.
+            if (hasFreshActiveAllowanceSession(pkg, now)) continue
+
             val actualMs = (statsMap[pkg]?.totalTimeInForeground ?: 0L)
                 .coerceAtMost(budgetMs)
             if (actualMs <= 0L) continue
@@ -327,6 +332,21 @@ class ForegroundTaskService : Service() {
                 .putString("daily_allowance_used", allUsed.toString())
                 .apply()
         }
+    }
+
+    private fun hasFreshActiveAllowanceSession(pkg: String, nowMs: Long): Boolean {
+        val activePkg = blockPrefs.getString(
+            AppBlockerAccessibilityService.PREF_ACTIVE_SESSION_PKG,
+            null,
+        ) ?: return false
+        if (!activePkg.equals(pkg, ignoreCase = true)) return false
+
+        val lastCheckpointMs = blockPrefs.getLong(
+            AppBlockerAccessibilityService.PREF_ACTIVE_SESSION_LAST_CHECKPOINT_MS,
+            0L,
+        )
+        return lastCheckpointMs > 0L &&
+            nowMs - lastCheckpointMs <= AppBlockerAccessibilityService.ACTIVE_SESSION_SIGNAL_TTL_MS
     }
 
     private val tickRunnable = object : Runnable {

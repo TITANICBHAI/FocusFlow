@@ -49,6 +49,14 @@ const MODE_ICONS: Record<AllowanceMode, React.ComponentProps<typeof Ionicons>['n
 
 const ALL_MODES: AllowanceMode[] = ['count', 'time_budget', 'interval'];
 
+/** Matches the Android service's device-local YYYY-MM-DD allowance boundary. */
+function getLocalDateKey(date = new Date()): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function makeDefaultEntry(pkg: string): DailyAllowanceEntry {
   return { packageName: pkg, mode: 'count', countPerDay: 1, budgetMinutes: 30, intervalMinutes: 5, intervalHours: 1 };
 }
@@ -114,7 +122,7 @@ export function DailyAllowanceModal({
             mode?: string; date?: string; count?: number;
             usedMs?: number; windowStartMs?: number;
           }>;
-          const today = new Date().toISOString().slice(0, 10); // "yyyy-MM-dd"
+          const today = getLocalDateKey();
           // Zero out stale entries (different date = fresh day)
           const fresh: typeof parsed = {};
           for (const [pkg, val] of Object.entries(parsed)) {
@@ -245,7 +253,7 @@ export function DailyAllowanceModal({
   const getRemainingLabel = useCallback((entry: DailyAllowanceEntry): string | null => {
     const usage = usageMap[entry.packageName];
     if (!usage) return null;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getLocalDateKey();
     if (usage.date && usage.date !== today) return null;
 
     if (entry.mode === 'count') {

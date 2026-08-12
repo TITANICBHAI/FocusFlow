@@ -5,6 +5,9 @@ import android.animation.ValueAnimator
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.usage.UsageEvents
+import android.app.usage.UsageStatsManager
+import android.content.Context
 import android.app.PendingIntent
 import android.app.WallpaperManager
 import android.content.Intent
@@ -88,6 +91,16 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         const val PREF_DAILY_ALLOWANCE_CONFIG = "daily_allowance_config"   // rich JSON config (new)
         const val PREF_DAILY_ALLOWANCE_PKGS  = "daily_allowance_packages"  // legacy — no longer written
         const val PREF_DAILY_ALLOWANCE_USED  = "daily_allowance_used"
+
+        // Active allowance session coordination shared with ForegroundTaskService.
+        // The checkpoint timestamp doubles as a heartbeat. A stale signal must not
+        // block UsageStats recovery forever after an unexpected process death.
+        const val PREF_ACTIVE_SESSION_PKG = "active_session_pkg"
+        const val PREF_ACTIVE_SESSION_OPEN_AT_MS = "active_session_open_at_ms"
+        const val PREF_ACTIVE_SESSION_LAST_CHECKPOINT_MS = "active_session_last_checkpoint_ms"
+        const val PREF_ACTIVE_SESSION_END_MS = "active_session_end_ms"
+        const val ACTIVE_SESSION_CHECKPOINT_INTERVAL_MS = 15_000L
+        const val ACTIVE_SESSION_SIGNAL_TTL_MS = 90_000L
 
         const val PREF_BLOCKED_WORDS = "blocked_words"
         const val PREF_SYSTEM_GUARD_ENABLED = "system_guard_enabled"
@@ -470,26 +483,25 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     private var currentTimedOpenAtMs: Long = 0L
     private var currentTimedSessionEndMs: Long = 0L
     private var timedExpireRunnable: Runnable? = null
+    private val allowanceCheckpointRunnable: Runnable = object : Runnable {
+        override fun run() {
+            checkpointActiveTimedSession()
+            if (currentTimedPkg != null) {
+                handler.postDelayed(this, ACTIVE_SESSION_CHECKPOINT_INTERVAL_MS)
+            }
+        }
+    }
 
     override fun onServiceConnected() {
         prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
 
-        // Restore any timed session that was active when the service was interrupted
-        // (killed by Android, device rebooted, user toggled accessibility off/on).
-        // Charging elapsed gap here prevents users from bypassing a time-budget limit
-        // by force-stopping or toggling the accessibility service.
-        val savedPkg    = prefs.getString("timed_session_pkg", null)
-        val savedOpenAt = prefs.getLong("timed_session_open_at_ms", 0L)
-        if (savedPkg != null && savedOpenAt > 0L) {
-            val entry = findAllowanceEntry(savedPkg)
-            if (entry != null && (entry.mode == "time_budget" || entry.mode == "interval")) {
-                accumulateTimedUsage(savedPkg, entry, savedOpenAt)
-            }
-            prefs.edit()
-                .remove("timed_session_pkg")
-                .remove("timed_session_open_at_ms")
-                .apply()
-        }
+        // Restore the session identity from the last durable checkpoint. The
+        // checkpoint already includes usage up to its timestamp, so do not charge
+        // the entire service-down gap (which could overcharge after an app switch).
+        restoreAllowanceSession()
+        // UsageEvents is used only as a conservative recovery source. Live
+        // AccessibilityService events remain the immediate enforcement authority.
+        reconcileCountAllowances()
 
         // Start the VPN self-heal health check loop. The first check fires after
         // 10 s so we don't run anything during the cold-start window.
@@ -593,6 +605,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             if (prevEntry != null && (prevEntry.mode == "time_budget" || prevEntry.mode == "interval")) {
                 accumulateTimedUsage(currentTimedPkg!!, prevEntry, currentTimedOpenAtMs)
             }
+            clearActiveSessionSignal()
             timedExpireRunnable?.let { handler.removeCallbacks(it) }
             timedExpireRunnable = null
             currentTimedPkg = null
@@ -1054,6 +1067,10 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                     val sessionEndMs = recordAllowanceOpen(pkg, allowanceEntry)
                     currentTimedPkg = pkg
                     currentTimedOpenAtMs = System.currentTimeMillis()
+                    persistActiveSessionSignal(pkg, currentTimedOpenAtMs, sessionEndMs)
+                    if (allowanceEntry.mode == "time_budget" || allowanceEntry.mode == "interval") {
+                        startAllowanceCheckpointLoop()
+                    }
                     if (allowanceEntry.mode != "count" && sessionEndMs > 0L) {
                         currentTimedSessionEndMs = sessionEndMs
                         scheduleTimedExpiry(pkg, sessionEndMs)
@@ -1096,23 +1113,18 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     }
 
     override fun onInterrupt() {
-        // Persist any in-progress timed session so onServiceConnected can charge
-        // the gap elapsed while the service was down. This prevents the time-budget
-        // bypass that previously allowed users to gain free time by toggling the
-        // accessibility service off and back on.
+        // Flush the active session through the last checkpoint and leave its
+        // identity in SharedPreferences for reconnect recovery. We intentionally
+        // do not charge the entire service-down gap.
         if (::prefs.isInitialized) {
-            if (currentTimedPkg != null && currentTimedOpenAtMs > 0L) {
+            checkpointActiveTimedSession()
+            if (currentTimedPkg != null) {
                 prefs.edit()
-                    .putString("timed_session_pkg", currentTimedPkg)
-                    .putLong("timed_session_open_at_ms", currentTimedOpenAtMs)
-                    .apply()
-            } else {
-                prefs.edit()
-                    .remove("timed_session_pkg")
-                    .remove("timed_session_open_at_ms")
+                    .putLong(PREF_ACTIVE_SESSION_LAST_CHECKPOINT_MS, System.currentTimeMillis())
                     .apply()
             }
         }
+        handler.removeCallbacks(allowanceCheckpointRunnable)
         timedExpireRunnable?.let { handler.removeCallbacks(it) }
         timedExpireRunnable = null
         currentTimedPkg = null
@@ -1877,6 +1889,204 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     //   interval:    { mode, windowStartMs, usedMs }
 
     /**
+     * Restores only the active-session identity and the already durable
+     * checkpoint. The time between the checkpoint and reconnect is deliberately
+     * not charged because the user may have switched apps while this service
+     * was unavailable.
+     */
+    private fun restoreAllowanceSession() {
+        val now = System.currentTimeMillis()
+        val savedPkg = prefs.getString(PREF_ACTIVE_SESSION_PKG, null)
+        val lastCheckpointMs = prefs.getLong(PREF_ACTIVE_SESSION_LAST_CHECKPOINT_MS, 0L)
+        val signalFresh = savedPkg != null &&
+            lastCheckpointMs > 0L &&
+            now - lastCheckpointMs <= ACTIVE_SESSION_SIGNAL_TTL_MS
+
+        if (signalFresh && savedPkg != null) {
+            val entry = findAllowanceEntry(savedPkg)
+            if (entry != null) {
+                currentTimedPkg = savedPkg
+                // Start a new in-memory segment from reconnect time. The prior
+                // segment is represented by the persisted checkpoint.
+                currentTimedOpenAtMs = now
+                currentTimedSessionEndMs = prefs.getLong(PREF_ACTIVE_SESSION_END_MS, 0L)
+
+                if (entry.mode == "time_budget" || entry.mode == "interval") {
+                    if (currentTimedSessionEndMs > 0L && now >= currentTimedSessionEndMs) {
+                        accumulateTimedUsage(savedPkg, entry, lastCheckpointMs)
+                        clearActiveSessionSignal()
+                        currentTimedPkg = null
+                        currentTimedOpenAtMs = 0L
+                        currentTimedSessionEndMs = 0L
+                    } else {
+                        startAllowanceCheckpointLoop()
+                        if (currentTimedSessionEndMs > 0L) {
+                            scheduleTimedExpiry(savedPkg, currentTimedSessionEndMs)
+                        }
+                    }
+                }
+                return
+            }
+        }
+
+        // One-time compatibility recovery for sessions written by the previous
+        // session-start/gap-charging implementation.
+        val legacyPkg = prefs.getString("timed_session_pkg", null)
+        val legacyOpenAt = prefs.getLong("timed_session_open_at_ms", 0L)
+        if (savedPkg == null && legacyPkg != null && legacyOpenAt > 0L) {
+            val entry = findAllowanceEntry(legacyPkg)
+            if (entry != null && (entry.mode == "time_budget" || entry.mode == "interval")) {
+                accumulateTimedUsage(legacyPkg, entry, legacyOpenAt)
+            }
+        }
+
+        prefs.edit()
+            .remove("timed_session_pkg")
+            .remove("timed_session_open_at_ms")
+            .remove(PREF_ACTIVE_SESSION_PKG)
+            .remove(PREF_ACTIVE_SESSION_OPEN_AT_MS)
+            .remove(PREF_ACTIVE_SESSION_LAST_CHECKPOINT_MS)
+            .remove(PREF_ACTIVE_SESSION_END_MS)
+            .apply()
+    }
+
+    /**
+     * Reconciles count allowances upward from UsageEvents after reconnect.
+     * UsageEvents can lag, so it never lowers the immediate AccessibilityService
+     * count. The persisted session identity handles the common restart case where
+     * the same app remains foreground and would otherwise be counted twice.
+     */
+    private fun reconcileCountAllowances() {
+        val configJson = prefs.getString(PREF_DAILY_ALLOWANCE_CONFIG, null) ?: return
+        if (configJson.isBlank() || configJson == "null") return
+
+        val countPackages = mutableSetOf<String>()
+        try {
+            val arr = org.json.JSONArray(configJson)
+            for (i in 0 until arr.length()) {
+                val obj = arr.optJSONObject(i) ?: continue
+                if (obj.optString("mode", "count") == "count") {
+                    val pkg = obj.optString("packageName", "")
+                    if (pkg.isNotBlank()) countPackages += pkg
+                }
+            }
+        } catch (_: Exception) {
+            return
+        }
+        if (countPackages.isEmpty()) return
+
+        val appOps = getSystemService(Context.APP_OPS_SERVICE) as? android.app.AppOpsManager ?: return
+        val mode = appOps.checkOpNoThrow(
+            android.app.AppOpsManager.OPSTR_GET_USAGE_STATS,
+            android.os.Process.myUid(),
+            packageName,
+        )
+        if (mode == android.app.AppOpsManager.MODE_IGNORED ||
+            mode == android.app.AppOpsManager.MODE_ERRORED) return
+
+        val usageManager = getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager ?: return
+        val calendar = java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.HOUR_OF_DAY, 0)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }
+        val events = try {
+            usageManager.queryEvents(calendar.timeInMillis, System.currentTimeMillis())
+        } catch (_: Exception) {
+            return
+        }
+
+        val observedCounts = mutableMapOf<String, Int>()
+        val event = UsageEvents.Event()
+        val foregroundEventType =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                UsageEvents.Event.ACTIVITY_RESUMED
+            } else {
+                UsageEvents.Event.MOVE_TO_FOREGROUND
+            }
+        var lastForegroundPackage: String? = null
+        while (events.hasNextEvent()) {
+            events.getNextEvent(event)
+            if (event.eventType != foregroundEventType) continue
+            val eventPkg = event.packageName ?: continue
+            if (eventPkg != lastForegroundPackage && countPackages.any {
+                    it.equals(eventPkg, ignoreCase = true)
+                }) {
+                val matchingPkg = countPackages.first {
+                    it.equals(eventPkg, ignoreCase = true)
+                }
+                observedCounts[matchingPkg] = (observedCounts[matchingPkg] ?: 0) + 1
+            }
+            lastForegroundPackage = eventPkg
+        }
+
+        if (observedCounts.isEmpty()) return
+        val today = todayDateString()
+        val allUsed = loadUsedObject()
+        var changed = false
+        for ((pkg, observedCount) in observedCounts) {
+            val pkgUsed = allUsed.optJSONObject(pkg) ?: org.json.JSONObject()
+            val storedDate = pkgUsed.optString("date", "")
+            val storedCount = if (storedDate == today) pkgUsed.optInt("count", 0) else 0
+            if (observedCount > storedCount) {
+                pkgUsed.put("mode", "count")
+                pkgUsed.put("date", today)
+                pkgUsed.put("count", observedCount)
+                allUsed.put(pkg, pkgUsed)
+                changed = true
+            }
+        }
+        if (changed) {
+            prefs.edit().putString(PREF_DAILY_ALLOWANCE_USED, allUsed.toString()).apply()
+        }
+    }
+
+    private fun persistActiveSessionSignal(pkg: String, openAtMs: Long, sessionEndMs: Long) {
+        prefs.edit()
+            .putString(PREF_ACTIVE_SESSION_PKG, pkg)
+            .putLong(PREF_ACTIVE_SESSION_OPEN_AT_MS, openAtMs)
+            .putLong(PREF_ACTIVE_SESSION_LAST_CHECKPOINT_MS, openAtMs)
+            .putLong(PREF_ACTIVE_SESSION_END_MS, sessionEndMs)
+            .apply()
+    }
+
+    private fun clearActiveSessionSignal() {
+        handler.removeCallbacks(allowanceCheckpointRunnable)
+        prefs.edit()
+            .remove(PREF_ACTIVE_SESSION_PKG)
+            .remove(PREF_ACTIVE_SESSION_OPEN_AT_MS)
+            .remove(PREF_ACTIVE_SESSION_LAST_CHECKPOINT_MS)
+            .remove(PREF_ACTIVE_SESSION_END_MS)
+            .apply()
+    }
+
+    private fun startAllowanceCheckpointLoop() {
+        handler.removeCallbacks(allowanceCheckpointRunnable)
+        handler.postDelayed(allowanceCheckpointRunnable, ACTIVE_SESSION_CHECKPOINT_INTERVAL_MS)
+    }
+
+    /**
+     * Commits only the elapsed portion since the previous checkpoint. This makes
+     * the stored value an absolute accumulated total rather than a second timer
+     * layered on top of UsageStats.
+     */
+    private fun checkpointActiveTimedSession() {
+        val pkg = currentTimedPkg ?: return
+        val entry = findAllowanceEntry(pkg) ?: return
+        val now = System.currentTimeMillis()
+        if (entry.mode == "time_budget" || entry.mode == "interval") {
+            if (currentTimedOpenAtMs > 0L && now > currentTimedOpenAtMs) {
+                accumulateTimedUsage(pkg, entry, currentTimedOpenAtMs)
+            }
+        }
+        currentTimedOpenAtMs = now
+        prefs.edit()
+            .putLong(PREF_ACTIVE_SESSION_LAST_CHECKPOINT_MS, now)
+            .apply()
+    }
+
+    /**
      * Returns the AllowanceEntry for [pkg] if it exists in the config, or null.
      * Checks PREF_DAILY_ALLOWANCE_CONFIG (new rich JSON) first, then falls back
      * to the legacy PREF_DAILY_ALLOWANCE_PKGS (count:1 for migrated entries).
@@ -2076,6 +2286,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             if (currentTimedPkg == pkg) {
                 val entry = findAllowanceEntry(pkg)
                 if (entry != null) accumulateTimedUsage(pkg, entry, currentTimedOpenAtMs)
+                clearActiveSessionSignal()
                 currentTimedPkg = null
                 currentTimedOpenAtMs = 0L
                 currentTimedSessionEndMs = 0L
@@ -2089,6 +2300,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             if (entry != null && currentTimedPkg == pkg) {
                 accumulateTimedUsage(pkg, entry, currentTimedOpenAtMs)
             }
+            clearActiveSessionSignal()
             currentTimedPkg = null
             currentTimedOpenAtMs = 0L
             currentTimedSessionEndMs = 0L
