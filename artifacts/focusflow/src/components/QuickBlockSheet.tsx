@@ -92,7 +92,10 @@ export function QuickBlockSheet({ visible, app, onClose }: Props) {
             <View style={styles.headingText}>
               <Text style={[styles.title, { color: theme.text }]} numberOfLines={1}>Quick Block {app.appName}</Text>
               <Text style={[styles.subtitle, { color: theme.muted }]}>
-                {isAlwaysOn ? 'Always-On protection is active' : isTemporarilyBlocked ? 'Temporary block is active' : 'Choose how long to protect this app'}
+                {isAlwaysOn
+                  ? isTemporarilyBlocked ? 'Always-On + temporary block is active' : 'Always-On protection is active'
+                  : isTemporarilyBlocked ? `Blocked until ${formatExpiry(state.settings.standaloneBlockUntil)}`
+                  : 'Choose how long to protect this app'}
               </Text>
             </View>
             <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
@@ -108,7 +111,7 @@ export function QuickBlockSheet({ visible, app, onClose }: Props) {
             <ActionButton icon="calendar-outline" label="Choose time" onPress={() => setShowCustomPicker(true)} theme={theme} disabled={loading} />
           </View>
 
-          <Text style={[styles.sectionLabel, { color: theme.muted }]}>PERMANENT PROTECTION</Text>
+          <Text style={[styles.sectionLabel, { color: theme.muted }]}>ALWAYS-ON PROTECTION</Text>
           <TouchableOpacity
             style={[styles.alwaysButton, { backgroundColor: isAlwaysOn ? theme.surface : COLORS.orange + '16', borderColor: isAlwaysOn ? theme.border : COLORS.orange + '45' }]}
             disabled={loading || isAlwaysOn}
@@ -123,8 +126,8 @@ export function QuickBlockSheet({ visible, app, onClose }: Props) {
           >
             <Ionicons name={isAlwaysOn ? 'checkmark-circle' : 'shield-outline'} size={22} color={isAlwaysOn ? COLORS.green : COLORS.orange} />
             <View style={styles.alwaysText}>
-              <Text style={[styles.alwaysTitle, { color: isAlwaysOn ? COLORS.green : theme.text }]}>{isAlwaysOn ? 'Already Always-On' : 'Add to Always-On'}</Text>
-              <Text style={[styles.alwaysSub, { color: theme.muted }]}>Keep this app blocked until you remove it from the protected list</Text>
+              <Text style={[styles.alwaysTitle, { color: isAlwaysOn ? COLORS.green : theme.text }]}>{isAlwaysOn ? 'Already Always-On' : 'Block always'}</Text>
+              <Text style={[styles.alwaysSub, { color: theme.muted }]}>Keep this app blocked 24/7 until you remove it from Always-On</Text>
             </View>
           </TouchableOpacity>
 
@@ -150,6 +153,13 @@ export function QuickBlockSheet({ visible, app, onClose }: Props) {
       )}
     </Modal>
   );
+}
+
+function formatExpiry(value: string | null): string {
+  if (!value) return 'expiry';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'expiry';
+  return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
 function ActionButton({

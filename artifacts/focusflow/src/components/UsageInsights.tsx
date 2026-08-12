@@ -33,6 +33,7 @@ interface Props {
   alwaysOnPackages?: string[];
   onAppPress?: (app: UsageApp) => void;
   showQuickBlockButton?: boolean;
+  onSummaryChange?: (summary: UsageSummary | null) => void;
 }
 
 type LoadState = 'loading' | 'ready' | 'permission' | 'unavailable' | 'error';
@@ -58,6 +59,7 @@ export function UsageInsights({
   alwaysOnPackages = [],
   onAppPress,
   showQuickBlockButton = false,
+  onSummaryChange,
 }: Props) {
   const { theme } = useTheme();
   const focusMap = focusByDate ?? EMPTY_FOCUS_BY_DATE;
@@ -69,6 +71,7 @@ export function UsageInsights({
     setLoadState('loading');
     setSummary(null);
     setDailyUsage([]);
+    onSummaryChange?.(null);
 
     if (Platform.OS !== 'android' || !isUsageSummaryAvailable) {
       setLoadState('unavailable');
@@ -89,6 +92,7 @@ export function UsageInsights({
       }
 
       setSummary(nextSummary);
+      onSummaryChange?.(nextSummary);
 
       if (showWeeklyTrend) {
         const days: DailyUsage[] = [];
@@ -115,7 +119,7 @@ export function UsageInsights({
     } catch {
       setLoadState('error');
     }
-  }, [endMs, focusMap, showWeeklyTrend, startMs]);
+  }, [endMs, focusMap, onSummaryChange, showWeeklyTrend, startMs]);
 
   useFocusEffect(
     useCallback(() => {
@@ -301,6 +305,7 @@ export function UsageInsights({
               app.packageName,
               standalonePackages,
               activeTemporaryUntil,
+              standaloneUntil,
               alwaysOnPackages,
             );
             return (
@@ -405,14 +410,22 @@ function getAppStatus(
   packageName: string,
   standalonePackages: string[],
   temporaryActive: boolean,
+  standaloneUntil: string | null,
   alwaysOnPackages: string[],
 ): { label: string; color: string } | null {
   const temporary = temporaryActive && standalonePackages.includes(packageName);
   const alwaysOn = alwaysOnPackages.includes(packageName);
   if (temporary && alwaysOn) return { label: 'Always-On + temporary', color: COLORS.purple };
   if (alwaysOn) return { label: 'Always-On blocked', color: COLORS.red };
-  if (temporary) return { label: 'Blocked temporarily', color: COLORS.orange };
+  if (temporary) return { label: `Blocked until ${formatExpiry(standaloneUntil)}`, color: COLORS.orange };
   return null;
+}
+
+function formatExpiry(value: string | null): string {
+  if (!value) return 'expiry';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'expiry';
+  return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
 function formatMinutes(minutes: number): string {

@@ -761,6 +761,18 @@ export async function dbGetTodayOverrideCount(): Promise<number> {
   });
 }
 
+export async function dbGetOverrideCountInRange(startISO: string, endISO: string): Promise<number> {
+  return runWithDbOr('dbGetOverrideCountInRange', 0, async (database) => {
+    const row = await database.getFirstAsync<{ count: number }>(
+      `SELECT COUNT(*) as count
+       FROM focus_overrides
+       WHERE overridden_at >= ? AND overridden_at <= ?`,
+      [startISO, endISO],
+    );
+    return row?.count ?? 0;
+  });
+}
+
 // ─── Daily Streak ─────────────────────────────────────────────────────────────
 
 export async function dbRecordDayCompletion(completed: number, total: number): Promise<void> {
