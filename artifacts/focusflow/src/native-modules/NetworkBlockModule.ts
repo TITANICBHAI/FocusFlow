@@ -12,7 +12,7 @@
  * Registered via: FocusDayPackage → createNativeModules()
  */
 
-import { NativeModules, Platform } from 'react-native';
+import { AppState, NativeModules, Platform } from 'react-native';
 
 const NetworkBlock = Platform.OS === 'android' ? NativeModules.NetworkBlock : null;
 
@@ -105,6 +105,64 @@ export const NetworkBlockModule = {
       throw new Error('FocusFlow native NetworkBlock.requestVpnPermission is missing.');
     }
     return native.requestVpnPermission();
+  },
+
+  /**
+   * Makes sure Android VPN consent is still available before a UI commits a
+   * VPN package list. Android's consent request resolves when the system dialog
+   * is launched, not when the user finishes it, so wait for the app to return
+   * to the foreground and then verify the grant again.
+   *
+   * Returns false when the user dismisses/denies the dialog or the grant cannot
+   * be confirmed. Callers should keep their picker open and avoid saving in
+   * that case.
+   */
+  async ensureVpnPermission(): Promise<boolean> {
+    if (Platform.OS !== 'android') return true;
+
+    try {
+      if (await this.isVpnPermissionGranted()) return true;
+      await this.requestVpnPermission();
+    } catch {
+      return false;
+    }
+
+    return new Promise<boolean>((resolve) => {
+      let settled = false;
+      let poll: ReturnType<typeof setInterval> | null = null;
+      let timeout: ReturnType<typeof setTimeout> | null = null;
+
+      const cleanup = () => {
+        subscription.remove();
+        if (poll) clearInterval(poll);
+        if (timeout) clearTimeout(timeout);
+      };
+
+      const finish = (granted: boolean) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        resolve(granted);
+      };
+
+      const check = async () => {
+        try {
+          if (await this.isVpnPermissionGranted()) finish(true);
+        } catch {
+          // Keep waiting until the dialog closes or the timeout is reached.
+        }
+      };
+
+      const subscription = AppState.addEventListener('change', (state) => {
+        if (state === 'active') void check();
+      });
+
+      // Some Android versions do not emit a reliable AppState transition for
+      // the VPN consent activity, so poll briefly as a fallback.
+      poll = setInterval(() => void check(), 500);
+      timeout = setTimeout(() => finish(false), 15_000);
+      void check();
+    });
   },
 
   /**

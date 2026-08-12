@@ -20,6 +20,7 @@ import dayjs from 'dayjs';
 import { InstalledAppsModule, InstalledApp } from '@/native-modules/InstalledAppsModule';
 import { UsageStatsModule } from '@/native-modules/UsageStatsModule';
 import { SessionPinModule } from '@/native-modules/SessionPinModule';
+import { NetworkBlockModule } from '@/native-modules/NetworkBlockModule';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { PinVerifyModal } from '@/components/PinVerifyModal';
@@ -448,6 +449,21 @@ export function StandaloneBlockModal({
       );
       return;
     }
+
+    // VPN consent can be revoked outside FocusFlow after this picker was
+    // opened. Re-check before committing any selected VPN packages and keep
+    // the sheet open if the user declines the Android consent dialog.
+    if (vpnPkgsSet.size > 0) {
+      const vpnGranted = await NetworkBlockModule.ensureVpnPermission();
+      if (!vpnGranted) {
+        Alert.alert(
+          'VPN permission required',
+          'Network blocking is selected, but Android VPN permission is not available. Grant it and tap Save again.',
+        );
+        return;
+      }
+    }
+
     if (untilDate.getTime() <= Date.now()) {
       Alert.alert(
         'Expiry in the Past',

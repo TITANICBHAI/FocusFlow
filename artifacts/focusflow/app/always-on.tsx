@@ -33,6 +33,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 import { InstalledAppsModule, InstalledApp } from '@/native-modules/InstalledAppsModule';
 import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
+import { NetworkBlockModule } from '@/native-modules/NetworkBlockModule';
 import { PinVerifyModal } from '@/components/PinVerifyModal';
 import { SYSTEM_NEVER_BLOCK } from '@/services/protectedApps';
 
@@ -106,6 +107,20 @@ export default function AlwaysOnScreen() {
     try {
       const pkgs = Array.from(selected);
       const vpnPkgs = Array.from(vpnSelected);
+
+      // VPN consent may have been revoked while this picker was open. Do not
+      // save a new VPN list until Android confirms the grant again.
+      if (vpnPkgs.length > 0) {
+        const vpnGranted = await NetworkBlockModule.ensureVpnPermission();
+        if (!vpnGranted) {
+          Alert.alert(
+            'VPN permission required',
+            'Network blocking is selected, but Android VPN permission is not available. Grant it and tap Save again.',
+          );
+          return;
+        }
+      }
+
       await updateSettings({
         ...settings,
         alwaysOnPackages: pkgs,

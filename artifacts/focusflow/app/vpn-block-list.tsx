@@ -32,6 +32,7 @@ import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 import { InstalledAppsModule, InstalledApp } from '@/native-modules/InstalledAppsModule';
 import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
 import { PinVerifyModal } from '@/components/PinVerifyModal';
+import { NetworkBlockModule } from '@/native-modules/NetworkBlockModule';
 
 const SYSTEM_NEVER_BLOCK = new Set([
   'com.android.dialer',
@@ -87,6 +88,20 @@ export default function VpnBlockListScreen() {
     setSaving(true);
     try {
       const vpnPkgs = Array.from(selected);
+
+      // The Android VPN grant can be revoked while this picker is open. Ask
+      // for it before persisting any non-empty network block list.
+      if (vpnPkgs.length > 0) {
+        const vpnGranted = await NetworkBlockModule.ensureVpnPermission();
+        if (!vpnGranted) {
+          Alert.alert(
+            'VPN permission required',
+            'Network blocking is selected, but Android VPN permission is not available. Grant it and tap Save again.',
+          );
+          return;
+        }
+      }
+
       await updateSettings({
         ...settings,
         alwaysOnVpnPackages: vpnPkgs,
