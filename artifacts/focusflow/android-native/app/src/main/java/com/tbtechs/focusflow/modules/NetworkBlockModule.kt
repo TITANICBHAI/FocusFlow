@@ -313,9 +313,10 @@ class NetworkBlockModule(private val reactContext: ReactApplicationContext) :
      * Deactivates all network-blocking mechanisms and restores connectivity
      * if the net_block_restore setting is true.
      *
-     * When a session PIN is configured, [pinHash] must be the correct SHA-256 hex
-     * digest of the PIN. A bare JS bridge call without the correct PIN will be
-     * rejected regardless of focus state.
+     * When a session PIN or Defense Password is configured, [pinHash] must be
+     * the correct SHA-256 hex digest of either configured credential. A bare JS
+     * bridge call without the correct credential will be rejected regardless of
+     * focus state.
      *
      * @param pinHash SHA-256 hex of the PIN, or null/empty if no PIN is configured
      */
@@ -328,15 +329,22 @@ class NetworkBlockModule(private val reactContext: ReactApplicationContext) :
             )
             return
         }
-        val storedHash = prefs.getString(
+        val storedSessionHash = prefs.getString(
             com.tbtechs.focusflow.modules.SessionPinModule.PREF_PIN_HASH, null
         )
-        if (!storedHash.isNullOrBlank()) {
-            if (pinHash.isNullOrBlank() ||
-                !storedHash.equals(pinHash.lowercase(), ignoreCase = true)) {
-                promise.reject("PIN_REQUIRED", "A session PIN is set — supply the correct PIN hash to stop network block")
-                return
-            }
+        val storedDefenseHash = prefs.getString(PREF_DEFENSE_PIN_HASH, null)
+        val suppliedHash = pinHash?.lowercase()
+        val matchesSessionPin = !storedSessionHash.isNullOrBlank() &&
+            !suppliedHash.isNullOrBlank() &&
+            storedSessionHash.equals(suppliedHash, ignoreCase = true)
+        val matchesDefensePin = !storedDefenseHash.isNullOrBlank() &&
+            !suppliedHash.isNullOrBlank() &&
+            storedDefenseHash.equals(suppliedHash, ignoreCase = true)
+        if ((!storedSessionHash.isNullOrBlank() || !storedDefenseHash.isNullOrBlank()) &&
+            !matchesSessionPin && !matchesDefensePin
+        ) {
+            promise.reject("PIN_REQUIRED", "A session PIN or Defense Password is required to stop network block")
+            return
         }
         try {
             val intent = Intent(reactContext, NetworkBlockerVpnService::class.java).apply {

@@ -755,7 +755,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           void logger.warn('AppContext', `always-on VPN start failed: ${String(e)}`),
         );
       } else if (!(settings.vpnBlockEnabled ?? false) || mergedVpnPkgs.length === 0) {
-        void NetworkBlockModule.stopNetworkBlock(null).catch((e) =>
+        void NetworkBlockModule.stopNetworkBlock(defensePinHash).catch((e) =>
           void logger.warn('AppContext', `VPN stop after disabling failed: ${String(e)}`),
         );
       }
