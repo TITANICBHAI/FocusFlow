@@ -57,6 +57,14 @@ export default function AlwaysOnScreen() {
 
   // Track the original selection at mount time to detect removals
   const originalPkgsRef = useRef<Set<string>>(new Set(settings.alwaysOnPackages ?? []));
+  const originalVpnPkgsRef = useRef<Set<string>>(new Set(settings.alwaysOnVpnPackages ?? []));
+  const blockProtectionActive =
+    state.focusSession?.isActive === true ||
+    (
+      !!settings.standaloneBlockUntil &&
+      (settings.standaloneBlockPackages ?? []).length > 0 &&
+      new Date(settings.standaloneBlockUntil).getTime() > Date.now()
+    );
 
   useEffect(() => {
     InstalledAppsModule.getInstalledApps()
@@ -102,7 +110,7 @@ export default function AlwaysOnScreen() {
     });
   }, []);
 
-  const doSave = useCallback(async () => {
+  const doSave = useCallback(async (defensePinHash: string | null = null) => {
     setSaving(true);
     try {
       const pkgs = Array.from(selected);
@@ -125,7 +133,9 @@ export default function AlwaysOnScreen() {
         ...settings,
         alwaysOnPackages: pkgs,
         alwaysOnVpnPackages: vpnPkgs,
-      });
+        vpnBlockEnabled:
+          vpnPkgs.length > 0 || (settings.standaloneVpnPackages ?? []).length > 0,
+      }, { defensePinHash });
       router.back();
     } catch {
       Alert.alert('Save failed', 'Could not save the always-on list. Please try again.');
@@ -137,7 +147,18 @@ export default function AlwaysOnScreen() {
   const handleSave = async () => {
     // Detect if any originally-present packages are being removed
     const originalPkgs = originalPkgsRef.current;
-    const isRemoving = [...originalPkgs].some((pkg) => !selected.has(pkg));
+    const originalVpnPkgs = originalVpnPkgsRef.current;
+    const isRemoving =
+      [...originalPkgs].some((pkg) => !selected.has(pkg)) ||
+      [...originalVpnPkgs].some((pkg) => !vpnSelected.has(pkg));
+
+    if (isRemoving && blockProtectionActive) {
+      Alert.alert(
+        'Network block is locked',
+        'Always-on apps and VPN-blocked apps cannot be removed while Focus Mode or a Standalone Block is active.',
+      );
+      return;
+    }
 
     if (isRemoving) {
       try {
@@ -342,9 +363,9 @@ export default function AlwaysOnScreen() {
         pinType="defense"
         title="Defense Password Required"
         description="You are removing apps from the always-on block list. Enter your defense password to confirm."
-        onVerified={() => {
+        onVerified={(hash) => {
           setPinVerifyVisible(false);
-          void doSave();
+          void doSave(hash);
         }}
         onCancel={() => setPinVerifyVisible(false)}
       />

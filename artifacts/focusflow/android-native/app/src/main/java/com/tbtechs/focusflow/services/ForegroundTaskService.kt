@@ -657,12 +657,14 @@ class ForegroundTaskService : Service() {
     private fun stopNetworkBlock() {
         val prefs = getSharedPreferences(AppBlockerAccessibilityService.PREFS_NAME, Context.MODE_PRIVATE)
         if (!prefs.getBoolean("net_block_enabled", false)) return
-        // Guard: if a standalone block is still active, leave the VPN running.
+        // Guard: if a standalone block or persistent VPN-only list is active,
+        // leave the VPN running after the focus task ends.
         val saActive = prefs.getBoolean("standalone_block_active", false)
         if (saActive) {
             val untilMs = prefs.getLong("standalone_block_until_ms", 0L)
             if (untilMs <= 0L || System.currentTimeMillis() < untilMs) return
         }
+        if (NetworkBlockerVpnService.hasPersistentVpnConfiguration(prefs)) return
         try {
             val intent = Intent(this, NetworkBlockerVpnService::class.java).apply {
                 action = NetworkBlockerVpnService.ACTION_STOP
@@ -716,7 +718,9 @@ class ForegroundTaskService : Service() {
             }
         }
         val alwaysOn = prefs.getBoolean("always_block_active", false)
-        if (!focusActive && !saActive && !alwaysOn) return
+        if (!focusActive && !saActive && !alwaysOn &&
+            !NetworkBlockerVpnService.hasPersistentVpnConfiguration(prefs)
+        ) return
 
         // Cannot restart without VPN permission.
         // Write the permission-lost flag so the JS layer can surface a re-grant prompt.

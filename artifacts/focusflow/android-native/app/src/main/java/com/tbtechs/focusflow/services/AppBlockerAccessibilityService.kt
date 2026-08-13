@@ -1177,7 +1177,9 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             }
         }
         val alwaysOn = prefs.getBoolean(PREF_ALWAYS_BLOCK, false)
-        if (!focusActive && !saActive && !alwaysOn) return
+        if (!focusActive && !saActive && !alwaysOn &&
+            !NetworkBlockerVpnService.hasPersistentVpnConfiguration(prefs)
+        ) return
 
         // Bail out if VPN permission was revoked — cannot restart silently.
         // Write the permission-lost flag so the JS layer can show a re-grant prompt.

@@ -108,6 +108,25 @@ class NetworkBlockerVpnService : VpnService() {
 
         /** Checked by AccessibilityService before firing a duplicate start. */
         @Volatile var isRunning: Boolean = false
+
+        /**
+         * VPN-only selections are independent of overlay/session state. Keep a
+         * persisted configuration alive after process/service recreation even
+         * when no Focus or Standalone session is active.
+         */
+        fun hasPersistentVpnConfiguration(prefs: SharedPreferences): Boolean {
+            if (!prefs.getBoolean("net_block_enabled", false) ||
+                !prefs.getBoolean("net_block_vpn", true)
+            ) return false
+
+            if (prefs.getBoolean("net_block_global", false)) return true
+
+            return try {
+                JSONArray(prefs.getString("net_block_packages", "[]") ?: "[]").length() > 0
+            } catch (_: Exception) {
+                false
+            }
+        }
     }
 
     private var vpnInterface: ParcelFileDescriptor? = null
@@ -154,7 +173,7 @@ class NetworkBlockerVpnService : VpnService() {
                 val focusActive = prefs.getBoolean("focus_active", false)
                 val saActive    = prefs.getBoolean("standalone_block_active", false)
                 val alwaysOn    = prefs.getBoolean("always_block_active", false)
-                if (focusActive || saActive || alwaysOn) {
+                if (focusActive || saActive || alwaysOn || hasPersistentVpnConfiguration(prefs)) {
                     val pkgs = prefs.getString("net_block_packages", "[]") ?: "[]"
                     val mode = prefs.getString("net_block_mode", MODE_PER_APP) ?: MODE_PER_APP
                     startVpn(pkgs, mode)
@@ -207,7 +226,8 @@ class NetworkBlockerVpnService : VpnService() {
         // This flag is read by NetworkBlockModule.isVpnPermissionGranted() and
         // used to surface the re-grant prompt in the UI. The flag is cleared
         // by startVpn() if a subsequent restart succeeds.
-        if (focusOn || saOn || alwaysOn) {
+        val persistentVpn = hasPersistentVpnConfiguration(prefs)
+        if (focusOn || saOn || alwaysOn || persistentVpn) {
             prefs.edit()
                 .putBoolean("vpn_permission_lost", true)
                 .apply()
@@ -215,7 +235,7 @@ class NetworkBlockerVpnService : VpnService() {
             VpnRecoveryNotifier.postPermissionRequired(this)
         }
 
-        if (selfHeal && (focusOn || saOn || alwaysOn)) {
+        if (selfHeal && (focusOn || saOn || alwaysOn || persistentVpn)) {
             val ctx  = applicationContext
             val pkgs = prefs.getString("net_block_packages", "[]") ?: "[]"
             val mode = prefs.getString("net_block_mode", MODE_PER_APP) ?: MODE_PER_APP

@@ -186,6 +186,7 @@ export const NetworkBlockModule = {
     enabled: boolean;
     vpn: boolean;
     packages: string[];
+    defensePinHash?: string | null;
   }): Promise<void> {
     const native = requireNetworkBlock();
     if (!native) return;
@@ -196,6 +197,7 @@ export const NetworkBlockModule = {
       enabled: settings.enabled,
       vpn: settings.vpn,
       packages: JSON.stringify(Array.from(new Set(settings.packages))),
+      ...(settings.defensePinHash ? { defensePinHash: settings.defensePinHash } : {}),
     }));
   },
 

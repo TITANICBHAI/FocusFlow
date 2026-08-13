@@ -128,15 +128,15 @@ export default function BlockDefenseScreen() {
     return () => clearTimeout(timeout);
   }, [params.tab]);
 
-  const update = async (partial: Partial<typeof settings>) => {
+  const update = async (partial: Partial<typeof settings>, defensePinHash: string | null = null) => {
     try {
-      await updateSettings({ ...settings, ...partial });
+      await updateSettings({ ...settings, ...partial }, { defensePinHash });
     } catch {
       Alert.alert('Error', 'Failed to save this setting. Please try again.');
     }
   };
 
-  const pendingActionAfterDefenseSetup = useRef<(() => void) | null>(null);
+  const pendingActionAfterDefenseSetup = useRef<((defensePinHash?: string) => void) | null>(null);
 
   /**
    * Requires the defense PIN before running `action`.
@@ -147,7 +147,7 @@ export default function BlockDefenseScreen() {
    *   pinProtectionEnabled=false, no PIN set → run action immediately
    */
   const requireDefensePin = useCallback(
-    (title: string, description: string, action: () => void) => {
+    (title: string, description: string, action: (defensePinHash?: string) => void) => {
       SharedPrefsModule.getString('defense_pin_hash')
         .then((hash) => {
           if (hash) {
@@ -159,7 +159,7 @@ export default function BlockDefenseScreen() {
               pinType: 'defense',
               title,
               description,
-              onVerified: () => action(),
+              onVerified: (verifiedHash) => action(verifiedHash),
             });
           } else if (settings.pinProtectionEnabled ?? false) {
             // PIN protection is on but no PIN has been set yet — offer to set one.
@@ -252,7 +252,7 @@ export default function BlockDefenseScreen() {
       requireDefensePin(
         'Disable Network Blocking (VPN)',
         'Enter your defense password to turn off VPN blocking.',
-        () => void update({ vpnBlockEnabled: false }),
+        (defensePinHash) => void update({ vpnBlockEnabled: false }, defensePinHash ?? null),
       );
       return;
     }
@@ -336,13 +336,14 @@ export default function BlockDefenseScreen() {
     }).catch(() => {});
   };
 
-  const handlePinSaved = () => {
+  const handlePinSaved = async () => {
     setPinModal({ type: 'none' });
     void loadPinStatus();
     const pending = pendingActionAfterDefenseSetup.current;
     if (pending) {
       pendingActionAfterDefenseSetup.current = null;
-      pending();
+      const hash = await SharedPrefsModule.getString('defense_pin_hash').catch(() => null);
+      pending(hash ?? undefined);
     }
   };
 

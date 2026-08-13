@@ -128,7 +128,9 @@ class VpnWatchdogReceiver : BroadcastReceiver() {
         }
         val alwaysOn = prefs.getBoolean("always_block_active", false)
 
-        if (!focusActive && !saActive && !alwaysOn) {
+        if (!focusActive && !saActive && !alwaysOn &&
+            !NetworkBlockerVpnService.hasPersistentVpnConfiguration(prefs)
+        ) {
             // Session has ended — cancel the alarm so it stops firing
             cancel(context)
             return

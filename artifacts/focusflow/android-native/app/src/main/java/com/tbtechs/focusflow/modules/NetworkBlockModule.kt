@@ -72,6 +72,7 @@ class NetworkBlockModule(private val reactContext: ReactApplicationContext) :
 
     companion object {
         private const val PREFS_NAME = "focusday_prefs"
+        private const val PREF_DEFENSE_PIN_HASH = "defense_pin_hash"
     }
 
     override fun getName(): String = "NetworkBlock"
@@ -155,6 +156,33 @@ class NetworkBlockModule(private val reactContext: ReactApplicationContext) :
     fun setNetworkBlockSettings(settingsJson: String, promise: Promise) {
         try {
             val obj = JSONObject(settingsJson)
+            val currentEnabled = prefs.getBoolean("net_block_enabled", false)
+            val currentVpn = prefs.getBoolean("net_block_vpn", true)
+            val requestedEnabled = if (obj.has("enabled")) obj.getBoolean("enabled") else currentEnabled
+            val requestedVpn = if (obj.has("vpn")) obj.getBoolean("vpn") else currentVpn
+
+            // The UI lock is only the first line of defence. Reject direct bridge
+            // attempts to disable VPN while a live Focus or Standalone block exists,
+            // and require the Defense Password for every other VPN disable.
+            if ((currentEnabled && !requestedEnabled) || (currentVpn && !requestedVpn)) {
+                if (isBlockingSessionActive()) {
+                    promise.reject(
+                        "ACTIVE_BLOCK",
+                        "Network blocking cannot be disabled while Focus or Standalone Block is active",
+                    )
+                    return
+                }
+                val storedDefenseHash = prefs.getString(PREF_DEFENSE_PIN_HASH, null)
+                val suppliedDefenseHash = obj.optString("defensePinHash", null)
+                if (!storedDefenseHash.isNullOrBlank() &&
+                    (suppliedDefenseHash.isNullOrBlank() ||
+                        !storedDefenseHash.equals(suppliedDefenseHash, ignoreCase = true))
+                ) {
+                    promise.reject("DEFENSE_PIN_REQUIRED", "A Defense Password is required to disable network blocking")
+                    return
+                }
+            }
+
             val editor = prefs.edit()
             if (obj.has("enabled")) {
                 val enabled = obj.getBoolean("enabled")
@@ -293,6 +321,13 @@ class NetworkBlockModule(private val reactContext: ReactApplicationContext) :
      */
     @ReactMethod
     fun stopNetworkBlock(pinHash: String?, promise: Promise) {
+        if (isBlockingSessionActive()) {
+            promise.reject(
+                "ACTIVE_BLOCK",
+                "Network blocking cannot be stopped while Focus or Standalone Block is active",
+            )
+            return
+        }
         val storedHash = prefs.getString(
             com.tbtechs.focusflow.modules.SessionPinModule.PREF_PIN_HASH, null
         )
@@ -364,6 +399,29 @@ class NetworkBlockModule(private val reactContext: ReactApplicationContext) :
             cm.getNetworkCapabilities(network)
                 ?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true
         }
+    }
+
+    /**
+     * Uses the same native state consumed by the AccessibilityService, including
+     * expiry timestamps, so a stale boolean cannot keep the VPN locked forever.
+     */
+    private fun isBlockingSessionActive(): Boolean {
+        val now = System.currentTimeMillis()
+        val focusActive = prefs.getBoolean("focus_active", false).let { active ->
+            if (!active) false
+            else {
+                val endMs = prefs.getLong("task_end_ms", 0L)
+                endMs <= 0L || now < endMs
+            }
+        }
+        val standaloneActive = prefs.getBoolean("standalone_block_active", false).let { active ->
+            if (!active) false
+            else {
+                val untilMs = prefs.getLong("standalone_block_until_ms", 0L)
+                untilMs <= 0L || now < untilMs
+            }
+        }
+        return focusActive || standaloneActive
     }
 
     private fun startVpnService(intent: Intent) {

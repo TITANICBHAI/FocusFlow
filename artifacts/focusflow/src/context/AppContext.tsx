@@ -210,7 +210,7 @@ interface AppContextValue {
    */
   stopFocusMode: (pinHash?: string | null) => Promise<void>;
 
-  updateSettings: (settings: AppSettings) => Promise<void>;
+  updateSettings: (settings: AppSettings, options?: { defensePinHash?: string | null }) => Promise<void>;
   /**
    * Starts or stops standalone app blocking. When stopping an active (not-yet-expired)
    * session and a session PIN is configured, [pinHash] must be the SHA-256 hex of the PIN.
@@ -703,7 +703,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return [...userWindows, ...scheduleWindows];
   }
 
-  async function _syncSystemGuard(settings: AppSettings): Promise<void> {
+  async function _syncSystemGuard(
+    settings: AppSettings,
+    defensePinHash: string | null = null,
+  ): Promise<void> {
     try {
       await SharedPrefsModule.setSystemGuardEnabled(settings.systemGuardEnabled ?? false);
     } catch (e) {
@@ -730,6 +733,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         enabled: settings.vpnBlockEnabled ?? false,
         vpn: settings.vpnBlockEnabled ?? false,
         packages: mergedVpnPkgs,
+        defensePinHash,
       });
     } catch (e) {
       void logger.warn('AppContext', `vpn settings sync failed: ${String(e)}`);
@@ -1537,7 +1541,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // ── Settings ─────────────────────────────────────────────────────────────────
 
-  const updateSettings = useCallback(async (settings: AppSettings) => {
+  const updateSettings = useCallback(async (
+    settings: AppSettings,
+    options: { defensePinHash?: string | null } = {},
+  ) => {
     // Optimistic UI: dispatch first so toggles flip instantly. The DB write
     // and the half-dozen native bridge syncs below were previously awaited
     // serially before the dispatch, which made every Switch feel laggy.
@@ -1559,7 +1566,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         GreyoutModule.setSchedule(_recurringSchedulesToGreyoutWindows(settings)).catch((e) =>
           void logger.warn('AppContext', `greyout sync failed: ${String(e)}`),
         ),
-        _syncSystemGuard(settings),
+        _syncSystemGuard(settings, options.defensePinHash ?? null),
       ]);
     } catch (e) {
       void logger.error('AppContext', `updateSettings failed: ${String(e)}`);
@@ -1748,6 +1755,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       alwaysOnPackages,
       autoCopiedAlwaysOnPackages,
       standaloneVpnPackages: resolvedVpnPackages,
+      vpnBlockEnabled:
+        resolvedVpnPackages.length > 0 ||
+        (state.settings.alwaysOnVpnPackages ?? []).length > 0,
     };
     try { await dbSaveSettings(newSettings); } catch (e) { void logger.warn('AppContext', `setStandaloneBlockAndAllowance: dbSaveSettings non-fatal: ${String(e)}`); }
     dispatch({ type: 'SET_SETTINGS', payload: newSettings });

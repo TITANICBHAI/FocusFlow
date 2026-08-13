@@ -57,6 +57,13 @@ export default function VpnBlockListScreen() {
   const [pinVerifyVisible, setPinVerifyVisible] = useState(false);
 
   const originalPkgsRef = useRef<Set<string>>(new Set(settings.alwaysOnVpnPackages ?? []));
+  const blockProtectionActive =
+    state.focusSession?.isActive === true ||
+    (
+      !!settings.standaloneBlockUntil &&
+      (settings.standaloneBlockPackages ?? []).length > 0 &&
+      new Date(settings.standaloneBlockUntil).getTime() > Date.now()
+    );
 
   useEffect(() => {
     InstalledAppsModule.getInstalledApps()
@@ -84,7 +91,7 @@ export default function VpnBlockListScreen() {
     });
   }, []);
 
-  const doSave = useCallback(async () => {
+  const doSave = useCallback(async (defensePinHash: string | null = null) => {
     setSaving(true);
     try {
       const vpnPkgs = Array.from(selected);
@@ -105,7 +112,9 @@ export default function VpnBlockListScreen() {
       await updateSettings({
         ...settings,
         alwaysOnVpnPackages: vpnPkgs,
-      });
+        vpnBlockEnabled:
+          vpnPkgs.length > 0 || (settings.standaloneVpnPackages ?? []).length > 0,
+      }, { defensePinHash });
       router.back();
     } catch {
       Alert.alert('Save failed', 'Could not save the VPN block list. Please try again.');
@@ -117,6 +126,14 @@ export default function VpnBlockListScreen() {
   const handleSave = async () => {
     const originalPkgs = originalPkgsRef.current;
     const isRemoving = [...originalPkgs].some((pkg) => !selected.has(pkg));
+
+    if (isRemoving && blockProtectionActive) {
+      Alert.alert(
+        'Network block is locked',
+        'VPN-blocked apps cannot be removed while Focus Mode or a Standalone Block is active.',
+      );
+      return;
+    }
 
     if (isRemoving) {
       try {
@@ -295,9 +312,9 @@ export default function VpnBlockListScreen() {
         pinType="defense"
         title="Defense Password Required"
         description="You are removing apps from the VPN block list. Enter your defense password to confirm."
-        onVerified={() => {
+         onVerified={(hash) => {
           setPinVerifyVisible(false);
-          void doSave();
+           void doSave(hash);
         }}
         onCancel={() => setPinVerifyVisible(false)}
       />
