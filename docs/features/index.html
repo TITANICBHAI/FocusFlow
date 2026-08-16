@@ -40,29 +40,6 @@
   }
   </script>
 
-  <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "ItemList",
-    "name": "FocusFlow Features",
-    "description": "All features of FocusFlow, the hard-enforcement app blocker for Android.",
-    "numberOfItems": 12,
-    "itemListElement": [
-      { "@type": "ListItem", "position": 1, "name": "Temptation Log", "description": "Records every blocked-app attempt with timestamp, up to 500 entries." },
-      { "@type": "ListItem", "position": 2, "name": "Weekly Temptation Report", "description": "Sunday push notification with 7-day behavioral summary by app." },
-      { "@type": "ListItem", "position": 3, "name": "Local Null-Routing VPN", "description": "Blocks app network traffic entirely on-device — no external server." },
-      { "@type": "ListItem", "position": 4, "name": "Device Administrator Mode", "description": "Prevents FocusFlow uninstallation via Android Settings." },
-      { "@type": "ListItem", "position": 5, "name": "Scheduled Greyout Windows", "description": "Calendar-based per-app blocking without any active session." },
-      { "@type": "ListItem", "position": 7, "name": "SHA-256 Session PIN", "description": "Native session PIN that cannot be bypassed even via JS bridge compromise." },
-      { "@type": "ListItem", "position": 8, "name": "Content-Specific Blocking", "description": "Block YouTube Shorts or Instagram Reels without blocking the whole app." },
-      { "@type": "ListItem", "position": 9, "name": "Aversive Feedback", "description": "Screen dimming + vibration + sound on blocked-app detection." },
-      { "@type": "ListItem", "position": 10, "name": "Home Screen Launcher", "description": "Replaces default launcher — only whitelisted apps visible." },
-      { "@type": "ListItem", "position": 11, "name": "Boot Recovery", "description": "Auto-restarts blocking after device reboot. Clock tamper detection." },
-      { "@type": "ListItem", "position": 12, "name": "Sideload Guard", "description": "Auto-blocks newly installed apps during an active session." }
-    ]
-  }
-  </script>
-
   <link rel="icon" href="../logo-transparent.png" />
   <meta name="theme-color" content="#0D0D14" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -93,7 +70,15 @@
     .nav-links a:hover, .nav-links a[aria-current] { color: var(--text); }
     .nav-cta { background: var(--accent) !important; color: #fff !important; padding: 0.4rem 1rem; border-radius: 8px; font-weight: 600; font-size: 0.85rem !important; }
     .nav-cta:hover { background: var(--accent-dark) !important; }
+    #lang-toggle { background: none; border: 1px solid var(--border); color: var(--muted); padding: 0.28rem 0.7rem; border-radius: 6px; cursor: pointer; font-size: 0.82rem; font-family: inherit; transition: border-color 0.2s, color 0.2s; }
+    #lang-toggle:hover { border-color: var(--accent); color: var(--text); }
     @media (max-width: 720px) { nav { flex-direction: column; gap: 0.75rem; } .nav-links { flex-wrap: wrap; justify-content: center; gap: 0.6rem 0.9rem; } }
+
+    .zh { display: none; }
+    [data-lang="zh"] .zh { display: block; }
+    [data-lang="zh"] .en { display: none; }
+    [data-lang="zh"] span.zh { display: inline; }
+    [data-lang="zh"] span.en { display: none; }
 
     .page-hero { text-align: center; padding: 5rem 1.5rem 3.5rem; position: relative; }
     .page-hero::before { content: ''; position: absolute; top: -40px; left: 50%; transform: translateX(-50%); width: 600px; height: 400px; background: radial-gradient(circle, rgba(108,99,255,0.12) 0%, transparent 70%); pointer-events: none; }
@@ -150,6 +135,18 @@
     footer { padding: 2rem; text-align: center; color: var(--muted); font-size: 0.83rem; border-top: 1px solid var(--border); }
     footer a { color: var(--accent); }
   </style>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "MobileApplication",
+    "name": "FocusFlow",
+    "operatingSystem": "Android 8.0+",
+    "applicationCategory": "ProductivityApplication",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "installUrl": "https://appgallery.huawei.com/app/C117698039",
+    "author": { "@type": "Organization", "name": "TBTechs", "url": "https://focusflowapp.pages.dev/" }
+  }
+  </script>
 </head>
 <body>
 
@@ -159,45 +156,58 @@
     FocusFlow
   </a>
   <div class="nav-links">
-    <a href="./" aria-current="page">Features</a>
-    <a href="../compare/">Compare</a>
-    <a href="../alternatives/">Alternatives</a>
-    <a href="../how-it-works/">How it works</a>
+    <a href="./" aria-current="page"><span class="en">Features</span><span class="zh">功能</span></a>
+    <a href="../compare/"><span class="en">Compare</span><span class="zh">对比</span></a>
+    <a href="../alternatives/"><span class="en">Alternatives</span><span class="zh">替代方案</span></a>
+    <a href="../how-it-works/"><span class="en">How it works</span><span class="zh">工作原理</span></a>
     <a href="../faq/">FAQ</a>
-    <a class="nav-cta" href="https://github.com/TITANICBHAI/FocusFlow/releases">Download APK</a>
+    <a class="nav-cta" href="https://github.com/TITANICBHAI/FocusFlow/releases"><span class="en">Download APK</span><span class="zh">下载 APK</span></a>
+    <button id="lang-toggle">中文</button>
   </div>
 </nav>
 
 <div class="page-hero">
   <nav class="breadcrumb" aria-label="Breadcrumb">
-    <a href="../">Home</a> <span>›</span> <span>Features</span>
+    <a href="../">Home</a> <span>›</span>
+    <span class="en">Features</span>
+    <span class="zh">功能</span>
   </nav>
-  <div class="badge">Full Feature List</div>
-  <h1>Everything FocusFlow<br /><span>can do for you</span></h1>
-  <p class="hero-sub">
-    FocusFlow stacks 12 distinct capabilities that no other free Android app blocker provides together.
-    Here is every feature, explained clearly.
-  </p>
+  <div class="badge en">Full Feature List</div>
+  <div class="badge zh">完整功能列表</div>
+  <h1 class="en">Everything FocusFlow<br /><span>can do for you</span></h1>
+  <h1 class="zh">FocusFlow <span>能为您做的一切</span></h1>
+  <p class="hero-sub en">FocusFlow stacks 12 distinct capabilities that no other free Android app blocker provides together. Here is every feature, explained clearly.</p>
+  <p class="hero-sub zh">FocusFlow 叠加了 12 项独特功能，没有其他免费 Android 应用屏蔽器能将这些功能整合在一起。以下是每项功能的清晰说明。</p>
 </div>
 
-<!-- Enforcement core -->
 <section class="section">
   <div class="section-inner">
-    <p class="section-label">Core enforcement</p>
-    <h2>Three layers that can't all be bypassed at once</h2>
-    <p class="lead">Most blockers use one mechanism. FocusFlow runs three simultaneously — each one closes the bypass the previous layer leaves open.</p>
+    <p class="section-label en">Core enforcement</p>
+    <p class="section-label zh">核心执行</p>
+    <h2 class="en">Three layers that can't all be bypassed at once</h2>
+    <h2 class="zh">三层保护无法同时被绕过</h2>
+    <p class="lead en">Most blockers use one mechanism. FocusFlow runs three simultaneously — each one closes the bypass the previous layer leaves open.</p>
+    <p class="lead zh">大多数屏蔽器只使用一种机制。FocusFlow 同时运行三种——每一种都关闭了上一层留下的绕过漏洞。</p>
     <div class="deep-feature">
 
       <div class="df-item">
         <div class="df-icon">🔍</div>
         <div class="df-body">
-          <h3>Accessibility Service (AppBlockerAccessibilityService)</h3>
-          <p>Monitors every window change on your Android device. When a blocked app's window is detected, FocusFlow fires within milliseconds and launches up to 5 rapid re-checks at 300 ms intervals to prevent the "race window" bypass. This is the primary enforcement layer.</p>
-          <ul>
+          <h3 class="en">Accessibility Service (AppBlockerAccessibilityService)</h3>
+          <h3 class="zh">无障碍服务 (AppBlockerAccessibilityService)</h3>
+          <p class="en">Monitors every window change on your Android device. When a blocked app's window is detected, FocusFlow fires within milliseconds and launches up to 5 rapid re-checks at 300 ms intervals to prevent the "race window" bypass. This is the primary enforcement layer.</p>
+          <p class="zh">监控您 Android 设备上的每次窗口变化。当检测到被屏蔽应用的窗口时，FocusFlow 在毫秒内触发，并以 300 毫秒间隔进行最多 5 次快速复查，以防止"竞争窗口"绕过。这是主要的执行层。</p>
+          <ul class="en">
             <li>Intercepts Play Store install confirmations mid-session</li>
             <li>Blocks navigation to Accessibility Settings during sessions</li>
             <li>Prevents opening the standard uninstall dialog</li>
             <li>Fires power-menu interception on 15+ OEM SystemUI variants</li>
+          </ul>
+          <ul class="zh">
+            <li>拦截会话期间的 Play Store 安装确认</li>
+            <li>在会话期间阻止导航到无障碍设置</li>
+            <li>防止打开标准卸载对话框</li>
+            <li>在 15 个以上 OEM SystemUI 变体上触发电源菜单拦截</li>
           </ul>
         </div>
       </div>
@@ -205,12 +215,19 @@
       <div class="df-item">
         <div class="df-icon">🌐</div>
         <div class="df-body">
-          <h3>Local Null-Routing VPN (NetworkBlockerVpnService)</h3>
-          <p>Routes blocked app traffic into a VPN tunnel that discards all packets. <strong>No traffic ever leaves your device to any external server.</strong> The VPN is entirely on-device.</p>
-          <ul>
+          <h3 class="en">Local Null-Routing VPN (NetworkBlockerVpnService)</h3>
+          <h3 class="zh">本地空路由 VPN (NetworkBlockerVpnService)</h3>
+          <p class="en">Routes blocked app traffic into a VPN tunnel that discards all packets. <strong>No traffic ever leaves your device to any external server.</strong> The VPN is entirely on-device.</p>
+          <p class="zh">将被屏蔽应用的流量路由到丢弃所有数据包的 VPN 隧道。<strong>没有任何流量会离开您的设备到任何外部服务器。</strong>VPN 完全在设备上运行。</p>
+          <ul class="en">
             <li><strong>PER_APP mode:</strong> only the blocked app loses internet — all other apps work normally</li>
             <li><strong>GLOBAL mode:</strong> cuts all device internet except emergency calls</li>
             <li>Works independently of the Accessibility Service — even if AS is killed, VPN keeps blocking</li>
+          </ul>
+          <ul class="zh">
+            <li><strong>PER_APP 模式：</strong>只有被屏蔽的应用失去网络——所有其他应用正常工作</li>
+            <li><strong>GLOBAL 模式：</strong>切断所有设备网络，除紧急通话外</li>
+            <li>独立于无障碍服务工作——即使 AS 被终止，VPN 也会继续屏蔽</li>
           </ul>
         </div>
       </div>
@@ -218,12 +235,19 @@
       <div class="df-item">
         <div class="df-icon">🔒</div>
         <div class="df-body">
-          <h3>Device Administrator (FocusDayDeviceAdminReceiver)</h3>
-          <p>Registers FocusFlow as a Device Administrator. This blocks the standard Android Settings → Apps → Uninstall flow. Combined with System Guard, it makes removal during a session effectively impossible without the session PIN.</p>
-          <ul>
+          <h3 class="en">Device Administrator (FocusDayDeviceAdminReceiver)</h3>
+          <h3 class="zh">设备管理员 (FocusDayDeviceAdminReceiver)</h3>
+          <p class="en">Registers FocusFlow as a Device Administrator. This blocks the standard Android Settings → Apps → Uninstall flow. Combined with System Guard, it makes removal during a session effectively impossible without the session PIN.</p>
+          <p class="zh">将 FocusFlow 注册为设备管理员。这会屏蔽标准的 Android 设置 → 应用 → 卸载流程。结合系统守卫，在没有会话 PIN 的情况下，在会话期间移除应用实际上是不可能的。</p>
+          <ul class="en">
             <li>System Guard intercepts navigation to Accessibility Settings, Clear Data, and Uninstall</li>
             <li>SHA-256 hashed session PIN stored natively — raw PIN is never stored, JS bridge compromise cannot bypass it</li>
             <li>Three-layer tamper prevention: Admin + System Guard + Native PIN</li>
+          </ul>
+          <ul class="zh">
+            <li>系统守卫拦截对无障碍设置、清除数据和卸载的导航</li>
+            <li>SHA-256 哈希会话 PIN 原生存储——原始 PIN 从不存储，JS 桥接破坏无法绕过</li>
+            <li>三层防篡改：管理员 + 系统守卫 + 原生 PIN</li>
           </ul>
         </div>
       </div>
@@ -232,158 +256,207 @@
   </div>
 </section>
 
-<!-- Unique features -->
 <section class="section section-alt">
   <div class="section-inner">
-    <p class="section-label">Unique to FocusFlow</p>
-    <h2>Features no other blocker has</h2>
-    <p class="lead">These capabilities exist in FocusFlow and nowhere else in the free or paid Android blocker market.</p>
+    <p class="section-label en">Unique to FocusFlow</p>
+    <p class="section-label zh">FocusFlow 独有</p>
+    <h2 class="en">Features no other blocker has</h2>
+    <h2 class="zh">其他屏蔽器没有的功能</h2>
+    <p class="lead en">These capabilities exist in FocusFlow and nowhere else in the free or paid Android blocker market.</p>
+    <p class="lead zh">这些功能仅存在于 FocusFlow 中，在免费或付费 Android 屏蔽器市场上独一无二。</p>
     <div class="feature-block">
 
       <div class="fcard">
-        <div class="tag">Unique</div>
+        <div class="tag en">Unique</div>
+        <div class="tag zh">独有</div>
         <span class="fcard-icon">📊</span>
-        <h3>Temptation Log</h3>
-        <p>Natively records every blocked-app attempt — app name, package name, timestamp — via TemptationLogManager in SharedPreferences. Capped at 500 entries. Shows you exactly how often your attention was pulled toward each app.</p>
+        <h3 class="en">Temptation Log</h3>
+        <h3 class="zh">诱惑日志</h3>
+        <p class="en">Natively records every blocked-app attempt — app name, package name, timestamp — via TemptationLogManager in SharedPreferences. Capped at 500 entries. Shows you exactly how often your attention was pulled toward each app.</p>
+        <p class="zh">通过 SharedPreferences 中的 TemptationLogManager 原生记录每次被屏蔽应用的尝试——应用名称、包名、时间戳。上限 500 条。向您准确显示您的注意力被每个应用吸引的频率。</p>
       </div>
 
       <div class="fcard">
-        <div class="tag">Unique</div>
+        <div class="tag en">Unique</div>
+        <div class="tag zh">独有</div>
         <span class="fcard-icon">📬</span>
-        <h3>Weekly Temptation Report</h3>
-        <p>Every Sunday at 08:00 a push notification delivers your 7-day blocked-attempt totals by app. Example: "Instagram: 18 attempts, TikTok: 14 attempts this week." Behavioral insight, not just timers.</p>
+        <h3 class="en">Weekly Temptation Report</h3>
+        <h3 class="zh">每周诱惑报告</h3>
+        <p class="en">Every Sunday at 08:00 a push notification delivers your 7-day blocked-attempt totals by app. Example: "Instagram: 18 attempts, TikTok: 14 attempts this week." Behavioral insight, not just timers.</p>
+        <p class="zh">每周日 08:00，推送通知按应用显示您 7 天的被屏蔽尝试总数。示例："Instagram：本周 18 次尝试，TikTok：14 次尝试。"行为洞察，而非仅仅是计时器。</p>
       </div>
 
       <div class="fcard">
-        <div class="tag">Unique</div>
+        <div class="tag en">Unique</div>
+        <div class="tag zh">独有</div>
         <span class="fcard-icon">📅</span>
-        <h3>Scheduled Greyout Windows</h3>
-        <p>Block an app on a calendar schedule without any active session — e.g., Instagram blocked Mon–Fri 09:00–18:00 automatically. Per-app, per-day-of-week granularity. Enforced directly by the Accessibility Service.</p>
+        <h3 class="en">Scheduled Greyout Windows</h3>
+        <h3 class="zh">计划灰显窗口</h3>
+        <p class="en">Block an app on a calendar schedule without any active session — e.g., Instagram blocked Mon–Fri 09:00–18:00 automatically. Per-app, per-day-of-week granularity. Enforced directly by the Accessibility Service.</p>
+        <p class="zh">在日历时间表上屏蔽应用，无需任何活跃会话——例如，Instagram 自动在周一至周五 09:00–18:00 被屏蔽。每应用、每星期几的粒度。由无障碍服务直接执行。</p>
       </div>
 
       <div class="fcard">
-        <div class="tag">Unique</div>
+        <div class="tag en">Unique</div>
+        <div class="tag zh">独有</div>
         <span class="fcard-icon">⚡</span>
-        <h3>Aversive Feedback</h3>
-        <p>When a blocked app is detected, three simultaneous deterrents fire: screen dimmed to 2% hardware brightness (via WindowManager) plus 70% black overlay; vibration pulse loop (120 ms on / 220 ms off); system notification sound once. Conditions the reflex at the neurological level.</p>
+        <h3 class="en">Aversive Feedback</h3>
+        <h3 class="zh">厌恶反馈</h3>
+        <p class="en">When a blocked app is detected, three simultaneous deterrents fire: screen dimmed to 2% hardware brightness (via WindowManager) plus 70% black overlay; vibration pulse loop (120 ms on / 220 ms off); system notification sound once. Conditions the reflex at the neurological level.</p>
+        <p class="zh">当检测到被屏蔽的应用时，三种同时触发的威慑：屏幕调暗至 2% 硬件亮度（通过 WindowManager）加上 70% 黑色覆盖层；振动脉冲循环（120 毫秒开/220 毫秒关）；系统通知声一次。在神经系统层面进行条件反射训练。</p>
       </div>
 
       <div class="fcard">
-        <div class="tag">Unique</div>
+        <div class="tag en">Unique</div>
+        <div class="tag zh">独有</div>
         <span class="fcard-icon">📦</span>
-        <h3>Sideload Guard (PackageInstallReceiver)</h3>
-        <p>Monitors ACTION_PACKAGE_ADDED broadcasts. Any app installed during an active session is immediately added to the block list and triggers aversive feedback. Closes the "install a competing browser to bypass" loophole — a gap every other blocker leaves open.</p>
+        <h3 class="en">Sideload Guard (PackageInstallReceiver)</h3>
+        <h3 class="zh">旁加载保护 (PackageInstallReceiver)</h3>
+        <p class="en">Monitors ACTION_PACKAGE_ADDED broadcasts. Any app installed during an active session is immediately added to the block list and triggers aversive feedback. Closes the "install a competing browser to bypass" loophole — a gap every other blocker leaves open.</p>
+        <p class="zh">监控 ACTION_PACKAGE_ADDED 广播。活跃会话期间安装的任何应用都会立即添加到屏蔽列表并触发厌恶反馈。关闭"安装竞争性浏览器绕过"漏洞——这是所有其他屏蔽器都存在的缺口。</p>
       </div>
 
     </div>
   </div>
 </section>
 
-<!-- Content blocking -->
 <section class="section">
   <div class="section-inner">
-    <p class="section-label">Content-level blocking</p>
-    <h2>Block the feed, not the whole app</h2>
-    <p class="lead">FocusFlow can target specific content within an app — so you keep access to useful features while the addictive ones are blocked.</p>
+    <p class="section-label en">Content-level blocking</p>
+    <p class="section-label zh">内容级别屏蔽</p>
+    <h2 class="en">Block the feed, not the whole app</h2>
+    <h2 class="zh">屏蔽信息流，而非整个应用</h2>
+    <p class="lead en">FocusFlow can target specific content within an app — so you keep access to useful features while the addictive ones are blocked.</p>
+    <p class="lead zh">FocusFlow 可以针对应用内的特定内容——让您保留对有用功能的访问，同时屏蔽令人上瘾的内容。</p>
     <div class="feature-block">
       <div class="fcard">
         <span class="fcard-icon">▶️</span>
-        <h3>YouTube Shorts Blocker</h3>
-        <p>Closes the Shorts player within YouTube. Leaves the main feed, search, subscriptions, channel pages, and standard video playback fully accessible. Only the short-form vertical video loop is blocked.</p>
+        <h3 class="en">YouTube Shorts Blocker</h3>
+        <h3 class="zh">YouTube Shorts 屏蔽器</h3>
+        <p class="en">Closes the Shorts player within YouTube. Leaves the main feed, search, subscriptions, channel pages, and standard video playback fully accessible. Only the short-form vertical video loop is blocked.</p>
+        <p class="zh">关闭 YouTube 内的 Shorts 播放器。保留主信息流、搜索、订阅、频道页面和标准视频播放的完全访问。只屏蔽短视频垂直循环。</p>
       </div>
       <div class="fcard">
         <span class="fcard-icon">📸</span>
-        <h3>Instagram Reels Blocker</h3>
-        <p>Blocks the Reels feed tab within Instagram. Feed, DMs, Stories, profile, and search remain accessible. Blocks the infinite-scroll Reels loop specifically.</p>
+        <h3 class="en">Instagram Reels Blocker</h3>
+        <h3 class="zh">Instagram Reels 屏蔽器</h3>
+        <p class="en">Blocks the Reels feed tab within Instagram. Feed, DMs, Stories, profile, and search remain accessible. Blocks the infinite-scroll Reels loop specifically.</p>
+        <p class="zh">屏蔽 Instagram 内的 Reels 信息流标签。信息流、私信、故事、个人资料和搜索保持可访问。专门屏蔽无限滚动的 Reels 循环。</p>
       </div>
       <div class="fcard">
         <span class="fcard-icon">🌍</span>
-        <h3>Browser Keyword / URL Blocker</h3>
-        <p>Blocks specific URLs or keywords across Chrome, Firefox, Samsung Internet, and other major Android browsers. Works at the window-title and URL-bar level via the Accessibility Service.</p>
+        <h3 class="en">Browser Keyword / URL Blocker</h3>
+        <h3 class="zh">浏览器关键词/URL 屏蔽器</h3>
+        <p class="en">Blocks specific URLs or keywords across Chrome, Firefox, Samsung Internet, and other major Android browsers. Works at the window-title and URL-bar level via the Accessibility Service.</p>
+        <p class="zh">在 Chrome、Firefox、三星 Internet 和其他主要 Android 浏览器中屏蔽特定 URL 或关键词。通过无障碍服务在窗口标题和 URL 栏级别工作。</p>
       </div>
     </div>
   </div>
 </section>
 
-<!-- Scheduling & allowances -->
 <section class="section section-alt">
   <div class="section-inner">
-    <p class="section-label">Scheduling engine</p>
-    <h2>Four blocking modes + daily allowances</h2>
-    <p class="lead">FocusFlow has a priority-based scheduling engine with conflict resolution, gap compression, and overrun rebalancing. Choose the mode that fits your workflow.</p>
+    <p class="section-label en">Scheduling engine</p>
+    <p class="section-label zh">调度引擎</p>
+    <h2 class="en">Four blocking modes + daily allowances</h2>
+    <h2 class="zh">四种屏蔽模式 + 每日配额</h2>
+    <p class="lead en">FocusFlow has a priority-based scheduling engine with conflict resolution, gap compression, and overrun rebalancing. Choose the mode that fits your workflow.</p>
+    <p class="lead zh">FocusFlow 拥有基于优先级的调度引擎，具有冲突解决、间隙压缩和超时重新平衡功能。选择适合您工作流程的模式。</p>
     <div class="feature-block">
       <div class="fcard">
         <span class="fcard-icon">🎯</span>
-        <h3>Task-Based Mode</h3>
-        <p>Each task carries its own allowed-app snapshot. Apps not on the whitelist are blocked during the task. Music for one task, silence for another — configurable per task.</p>
+        <h3 class="en">Task-Based Mode</h3>
+        <h3 class="zh">基于任务模式</h3>
+        <p class="en">Each task carries its own allowed-app snapshot. Apps not on the whitelist are blocked during the task. Music for one task, silence for another — configurable per task.</p>
+        <p class="zh">每个任务携带自己的允许应用快照。不在白名单上的应用在任务期间被屏蔽。一个任务播放音乐，另一个保持静默——每个任务可单独配置。</p>
       </div>
       <div class="fcard">
         <span class="fcard-icon">⚡</span>
-        <h3>Standalone Mode</h3>
-        <p>Timed blacklist blocking without a scheduled task. Lock down your phone immediately for a set duration without any task management overhead.</p>
+        <h3 class="en">Standalone Mode</h3>
+        <h3 class="zh">独立模式</h3>
+        <p class="en">Timed blacklist blocking without a scheduled task. Lock down your phone immediately for a set duration without any task management overhead.</p>
+        <p class="zh">无需计划任务的定时黑名单屏蔽。立即锁定手机一段设定时间，无需任何任务管理开销。</p>
       </div>
       <div class="fcard">
         <span class="fcard-icon">🔄</span>
-        <h3>Always-On Mode</h3>
-        <p>Permanent blacklist active at all times. Specified apps are always blocked with no session required. Useful for apps you want to permanently restrict.</p>
+        <h3 class="en">Always-On Mode</h3>
+        <h3 class="zh">始终开启模式</h3>
+        <p class="en">Permanent blacklist active at all times. Specified apps are always blocked with no session required. Useful for apps you want to permanently restrict.</p>
+        <p class="zh">永久黑名单始终活跃。指定应用始终被屏蔽，无需会话。适用于您希望永久限制的应用。</p>
       </div>
       <div class="fcard">
         <span class="fcard-icon">📅</span>
-        <h3>Scheduled Greyout</h3>
-        <p>Calendar-based per-app blocking with no active session needed. Define work hours per app, per day of week. Enforced by the Accessibility Service on a native JSON schedule.</p>
+        <h3 class="en">Scheduled Greyout</h3>
+        <h3 class="zh">计划灰显</h3>
+        <p class="en">Calendar-based per-app blocking with no active session needed. Define work hours per app, per day of week. Enforced by the Accessibility Service on a native JSON schedule.</p>
+        <p class="zh">基于日历的每应用屏蔽，无需活跃会话。按应用、按每周几定义工作时间。由无障碍服务基于原生 JSON 时间表执行。</p>
       </div>
       <div class="fcard">
         <span class="fcard-icon">⏱</span>
-        <h3>Daily Allowance Engine</h3>
-        <p><strong>Count sub-mode:</strong> maximum opens per day. <strong>Time-budget sub-mode:</strong> maximum minutes per day. <strong>Interval sub-mode:</strong> minimum cooldown between uses. Three ways to allow limited access instead of full blocking.</p>
+        <h3 class="en">Daily Allowance Engine</h3>
+        <h3 class="zh">每日配额引擎</h3>
+        <p class="en"><strong>Count sub-mode:</strong> maximum opens per day. <strong>Time-budget sub-mode:</strong> maximum minutes per day. <strong>Interval sub-mode:</strong> minimum cooldown between uses. Three ways to allow limited access instead of full blocking.</p>
+        <p class="zh"><strong>计数子模式：</strong>每天最大打开次数。<strong>时间预算子模式：</strong>每天最大分钟数。<strong>间隔子模式：</strong>两次使用之间的最短冷却时间。三种允许有限访问而非完全屏蔽的方式。</p>
       </div>
       <div class="fcard">
         <span class="fcard-icon">🍅</span>
-        <h3>Pomodoro Timer</h3>
-        <p>Built-in Pomodoro timer (usePomodoro.ts) fully integrated with app blocking. Work and break durations are configurable. App blocking stays active through both work and break phases.</p>
+        <h3 class="en">Pomodoro Timer</h3>
+        <h3 class="zh">番茄钟计时器</h3>
+        <p class="en">Built-in Pomodoro timer (usePomodoro.ts) fully integrated with app blocking. Work and break durations are configurable. App blocking stays active through both work and break phases.</p>
+        <p class="zh">内置番茄钟计时器（usePomodoro.ts）与应用屏蔽完全集成。工作和休息时长可配置。应用屏蔽在工作和休息阶段都保持活跃。</p>
       </div>
     </div>
   </div>
 </section>
 
-<!-- Resilience -->
 <section class="section">
   <div class="section-inner">
-    <p class="section-label">Tamper resistance</p>
-    <h2>Built to survive every bypass attempt</h2>
-    <p class="lead">FocusFlow anticipates the most common bypass techniques and closes each one at the hardware or native layer.</p>
+    <p class="section-label en">Tamper resistance</p>
+    <p class="section-label zh">防篡改</p>
+    <h2 class="en">Built to survive every bypass attempt</h2>
+    <h2 class="zh">专为抵御每次绕过尝试而构建</h2>
+    <p class="lead en">FocusFlow anticipates the most common bypass techniques and closes each one at the hardware or native layer.</p>
+    <p class="lead zh">FocusFlow 预见最常见的绕过技术，并在硬件或原生层面关闭每一种。</p>
     <div class="deep-feature">
       <div class="df-item">
         <div class="df-icon">🔄</div>
         <div class="df-body">
-          <h3>Boot Recovery (BootReceiver)</h3>
-          <p>Automatically restarts the Accessibility Service and VPN tunnel after any device reboot during an active session. Sessions survive reboots.</p>
+          <h3 class="en">Boot Recovery (BootReceiver)</h3>
+          <h3 class="zh">启动恢复 (BootReceiver)</h3>
+          <p class="en">Automatically restarts the Accessibility Service and VPN tunnel after any device reboot during an active session. Sessions survive reboots.</p>
+          <p class="zh">活跃会话期间，任何设备重启后自动重启无障碍服务和 VPN 隧道。会话在重启后继续存在。</p>
         </div>
       </div>
       <div class="df-item">
         <div class="df-icon">🕐</div>
         <div class="df-body">
-          <h3>Clock Tamper Detection</h3>
-          <p>Sessions use native epoch timestamps validated at the Accessibility Service level. Changing the system clock does not expire the session timer.</p>
+          <h3 class="en">Clock Tamper Detection</h3>
+          <h3 class="zh">时钟篡改检测</h3>
+          <p class="en">Sessions use native epoch timestamps validated at the Accessibility Service level. Changing the system clock does not expire the session timer.</p>
+          <p class="zh">会话使用在无障碍服务级别验证的原生纪元时间戳。更改系统时钟不会使会话计时器过期。</p>
         </div>
       </div>
       <div class="df-item">
         <div class="df-icon">🏠</div>
         <div class="df-body">
-          <h3>Home Screen Launcher Replacement</h3>
-          <p>LauncherActivity replaces your default home screen. Pressing HOME shows only whitelisted apps in a minimal 4-column grid with a 5-slot dock. The app drawer also respects the blocklist. Long-press uninstall from home screen can be locked.</p>
+          <h3 class="en">Home Screen Launcher Replacement</h3>
+          <h3 class="zh">主屏幕启动器替换</h3>
+          <p class="en">LauncherActivity replaces your default home screen. Pressing HOME shows only whitelisted apps in a minimal 4-column grid with a 5-slot dock. The app drawer also respects the blocklist. Long-press uninstall from home screen can be locked.</p>
+          <p class="zh">LauncherActivity 替换您的默认主屏幕。按下 HOME 键只显示白名单中的应用，以最小化 4 列网格和 5 槽底座呈现。应用抽屉也遵循屏蔽列表。从主屏幕长按卸载可以被锁定。</p>
         </div>
       </div>
     </div>
   </div>
 </section>
 
-<!-- OEM support -->
 <section class="section section-alt">
   <div class="section-inner">
-    <p class="section-label">Device compatibility</p>
-    <h2>30+ Android OEM brands supported</h2>
-    <p class="lead">FocusFlow's AppBlockerAccessibilityService explicitly handles SystemUI package names for every major Android OEM to ensure power-menu interception and system navigation blocking works correctly.</p>
+    <p class="section-label en">Device compatibility</p>
+    <p class="section-label zh">设备兼容性</p>
+    <h2 class="en">30+ Android OEM brands supported</h2>
+    <h2 class="zh">支持 30 多个 Android OEM 品牌</h2>
+    <p class="lead en">FocusFlow's AppBlockerAccessibilityService explicitly handles SystemUI package names for every major Android OEM to ensure power-menu interception and system navigation blocking works correctly.</p>
+    <p class="lead zh">FocusFlow 的 AppBlockerAccessibilityService 明确处理每个主要 Android OEM 的 SystemUI 包名，确保电源菜单拦截和系统导航屏蔽正确工作。</p>
     <div style="display:flex;flex-wrap:wrap;gap:0.6rem;margin-top:1.5rem;">
       <span style="background:var(--surface2);border:1px solid var(--border);border-radius:999px;padding:0.38rem 0.9rem;font-size:0.82rem;color:var(--muted);">Samsung (OneUI)</span>
       <span style="background:var(--surface2);border:1px solid var(--border);border-radius:999px;padding:0.38rem 0.9rem;font-size:0.82rem;color:var(--muted);">Xiaomi (MIUI/HyperOS)</span>
@@ -410,11 +483,16 @@
 </section>
 
 <div class="cta-bar">
-  <h2>All of this. Completely free.</h2>
-  <p>No subscription. No in-app purchase. Every feature listed above is available from day one.</p>
+  <h2 class="en">All of this. Completely free.</h2>
+  <h2 class="zh">所有这些。完全免费。</h2>
+  <p class="en">No subscription. No in-app purchase. Every feature listed above is available from day one.</p>
+  <p class="zh">无订阅。无应用内购买。上面列出的每项功能从第一天起就可以使用。</p>
   <div class="cta-group">
-    <a class="btn-primary" href="https://github.com/TITANICBHAI/FocusFlow/releases">⬇ Download APK</a>
-    <a class="btn-ghost" href="../compare/">See how it compares →</a>
+    <a href="https://appgallery.huawei.com/app/C117698039" style="display:inline-block;flex-shrink:0;vertical-align:middle;">
+      <img src="../huawei-appgallery-badge.svg" alt="Explore it on AppGallery" style="height:52px;width:auto;display:block;" />
+    </a>
+    <a class="btn-ghost" href="https://github.com/TITANICBHAI/FocusFlow/releases"><span class="en">⬇ GitHub APK</span><span class="zh">⬇ GitHub APK</span></a>
+    <a class="btn-ghost" href="../compare/"><span class="en">See how it compares →</span><span class="zh">查看对比 →</span></a>
   </div>
 </div>
 
@@ -422,5 +500,27 @@
   <p><a href="../">Home</a> · <a href="../compare/">Compare</a> · <a href="../faq/">FAQ</a> · <a href="../how-it-works/">How it works</a> · <a href="../privacy-policy/">Privacy</a> · <a href="../terms-of-service/">Terms</a> · <a href="../data-subject-rights/">Data Rights</a> · <a href="https://github.com/TITANICBHAI/FocusFlow">GitHub</a></p>
 </footer>
 
+<script>
+(function(){
+  var stored = localStorage.getItem('ff-lang');
+  var auto = (navigator.language || navigator.userLanguage || '').startsWith('zh');
+  var isZh = stored ? stored === 'zh' : auto;
+  function apply(zh){
+    document.documentElement.setAttribute('data-lang', zh ? 'zh' : 'en');
+    localStorage.setItem('ff-lang', zh ? 'zh' : 'en');
+    var btn = document.getElementById('lang-toggle');
+    if(btn) btn.textContent = zh ? 'EN' : '中文';
+  }
+  apply(isZh);
+  document.addEventListener('DOMContentLoaded', function(){
+    apply(isZh);
+    var btn = document.getElementById('lang-toggle');
+    if(btn) btn.addEventListener('click', function(){
+      var cur = document.documentElement.getAttribute('data-lang');
+      apply(cur !== 'zh');
+    });
+  });
+})();
+</script>
 </body>
 </html>

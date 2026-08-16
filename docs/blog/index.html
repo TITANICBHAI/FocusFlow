@@ -36,23 +36,6 @@
     ]
   }
   </script>
-  <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "ItemList",
-    "name": "FocusFlow Blog",
-    "description": "Guides on Android app blocking, screen time management, and digital focus.",
-    "url": "https://focusflowapp.pages.dev/blog/",
-    "itemListElement": [
-      { "@type": "ListItem", "position": 1, "url": "https://focusflow-tbtechs.replit.app/blog/how-to-block-youtube-shorts-android/", "name": "How to Block YouTube Shorts on Android (Without Blocking YouTube)" },
-      { "@type": "ListItem", "position": 2, "url": "https://focusflowapp.pages.dev/blog/how-to-block-instagram-reels-android/", "name": "How to Block Instagram Reels on Android (Without Blocking Instagram)" },
-      { "@type": "ListItem", "position": 3, "url": "https://focusflowapp.pages.dev/blog/best-free-app-blocker-android/", "name": "Best Free App Blocker for Android in 2025" },
-      { "@type": "ListItem", "position": 4, "url": "https://focusflowapp.pages.dev/blog/freedom-app-alternative/", "name": "Best Free Freedom App Alternative for Android" },
-      { "@type": "ListItem", "position": 5, "url": "https://focusflowapp.pages.dev/blog/how-to-stop-doom-scrolling/", "name": "How to Stop Doom Scrolling on Android" },
-      { "@type": "ListItem", "position": 6, "url": "https://focusflowapp.pages.dev/blog/app-blocker-adhd-android/", "name": "Best App Blocker for ADHD on Android" }
-    ]
-  }
-  </script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -73,6 +56,17 @@
     .nav-links a:hover, .nav-links a.active { color: var(--text); }
     .nav-cta { background: var(--accent); color: #fff !important; padding: 0.45rem 1rem; border-radius: 8px; font-weight: 600; font-size: 0.82rem !important; }
     .nav-cta:hover { background: #7a72ff !important; }
+    #lang-toggle {
+      background: none; border: 1px solid var(--border); color: var(--muted);
+      padding: 0.28rem 0.7rem; border-radius: 6px; cursor: pointer;
+      font-size: 0.82rem; font-family: inherit; transition: border-color 0.2s, color 0.2s;
+    }
+    #lang-toggle:hover { border-color: var(--accent); color: var(--text); }
+    .zh { display: none; }
+    [data-lang="zh"] .zh { display: block; }
+    [data-lang="zh"] .en { display: none; }
+    [data-lang="zh"] span.zh { display: inline; }
+    [data-lang="zh"] span.en { display: none; }
     .breadcrumb { padding: 1rem 2rem; font-size: 0.8rem; color: var(--muted); }
     .breadcrumb a { color: var(--accent); }
     .breadcrumb span { margin: 0 0.4rem; }
@@ -110,68 +104,156 @@
       <a href="../faq/">FAQ</a>
       <a href="../blog/" class="active">Blog</a>
       <a class="nav-cta" href="https://github.com/TITANICBHAI/FocusFlow/releases">Download APK</a>
+      <button id="lang-toggle">中文</button>
     </div>
   </nav>
 
   <div class="breadcrumb">
-    <a href="../">Home</a><span>›</span> Blog
+    <a href="../">Home</a><span>›</span>
+    <span class="en">Blog</span>
+    <span class="zh">博客</span>
   </div>
 
   <main>
     <header class="page-header">
-      <p class="eyebrow">FocusFlow Blog</p>
-      <h1>Guides to Reclaiming Your Focus on Android</h1>
-      <p class="lead">Practical, no-fluff guides on blocking distractions, stopping doom scrolling, and understanding your options.</p>
+      <p class="eyebrow en">FocusFlow Blog</p>
+      <p class="eyebrow zh">FocusFlow 博客</p>
+      <h1 class="en">Guides to Reclaiming Your Focus on Android</h1>
+      <h1 class="zh">重获 Android 专注力的实用指南</h1>
+      <p class="lead en">Practical, no-fluff guides on blocking distractions, stopping doom scrolling, and understanding your options.</p>
+      <p class="lead zh">关于屏蔽干扰、停止末日滚动并了解您选择的实用、无废话指南。</p>
     </header>
 
     <div class="blog-grid">
 
       <a class="card" href="how-to-block-youtube-shorts-android/">
-        <span class="card-tag">How-To</span>
-        <h2>How to Block YouTube Shorts on Android Without Blocking YouTube</h2>
-        <p>A step-by-step guide to blocking the Shorts feed while keeping full access to YouTube videos, channels, and playlists.</p>
-        <span class="card-meta">May 2025 · 6 min read</span>
-        <span class="read-more">Read guide →</span>
+        <span class="card-tag en">How-To</span>
+        <span class="card-tag zh">操作指南</span>
+        <h2 class="en">How to Block YouTube Shorts on Android Without Blocking YouTube</h2>
+        <h2 class="zh">如何在 Android 上屏蔽 YouTube Shorts 而不屏蔽 YouTube</h2>
+        <p class="en">A step-by-step guide to blocking the Shorts feed while keeping full access to YouTube videos, channels, and playlists.</p>
+        <p class="zh">逐步指南：屏蔽 Shorts 信息流，同时保留对 YouTube 视频、频道和播放列表的完整访问权限。</p>
+        <span class="card-meta en">May 2025 · 6 min read</span>
+        <span class="card-meta zh">2025年5月 · 6分钟阅读</span>
+        <span class="read-more en">Read guide →</span>
+        <span class="read-more zh">阅读指南 →</span>
       </a>
 
       <a class="card" href="how-to-block-instagram-reels-android/">
-        <span class="card-tag">How-To</span>
-        <h2>How to Block Instagram Reels on Android Without Blocking Instagram</h2>
-        <p>Block the Reels tab and auto-play videos without losing access to DMs, Stories, or your feed. Here's exactly how.</p>
-        <span class="card-meta">May 2025 · 6 min read</span>
-        <span class="read-more">Read guide →</span>
+        <span class="card-tag en">How-To</span>
+        <span class="card-tag zh">操作指南</span>
+        <h2 class="en">How to Block Instagram Reels on Android Without Blocking Instagram</h2>
+        <h2 class="zh">如何在 Android 上屏蔽 Instagram Reels 而不屏蔽 Instagram</h2>
+        <p class="en">Block the Reels tab and auto-play videos without losing access to DMs, Stories, or your feed. Here's exactly how.</p>
+        <p class="zh">屏蔽 Reels 标签和自动播放视频，同时不影响私信、故事或信息流的访问。具体方法如下。</p>
+        <span class="card-meta en">May 2025 · 6 min read</span>
+        <span class="card-meta zh">2025年5月 · 6分钟阅读</span>
+        <span class="read-more en">Read guide →</span>
+        <span class="read-more zh">阅读指南 →</span>
       </a>
 
       <a class="card" href="best-free-app-blocker-android/">
-        <span class="card-tag">Review</span>
-        <h2>Best Free App Blocker for Android in 2025</h2>
-        <p>We tested Digital Wellbeing, AppBlock, Freedom, and FocusFlow. Here's which one actually stops you from getting back in.</p>
-        <span class="card-meta">May 2025 · 8 min read</span>
-        <span class="read-more">Read guide →</span>
+        <span class="card-tag en">Review</span>
+        <span class="card-tag zh">评测</span>
+        <h2 class="en">Best Free App Blocker for Android in 2025</h2>
+        <h2 class="zh">2025年 Android 最佳免费应用屏蔽器</h2>
+        <p class="en">We tested Digital Wellbeing, AppBlock, Freedom, and FocusFlow. Here's which one actually stops you from getting back in.</p>
+        <p class="zh">我们测试了数字健康、AppBlock、Freedom 和 FocusFlow。以下是哪款真正能阻止您重新进入的结论。</p>
+        <span class="card-meta en">May 2025 · 8 min read</span>
+        <span class="card-meta zh">2025年5月 · 8分钟阅读</span>
+        <span class="read-more en">Read guide →</span>
+        <span class="read-more zh">阅读指南 →</span>
       </a>
 
       <a class="card" href="freedom-app-alternative/">
-        <span class="card-tag">Comparison</span>
-        <h2>Best Free Freedom App Alternative for Android</h2>
-        <p>Freedom costs $6.99/month. These free Android alternatives block just as hard — one of them does it harder.</p>
-        <span class="card-meta">May 2025 · 7 min read</span>
-        <span class="read-more">Read guide →</span>
+        <span class="card-tag en">Comparison</span>
+        <span class="card-tag zh">对比</span>
+        <h2 class="en">Best Free Freedom App Alternative for Android</h2>
+        <h2 class="zh">Android 最佳免费 Freedom 应用替代品</h2>
+        <p class="en">Freedom costs $6.99/month. These free Android alternatives block just as hard — one of them does it harder.</p>
+        <p class="zh">Freedom 每月需花费 $6.99。这些免费 Android 替代品屏蔽效果同样强硬——其中一款甚至更强。</p>
+        <span class="card-meta en">May 2025 · 7 min read</span>
+        <span class="card-meta zh">2025年5月 · 7分钟阅读</span>
+        <span class="read-more en">Read guide →</span>
+        <span class="read-more zh">阅读指南 →</span>
       </a>
 
       <a class="card" href="how-to-stop-doom-scrolling/">
-        <span class="card-tag">Deep Dive</span>
-        <h2>How to Stop Doom Scrolling on Android (That Actually Works)</h2>
-        <p>Willpower alone won't stop it. Here's what the research says, and what app-level enforcement can actually do about it.</p>
-        <span class="card-meta">May 2025 · 9 min read</span>
-        <span class="read-more">Read guide →</span>
+        <span class="card-tag en">Deep Dive</span>
+        <span class="card-tag zh">深度分析</span>
+        <h2 class="en">How to Stop Doom Scrolling on Android (That Actually Works)</h2>
+        <h2 class="zh">如何在 Android 上停止末日滚动（真正有效的方法）</h2>
+        <p class="en">Willpower alone won't stop it. Here's what the research says, and what app-level enforcement can actually do about it.</p>
+        <p class="zh">单靠意志力无法阻止它。以下是研究的发现，以及应用层面的执行实际上能做什么。</p>
+        <span class="card-meta en">May 2025 · 9 min read</span>
+        <span class="card-meta zh">2025年5月 · 9分钟阅读</span>
+        <span class="read-more en">Read guide →</span>
+        <span class="read-more zh">阅读指南 →</span>
       </a>
 
       <a class="card" href="app-blocker-adhd-android/">
-        <span class="card-tag">Guide</span>
-        <h2>Best App Blocker for ADHD on Android — Hard Enforcement Explained</h2>
-        <p>Soft timers don't work for ADHD. Here's why enforcement-level blocking is different, and which app delivers it on Android.</p>
-        <span class="card-meta">May 2025 · 7 min read</span>
-        <span class="read-more">Read guide →</span>
+        <span class="card-tag en">Guide</span>
+        <span class="card-tag zh">指南</span>
+        <h2 class="en">Best App Blocker for ADHD on Android — Hard Enforcement Explained</h2>
+        <h2 class="zh">Android ADHD 最佳应用屏蔽器——强制执行详解</h2>
+        <p class="en">Soft timers don't work for ADHD. Here's why enforcement-level blocking is different, and which app delivers it on Android.</p>
+        <p class="zh">软定时器对 ADHD 无效。以下是执行级屏蔽为何不同，以及哪款 Android 应用能实现它。</p>
+        <span class="card-meta en">May 2025 · 7 min read</span>
+        <span class="card-meta zh">2025年5月 · 7分钟阅读</span>
+        <span class="read-more en">Read guide →</span>
+        <span class="read-more zh">阅读指南 →</span>
+      </a>
+
+      <a class="card" href="how-to-block-tiktok-android/">
+        <span class="card-tag en">How-To</span>
+        <span class="card-tag zh">操作指南</span>
+        <h2 class="en">How to Block TikTok on Android Permanently, With No Bypass</h2>
+        <h2 class="zh">如何在 Android 上永久屏蔽 TikTok，且无法绕过</h2>
+        <p class="en">Hard-block TikTok using Accessibility Service + VPN + Device Admin. Every bypass route covered. Free, no root.</p>
+        <p class="zh">使用无障碍服务 + VPN + 设备管理员硬屏蔽 TikTok。所有绕过路径均已覆盖。免费，无需 root。</p>
+        <span class="card-meta en">May 2025 · 7 min read</span>
+        <span class="card-meta zh">2025年5月 · 7分钟阅读</span>
+        <span class="read-more en">Read guide →</span>
+        <span class="read-more zh">阅读指南 →</span>
+      </a>
+
+      <a class="card" href="best-app-blocker-android-2025/">
+        <span class="card-tag en">Comparison</span>
+        <span class="card-tag zh">对比</span>
+        <h2 class="en">Best Free App Blocker for Android in 2025 — Honest Comparison</h2>
+        <h2 class="zh">2025年 Android 最佳免费应用屏蔽器——真实对比</h2>
+        <p class="en">FocusFlow vs Freedom vs Opal vs Digital Wellbeing vs AppBlock. Tested on real devices. Ranked by enforcement strength.</p>
+        <p class="zh">FocusFlow vs Freedom vs Opal vs 数字健康 vs AppBlock。在真实设备上测试。按执行强度排名。</p>
+        <span class="card-meta en">May 2025 · 10 min read</span>
+        <span class="card-meta zh">2025年5月 · 10分钟阅读</span>
+        <span class="read-more en">Read comparison →</span>
+        <span class="read-more zh">阅读对比 →</span>
+      </a>
+
+      <a class="card" href="cold-turkey-alternative-android/">
+        <span class="card-tag en">Alternatives</span>
+        <span class="card-tag zh">替代方案</span>
+        <h2 class="en">Cold Turkey Alternative for Android — Hard Blocking Without a PC</h2>
+        <h2 class="zh">Cold Turkey 的 Android 替代品——无需 PC 的硬屏蔽</h2>
+        <p class="en">Cold Turkey is Windows/Mac only. Here's the closest Android equivalent — same no-bypass philosophy, free, 30+ OEMs.</p>
+        <p class="zh">Cold Turkey 仅限 Windows/Mac。这是最接近的 Android 等价品——相同的无绕过理念，免费，30+ OEM 品牌。</p>
+        <span class="card-meta en">May 2025 · 8 min read</span>
+        <span class="card-meta zh">2025年5月 · 8分钟阅读</span>
+        <span class="read-more en">Read guide →</span>
+        <span class="read-more zh">阅读指南 →</span>
+      </a>
+
+      <a class="card" href="how-to-stop-phone-addiction-android/">
+        <span class="card-tag en">Deep Dive</span>
+        <span class="card-tag zh">深度分析</span>
+        <h2 class="en">How to Stop Phone Addiction on Android — What Actually Works</h2>
+        <h2 class="zh">如何在 Android 上戒除手机成瘾——真正有效的方法</h2>
+        <p class="en">Phone addiction is a dopamine loop, not a willpower problem. Here's the science — and what system-level blocking actually changes.</p>
+        <p class="zh">手机成瘾是多巴胺循环，而非意志力问题。以下是科学依据——以及系统级屏蔽实际改变了什么。</p>
+        <span class="card-meta en">May 2025 · 9 min read</span>
+        <span class="card-meta zh">2025年5月 · 9分钟阅读</span>
+        <span class="read-more en">Read guide →</span>
+        <span class="read-more zh">阅读指南 →</span>
       </a>
 
     </div>
@@ -180,5 +262,28 @@
   <footer>
     <p>© 2025 TBTechs · <a href="../privacy-policy/">Privacy</a> · <a href="../terms-of-service/">Terms</a> · <a href="https://github.com/TITANICBHAI/FocusFlow">GitHub</a></p>
   </footer>
+
+  <script>
+  (function(){
+    var stored = localStorage.getItem('ff-lang');
+    var auto = (navigator.language || navigator.userLanguage || '').startsWith('zh');
+    var isZh = stored ? stored === 'zh' : auto;
+    function apply(zh){
+      document.documentElement.setAttribute('data-lang', zh ? 'zh' : 'en');
+      localStorage.setItem('ff-lang', zh ? 'zh' : 'en');
+      var btn = document.getElementById('lang-toggle');
+      if(btn) btn.textContent = zh ? 'EN' : '中文';
+    }
+    apply(isZh);
+    document.addEventListener('DOMContentLoaded', function(){
+      apply(isZh);
+      var btn = document.getElementById('lang-toggle');
+      if(btn) btn.addEventListener('click', function(){
+        var cur = document.documentElement.getAttribute('data-lang');
+        apply(cur !== 'zh');
+      });
+    });
+  })();
+  </script>
 </body>
 </html>

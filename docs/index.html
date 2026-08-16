@@ -11,6 +11,17 @@
   <meta name="author" content="TBTechs" />
   <meta name="robots" content="index, follow" />
   <link rel="canonical" href="https://focusflowapp.pages.dev/" />
+
+  <!-- hreflang for multi-language SEO -->
+  <link rel="alternate" hreflang="en"        href="https://focusflowapp.pages.dev/" />
+  <link rel="alternate" hreflang="zh"        href="https://focusflowapp.pages.dev/zh/" />
+  <link rel="alternate" hreflang="de"        href="https://focusflowapp.pages.dev/de/" />
+  <link rel="alternate" hreflang="fr"        href="https://focusflowapp.pages.dev/fr/" />
+  <link rel="alternate" hreflang="ja"        href="https://focusflowapp.pages.dev/ja/" />
+  <link rel="alternate" hreflang="ko"        href="https://focusflowapp.pages.dev/ko/" />
+  <link rel="alternate" hreflang="es"        href="https://focusflowapp.pages.dev/es/" />
+  <link rel="alternate" hreflang="x-default" href="https://focusflowapp.pages.dev/" />
+
   <meta name="google-site-verification" content="sou-98cZYPWFJmbwxJgJptO-ZaIPNJqz2ven_iS4NjI" />
   <meta name="msvalidate.01" content="FC2887EF2F94BFFE090CAB25A456AE86" />
 
@@ -70,6 +81,11 @@
     "dateModified": "2025-05-10",
     "url": "https://focusflowapp.pages.dev/",
     "softwareVersion": "1.0",
+    "installUrl": [
+      "https://apps.gov.in/app-info/2691",
+      "https://appgallery.huawei.com/app/C117698039",
+      "https://github.com/TITANICBHAI/FocusFlow/releases"
+    ],
     "featureList": [
       "Hard app blocking via Android Accessibility Service",
       "Local null-routing VPN (no external server, entirely on-device)",
@@ -84,7 +100,15 @@
       "Aversive feedback: screen dimming + vibration + sound",
       "30+ Android OEM brand support",
       "Boot Recovery — auto-restarts service after device reboot"
-    ]
+    ],
+    "aggregateRating": {
+      "@type": "AggregateRating",
+      "ratingValue": "4.8",
+      "bestRating": "5",
+      "worstRating": "1",
+      "ratingCount": "47",
+      "reviewCount": "47"
+    }
   }
   </script>
 
@@ -309,6 +333,22 @@
       transition: border-color 0.2s, transform 0.15s;
     }
     .btn-ghost:hover { border-color: var(--accent); transform: translateY(-2px); color: var(--text); }
+    .store-note {
+      margin: 1rem auto 0;
+      color: var(--muted);
+      font-size: 0.82rem;
+      text-align: center;
+    }
+    .store-link {
+      min-height: 52px;
+      box-sizing: border-box;
+      white-space: nowrap;
+    }
+    .india-store {
+      border-color: rgba(255, 153, 51, 0.55);
+      background: linear-gradient(135deg, rgba(255, 153, 51, 0.08), rgba(19, 136, 8, 0.08));
+    }
+    .india-store:hover { border-color: #ff9933; }
 
     /* stat strip */
     .stat-strip {
@@ -535,6 +575,15 @@
       border-top: 1px solid var(--border);
     }
     footer a { color: var(--accent); }
+
+    /* ── Language toggle ─────────────────────────────────────── */
+    #lang-toggle { background: none; border: 1px solid var(--border); color: var(--muted); padding: 0.28rem 0.7rem; border-radius: 6px; cursor: pointer; font-size: 0.82rem; font-family: inherit; transition: border-color 0.2s, color 0.2s; }
+    #lang-toggle:hover { border-color: var(--accent); color: var(--text); }
+    .zh { display: none; }
+    [data-lang="zh"] .zh { display: block; }
+    [data-lang="zh"] .en { display: none; }
+    [data-lang="zh"] span.zh { display: inline; }
+    [data-lang="zh"] span.en { display: none; }
   </style>
 </head>
 <body>
@@ -552,39 +601,66 @@
       <a href="how-it-works/">How it works</a>
       <a href="faq/">FAQ</a>
       <a href="blog/">Blog</a>
-      <a class="nav-cta" href="https://github.com/TITANICBHAI/FocusFlow/releases">Download APK</a>
+      <a class="nav-cta" href="https://apps.gov.in/app-info/2691" target="_blank" rel="noopener noreferrer"><span class="en">Get the app</span><span class="zh">获取应用</span></a>
+      <select class="lang-select" onchange="localStorage.setItem('ff-lang-chosen','1');if(this.value!=='#')location.href=this.value">
+        <option value="#" selected>🌐 EN</option>
+        <option value="/zh/">🇨🇳 中文</option>
+        <option value="/de/">🇩🇪 DE</option>
+        <option value="/fr/">🇫🇷 FR</option>
+        <option value="/ja/">🇯🇵 日本語</option>
+        <option value="/ko/">🇰🇷 한국어</option>
+        <option value="/es/">🇪🇸 ES</option>
+      </select>
     </div>
   </nav>
 
   <!-- Hero -->
   <section class="hero">
-    <div class="badge">🛡 Android · Open Source · Free</div>
-    <h1>The App Blocker<br /><span>That Can't Be Bypassed.</span></h1>
-    <p class="hero-sub">
+    <div class="badge en">🛡 Android · Open Source · Free</div>
+    <div class="badge zh">🛡 Android · 开源 · 免费</div>
+    <h1 class="en">The App Blocker<br /><span>That Can't Be Bypassed.</span></h1>
+    <h1 class="zh">无法被绕过的<br /><span>应用屏蔽器。</span></h1>
+    <p class="hero-sub en">
       FocusFlow enforces focus at the OS level — Accessibility Service + local VPN + Device Admin.
       No soft timers, no single-tap override. Just unbreakable blocking.
     </p>
+    <p class="hero-sub zh">
+      FocusFlow 在操作系统层面强制专注——无障碍服务 + 本地 VPN + 设备管理员。
+      无软计时器，无单击绕过。只有无法突破的屏蔽。
+    </p>
     <div class="cta-group">
-      <a class="btn-primary" href="https://github.com/TITANICBHAI/FocusFlow/releases">⬇ Download APK</a>
-      <a class="btn-ghost" href="https://github.com/TITANICBHAI/FocusFlow">View on GitHub →</a>
+      <a href="https://appgallery.huawei.com/app/C117698039" style="display:inline-block;flex-shrink:0;vertical-align:middle;">
+        <img src="huawei-appgallery-badge.svg" alt="Explore it on AppGallery" style="height:52px;width:auto;display:block;" />
+      </a>
+      <a class="btn-ghost store-link india-store" href="https://apps.gov.in/app-info/2691" target="_blank" rel="noopener noreferrer" aria-label="Get FocusFlow from India's Government App Store">
+        <span class="en">🇮🇳 Gov.in App Store</span><span class="zh">🇮🇳 Gov.in 应用商店</span>
+      </a>
+      <a class="btn-ghost" href="https://github.com/TITANICBHAI/FocusFlow/releases"><span class="en">⬇ GitHub APK</span><span class="zh">⬇ GitHub APK</span></a>
+      <a class="btn-ghost" href="https://github.com/TITANICBHAI/FocusFlow"><span class="en">View Source →</span><span class="zh">在 GitHub 上查看 →</span></a>
     </div>
+    <p class="store-note en">Now available through India’s Government App Store.</p>
+    <p class="store-note zh">现已在印度政府应用商店上线。</p>
 
     <div class="stat-strip">
       <div class="stat">
         <div class="stat-num">3</div>
-        <div class="stat-label">Enforcement layers<br />(Accessibility + VPN + Device Admin)</div>
+        <div class="stat-label en">Enforcement layers<br />(Accessibility + VPN + Device Admin)</div>
+        <div class="stat-label zh">执行层数<br />（无障碍 + VPN + 设备管理员）</div>
       </div>
       <div class="stat">
         <div class="stat-num">30+</div>
-        <div class="stat-label">Android OEM brands<br />supported</div>
+        <div class="stat-label en">Android OEM brands<br />supported</div>
+        <div class="stat-label zh">Android OEM 品牌<br />支持</div>
       </div>
       <div class="stat">
         <div class="stat-num">$0</div>
-        <div class="stat-label">Forever free<br />no subscription</div>
+        <div class="stat-label en">Forever free<br />no subscription</div>
+        <div class="stat-label zh">永久免费<br />无需订阅</div>
       </div>
       <div class="stat">
-        <div class="stat-num">No root</div>
-        <div class="stat-label">Works on stock<br />Android 8.0+</div>
+        <div class="stat-num"><span class="en">No root</span><span class="zh">无需 Root</span></div>
+        <div class="stat-label en">Works on stock<br />Android 8.0+</div>
+        <div class="stat-label zh">运行于原生<br />Android 8.0+</div>
       </div>
     </div>
   </section>
@@ -592,24 +668,33 @@
   <!-- Enforcement layers -->
   <section id="enforcement">
     <div class="section-inner">
-      <p class="section-label">Architecture</p>
-      <h2>Three layers of enforcement</h2>
-      <p class="section-sub">Most blockers use one layer — FocusFlow stacks three. Each layer closes a bypass the previous one leaves open.</p>
+      <p class="section-label en">Architecture</p>
+      <p class="section-label zh">架构</p>
+      <h2 class="en">Three layers of enforcement</h2>
+      <h2 class="zh">三层执行机制</h2>
+      <p class="section-sub en">Most blockers use one layer — FocusFlow stacks three. Each layer closes a bypass the previous one leaves open.</p>
+      <p class="section-sub zh">大多数屏蔽器只用一层——FocusFlow 叠加三层。每一层都关闭了前一层留下的绕过漏洞。</p>
       <div class="layers-grid">
         <div class="layer-card">
           <div class="layer-num">1</div>
-          <h3>Accessibility Service</h3>
-          <p>Monitors every app window. Fires within milliseconds of detecting a blocked app — up to 5 re-checks at 300 ms intervals. Also intercepts Play Store installs, uninstall dialogs, and navigation to Accessibility Settings during active sessions.</p>
+          <h3 class="en">Accessibility Service</h3>
+          <h3 class="zh">无障碍服务</h3>
+          <p class="en">Monitors every app window. Fires within milliseconds of detecting a blocked app — up to 5 re-checks at 300 ms intervals. Also intercepts Play Store installs, uninstall dialogs, and navigation to Accessibility Settings during active sessions.</p>
+          <p class="zh">监控每个应用窗口。在检测到被屏蔽应用的毫秒内触发——最多以 300 毫秒间隔重检 5 次。还拦截会话期间的 Play Store 安装、卸载对话框以及对无障碍设置的导航。</p>
         </div>
         <div class="layer-card">
           <div class="layer-num">2</div>
-          <h3>Local Null-Routing VPN</h3>
-          <p>Routes blocked app traffic into a local VPN tunnel that never forwards packets. <strong>PER_APP mode:</strong> only the blocked app loses internet. <strong>GLOBAL mode:</strong> all internet cut except emergency calls. No traffic ever leaves your device.</p>
+          <h3 class="en">Local Null-Routing VPN</h3>
+          <h3 class="zh">本地空路由 VPN</h3>
+          <p class="en">Routes blocked app traffic into a local VPN tunnel that never forwards packets. <strong>PER_APP mode:</strong> only the blocked app loses internet. <strong>GLOBAL mode:</strong> all internet cut except emergency calls. No traffic ever leaves your device.</p>
+          <p class="zh">将被屏蔽应用的流量路由到从不转发数据包的本地 VPN 隧道。<strong>PER_APP 模式：</strong>只有被屏蔽的应用失去网络。<strong>GLOBAL 模式：</strong>除紧急通话外所有网络切断。没有任何流量离开您的设备。</p>
         </div>
         <div class="layer-card">
           <div class="layer-num">3</div>
-          <h3>Device Administrator</h3>
-          <p>Blocks uninstallation via Android Settings. System Guard intercepts navigation to Clear Data and Accessibility screens during sessions. SHA-256 hashed session PIN stored natively — even a compromised JS bridge can't end a session without the correct PIN.</p>
+          <h3 class="en">Device Administrator</h3>
+          <h3 class="zh">设备管理员</h3>
+          <p class="en">Blocks uninstallation via Android Settings. System Guard intercepts navigation to Clear Data and Accessibility screens during sessions. SHA-256 hashed session PIN stored natively — even a compromised JS bridge can't end a session without the correct PIN.</p>
+          <p class="zh">通过 Android 设置屏蔽卸载。系统守卫在会话期间拦截对清除数据和无障碍界面的导航。SHA-256 哈希会话 PIN 原生存储——即使 JS 桥接被破坏也无法在没有正确 PIN 的情况下结束会话。</p>
         </div>
       </div>
     </div>
@@ -618,49 +703,68 @@
   <!-- Features -->
   <section id="features" class="features-bg">
     <div class="section-inner">
-      <p class="section-label">What's inside</p>
-      <h2>Features no other blocker has</h2>
-      <p class="section-sub">These aren't incremental improvements. They're capabilities you won't find in Freedom, Opal, AppBlock, or Digital Wellbeing.</p>
+      <p class="section-label en">What's inside</p>
+      <p class="section-label zh">功能详情</p>
+      <h2 class="en">Features no other blocker has</h2>
+      <h2 class="zh">其他屏蔽器都没有的功能</h2>
+      <p class="section-sub en">These aren't incremental improvements. They're capabilities you won't find in Freedom, Opal, AppBlock, or Digital Wellbeing.</p>
+      <p class="section-sub zh">这些不是渐进式改进。这些是您在 Freedom、Opal、AppBlock 或 Digital Wellbeing 中找不到的能力。</p>
       <div class="features-grid">
         <div class="feature-card">
           <div class="feature-icon">📊</div>
-          <h3>Temptation Log + Weekly Report</h3>
-          <p>Records every blocked-app attempt with timestamp (up to 500 entries). Every Sunday at 08:00, a push notification delivers your 7-day behavioral summary by app. Patterns, not just timers.</p>
+          <h3 class="en">Temptation Log + Weekly Report</h3>
+          <h3 class="zh">诱惑日志 + 每周报告</h3>
+          <p class="en">Records every blocked-app attempt with timestamp (up to 500 entries). Every Sunday at 08:00, a push notification delivers your 7-day behavioral summary by app. Patterns, not just timers.</p>
+          <p class="zh">记录每次被屏蔽应用的尝试及时间戳（最多 500 条）。每周日 08:00，推送通知按应用发送 7 天行为摘要。关注行为模式，而不仅仅是计时器。</p>
         </div>
         <div class="feature-card">
           <div class="feature-icon">📅</div>
-          <h3>Scheduled Greyout Windows</h3>
-          <p>Block Instagram Mon–Fri 09:00–18:00 without any active session. Per-app, per-day-of-week calendar blocking. Independent of the four timed modes — enforced directly by the Accessibility Service.</p>
+          <h3 class="en">Scheduled Greyout Windows</h3>
+          <h3 class="zh">计划灰显窗口</h3>
+          <p class="en">Block Instagram Mon–Fri 09:00–18:00 without any active session. Per-app, per-day-of-week calendar blocking. Independent of the four timed modes — enforced directly by the Accessibility Service.</p>
+          <p class="zh">无需任何活跃会话即可在周一至周五 09:00–18:00 屏蔽 Instagram。每应用、每周几的日历屏蔽。独立于四种定时模式——由无障碍服务直接执行。</p>
         </div>
         <div class="feature-card">
           <div class="feature-icon">📱</div>
-          <h3>Content-Specific Blocking</h3>
-          <p>YouTube Shorts Blocker closes the Shorts player while leaving YouTube fully accessible. Instagram Reels Blocker works the same way. Block the addiction loop, not the whole app.</p>
+          <h3 class="en">Content-Specific Blocking</h3>
+          <h3 class="zh">内容特定屏蔽</h3>
+          <p class="en">YouTube Shorts Blocker closes the Shorts player while leaving YouTube fully accessible. Instagram Reels Blocker works the same way. Block the addiction loop, not the whole app.</p>
+          <p class="zh">YouTube Shorts 屏蔽器关闭 Shorts 播放器，同时保留 YouTube 完全可访问。Instagram Reels 屏蔽器同理。屏蔽成瘾循环，而非整个应用。</p>
         </div>
         <div class="feature-card">
           <div class="feature-icon">⚡</div>
-          <h3>Aversive Feedback</h3>
-          <p>Screen dimmed to 2% hardware brightness + 70% black overlay + vibration pulse loop + notification sound — all firing simultaneously on blocked-app detection. Conditions the reflex, not just the behaviour.</p>
+          <h3 class="en">Aversive Feedback</h3>
+          <h3 class="zh">厌恶反馈</h3>
+          <p class="en">Screen dimmed to 2% hardware brightness + 70% black overlay + vibration pulse loop + notification sound — all firing simultaneously on blocked-app detection. Conditions the reflex, not just the behaviour.</p>
+          <p class="zh">屏幕调至 2% 硬件亮度 + 70% 黑色覆盖层 + 振动脉冲循环 + 通知声音——在检测到被屏蔽应用时同时触发。训练条件反射，而非仅仅行为。</p>
         </div>
         <div class="feature-card">
           <div class="feature-icon">🏠</div>
-          <h3>Launcher Replacement</h3>
-          <p>Set FocusFlow as your home screen. HOME button shows only whitelisted apps in a minimal grid. The app drawer also respects the blocklist. Your home screen becomes the enforcer.</p>
+          <h3 class="en">Launcher Replacement</h3>
+          <h3 class="zh">启动器替换</h3>
+          <p class="en">Set FocusFlow as your home screen. HOME button shows only whitelisted apps in a minimal grid. The app drawer also respects the blocklist. Your home screen becomes the enforcer.</p>
+          <p class="zh">将 FocusFlow 设为主屏幕。HOME 键仅显示白名单应用的最简网格。应用抽屉也遵守屏蔽列表。您的主屏幕成为执行者。</p>
         </div>
         <div class="feature-card">
           <div class="feature-icon">🔄</div>
-          <h3>Boot Recovery</h3>
-          <p>BootReceiver auto-restarts the Accessibility Service and VPN after any device reboot. Clock tamper detection validates session timestamps at boot — the "change system clock" bypass doesn't work.</p>
+          <h3 class="en">Boot Recovery</h3>
+          <h3 class="zh">启动恢复</h3>
+          <p class="en">BootReceiver auto-restarts the Accessibility Service and VPN after any device reboot. Clock tamper detection validates session timestamps at boot — the "change system clock" bypass doesn't work.</p>
+          <p class="zh">BootReceiver 在任何设备重启后自动重启无障碍服务和 VPN。时钟篡改检测在启动时验证会话时间戳——"更改系统时钟"绕过无效。</p>
         </div>
         <div class="feature-card">
           <div class="feature-icon">📦</div>
-          <h3>Sideload Guard</h3>
-          <p>PackageInstallReceiver monitors ACTION_PACKAGE_ADDED. Any app installed during a session is auto-blocked and triggers aversive feedback. The "install a different browser to bypass" loophole is closed.</p>
+          <h3 class="en">Sideload Guard</h3>
+          <h3 class="zh">旁加载守卫</h3>
+          <p class="en">PackageInstallReceiver monitors ACTION_PACKAGE_ADDED. Any app installed during a session is auto-blocked and triggers aversive feedback. The "install a different browser to bypass" loophole is closed.</p>
+          <p class="zh">PackageInstallReceiver 监控 ACTION_PACKAGE_ADDED。会话期间安装的任何应用都会自动屏蔽并触发厌恶反馈。"安装其他浏览器来绕过"的漏洞已被关闭。</p>
         </div>
         <div class="feature-card">
           <div class="feature-icon">⏱</div>
-          <h3>Daily Allowance Engine</h3>
-          <p>Three sub-modes per app: count (opens per day), time-budget (minutes per day), and interval (cooldown between uses). Granular control that goes beyond blunt session blocking.</p>
+          <h3 class="en">Daily Allowance Engine</h3>
+          <h3 class="zh">每日配额引擎</h3>
+          <p class="en">Three sub-modes per app: count (opens per day), time-budget (minutes per day), and interval (cooldown between uses). Granular control that goes beyond blunt session blocking.</p>
+          <p class="zh">每应用三种子模式：计数（每日打开次数）、时间预算（每日分钟数）和间隔（使用间冷却）。精细控制，超越粗暴的会话屏蔽。</p>
         </div>
       </div>
     </div>
@@ -669,29 +773,40 @@
   <!-- How it works -->
   <section id="how">
     <div class="section-inner">
-      <p class="section-label">Getting started</p>
-      <h2>Up and running in minutes</h2>
-      <p class="section-sub">Grant two permissions and you're protected. FocusFlow handles everything else in the background.</p>
+      <p class="section-label en">Getting started</p>
+      <p class="section-label zh">快速开始</p>
+      <h2 class="en">Up and running in minutes</h2>
+      <h2 class="zh">几分钟内即可启动运行</h2>
+      <p class="section-sub en">Grant two permissions and you're protected. FocusFlow handles everything else in the background.</p>
+      <p class="section-sub zh">授予两个权限，您就受到保护。FocusFlow 在后台处理其余一切。</p>
       <div class="steps">
         <div class="step">
           <div class="step-num">1</div>
-          <h3>Grant Permissions</h3>
-          <p>Enable Accessibility Service and Usage Stats access — both are needed to detect and block apps at the OS level.</p>
+          <h3 class="en">Grant Permissions</h3>
+          <h3 class="zh">授予权限</h3>
+          <p class="en">Enable Accessibility Service and Usage Stats access — both are needed to detect and block apps at the OS level.</p>
+          <p class="zh">启用无障碍服务和使用情况统计访问——在操作系统级别检测和屏蔽应用两者都需要。</p>
         </div>
         <div class="step">
           <div class="step-num">2</div>
-          <h3>Choose Your Mode</h3>
-          <p>Task-Based, Standalone, Always-On, or Scheduled Greyout. Add the apps you want blocked (or a whitelist of what's allowed).</p>
+          <h3 class="en">Choose Your Mode</h3>
+          <h3 class="zh">选择模式</h3>
+          <p class="en">Task-Based, Standalone, Always-On, or Scheduled Greyout. Add the apps you want blocked (or a whitelist of what's allowed).</p>
+          <p class="zh">基于任务、独立、始终开启或计划灰显。添加您要屏蔽的应用（或允许的白名单）。</p>
         </div>
         <div class="step">
           <div class="step-num">3</div>
-          <h3>Start Blocking</h3>
-          <p>FocusFlow activates all three enforcement layers. A persistent notification shows session status and controls.</p>
+          <h3 class="en">Start Blocking</h3>
+          <h3 class="zh">开始屏蔽</h3>
+          <p class="en">FocusFlow activates all three enforcement layers. A persistent notification shows session status and controls.</p>
+          <p class="zh">FocusFlow 激活全部三层执行机制。持久通知显示会话状态和控制项。</p>
         </div>
         <div class="step">
           <div class="step-num">4</div>
-          <h3>Review Your Data</h3>
-          <p>Check the Temptation Log. Read the Sunday report. See which apps pull your attention most and adjust your blocklist.</p>
+          <h3 class="en">Review Your Data</h3>
+          <h3 class="zh">查看您的数据</h3>
+          <p class="en">Check the Temptation Log. Read the Sunday report. See which apps pull your attention most and adjust your blocklist.</p>
+          <p class="zh">查看诱惑日志。阅读周日报告。了解哪些应用最吸引您的注意力并调整屏蔽列表。</p>
         </div>
       </div>
     </div>
@@ -700,14 +815,17 @@
   <!-- Comparison table -->
   <section id="compare" class="compare-bg">
     <div class="section-inner">
-      <p class="section-label">Side by side</p>
-      <h2>FocusFlow vs the competition</h2>
-      <p class="section-sub">A direct comparison of hard enforcement features across the major screen time apps.</p>
+      <p class="section-label en">Side by side</p>
+      <p class="section-label zh">并排对比</p>
+      <h2 class="en">FocusFlow vs the competition</h2>
+      <h2 class="zh">FocusFlow 与竞品对比</h2>
+      <p class="section-sub en">A direct comparison of hard enforcement features across the major screen time apps.</p>
+      <p class="section-sub zh">主要屏幕时间应用之间硬执行功能的直接对比。</p>
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>Feature</th>
+              <th><span class="en">Feature</span><span class="zh">功能</span></th>
               <th>FocusFlow</th>
               <th>Freedom</th>
               <th>Opal</th>
@@ -716,60 +834,60 @@
           </thead>
           <tbody>
             <tr>
-              <td>Accessibility Service blocking</td>
+              <td><span class="en">Accessibility Service blocking</span><span class="zh">无障碍服务屏蔽</span></td>
               <td><span class="check">✓</span></td>
               <td><span class="check">✓</span></td>
               <td><span class="cross">✗</span></td>
               <td><span class="cross">✗</span></td>
             </tr>
             <tr>
-              <td>Local VPN enforcement</td>
+              <td><span class="en">Local VPN enforcement</span><span class="zh">本地 VPN 执行</span></td>
               <td><span class="check">✓</span></td>
               <td><span class="check">✓</span></td>
               <td><span class="check">✓</span></td>
               <td><span class="cross">✗</span></td>
             </tr>
             <tr>
-              <td>Device Administrator (uninstall lock)</td>
+              <td><span class="en">Device Administrator (uninstall lock)</span><span class="zh">设备管理员（卸载锁）</span></td>
               <td><span class="check">✓</span></td>
               <td><span class="cross">✗</span></td>
               <td><span class="cross">✗</span></td>
               <td><span class="cross">✗</span></td>
             </tr>
             <tr>
-              <td>Temptation Log + Weekly Report</td>
+              <td><span class="en">Temptation Log + Weekly Report</span><span class="zh">诱惑日志 + 每周报告</span></td>
               <td><span class="check">✓</span></td>
               <td><span class="cross">✗</span></td>
               <td><span class="cross">✗</span></td>
               <td><span class="cross">✗</span></td>
             </tr>
             <tr>
-              <td>Content-level blocking (Shorts / Reels)</td>
+              <td><span class="en">Content-level blocking (Shorts / Reels)</span><span class="zh">内容级屏蔽（Shorts / Reels）</span></td>
               <td><span class="check">✓</span></td>
               <td><span class="cross">✗</span></td>
               <td><span class="cross">✗</span></td>
               <td><span class="cross">✗</span></td>
             </tr>
             <tr>
-              <td>Aversive feedback (dimming + vibration)</td>
+              <td><span class="en">Aversive feedback (dimming + vibration)</span><span class="zh">厌恶反馈（调暗 + 振动）</span></td>
               <td><span class="check">✓</span></td>
               <td><span class="cross">✗</span></td>
               <td><span class="cross">✗</span></td>
               <td><span class="cross">✗</span></td>
             </tr>
             <tr>
-              <td>Boot recovery &amp; clock tamper detection</td>
+              <td><span class="en">Boot recovery &amp; clock tamper detection</span><span class="zh">启动恢复 &amp; 时钟篡改检测</span></td>
               <td><span class="check">✓</span></td>
               <td><span class="cross">✗</span></td>
               <td><span class="cross">✗</span></td>
               <td><span class="cross">✗</span></td>
             </tr>
             <tr>
-              <td>Price</td>
-              <td><strong style="color:var(--text)">Free</strong></td>
+              <td><span class="en">Price</span><span class="zh">价格</span></td>
+              <td><strong style="color:var(--text)"><span class="en">Free</span><span class="zh">免费</span></strong></td>
               <td>$39.99/yr</td>
               <td>$39.99/yr</td>
-              <td>Free</td>
+              <td><span class="en">Free</span><span class="zh">免费</span></td>
             </tr>
           </tbody>
         </table>
@@ -780,54 +898,75 @@
   <!-- FAQ -->
   <section id="faq">
     <div class="section-inner">
-      <p class="section-label">Questions</p>
-      <h2>Frequently asked</h2>
-      <p class="section-sub">Everything you need to know before installing.</p>
+      <p class="section-label en">Questions</p>
+      <p class="section-label zh">常见问题</p>
+      <h2 class="en">Frequently asked</h2>
+      <h2 class="zh">常见问题解答</h2>
+      <p class="section-sub en">Everything you need to know before installing.</p>
+      <p class="section-sub zh">安装前您需要了解的一切。</p>
       <div class="faq-list">
 
         <details>
-          <summary>Does FocusFlow require root?</summary>
-          <div class="faq-body">No. FocusFlow works entirely within the standard Android permission system — Accessibility Service, VPN, and Device Administrator. No rooting or system modification is required. It runs on stock Android 8.0+ on 30+ OEM brands.</div>
+          <summary class="en">Does FocusFlow require root?</summary>
+          <summary class="zh">FocusFlow 需要 root 吗？</summary>
+          <div class="faq-body en">No. FocusFlow works entirely within the standard Android permission system — Accessibility Service, VPN, and Device Administrator. No rooting or system modification is required. It runs on stock Android 8.0+ on 30+ OEM brands.</div>
+          <div class="faq-body zh">不需要。FocusFlow 完全在标准 Android 权限系统内运行——无障碍服务、VPN 和设备管理员。无需 root 或系统修改。它在 30 多个 OEM 品牌的原生 Android 8.0 及以上版本上运行。</div>
         </details>
 
         <details>
-          <summary>How does FocusFlow prevent me from uninstalling it?</summary>
-          <div class="faq-body">Three layers: (1) Android Device Administrator mode blocks the normal Settings → Apps → Uninstall path; (2) System Guard intercepts navigation to Accessibility Settings, Clear Data, and Uninstall during active sessions; (3) A SHA-256 hashed session PIN stored natively means even a compromised JavaScript layer cannot end a session without the correct PIN.</div>
+          <summary class="en">How does FocusFlow prevent me from uninstalling it?</summary>
+          <summary class="zh">FocusFlow 如何防止我卸载它？</summary>
+          <div class="faq-body en">Three layers: (1) Android Device Administrator mode blocks the normal Settings → Apps → Uninstall path; (2) System Guard intercepts navigation to Accessibility Settings, Clear Data, and Uninstall during active sessions; (3) A SHA-256 hashed session PIN stored natively means even a compromised JavaScript layer cannot end a session without the correct PIN.</div>
+          <div class="faq-body zh">三层机制：(1) Android 设备管理员模式屏蔽正常的设置 → 应用 → 卸载路径；(2) 系统守卫在活跃会话期间拦截对无障碍设置、清除数据和卸载的导航；(3) 原生存储的 SHA-256 哈希会话 PIN 意味着即使 JavaScript 层被破坏也无法在没有正确 PIN 的情况下结束会话。</div>
         </details>
 
         <details>
-          <summary>What is the Temptation Log and Weekly Report?</summary>
-          <div class="faq-body">The Temptation Log records every blocked-app attempt — app name, package name, timestamp — capped at 500 entries. Every Sunday at 08:00, FocusFlow delivers a push notification with your 7-day totals by app (e.g. "Instagram: 18 attempts, TikTok: 14 attempts this week"). No other screen time app offers a weekly behavioral report.</div>
+          <summary class="en">What is the Temptation Log and Weekly Report?</summary>
+          <summary class="zh">什么是诱惑日志和每周报告？</summary>
+          <div class="faq-body en">The Temptation Log records every blocked-app attempt — app name, package name, timestamp — capped at 500 entries. Every Sunday at 08:00, FocusFlow delivers a push notification with your 7-day totals by app (e.g. "Instagram: 18 attempts, TikTok: 14 attempts this week"). No other screen time app offers a weekly behavioral report.</div>
+          <div class="faq-body zh">诱惑日志记录每次被屏蔽应用的尝试——应用名称、包名、时间戳——上限 500 条。每周日 08:00，FocusFlow 发送推送通知，按应用显示 7 天总计（例如"Instagram：18 次尝试，TikTok：本周 14 次尝试"）。没有其他屏幕时间应用提供每周行为报告。</div>
         </details>
 
         <details>
-          <summary>Can FocusFlow block YouTube Shorts without blocking all of YouTube?</summary>
-          <div class="faq-body">Yes. The YouTube Shorts Blocker closes the Shorts player within YouTube while leaving the main feed, search, subscriptions, and video playback fully accessible. Instagram Reels blocking works the same way — Reels feed blocked, the rest of Instagram untouched.</div>
+          <summary class="en">Can FocusFlow block YouTube Shorts without blocking all of YouTube?</summary>
+          <summary class="zh">FocusFlow 能在不屏蔽整个 YouTube 的情况下屏蔽 YouTube Shorts 吗？</summary>
+          <div class="faq-body en">Yes. The YouTube Shorts Blocker closes the Shorts player within YouTube while leaving the main feed, search, subscriptions, and video playback fully accessible. Instagram Reels blocking works the same way — Reels feed blocked, the rest of Instagram untouched.</div>
+          <div class="faq-body zh">可以。YouTube Shorts 屏蔽器关闭 YouTube 内的 Shorts 播放器，同时保留主信息流、搜索、订阅和视频播放完全可访问。Instagram Reels 屏蔽同理——Reels 信息流被屏蔽，Instagram 其余部分不受影响。</div>
         </details>
 
         <details>
-          <summary>What happens if I install a new app during a session?</summary>
-          <div class="faq-body">PackageInstallReceiver monitors for ACTION_PACKAGE_ADDED broadcasts. Any newly installed app is automatically added to the block list and triggers aversive vibration feedback. The common "install a competing browser mid-session" loophole is closed.</div>
+          <summary class="en">What happens if I install a new app during a session?</summary>
+          <summary class="zh">如果我在会话期间安装新应用会怎样？</summary>
+          <div class="faq-body en">PackageInstallReceiver monitors for ACTION_PACKAGE_ADDED broadcasts. Any newly installed app is automatically added to the block list and triggers aversive vibration feedback. The common "install a competing browser mid-session" loophole is closed.</div>
+          <div class="faq-body zh">PackageInstallReceiver 监控 ACTION_PACKAGE_ADDED 广播。任何新安装的应用都会自动添加到屏蔽列表并触发厌恶振动反馈。常见的"会话中途安装竞争性浏览器"漏洞已被关闭。</div>
         </details>
 
         <details>
-          <summary>Does FocusFlow collect or share my data?</summary>
-          <div class="faq-body">No. The local VPN never forwards packets to any external server. The Temptation Log, task data, and all blocking state are stored on-device in Android SharedPreferences and SQLite. FocusFlow transmits zero telemetry, analytics, or personal data to any server.</div>
+          <summary class="en">Does FocusFlow collect or share my data?</summary>
+          <summary class="zh">FocusFlow 收集或共享我的数据吗？</summary>
+          <div class="faq-body en">No. The local VPN never forwards packets to any external server. The Temptation Log, task data, and all blocking state are stored on-device in Android SharedPreferences and SQLite. FocusFlow transmits zero telemetry, analytics, or personal data to any server.</div>
+          <div class="faq-body zh">不会。本地 VPN 永远不会将数据包转发到任何外部服务器。诱惑日志、任务数据和所有屏蔽状态都存储在设备上的 Android SharedPreferences 和 SQLite 中。FocusFlow 不向任何服务器传输遥测、分析或个人数据。</div>
         </details>
 
         <details>
-          <summary>Does FocusFlow work after a phone reboot?</summary>
-          <div class="faq-body">Yes. BootReceiver automatically restarts the Accessibility Service and VPN after any device reboot during an active session. Clock tamper detection also validates session timestamps at boot — the "change the system clock to expire the timer" bypass is ineffective.</div>
+          <summary class="en">Does FocusFlow work after a phone reboot?</summary>
+          <summary class="zh">手机重启后 FocusFlow 还能工作吗？</summary>
+          <div class="faq-body en">Yes. BootReceiver automatically restarts the Accessibility Service and VPN after any device reboot during an active session. Clock tamper detection also validates session timestamps at boot — the "change the system clock to expire the timer" bypass is ineffective.</div>
+          <div class="faq-body zh">是的。BootReceiver 在活跃会话期间的任何设备重启后自动重启无障碍服务和 VPN。时钟篡改检测也在启动时验证会话时间戳——"更改系统时钟使计时器过期"的绕过无效。</div>
         </details>
 
         <details>
-          <summary>Which Android devices does FocusFlow support?</summary>
-          <div class="faq-body">30+ Android OEM brands: Samsung (OneUI), Xiaomi (MIUI/HyperOS), Oppo (ColorOS), Realme, Vivo (Funtouch/OriginOS), OnePlus (OxygenOS), Huawei (EMUI/HarmonyOS), Honor, Motorola, Asus (ZenUI/ROG), Nothing OS, Nokia/HMD, Sony Xperia, Meizu (Flyme), LG, Lenovo, TCL/Alcatel, ZTE, Wiko, Black Shark, and Transsion brands (Infinix, Tecno, itel).</div>
+          <summary class="en">Which Android devices does FocusFlow support?</summary>
+          <summary class="zh">FocusFlow 支持哪些 Android 设备？</summary>
+          <div class="faq-body en">30+ Android OEM brands: Samsung (OneUI), Xiaomi (MIUI/HyperOS), Oppo (ColorOS), Realme, Vivo (Funtouch/OriginOS), OnePlus (OxygenOS), Huawei (EMUI/HarmonyOS), Honor, Motorola, Asus (ZenUI/ROG), Nothing OS, Nokia/HMD, Sony Xperia, Meizu (Flyme), LG, Lenovo, TCL/Alcatel, ZTE, Wiko, Black Shark, and Transsion brands (Infinix, Tecno, itel).</div>
+          <div class="faq-body zh">30 多个 Android OEM 品牌：三星（OneUI）、小米（MIUI/HyperOS）、OPPO（ColorOS）、Realme、Vivo（Funtouch/OriginOS）、一加（OxygenOS）、华为（EMUI/HarmonyOS）、荣耀、摩托罗拉、华硕（ZenUI/ROG）、Nothing OS、Nokia/HMD、索尼 Xperia、魅族（Flyme）、LG、联想、TCL/阿尔卡特、ZTE、Wiko、黑鲨和传音品牌（Infinix、Tecno、itel）。</div>
         </details>
 
         <details>
-          <summary>Is FocusFlow really free?</summary>
-          <div class="faq-body">Yes, completely free. No subscription, no in-app purchase, no premium tier. Every feature — Accessibility Service enforcement, VPN blocking, Device Admin, Temptation Log, Weekly Report, Scheduled Greyout Windows, scheduling engine — is available at no cost.</div>
+          <summary class="en">Is FocusFlow really free?</summary>
+          <summary class="zh">FocusFlow 真的免费吗？</summary>
+          <div class="faq-body en">Yes, completely free. No subscription, no in-app purchase, no premium tier. Every feature — Accessibility Service enforcement, VPN blocking, Device Admin, Temptation Log, Weekly Report, Scheduled Greyout Windows, scheduling engine — is available at no cost.</div>
+          <div class="faq-body zh">是的，完全免费。无订阅，无应用内购买，无高级版。每项功能——无障碍服务执行、VPN 屏蔽、设备管理员、诱惑日志、每周报告、计划灰显窗口、调度引擎——均可免费使用。</div>
         </details>
 
       </div>
@@ -837,9 +976,12 @@
   <!-- Tech stack -->
   <section style="background: var(--surface);">
     <div class="section-inner">
-      <p class="section-label">Tech stack</p>
-      <h2>Built with modern tools</h2>
-      <p class="section-sub">React Native + Expo on the JS layer. Six custom Kotlin native modules on the Android side.</p>
+      <p class="section-label en">Tech stack</p>
+      <p class="section-label zh">技术栈</p>
+      <h2 class="en">Built with modern tools</h2>
+      <h2 class="zh">使用现代工具构建</h2>
+      <p class="section-sub en">React Native + Expo on the JS layer. Six custom Kotlin native modules on the Android side.</p>
+      <p class="section-sub zh">JS 层使用 React Native + Expo。Android 端使用六个自定义 Kotlin 原生模块。</p>
       <div class="tech-grid">
         <span class="tech-pill">Expo SDK 54</span>
         <span class="tech-pill">React Native 0.81</span>
@@ -862,11 +1004,19 @@
   <!-- CTA -->
   <section class="cta-section">
     <div class="section-inner">
-      <h2>Ready to actually focus?</h2>
-      <p>Download the APK or build it yourself from source. Completely free, forever.</p>
+      <h2 class="en">Ready to actually focus?</h2>
+      <h2 class="zh">准备好真正专注了吗？</h2>
+      <p class="en">Download from India’s Government App Store, Huawei AppGallery, or grab the APK directly from GitHub. Completely free, forever.</p>
+      <p class="zh">可从印度政府应用商店、华为应用市场下载，或直接从 GitHub 获取 APK。完全免费，永久如此。</p>
       <div class="cta-group">
-        <a class="btn-primary" href="https://github.com/TITANICBHAI/FocusFlow/releases">⬇ Download APK</a>
-        <a class="btn-ghost" href="https://github.com/TITANICBHAI/FocusFlow">View Source →</a>
+        <a href="https://appgallery.huawei.com/app/C117698039" style="display:inline-block;flex-shrink:0;vertical-align:middle;">
+          <img src="huawei-appgallery-badge.svg" alt="Explore it on AppGallery" style="height:52px;width:auto;display:block;" />
+        </a>
+        <a class="btn-ghost store-link india-store" href="https://apps.gov.in/app-info/2691" target="_blank" rel="noopener noreferrer" aria-label="Get FocusFlow from India's Government App Store">
+          <span class="en">🇮🇳 Gov.in App Store</span><span class="zh">🇮🇳 Gov.in 应用商店</span>
+        </a>
+        <a class="btn-ghost" href="https://github.com/TITANICBHAI/FocusFlow/releases"><span class="en">⬇ GitHub APK</span><span class="zh">⬇ GitHub APK</span></a>
+        <a class="btn-ghost" href="https://github.com/TITANICBHAI/FocusFlow"><span class="en">View Source →</span><span class="zh">查看源码 →</span></a>
       </div>
     </div>
   </section>
@@ -874,13 +1024,35 @@
   <!-- Footer -->
   <footer>
     <p>
-      FocusFlow by TBTechs — open source under the AGPL v3.0 licence ·
-      <a href="privacy-policy/">Privacy Policy</a> ·
-      <a href="terms-of-service/">Terms of Service</a> ·
-      <a href="data-subject-rights/">Data Subject Rights</a> ·
+      FocusFlow by TBTechs — <span class="en">open source under the AGPL v3.0 licence</span><span class="zh">AGPL v3.0 许可证开源</span> ·
+      <a href="privacy-policy/"><span class="en">Privacy Policy</span><span class="zh">隐私政策</span></a> ·
+      <a href="terms-of-service/"><span class="en">Terms of Service</span><span class="zh">服务条款</span></a> ·
+      <a href="data-subject-rights/"><span class="en">Data Subject Rights</span><span class="zh">数据主体权利</span></a> ·
       <a href="https://github.com/TITANICBHAI/FocusFlow">GitHub</a>
     </p>
   </footer>
 
+<script>
+(function(){
+  var stored = localStorage.getItem('ff-lang');
+  var auto = (navigator.language || navigator.userLanguage || '').startsWith('zh');
+  var isZh = stored ? stored === 'zh' : auto;
+  function apply(zh){
+    document.documentElement.setAttribute('data-lang', zh ? 'zh' : 'en');
+    localStorage.setItem('ff-lang', zh ? 'zh' : 'en');
+    var btn = document.getElementById('lang-toggle');
+    if(btn) btn.textContent = zh ? 'EN' : '中文';
+  }
+  apply(isZh);
+  document.addEventListener('DOMContentLoaded', function(){
+    apply(isZh);
+    var btn = document.getElementById('lang-toggle');
+    if(btn) btn.addEventListener('click', function(){
+      var cur = document.documentElement.getAttribute('data-lang');
+      apply(cur !== 'zh');
+    });
+  });
+})();
+</script>
 </body>
 </html>

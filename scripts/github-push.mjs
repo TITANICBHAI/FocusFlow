@@ -1,4 +1,3 @@
-import { execSync } from 'child_process';
 import { readFileSync, readdirSync } from 'fs';
 import { join, relative } from 'path';
 
@@ -38,9 +37,6 @@ const EXCLUDE_PATTERNS = [
 const MUST_INCLUDE_PATTERNS = [
   /^artifacts\/focusflow\/android-native\//,
 ];
-const COMMIT_MESSAGE =
-  process.env.GITHUB_COMMIT_MESSAGE ||
-  `chore: sync Replit workspace — v${getAppVersion().version} (versionCode ${getAppVersion().versionCode}) — ${new Date().toISOString()}`;
 
 function shouldExclude(filePath) {
   const rel = relative(BASE, filePath);
@@ -178,20 +174,6 @@ async function run() {
     process.exit(1);
   }
 
-  // The GitHub tree API preserves paths omitted from a layered tree. Add
-  // explicit null-SHA entries so locally deleted tracked files are removed
-  // from the remote tree as well.
-  const deletedFiles = execSync('git ls-files --deleted', { cwd: BASE, encoding: 'utf8' })
-    .split('\n')
-    .map((path) => path.trim())
-    .filter(Boolean);
-  for (const path of deletedFiles) {
-    treeItems.push({ path, mode: '100644', type: 'blob', sha: null });
-  }
-  if (deletedFiles.length > 0) {
-    console.log(`Including ${deletedFiles.length} deleted file(s) in remote tree`);
-  }
-
   console.log(`\nGetting current branch ref...`);
   const refData = await ghFetch(`/repos/${OWNER}/${REPO}/git/ref/heads/${BRANCH}`);
   const latestSha = refData.object.sha;
@@ -218,7 +200,7 @@ async function run() {
 
   console.log('Committing...');
   const newCommit = await ghFetch(`/repos/${OWNER}/${REPO}/git/commits`, 'POST', {
-    message: COMMIT_MESSAGE,
+    message: `chore: sync Replit workspace — v${version} (versionCode ${versionCode}) — ${new Date().toISOString()}`,
     tree: newTree.sha,
     parents: [latestSha],
   });
