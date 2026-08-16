@@ -172,7 +172,7 @@ function SettingsScreen() {
       const lines = [
         `Settings: ${result.settings ? 'restored' : 'not changed'}`,
         `Tasks imported: ${result.tasksImported}`,
-        result.tasksSkipped > 0 ? `Tasks skipped: ${result.tasksSkipped}` : null,
+        result.tasksSkipped > 0 ? `Skipped (already exist): ${result.tasksSkipped}` : null,
         ...result.warnings.slice(0, 3),
       ].filter(Boolean) as string[];
       Alert.alert('Backup restored', lines.join('\n'));
