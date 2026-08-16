@@ -24,6 +24,17 @@ const CHANGELOG: Entry[] = [
           'Removed the duplicate React Native in-app blocked-app banner; native Kotlin overlays, app enforcement, dismissal, and all other blocking features remain unchanged',
         ],
       },
+      {
+        heading: 'New Two-Mode Onboarding',
+        icon: 'git-branch-outline',
+        items: [
+          'Introduced separate Standard and Iron Mode onboarding paths so new users can choose between essential blocking and stronger system-level protection',
+          'Standard Mode keeps first-run setup focused on the essential access required for app blocking',
+          'Iron Mode adds layered setup for VPN network restriction, Device Admin resistance, and Defense Password protection',
+          'Added a live protection-layer counter and honest permission-based activation feedback',
+          'Added subtle checkmark and activation-state transitions with reduced-motion support',
+        ],
+      },
     ],
   },
   {

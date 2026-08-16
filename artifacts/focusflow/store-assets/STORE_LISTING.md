@@ -9,8 +9,8 @@
 |---|---|
 | **App Title** | FocusFlow — Focus & App Blocker |
 | **Package Name** | com.tbtechs.focusflow |
-| **Version** | 1.0.7 |
-| **Version Code** | 7 |
+| **Version** | 1.0.8 |
+| **Version Code** | 9 |
 | **Developer / Company Name** | TB Techs |
 | **Category** | Productivity |
 | **Age Rating** | Everyone (3+) |
@@ -185,14 +185,21 @@ Build your focus. Protect your time.
 
 ---
 
-## RELEASE NOTES (v1.0.7)
+## RELEASE NOTES (v1.0.8)
 
 ```
-FocusFlow v1.0.7 — Database Reliability Improvements
+FocusFlow v1.0.8 — Onboarding and Reliability Improvements
 
-This update focuses on making blocking more reliable and consistent.
+This update makes first-run setup clearer while continuing to improve
+blocking reliability and consistency.
 
 What's new:
+• New two-mode onboarding lets users choose Standard Mode or Iron Mode
+• Standard Mode keeps first-run setup focused on essential app-blocking access
+• Iron Mode adds layered setup for VPN, Device Admin, and Defense Password protection
+• Iron Mode activation includes a live protection-layer counter
+• Permission checkmarks reflect real Android permission state changes
+• Reduced-motion preferences are respected during onboarding feedback
 • Standalone timed block now applies correctly even when the app database 
   is slow to initialise — the block always goes through
 • Daily allowance entries now save reliably on all devices
@@ -220,7 +227,7 @@ fixes that.
 
 | Field | Fill With |
 |---|---|
-| **Version** | 1.0.7 |
+| **Version** | 1.0.8 |
 | **License** | Free |
 | **Development Stage** | Final Release |
 | **Min SDK Version** | 8.0 (Android 8.0) |

@@ -22,6 +22,8 @@ import {
   Switch,
   ActivityIndicator,
   AppState,
+  AccessibilityInfo,
+  Animated,
   Linking,
   Platform,
 } from 'react-native';
@@ -207,6 +209,21 @@ const CORE_LAYER_GROUPS: Array<{
   },
 ];
 
+type ActivationLayer = {
+  key: string;
+  label: string;
+  ids: string[];
+  usesDefensePin?: boolean;
+};
+
+const ACTIVATION_LAYERS: ActivationLayer[] = [
+  { key: 'app-detection', label: 'App detection', ids: ['usage', 'accessibility'] },
+  { key: 'background-survival', label: 'Background survival', ids: ['notifications', 'battery', 'overlay'] },
+  { key: 'network-restriction', label: 'Network restriction', ids: ['vpn'] },
+  { key: 'force-stop-resistance', label: 'Force-stop resistance', ids: ['device_admin'] },
+  { key: 'settings-pin', label: 'Settings PIN', ids: [], usesDefensePin: true },
+];
+
 async function checkStatus(id: string): Promise<PermStatus> {
   try {
     switch (id) {
@@ -263,7 +280,39 @@ export default function OnboardingScreen() {
   const [pinProtectionChoice, setPinProtectionChoice] = useState(false);
   const [defensePinSet, setDefensePinSet] = useState(false);
   const [pinSetupVisible, setPinSetupVisible] = useState(false);
+  const [reduceMotion, setReduceMotion] = useState(false);
   const appStateRef = useRef(AppState.currentState);
+  const previousStatusesRef = useRef<Record<string, PermStatus>>({});
+  const activationCardSeenRef = useRef(false);
+  const previousIronReadyRef = useRef(false);
+  const activationRowAnimations = useRef(
+    ACTIVATION_LAYERS.reduce<Record<string, { scale: Animated.Value; opacity: Animated.Value }>>(
+      (acc, layer) => {
+        acc[layer.key] = {
+          scale: new Animated.Value(1),
+          opacity: new Animated.Value(1),
+        };
+        return acc;
+      },
+      {},
+    ),
+  ).current;
+  const activationTitleOpacity = useRef(new Animated.Value(1)).current;
+  const activationTitleTranslateY = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    let mounted = true;
+    AccessibilityInfo.isReduceMotionEnabled()
+      .then((enabled) => {
+        if (mounted) setReduceMotion(enabled);
+      })
+      .catch(() => {});
+    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
+    return () => {
+      mounted = false;
+      subscription.remove();
+    };
+  }, []);
 
   // Check whether a defense PIN is already stored (e.g. user came back to onboarding)
   useEffect(() => {
@@ -350,6 +399,111 @@ export default function OnboardingScreen() {
   const grantedCount = requiredPerms.filter((p) => statuses[p.id] === 'granted').length;
   const allRequiredReady = grantedCount === requiredPerms.length;
   const allOptionalGranted = optionalPerms.every((p) => statuses[p.id] === 'granted');
+  const activationCardVisible = allRequiredReady || allOptionalGranted;
+  const isActivationLayerActive = useCallback(
+    (layer: ActivationLayer, statusMap: Record<string, PermStatus>, pinSet = defensePinSet) =>
+      layer.usesDefensePin
+        ? pinSet
+        : layer.ids.every((id) => statusMap[id] === 'granted'),
+    [defensePinSet],
+  );
+  const activeLayerCount = ACTIVATION_LAYERS.filter((layer) =>
+    isActivationLayerActive(layer, statuses),
+  ).length;
+
+  const animateActivationRows = useCallback(
+    (keys: string[]) => {
+      if (keys.length === 0) return;
+      const duration = reduceMotion ? 0 : 180;
+      const stagger = reduceMotion ? 0 : 90;
+
+      const animations = keys.map((key, index) => {
+        const row = activationRowAnimations[key];
+        row.scale.setValue(0.72);
+        row.opacity.setValue(0);
+        return Animated.sequence([
+          Animated.delay(index * stagger),
+          Animated.parallel([
+            Animated.timing(row.scale, {
+              toValue: 1,
+              duration,
+              useNativeDriver: true,
+            }),
+            Animated.timing(row.opacity, {
+              toValue: 1,
+              duration,
+              useNativeDriver: true,
+            }),
+          ]),
+        ]);
+      });
+
+      Animated.parallel(animations).start();
+    },
+    [activationRowAnimations, reduceMotion],
+  );
+
+  // Compare permission snapshots so repeated resume checks do not replay the
+  // same row animation. The first time the summary becomes visible, show only
+  // the layers that are genuinely active.
+  useEffect(() => {
+    const previous = previousStatusesRef.current;
+    const newlyGranted = ACTIVATION_LAYERS
+      .filter((layer) => {
+        const activeNow = isActivationLayerActive(layer, statuses);
+        const wasActive = isActivationLayerActive(layer, previous, false);
+        return activeNow && !wasActive;
+      })
+      .map((layer) => layer.key);
+
+    previousStatusesRef.current = statuses;
+    if (!activationCardVisible) return;
+
+    if (!activationCardSeenRef.current) {
+      activationCardSeenRef.current = true;
+      animateActivationRows(
+        ACTIVATION_LAYERS
+          .filter((layer) => isActivationLayerActive(layer, statuses))
+          .map((layer) => layer.key),
+      );
+      return;
+    }
+
+    animateActivationRows(newlyGranted);
+  }, [
+    activationCardVisible,
+    animateActivationRows,
+    isActivationLayerActive,
+    statuses,
+  ]);
+
+  // The title change is the payoff moment. Keep it short and subtle; reduced
+  // motion still follows the same state path with zero-duration transitions.
+  useEffect(() => {
+    if (allOptionalGranted && !previousIronReadyRef.current) {
+      const duration = reduceMotion ? 0 : 220;
+      activationTitleOpacity.setValue(0);
+      activationTitleTranslateY.setValue(5);
+      Animated.parallel([
+        Animated.timing(activationTitleOpacity, {
+          toValue: 1,
+          duration,
+          useNativeDriver: true,
+        }),
+        Animated.timing(activationTitleTranslateY, {
+          toValue: 0,
+          duration,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+    previousIronReadyRef.current = allOptionalGranted;
+  }, [
+    activationTitleOpacity,
+    activationTitleTranslateY,
+    allOptionalGranted,
+    reduceMotion,
+  ]);
 
   const renderPermissionCard = (perm: PermItem, showOptionalBadge = false) => {
     const status = statuses[perm.id] ?? 'unknown';
@@ -756,33 +910,50 @@ export default function OnboardingScreen() {
         </View>
 
          {/* Activation summary — makes the Iron Mode setup feel like an activation */}
-         {(allRequiredReady || allOptionalGranted) && (
+          {activationCardVisible && (
            <View style={[styles.activationCard, {
-             backgroundColor: allOptionalGranted ? COLORS.orange + '14' : theme.card,
-             borderColor: allOptionalGranted ? COLORS.orange + '55' : theme.border,
+              backgroundColor: allOptionalGranted ? COLORS.primaryLight : theme.card,
+              borderColor: allOptionalGranted ? COLORS.primary + '55' : theme.border,
            }]}>
-             <Text style={[styles.activationTitle, { color: allOptionalGranted ? COLORS.orange : theme.text }]}>
+              <Animated.Text
+                style={[
+                  styles.activationTitle,
+                  {
+                    color: allOptionalGranted ? COLORS.primary : theme.text,
+                    opacity: activationTitleOpacity,
+                    transform: [{ translateY: activationTitleTranslateY }],
+                  },
+                ]}
+              >
                {allOptionalGranted ? 'Iron Mode ready' : 'Layers active so far'}
-             </Text>
-             {[
-               { label: 'App detection', ids: ['usage', 'accessibility'] },
-               { label: 'Background survival', ids: ['notifications', 'battery', 'overlay'] },
-               { label: 'Network restriction', ids: ['vpn'] },
-               { label: 'Force-stop resistance', ids: ['device_admin'] },
-               { label: 'Settings PIN', ids: [] as string[], extra: defensePinSet },
-             ].map(({ label, ids, extra }) => {
-               const active = ids.length > 0
-                 ? ids.every((id) => statuses[id] === 'granted')
-                 : (extra ?? false);
+              </Animated.Text>
+              <Text
+                style={[
+                  styles.activationCount,
+                  { color: activeLayerCount === ACTIVATION_LAYERS.length ? COLORS.green : COLORS.primary },
+                ]}
+              >
+                {activeLayerCount} of {ACTIVATION_LAYERS.length} layers active
+              </Text>
+              {ACTIVATION_LAYERS.map((layer) => {
+                const active = isActivationLayerActive(layer, statuses);
+                const rowAnimation = activationRowAnimations[layer.key];
                return (
-                 <View key={label} style={styles.activationRow}>
-                   <Ionicons
-                     name={active ? 'checkmark-circle' : 'ellipse-outline'}
-                     size={14}
-                     color={active ? COLORS.green : theme.muted}
-                   />
+                  <View key={layer.key} style={styles.activationRow}>
+                    <Animated.View
+                      style={{
+                        opacity: rowAnimation.opacity,
+                        transform: [{ scale: rowAnimation.scale }],
+                      }}
+                    >
+                      <Ionicons
+                        name={active ? 'checkmark-circle' : 'ellipse-outline'}
+                        size={14}
+                        color={active ? COLORS.green : theme.muted}
+                      />
+                    </Animated.View>
                    <Text style={[styles.activationRowText, { color: active ? theme.text : theme.muted }]}>
-                     {label}
+                      {layer.label}
                    </Text>
                  </View>
                );
@@ -1209,6 +1380,12 @@ const styles = StyleSheet.create({
   activationTitle: {
     fontSize: FONT.sm,
     fontWeight: '800',
+    marginBottom: SPACING.xs,
+  },
+  activationCount: {
+    fontSize: FONT.xs,
+    fontWeight: '700',
+    marginTop: -SPACING.xs,
     marginBottom: SPACING.xs,
   },
   activationRow: {
