@@ -33,7 +33,6 @@ import { useTheme } from '@/hooks/useTheme';
 import { EventBridge } from '@/services/eventBridge';
 import { navigateToTask, consumePendingTaskNavigation } from '@/navigation/navigationRef';
 import { registerBackgroundFetch, registerOverrunCheckTask } from '@/tasks/backgroundTasks';
-import { BlockedAppOverlay } from '@/components/BlockedAppOverlay';
 import { AchievementCelebrationModal } from '@/components/AchievementCelebrationModal';
 import { VpnPermissionLostBanner } from '@/components/VpnPermissionLostBanner';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -400,7 +399,6 @@ export default function RootLayout() {
           <AppProvider>
             <AppSplashOverlay />
             <OnboardingGuard />
-            <BlockedAppOverlay />
             <AchievementCelebrationHost />
             <VpnPermissionHost />
             <ErrorAlertBanner />

@@ -14,6 +14,19 @@ type Entry = {
 
 const CHANGELOG: Entry[] = [
   {
+    version: '1.0.8',
+    date: 'August 2026',
+    sections: [
+      {
+        heading: 'Block Overlay Cleanup',
+        icon: 'ban-outline',
+        items: [
+          'Removed the duplicate React Native in-app blocked-app banner; native Kotlin overlays, app enforcement, dismissal, and all other blocking features remain unchanged',
+        ],
+      },
+    ],
+  },
+  {
     version: '1.0.7',
     date: 'August 2026',
     sections: [
