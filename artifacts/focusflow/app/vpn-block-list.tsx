@@ -109,11 +109,17 @@ export default function VpnBlockListScreen() {
         }
       }
 
+      const hasVpnPackages =
+        vpnPkgs.length > 0 || (settings.standaloneVpnPackages ?? []).length > 0;
+
       await updateSettings({
         ...settings,
         alwaysOnVpnPackages: vpnPkgs,
-        vpnBlockEnabled:
-          vpnPkgs.length > 0 || (settings.standaloneVpnPackages ?? []).length > 0,
+        // A saved VPN list is an explicit opt-in to both parts of the
+        // network-protection layer. Keep the switches in System Protection
+        // aligned with the actual package configuration.
+        vpnBlockEnabled: hasVpnPackages,
+        vpnSelfHealEnabled: hasVpnPackages,
       }, { defensePinHash });
       router.back();
     } catch {
@@ -253,6 +259,21 @@ export default function VpnBlockListScreen() {
         </Text>
       </View>
 
+      {settings.protectionMode === 'iron' && (
+        <TouchableOpacity
+          style={[styles.ironGuide, { backgroundColor: COLORS.orange + '12', borderColor: COLORS.orange + '33' }]}
+          onPress={() => router.push('/block-defense?tab=system')}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="flame-outline" size={16} color={COLORS.orange} />
+          <Text style={[styles.ironGuideText, { color: theme.text }]}>
+            <Text style={{ color: COLORS.orange, fontWeight: '800' }}>Iron Mode:</Text>{' '}
+            saving a VPN app turns on Network blocking and VPN self-healing automatically.
+            <Text style={{ color: COLORS.orange, fontWeight: '700' }}> Review System Protection →</Text>
+          </Text>
+        </TouchableOpacity>
+      )}
+
       {/* Search */}
       <View style={[styles.searchWrap, { backgroundColor: theme.card, borderColor: theme.border }]}>
         <Ionicons name="search" size={16} color={COLORS.muted} />
@@ -345,6 +366,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   bannerText: { flex: 1, fontSize: FONT.xs, lineHeight: 18 },
+  ironGuide: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: SPACING.sm,
+    marginHorizontal: SPACING.md,
+    marginTop: SPACING.sm,
+    padding: SPACING.md,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+  },
+  ironGuideText: { flex: 1, fontSize: FONT.xs, lineHeight: 18 },
   searchWrap: {
     flexDirection: 'row',
     alignItems: 'center',

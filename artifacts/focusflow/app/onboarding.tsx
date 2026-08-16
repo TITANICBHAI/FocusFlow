@@ -111,6 +111,7 @@ const PERMISSIONS: PermItem[] = [
   {
     id: 'overlay',
     section: 'core',
+    requiredToContinue: true,
     icon: 'layers-outline',
     title: 'Appear on Top',
     description: 'Draws the block screen directly over blocked apps.',
@@ -162,9 +163,9 @@ const PERMISSIONS: PermItem[] = [
     section: 'optional',
     icon: 'shield-half-outline',
     title: 'VPN Permission',
-    description: 'Required to cut the network connection of blocked apps when Network Blocking is enabled.',
+    description: 'Cuts internet access for selected distracting apps during a focus session — without blocking your own traffic.',
     whyNeeded:
-      'Android requires a one-time consent dialog before any app may create a VPN. Without it the "Network Blocking" toggle in Block Enforcement will have no effect.',
+      'Iron Mode can combine app blocking with a local VPN layer. For example: prepare downloaded work videos before a session, then restrict network access for distracting apps while you focus. Downloaded content may remain available offline — though some apps require occasional verification.',
     brokenWithout: [
       'Network Blocking (Block Enforcement → System Protection) will not start',
       'Blocked apps will still have full internet access during a focus session',
@@ -186,6 +187,23 @@ const PERMISSIONS: PermItem[] = [
     ],
     deepLinkLabel: 'Activate Device Admin',
     grantAction: 'manual',
+  },
+];
+
+const CORE_LAYER_GROUPS: Array<{
+  label: string;
+  subtitle: string;
+  ids: string[];
+}> = [
+  {
+    label: 'Layer 1 — Detect',
+    subtitle: 'Lets FocusFlow see which app is open and redirect instantly.',
+    ids: ['usage', 'accessibility'],
+  },
+  {
+    label: 'Layer 2 — Stay active',
+    subtitle: 'Keeps the blocking service alive on aggressive OEM phones.',
+    ids: ['notifications', 'battery', 'overlay'],
   },
 ];
 
@@ -331,6 +349,89 @@ export default function OnboardingScreen() {
     protectionMode === 'iron' ? corePerms : requiredPerms;
   const grantedCount = requiredPerms.filter((p) => statuses[p.id] === 'granted').length;
   const allRequiredReady = grantedCount === requiredPerms.length;
+  const allOptionalGranted = optionalPerms.every((p) => statuses[p.id] === 'granted');
+
+  const renderPermissionCard = (perm: PermItem, showOptionalBadge = false) => {
+    const status = statuses[perm.id] ?? 'unknown';
+    const isExpanded = expandedId === perm.id;
+    const isLoading = actionLoading === perm.id;
+
+    return (
+      <View
+        key={perm.id}
+        style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }, status === 'granted' && styles.cardGranted]}
+      >
+        <TouchableOpacity
+          style={styles.cardMain}
+          onPress={() => setExpandedId(isExpanded ? null : perm.id)}
+          activeOpacity={0.75}
+        >
+          <View style={[styles.iconWrap, { backgroundColor: statusColor(status, perm.requiredToContinue) + '22' }]}>
+            <Ionicons name={perm.icon} size={22} color={statusColor(status, perm.requiredToContinue)} />
+          </View>
+
+          <View style={styles.cardBody}>
+            <View style={styles.cardTitleRow}>
+              <Text style={[styles.cardTitle, { color: theme.text }]}>{perm.title}</Text>
+              {showOptionalBadge && (
+                <View style={[badge.wrap, { backgroundColor: COLORS.primary + '18', borderColor: COLORS.primary + '33', marginRight: 4 }]}>
+                  <Text style={[badge.text, { color: COLORS.primary }]}>Optional</Text>
+                </View>
+              )}
+              <StatusBadge status={status} requiredToContinue={perm.requiredToContinue} />
+            </View>
+            <Text style={[styles.cardDesc, { color: theme.muted }]} numberOfLines={isExpanded ? undefined : 2}>
+              {perm.description}
+            </Text>
+          </View>
+
+          <Ionicons
+            name={isExpanded ? 'chevron-up' : 'chevron-down'}
+            size={16}
+            color={theme.muted}
+          />
+        </TouchableOpacity>
+
+        {isExpanded && (
+          <View style={[styles.expandedSection, { backgroundColor: theme.surface, borderTopColor: theme.border }]}>
+            <View style={styles.whyBox}>
+              <Ionicons name="bulb-outline" size={14} color={COLORS.orange} />
+              <Text style={styles.whyText}>{perm.whyNeeded}</Text>
+            </View>
+
+            {status !== 'granted' && (
+              <View style={styles.brokenSection}>
+                <Text style={[styles.brokenTitle, { color: theme.text }]}>Without this permission:</Text>
+                {perm.brokenWithout.map((item, i) => (
+                  <View key={i} style={styles.brokenRow}>
+                    <Ionicons name="close-circle" size={14} color={COLORS.red} />
+                    <Text style={[styles.brokenText, { color: theme.textSecondary }]}>{item}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {status !== 'granted' && (
+              <TouchableOpacity
+                style={styles.grantBtn}
+                onPress={() => handleGrant(perm)}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <>
+                    <Ionicons name="open-outline" size={14} color="#fff" />
+                    <Text style={styles.grantBtnText}>{perm.deepLinkLabel}</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+      </View>
+    );
+  };
 
   const handleFinish = async () => {
     try {
@@ -406,7 +507,7 @@ export default function OnboardingScreen() {
               <View style={styles.modeOptionBody}>
                 <Text style={[styles.modeOptionTitle, { color: theme.text }]}>Standard</Text>
                 <Text style={[styles.modeOptionText, { color: theme.muted }]}>
-                  Essential app blocking with three core permissions.
+                  Essential app blocking with four core permissions.
                 </Text>
               </View>
               {protectionMode === 'standard' && (
@@ -436,7 +537,7 @@ export default function OnboardingScreen() {
                   </View>
                 </View>
                 <Text style={[styles.modeOptionText, { color: theme.muted }]}>
-                  Adds battery, overlay, VPN, Device Admin, and PIN protection.
+                  Adds battery, VPN, Device Admin, and PIN protection.
                 </Text>
               </View>
               {protectionMode === 'iron' && (
@@ -500,93 +601,37 @@ export default function OnboardingScreen() {
            {protectionMode === 'iron' ? 'IRON MODE CORE ACCESS' : 'ESSENTIAL ACCESS'} — TAP A CARD TO SEE DETAILS
          </Text>
 
-        {/* Core permission cards */}
-        {visibleCorePerms.map((perm) => {
-          const status = statuses[perm.id] ?? 'unknown';
-          const isExpanded = expandedId === perm.id;
-          const isLoading = actionLoading === perm.id;
+         {/* Core permission cards */}
+         {protectionMode === 'standard'
+           ? visibleCorePerms.map((perm) => renderPermissionCard(perm))
+           : CORE_LAYER_GROUPS.map((group) => {
+               const groupPerms = PERMISSIONS.filter((p) => group.ids.includes(p.id));
+               const allGranted = groupPerms.every((p) => statuses[p.id] === 'granted');
 
-          return (
-            <View
-              key={perm.id}
-              style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }, status === 'granted' && styles.cardGranted]}
-            >
-              <TouchableOpacity
-                style={styles.cardMain}
-                onPress={() => setExpandedId(isExpanded ? null : perm.id)}
-                activeOpacity={0.75}
-              >
-                <View style={[styles.iconWrap, { backgroundColor: statusColor(status, perm.requiredToContinue) + '22' }]}>
-                  <Ionicons name={perm.icon} size={22} color={statusColor(status, perm.requiredToContinue)} />
-                </View>
-
-                <View style={styles.cardBody}>
-                  <View style={styles.cardTitleRow}>
-                    <Text style={[styles.cardTitle, { color: theme.text }]}>{perm.title}</Text>
-                    <StatusBadge status={status} requiredToContinue={perm.requiredToContinue} />
-                  </View>
-                  <Text style={[styles.cardDesc, { color: theme.muted }]} numberOfLines={isExpanded ? undefined : 2}>
-                    {perm.description}
-                  </Text>
-                </View>
-
-                <Ionicons
-                  name={isExpanded ? 'chevron-up' : 'chevron-down'}
-                  size={16}
-                  color={theme.muted}
-                />
-              </TouchableOpacity>
-
-              {isExpanded && (
-                <View style={[styles.expandedSection, { backgroundColor: theme.surface, borderTopColor: theme.border }]}>
-                  {/* Why needed */}
-                  <View style={styles.whyBox}>
-                    <Ionicons name="bulb-outline" size={14} color={COLORS.orange} />
-                    <Text style={styles.whyText}>{perm.whyNeeded}</Text>
-                  </View>
-
-                  {/* What breaks without it */}
-                  {status !== 'granted' && (
-                    <View style={styles.brokenSection}>
-                      <Text style={[styles.brokenTitle, { color: theme.text }]}>Without this permission:</Text>
-                      {perm.brokenWithout.map((item, i) => (
-                        <View key={i} style={styles.brokenRow}>
-                          <Ionicons name="close-circle" size={14} color={COLORS.red} />
-                          <Text style={[styles.brokenText, { color: theme.textSecondary }]}>{item}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  )}
-
-                  {/* Grant button */}
-                  {status !== 'granted' && (
-                    <TouchableOpacity
-                      style={styles.grantBtn}
-                      onPress={() => handleGrant(perm)}
-                      disabled={isLoading}
-                    >
-                      {isLoading ? (
-                        <ActivityIndicator size="small" color="#fff" />
-                      ) : (
-                        <>
-                          <Ionicons name="open-outline" size={14} color="#fff" />
-                          <Text style={styles.grantBtnText}>{perm.deepLinkLabel}</Text>
-                        </>
-                      )}
-                    </TouchableOpacity>
-                  )}
-                </View>
-              )}
-            </View>
-          );
-        })}
+               return (
+                 <View key={group.label}>
+                   <View style={styles.layerHeader}>
+                     <View style={styles.layerHeaderLeft}>
+                       <Text style={[styles.layerLabel, { color: allGranted ? COLORS.green : COLORS.orange }]}>
+                         {group.label}
+                       </Text>
+                       {allGranted && (
+                         <Ionicons name="checkmark-circle" size={14} color={COLORS.green} />
+                       )}
+                     </View>
+                     <Text style={[styles.layerSubtitle, { color: theme.muted }]}>{group.subtitle}</Text>
+                   </View>
+                   {groupPerms.map((perm) => renderPermissionCard(perm))}
+                 </View>
+               );
+             })}
 
         {/* Missing required permissions tip */}
         {!allRequiredReady && (
           <View style={styles.manageTip}>
             <Ionicons name="information-circle-outline" size={18} color={COLORS.primary} />
             <Text style={[styles.manageTipText, { color: theme.textSecondary }]}>
-              Usage Access, Accessibility Service, and Notifications can be fixed anytime in{' '}
+              Usage Access, Accessibility Service, Appear on Top, and Notifications can be fixed anytime in{' '}
               <Text style={styles.manageTipHighlight}>Settings → Permissions</Text>.
             </Text>
           </View>
@@ -598,7 +643,7 @@ export default function OnboardingScreen() {
             <View style={styles.ironPromoBody}>
               <Text style={[styles.ironPromoTitle, { color: theme.text }]}>Want stronger protection later?</Text>
               <Text style={[styles.ironPromoText, { color: theme.textSecondary }]}>
-                Switch to Iron Mode anytime from Settings → Permissions to add VPN network blocking, Device Admin, Appear on Top, Battery Optimization, and PIN protection.
+                Switch to Iron Mode anytime from Settings → Permissions to add VPN network blocking, Device Admin, Battery Optimization, and PIN protection.
               </Text>
             </View>
           </View>
@@ -629,88 +674,24 @@ export default function OnboardingScreen() {
           <Text style={styles.backToCoreText}>Back to core setup</Text>
         </TouchableOpacity>
 
-        {/* Optional permission cards */}
-         <Text style={[styles.sectionLabel, { color: theme.muted }]}>IRON MODE + OPTIONAL SETUP</Text>
+         {/* Optional permission cards */}
+         <View style={styles.layerHeader}>
+           <View style={styles.layerHeaderLeft}>
+             <Text style={[styles.layerLabel, { color: allOptionalGranted ? COLORS.green : COLORS.orange }]}>
+               Layer 3 — Resist bypass
+             </Text>
+             {allOptionalGranted && (
+               <Ionicons name="checkmark-circle" size={14} color={COLORS.green} />
+             )}
+           </View>
+           <Text style={[styles.layerSubtitle, { color: theme.muted }]}>
+             Cuts network access, resists force-stop, and locks settings behind a PIN.
+           </Text>
+         </View>
         <Text style={[styles.optionalHint, { color: theme.muted }]}>
            Configure the extra Iron Mode layers now, or enable them later from Settings → Permissions.
         </Text>
-        {optionalPerms.map((perm) => {
-          const status = statuses[perm.id] ?? 'unknown';
-          const isExpanded = expandedId === perm.id;
-          const isLoading = actionLoading === perm.id;
-
-          return (
-            <View
-              key={perm.id}
-              style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }, status === 'granted' && styles.cardGranted]}
-            >
-              <TouchableOpacity
-                style={styles.cardMain}
-                onPress={() => setExpandedId(isExpanded ? null : perm.id)}
-                activeOpacity={0.75}
-              >
-                <View style={[styles.iconWrap, { backgroundColor: statusColor(status, perm.requiredToContinue) + '22' }]}>
-                  <Ionicons name={perm.icon} size={22} color={statusColor(status, perm.requiredToContinue)} />
-                </View>
-
-                <View style={styles.cardBody}>
-                  <View style={styles.cardTitleRow}>
-                    <Text style={[styles.cardTitle, { color: theme.text }]}>{perm.title}</Text>
-                    <View style={[badge.wrap, { backgroundColor: COLORS.primary + '18', borderColor: COLORS.primary + '33', marginRight: 4 }]}>
-                      <Text style={[badge.text, { color: COLORS.primary }]}>Optional</Text>
-                    </View>
-                    <StatusBadge status={status} requiredToContinue={perm.requiredToContinue} />
-                  </View>
-                  <Text style={[styles.cardDesc, { color: theme.muted }]} numberOfLines={isExpanded ? undefined : 2}>
-                    {perm.description}
-                  </Text>
-                </View>
-
-                <Ionicons
-                  name={isExpanded ? 'chevron-up' : 'chevron-down'}
-                  size={16}
-                  color={theme.muted}
-                />
-              </TouchableOpacity>
-
-              {isExpanded && (
-                <View style={[styles.expandedSection, { backgroundColor: theme.surface, borderTopColor: theme.border }]}>
-                  <View style={styles.whyBox}>
-                    <Ionicons name="bulb-outline" size={14} color={COLORS.orange} />
-                    <Text style={styles.whyText}>{perm.whyNeeded}</Text>
-                  </View>
-                  {status !== 'granted' && (
-                    <View style={styles.brokenSection}>
-                      <Text style={[styles.brokenTitle, { color: theme.text }]}>Without this permission:</Text>
-                      {perm.brokenWithout.map((item, i) => (
-                        <View key={i} style={styles.brokenRow}>
-                          <Ionicons name="close-circle" size={14} color={COLORS.red} />
-                          <Text style={[styles.brokenText, { color: theme.textSecondary }]}>{item}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  )}
-                  {status !== 'granted' && (
-                    <TouchableOpacity
-                      style={styles.grantBtn}
-                      onPress={() => handleGrant(perm)}
-                      disabled={isLoading}
-                    >
-                      {isLoading ? (
-                        <ActivityIndicator size="small" color="#fff" />
-                      ) : (
-                        <>
-                          <Ionicons name="open-outline" size={14} color="#fff" />
-                          <Text style={styles.grantBtnText}>{perm.deepLinkLabel}</Text>
-                        </>
-                      )}
-                    </TouchableOpacity>
-                  )}
-                </View>
-              )}
-            </View>
-          );
-        })}
+         {optionalPerms.map((perm) => renderPermissionCard(perm, true))}
 
         {/* ── PIN Protection preference ─────────────────────────────────── */}
         <Text style={[styles.sectionLabel, { color: theme.muted, marginTop: SPACING.sm }]}>
@@ -773,10 +754,45 @@ export default function OnboardingScreen() {
             </View>
           )}
         </View>
+
+         {/* Activation summary — makes the Iron Mode setup feel like an activation */}
+         {(allRequiredReady || allOptionalGranted) && (
+           <View style={[styles.activationCard, {
+             backgroundColor: allOptionalGranted ? COLORS.orange + '14' : theme.card,
+             borderColor: allOptionalGranted ? COLORS.orange + '55' : theme.border,
+           }]}>
+             <Text style={[styles.activationTitle, { color: allOptionalGranted ? COLORS.orange : theme.text }]}>
+               {allOptionalGranted ? 'Iron Mode ready' : 'Layers active so far'}
+             </Text>
+             {[
+               { label: 'App detection', ids: ['usage', 'accessibility'] },
+               { label: 'Background survival', ids: ['notifications', 'battery', 'overlay'] },
+               { label: 'Network restriction', ids: ['vpn'] },
+               { label: 'Force-stop resistance', ids: ['device_admin'] },
+               { label: 'Settings PIN', ids: [] as string[], extra: defensePinSet },
+             ].map(({ label, ids, extra }) => {
+               const active = ids.length > 0
+                 ? ids.every((id) => statuses[id] === 'granted')
+                 : (extra ?? false);
+               return (
+                 <View key={label} style={styles.activationRow}>
+                   <Ionicons
+                     name={active ? 'checkmark-circle' : 'ellipse-outline'}
+                     size={14}
+                     color={active ? COLORS.green : theme.muted}
+                   />
+                   <Text style={[styles.activationRowText, { color: active ? theme.text : theme.muted }]}>
+                     {label}
+                   </Text>
+                 </View>
+               );
+             })}
+           </View>
+         )}
           </>
         )}
 
-        {/* Continue buttons — only the three required core permissions count
+        {/* Continue buttons — only the required core permissions count
             toward readiness; the button remains available so users can return
             to Settings later if Android setup is interrupted. */}
         <TouchableOpacity
@@ -995,6 +1011,25 @@ const styles = StyleSheet.create({
     color: COLORS.muted,
     letterSpacing: 1,
   },
+  layerHeader: {
+    gap: 3,
+    marginBottom: SPACING.xs,
+    marginTop: SPACING.sm,
+  },
+  layerHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+  },
+  layerLabel: {
+    fontSize: FONT.xs,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  layerSubtitle: {
+    fontSize: FONT.xs,
+    lineHeight: 16,
+  },
 
   optionalHint: {
     fontSize: FONT.sm,
@@ -1163,6 +1198,28 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   setPinBtnText: { fontSize: FONT.xs, fontWeight: '700', color: '#fff' },
+
+  // Iron Mode activation summary
+  activationCard: {
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    padding: SPACING.md,
+    gap: SPACING.sm,
+  },
+  activationTitle: {
+    fontSize: FONT.sm,
+    fontWeight: '800',
+    marginBottom: SPACING.xs,
+  },
+  activationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  activationRowText: {
+    fontSize: FONT.xs,
+    fontWeight: '600',
+  },
 
   // Enter button
   enterBtn: {
