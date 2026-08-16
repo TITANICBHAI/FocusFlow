@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { formatLogsForShare } from "@/services/startupLogger";
+import ReportIssueModal from "@/components/ReportIssueModal";
 
 export type ErrorFallbackProps = {
   error: Error;
@@ -37,6 +38,7 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
   };
 
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [reportVisible, setReportVisible] = useState(false);
 
   const handleRestart = async () => {
     try {
@@ -131,6 +133,24 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
             Copy Logs
           </Text>
         </Pressable>
+
+        <Pressable
+          onPress={() => setReportVisible(true)}
+          style={({ pressed }) => [
+            styles.button,
+            {
+              backgroundColor: theme.danger,
+              opacity: pressed ? 0.9 : 1,
+              transform: [{ scale: pressed ? 0.98 : 1 }],
+            },
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel="Report this issue"
+        >
+          <Text style={[styles.buttonText, { color: theme.buttonText }]}>
+            Report this issue
+          </Text>
+        </Pressable>
       </View>
 
       {__DEV__ ? (
@@ -205,6 +225,12 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
           </View>
         </Modal>
       ) : null}
+
+      <ReportIssueModal
+        visible={reportVisible}
+        onClose={() => setReportVisible(false)}
+        error={error}
+      />
     </View>
   );
 }

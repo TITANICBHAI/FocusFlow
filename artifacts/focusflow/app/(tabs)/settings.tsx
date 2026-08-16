@@ -51,8 +51,9 @@ function SettingsScreen() {
   const [defPinVisible, setDefPinVisible] = useState(false);
   const [pinSetupVisible, setPinSetupVisible] = useState(false);
   const pendingDefAction = useRef<(() => void) | null>(null);
-  // Diagnostics section is development-only — hidden entirely in release builds.
-  const showDiagnostics = __DEV__;
+  // Logs are useful in release builds too: WARN/ERROR entries are retained
+  // locally and the user can explicitly choose whether to report them.
+  const showDiagnostics = true;
 
   if (!state.isDbReady) {
     return (
@@ -627,13 +628,13 @@ function SettingsScreen() {
           />
         </Section>
 
-        {/* ── Diagnostics (debug builds only) ── */}
+        {/* ── Diagnostics ── */}
         {showDiagnostics && (
           <Section title="Diagnostics">
             <SettingButton
               icon="terminal-outline"
-              label="View Startup Logs"
-              description="Timestamped log of startup steps, warnings, and errors"
+              label="View Logs & Report an Issue"
+              description="Review local diagnostics and optionally send a report"
               onPress={() => setDiagnosticsVisible(true)}
             />
           </Section>

@@ -21,6 +21,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
 import { clearLogs, formatLogsForShare, getRecentLogs, type LogEntry } from '@/services/startupLogger';
+import ReportIssueModal from '@/components/ReportIssueModal';
 
 interface Props {
   visible: boolean;
@@ -87,6 +88,7 @@ export default function DiagnosticsModal({ visible, onClose }: Props) {
   const insets = useSafeAreaInsets();
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(false);
+  const [reportVisible, setReportVisible] = useState(false);
 
   const monoFont = Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' });
 
@@ -161,6 +163,34 @@ export default function DiagnosticsModal({ visible, onClose }: Props) {
           </Text>
         </View>
 
+        <View
+          style={[
+            styles.reportCard,
+            {
+              backgroundColor: isDark ? '#1C1C2E' : '#F5F3FF',
+              borderColor: isDark ? 'rgba(129,140,248,0.35)' : '#DDD6FE',
+            },
+          ]}
+        >
+          <View style={styles.reportCopy}>
+            <Ionicons name="paper-plane-outline" size={19} color="#6366F1" />
+            <View style={styles.reportText}>
+              <Text style={[styles.reportTitle, { color: theme.text }]}>Help us fix this</Text>
+              <Text style={[styles.reportDescription, { color: theme.textSecondary ?? '#888' }]}>
+                Send these logs only when you choose to report an issue.
+              </Text>
+            </View>
+          </View>
+          <Pressable
+            onPress={() => setReportVisible(true)}
+            style={styles.reportButton}
+            accessibilityRole="button"
+            accessibilityLabel="Report this issue"
+          >
+            <Text style={styles.reportButtonText}>Report this issue</Text>
+          </Pressable>
+        </View>
+
         {loading ? (
           <View style={styles.center}>
             <Text style={{ color: theme.text }}>Loading…</Text>
@@ -186,6 +216,7 @@ export default function DiagnosticsModal({ visible, onClose }: Props) {
           </Pressable>
         </View>
       </View>
+      <ReportIssueModal visible={reportVisible} onClose={() => setReportVisible(false)} />
     </Modal>
   );
 }
@@ -256,5 +287,43 @@ const styles = StyleSheet.create({
   refreshText: {
     fontSize: 14,
     fontWeight: '500',
+  },
+  reportCard: {
+    marginHorizontal: 12,
+    marginTop: 10,
+    marginBottom: 2,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 10,
+  },
+  reportCopy: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 9,
+  },
+  reportText: {
+    flex: 1,
+    gap: 2,
+  },
+  reportTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  reportDescription: {
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  reportButton: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#6366F1',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  reportButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '700',
   },
 });
