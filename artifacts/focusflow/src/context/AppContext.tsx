@@ -64,6 +64,7 @@ import { AversionsModule } from '@/native-modules/AversionsModule';
 import { GreyoutModule } from '@/native-modules/GreyoutModule';
 import { NetworkBlockModule } from '@/native-modules/NetworkBlockModule';
 import { logBootMarker, logger } from '@/services/startupLogger';
+import { persistSetupBackups, readSetupBackups } from '@/services/setupPersistence';
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
@@ -129,6 +130,7 @@ const defaultSettings: AppSettings = {
   notificationsEnabled: true,
   privacyAccepted: false,
   onboardingComplete: false,
+  protectionMode: 'standard',
   standaloneBlockPackages: [],
   standaloneBlockUntil: null,
   alwaysOnPackages: [],
@@ -428,39 +430,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // Never blocks init and never throws.
       void logDbDiagnostics();
 
-      // If the DB returned privacyAccepted=false or onboardingComplete=false
-      // (e.g. because it fell back to the recovery DB after OEM memory
-      // management wiped the DB file), cross-check with SharedPreferences —
-      // which survives DB file deletion — before concluding the user needs to
-      // re-accept the privacy policy or redo onboarding.  Stops the
-      // privacy/onboarding screens from re-appearing randomly between sessions.
+      // If critical first-run state is missing or stale (e.g. because the app
+      // fell back to the recovery DB after OEM memory management wiped the
+      // primary DB file), cross-check the non-SQLite backups before concluding
+      // the user needs to re-accept privacy or redo onboarding.
       let settings = rawSettings;
-      let restoredFromSp = false;
-      if (!rawSettings.privacyAccepted) {
-        try {
-          const spValue = await SharedPrefsModule.getString('privacy_accepted');
-          if (spValue === 'true') {
-            void logger.info('AppContext', 'privacyAccepted restored from SharedPreferences backup');
-            settings = { ...settings, privacyAccepted: true };
-            restoredFromSp = true;
-          }
-        } catch (e) {
-          void logger.warn('AppContext', `SharedPrefs privacy backup check failed: ${String(e)}`);
+      let restoredFromBackup = false;
+      try {
+        const backup = await readSetupBackups();
+        if (!settings.privacyAccepted && backup.privacyAccepted) {
+          settings = { ...settings, privacyAccepted: true };
+          restoredFromBackup = true;
         }
-      }
-      if (!rawSettings.onboardingComplete) {
-        try {
-          const spValue = await SharedPrefsModule.getString('onboarding_complete');
-          if (spValue === 'true') {
-            void logger.info('AppContext', 'onboardingComplete restored from SharedPreferences backup');
-            settings = { ...settings, onboardingComplete: true };
-            restoredFromSp = true;
-          }
-        } catch (e) {
-          void logger.warn('AppContext', `SharedPrefs onboarding backup check failed: ${String(e)}`);
+        if (!settings.onboardingComplete && backup.onboardingComplete) {
+          settings = { ...settings, onboardingComplete: true };
+          restoredFromBackup = true;
         }
+        if (backup.protectionMode && backup.protectionMode !== settings.protectionMode) {
+          settings = { ...settings, protectionMode: backup.protectionMode };
+          restoredFromBackup = true;
+        }
+        if (restoredFromBackup) {
+          void logger.info('AppContext', 'Critical setup state restored from non-SQLite backup');
+        }
+      } catch (e) {
+        void logger.warn('AppContext', `Critical setup backup check failed: ${String(e)}`);
       }
-      if (restoredFromSp) {
+      if (restoredFromBackup) {
         try { await dbSaveSettings(settings); } catch { /* non-fatal — primary path is the in-memory state */ }
       }
 
@@ -1550,7 +1546,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // serially before the dispatch, which made every Switch feel laggy.
     dispatch({ type: 'SET_SETTINGS', payload: settings });
     try {
-      await dbSaveSettings(settings);
+      // Keep critical setup state recoverable even if SQLite is later wiped
+      // or replaced by the recovery database.
+      await Promise.all([
+        dbSaveSettings(settings),
+        persistSetupBackups(settings),
+      ]);
       // Run all native syncs concurrently — they are independent of each other.
       await Promise.all([
         state.focusSession !== null

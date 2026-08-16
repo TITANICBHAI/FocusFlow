@@ -42,6 +42,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   pomodoroBreak: 5,
   notificationsEnabled: true,
   privacyAccepted: false,
+  protectionMode: 'standard',
   standaloneBlockPackages: [],
   standaloneBlockUntil: null,
   alwaysOnPackages: [],

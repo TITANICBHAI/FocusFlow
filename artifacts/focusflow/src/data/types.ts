@@ -146,6 +146,8 @@ export interface AppSettings {
   notificationsEnabled: boolean;
   onboardingComplete: boolean;
   privacyAccepted: boolean;
+  /** First-run enforcement preference. Iron Mode adds the stronger optional layers. */
+  protectionMode?: 'standard' | 'iron';
   // Standalone app blocking — independent of any task
   standaloneBlockPackages: string[]; // packages to always block regardless of task state
   standaloneBlockUntil: string | null; // ISO timestamp when the standalone block expires

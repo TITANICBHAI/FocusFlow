@@ -44,6 +44,7 @@ import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 
 type PermStatus = 'granted' | 'denied' | 'unknown';
 type OnboardingStep = 'core' | 'optional';
+type ProtectionMode = 'standard' | 'iron';
 
 interface PermItem {
   id: string;
@@ -176,12 +177,12 @@ const PERMISSIONS: PermItem[] = [
     section: 'optional',
     icon: 'shield-outline',
     title: 'Device Admin',
-    description: 'Prevents Samsung, Xiaomi, and other OEM phones from force-stopping FocusFlow via the recent-apps menu.',
+    description: 'Makes it harder for Samsung, Xiaomi, and other OEM phones to force-stop FocusFlow during a focus session.',
     whyNeeded:
-      'Some OEM ROMs let users swipe away or force-stop apps from the recents screen — activating Device Admin blocks that action so your focus sessions cannot be killed.',
+      'Some OEM ROMs make it easy to swipe away or force-stop apps from recents. Device Admin adds resistance to those paths, but it is not an absolute uninstall or force-stop guarantee.',
     brokenWithout: [
-      'On Samsung One UI, MIUI, and ColorOS you can swipe FocusFlow away to instantly stop all blocking',
-      'Advanced users can bypass any focus session by force-stopping the app',
+      'On Samsung One UI, MIUI, and ColorOS, stopping FocusFlow may be easier',
+      'Some device or advanced system paths may end a focus session sooner',
     ],
     deepLinkLabel: 'Activate Device Admin',
     grantAction: 'manual',
@@ -235,6 +236,9 @@ export default function OnboardingScreen() {
   const { state, updateSettings } = useApp();
   const { theme } = useTheme();
   const [step, setStep] = useState<OnboardingStep>('core');
+  const [protectionMode, setProtectionMode] = useState<ProtectionMode>(
+    state.settings.protectionMode ?? 'standard',
+  );
   const [statuses, setStatuses] = useState<Record<string, PermStatus>>({});
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -323,6 +327,8 @@ export default function OnboardingScreen() {
   const corePerms = PERMISSIONS.filter((p) => p.section === 'core');
   const optionalPerms = PERMISSIONS.filter((p) => p.section === 'optional');
   const requiredPerms = corePerms.filter((p) => p.requiredToContinue);
+  const visibleCorePerms =
+    protectionMode === 'iron' ? corePerms : requiredPerms;
   const grantedCount = requiredPerms.filter((p) => statuses[p.id] === 'granted').length;
   const allRequiredReady = grantedCount === requiredPerms.length;
 
@@ -332,6 +338,7 @@ export default function OnboardingScreen() {
         ...state.settings,
         onboardingComplete: true,
         pinProtectionEnabled: pinProtectionChoice,
+          protectionMode,
       });
     } catch {
       Alert.alert('Could not finish setup', 'Please try again.');
@@ -365,13 +372,80 @@ export default function OnboardingScreen() {
           </Text>
           <Text style={[styles.tagline, { color: theme.muted }]}>
             {step === 'core'
-              ? 'These permissions help FocusFlow block reliably.'
-              : 'Add extra protection now or come back later.'}
+              ? protectionMode === 'iron'
+                ? 'Build the strongest protection against distraction.'
+                : 'Start with the essential access FocusFlow needs.'
+              : 'Finish the extra layers or come back later.'}
           </Text>
         </View>
 
         {step === 'core' && (
           <>
+        {/* Protection mode choice stays on the existing onboarding screen so
+            choosing a stronger setup does not add another welcome step. */}
+        <View style={[styles.modeCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <Text style={[styles.modeTitle, { color: theme.text }]}>Choose your protection level</Text>
+          <Text style={[styles.modeSubtitle, { color: theme.muted }]}>
+            You can change this later from Settings → Permissions.
+          </Text>
+          <View style={styles.modeOptions}>
+            <TouchableOpacity
+              style={[
+                styles.modeOption,
+                { borderColor: protectionMode === 'standard' ? COLORS.primary : theme.border },
+                protectionMode === 'standard' && { backgroundColor: COLORS.primaryLight },
+              ]}
+              onPress={() => setProtectionMode('standard')}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name="shield-outline"
+                size={22}
+                color={protectionMode === 'standard' ? COLORS.primary : theme.muted}
+              />
+              <View style={styles.modeOptionBody}>
+                <Text style={[styles.modeOptionTitle, { color: theme.text }]}>Standard</Text>
+                <Text style={[styles.modeOptionText, { color: theme.muted }]}>
+                  Essential app blocking with three core permissions.
+                </Text>
+              </View>
+              {protectionMode === 'standard' && (
+                <Ionicons name="checkmark-circle" size={20} color={COLORS.primary} />
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.modeOption,
+                { borderColor: protectionMode === 'iron' ? COLORS.orange : theme.border },
+                protectionMode === 'iron' && { backgroundColor: COLORS.orangeLight },
+              ]}
+              onPress={() => setProtectionMode('iron')}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name="shield-checkmark"
+                size={22}
+                color={protectionMode === 'iron' ? COLORS.orange : theme.muted}
+              />
+              <View style={styles.modeOptionBody}>
+                <View style={styles.modeOptionTitleRow}>
+                  <Text style={[styles.modeOptionTitle, { color: theme.text }]}>Iron Mode</Text>
+                  <View style={styles.ironBadge}>
+                    <Text style={styles.ironBadgeText}>STRONGER</Text>
+                  </View>
+                </View>
+                <Text style={[styles.modeOptionText, { color: theme.muted }]}>
+                  Adds battery, overlay, VPN, Device Admin, and PIN protection.
+                </Text>
+              </View>
+              {protectionMode === 'iron' && (
+                <Ionicons name="checkmark-circle" size={20} color={COLORS.orange} />
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* Restricted-settings unlock banner — shown above everything else
             on the first-run flow when the OS is currently locking the
             Accessibility toggle. Auto-hides the moment the user completes
@@ -422,10 +496,12 @@ export default function OnboardingScreen() {
         </View>
 
         {/* Section label */}
-        <Text style={[styles.sectionLabel, { color: theme.muted }]}>CORE ACCESS — TAP A CARD TO SEE DETAILS</Text>
+         <Text style={[styles.sectionLabel, { color: theme.muted }]}>
+           {protectionMode === 'iron' ? 'IRON MODE CORE ACCESS' : 'ESSENTIAL ACCESS'} — TAP A CARD TO SEE DETAILS
+         </Text>
 
         {/* Core permission cards */}
-        {corePerms.map((perm) => {
+        {visibleCorePerms.map((perm) => {
           const status = statuses[perm.id] ?? 'unknown';
           const isExpanded = expandedId === perm.id;
           const isLoading = actionLoading === perm.id;
@@ -515,6 +591,30 @@ export default function OnboardingScreen() {
             </Text>
           </View>
         )}
+
+        {protectionMode === 'standard' && (
+          <View style={[styles.ironPromo, { backgroundColor: COLORS.orangeLight, borderColor: COLORS.orange + '44' }]}>
+            <Ionicons name="shield-checkmark-outline" size={20} color={COLORS.orange} />
+            <View style={styles.ironPromoBody}>
+              <Text style={[styles.ironPromoTitle, { color: theme.text }]}>Want stronger protection later?</Text>
+              <Text style={[styles.ironPromoText, { color: theme.textSecondary }]}>
+                Switch to Iron Mode anytime from Settings → Permissions to add VPN network blocking, Device Admin, Appear on Top, Battery Optimization, and PIN protection.
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {protectionMode === 'iron' && (
+          <View style={[styles.ironPromo, { backgroundColor: COLORS.orangeLight, borderColor: COLORS.orange + '44' }]}>
+            <Ionicons name="lock-closed-outline" size={20} color={COLORS.orange} />
+            <View style={styles.ironPromoBody}>
+              <Text style={[styles.ironPromoTitle, { color: theme.text }]}>Iron Mode adds extra resistance</Text>
+              <Text style={[styles.ironPromoText, { color: theme.textSecondary }]}>
+                VPN can cut network access for selected distracting apps, while Device Admin makes force-stopping FocusFlow harder. You can still use a selected app’s downloaded content offline where Android allows it.
+              </Text>
+            </View>
+          </View>
+        )}
           </>
         )}
 
@@ -530,9 +630,9 @@ export default function OnboardingScreen() {
         </TouchableOpacity>
 
         {/* Optional permission cards */}
-        <Text style={[styles.sectionLabel, { color: theme.muted }]}>OPTIONAL SETUP</Text>
+         <Text style={[styles.sectionLabel, { color: theme.muted }]}>IRON MODE + OPTIONAL SETUP</Text>
         <Text style={[styles.optionalHint, { color: theme.muted }]}>
-          These features are not required to use FocusFlow and can be configured later.
+           Configure the extra Iron Mode layers now, or enable them later from Settings → Permissions.
         </Text>
         {optionalPerms.map((perm) => {
           const status = statuses[perm.id] ?? 'unknown';
@@ -682,8 +782,12 @@ export default function OnboardingScreen() {
         <TouchableOpacity
           style={[styles.enterBtn, step === 'core' && allRequiredReady && styles.enterBtnReady]}
           onPress={() => {
-            if (step === 'core') {
-              setStep('optional');
+             if (step === 'core') {
+               if (protectionMode === 'iron') {
+                 setStep('optional');
+               } else {
+                 void handleFinish();
+               }
             } else {
               void handleFinish();
             }
@@ -691,13 +795,17 @@ export default function OnboardingScreen() {
           activeOpacity={0.85}
         >
           <Text style={styles.enterBtnText}>
-            {step === 'core' ? 'Continue to optional setup →' : 'Got it — let’s start'}
+            {step === 'core'
+              ? protectionMode === 'iron' ? 'Continue Iron Mode setup →' : 'Enter FocusFlow →'
+              : 'Activate Iron Mode & enter'}
           </Text>
         </TouchableOpacity>
 
         <Text style={[styles.footerNote, { color: theme.muted }]}>
           {step === 'core'
-            ? 'You can manage permissions in Settings at any time.'
+            ? protectionMode === 'iron'
+              ? 'You can finish Iron Mode later from Settings → Permissions.'
+              : 'You can switch to Iron Mode later from Settings → Permissions.'
             : 'Optional features can be enabled later from Settings.'}
         </Text>
       </ScrollView>
@@ -784,6 +892,47 @@ const styles = StyleSheet.create({
   tagline: { fontSize: FONT.sm, color: COLORS.muted, textAlign: 'center' },
 
   // Tutorial banner
+  modeCard: {
+    borderRadius: RADIUS.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: SPACING.md,
+    gap: SPACING.sm,
+  },
+  modeTitle: { fontSize: FONT.md, fontWeight: '800' },
+  modeSubtitle: { fontSize: FONT.xs, lineHeight: 17 },
+  modeOptions: { gap: SPACING.sm },
+  modeOption: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: SPACING.sm,
+    padding: SPACING.sm,
+    borderRadius: RADIUS.md,
+    borderWidth: 1.5,
+  },
+  modeOptionBody: { flex: 1, gap: 3 },
+  modeOptionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, flexWrap: 'wrap' },
+  modeOptionTitle: { fontSize: FONT.sm, fontWeight: '800' },
+  modeOptionText: { fontSize: FONT.xs, lineHeight: 17 },
+  ironBadge: {
+    backgroundColor: COLORS.orange + '22',
+    borderColor: COLORS.orange + '55',
+    borderWidth: 1,
+    borderRadius: RADIUS.full,
+    paddingHorizontal: SPACING.xs,
+    paddingVertical: 2,
+  },
+  ironBadgeText: { color: COLORS.orange, fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
+  ironPromo: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: SPACING.sm,
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    padding: SPACING.md,
+  },
+  ironPromoBody: { flex: 1, gap: 4 },
+  ironPromoTitle: { fontSize: FONT.sm, fontWeight: '800' },
+  ironPromoText: { fontSize: FONT.xs, lineHeight: 17 },
   tutorialBanner: {
     flexDirection: 'row',
     alignItems: 'flex-start',
