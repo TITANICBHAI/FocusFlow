@@ -648,17 +648,11 @@ export default function OnboardingScreen() {
       >
         {/* Header */}
         <View style={[styles.header, isModeSelection && styles.headerModeSelection]}>
-          <View style={styles.logoCircle}>
-            <Ionicons name="shield-checkmark" size={38} color="#fff" />
-          </View>
-          <Text style={[styles.appName, { color: theme.text }]}>FocusFlow</Text>
-          <Text style={[styles.headerEyebrow, { color: isIronMode && !isModeSelection ? COLORS.orange : COLORS.primary }]}>
-            {isModeSelection
-              ? 'WELCOME TO FOCUSFLOW'
-              : isIronMode
-                ? 'IRON MODE SETUP'
-                : 'STANDARD SETUP'}
-          </Text>
+          {!isModeSelection && (
+            <Text style={[styles.headerEyebrow, { color: isIronMode ? COLORS.orange : COLORS.primary }]}>
+              {isIronMode ? 'IRON MODE SETUP' : 'STANDARD SETUP'}
+            </Text>
+          )}
 
           {!isModeSelection && isIronMode && (
             <View
@@ -1200,26 +1194,13 @@ const styles = StyleSheet.create({
   // Header
   header: {
     alignItems: 'center',
-    paddingVertical: SPACING.xl,
+    paddingTop: SPACING.lg,
+    paddingBottom: SPACING.md,
     gap: SPACING.sm,
   },
   headerModeSelection: {
+    paddingTop: SPACING.xl,
     paddingBottom: SPACING.md,
-  },
-  logoCircle: {
-    width: 84,
-    height: 84,
-    borderRadius: 42,
-    backgroundColor: COLORS.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 6,
-  },
-  appName: {
-    fontSize: FONT.xxl + 4,
-    fontWeight: '900',
-    color: COLORS.text,
-    letterSpacing: -1,
   },
   stepTitle: {
     fontSize: FONT.lg,
