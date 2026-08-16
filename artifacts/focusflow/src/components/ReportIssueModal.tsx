@@ -13,7 +13,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
 import { formatLogsForShare } from '@/services/startupLogger';
-import { sendDiagnosticsReport } from '@/services/diagnosticsReporter';
+import {
+  sendDiagnosticsReport,
+  type DiagnosticsReportType,
+} from '@/services/diagnosticsReporter';
 
 type Props = {
   visible: boolean;
@@ -28,15 +31,17 @@ export default function ReportIssueModal({ visible, onClose, error }: Props) {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [logs, setLogs] = useState('');
+  const [reportType, setReportType] = useState<DiagnosticsReportType>('bug');
 
   useEffect(() => {
     if (!visible) return;
     setStatus(null);
     setDescription('');
+    setReportType('bug');
     void formatLogsForShare().then(setLogs).catch(() => setLogs('(logs unavailable)'));
   }, [visible]);
 
-  const handleSend = async () => {
+  const handleOpenDraft = async () => {
     if (busy) return;
     setBusy(true);
     setStatus(null);
@@ -47,6 +52,7 @@ export default function ReportIssueModal({ visible, onClose, error }: Props) {
     const result = await sendDiagnosticsReport({
       description,
       logs: `${errorDetails}${logs}`,
+      type: reportType,
     });
 
     setBusy(false);
@@ -55,7 +61,15 @@ export default function ReportIssueModal({ visible, onClose, error }: Props) {
       return;
     }
 
-    setStatus('Report sent. Thank you for helping improve FocusFlow.');
+    if (result.status === 'sent') {
+      setStatus('Email composer closed. If you tapped Send, the email was sent; otherwise nothing was sent.');
+    } else if (result.status === 'saved') {
+      setStatus('Draft saved in your email app. Nothing was sent until you chose Send.');
+    } else if (result.status === 'cancelled') {
+      setStatus('Email draft cancelled. Nothing was sent.');
+    } else {
+      setStatus('Email draft closed. Check your email app to review or send it.');
+    }
     setDescription('');
   };
 
@@ -103,13 +117,64 @@ export default function ReportIssueModal({ visible, onClose, error }: Props) {
             >
               <Ionicons name="information-circle-outline" size={21} color="#6366F1" />
               <Text style={[styles.noticeText, { color: theme.text }]}>
-                This report will be intentionally sent from your phone to FocusFlow support. Nothing is sent unless you tap “Send report”.
+                This opens your email app with a draft addressed to tbtechsdev@gmail.com and a sanitized .txt attachment. Review it and tap Send yourself—nothing is sent automatically.
               </Text>
             </View>
 
-            <Text style={[styles.label, { color: theme.text }]}>What happened?</Text>
+            <Text style={[styles.label, { color: theme.text }]}>What would you like to share?</Text>
+            <View style={styles.typeOptions}>
+              {([
+                ['bug', 'Bug report', 'alert-circle-outline'],
+                ['feedback', 'Feedback / opinion', 'chatbubble-ellipses-outline'],
+                ['review', 'App review', 'star-outline'],
+              ] as const).map(([value, label, icon]) => {
+                const selected = reportType === value;
+                return (
+                  <Pressable
+                    key={value}
+                    onPress={() => setReportType(value)}
+                    style={[
+                      styles.typeOption,
+                      {
+                        backgroundColor: selected
+                          ? isDark
+                            ? 'rgba(99,102,241,0.2)'
+                            : '#EEF2FF'
+                          : isDark
+                            ? '#1C1C1E'
+                            : '#F2F2F7',
+                        borderColor: selected ? '#6366F1' : theme.border,
+                      },
+                    ]}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected }}
+                    accessibilityLabel={label}
+                  >
+                    <Ionicons
+                      name={icon}
+                      size={16}
+                      color={selected ? '#6366F1' : theme.textSecondary ?? '#888'}
+                    />
+                    <Text
+                      style={[
+                        styles.typeOptionText,
+                        { color: selected ? '#6366F1' : theme.text },
+                      ]}
+                    >
+                      {label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <Text style={[styles.label, { color: theme.text }]}>
+              {reportType === 'bug' ? 'What happened?' : 'What would you like to share?'}
+            </Text>
             <Text style={[styles.helper, { color: theme.textSecondary ?? '#888' }]}>
-              Tell us what you were doing and how the error appeared. This is optional, but it helps us reproduce the problem.
+              {reportType === 'bug'
+                ? 'Tell us what you were doing and how the error appeared. This is optional, but it helps us reproduce the problem.'
+                : 'Your message is optional, but it helps us understand your experience and improve FocusFlow.'}
             </Text>
             <TextInput
               value={description}
@@ -130,32 +195,40 @@ export default function ReportIssueModal({ visible, onClose, error }: Props) {
             />
 
             <Text style={[styles.included, { color: theme.textSecondary ?? '#888' }]}>
-              Included: the error details, app version, Android version, and recent diagnostic logs. Personal files, contacts, installed-app lists, and location are not included.
+              Attached: the error details, app version, OS version, and recent diagnostic logs in a .txt file. Personal files, contacts, installed-app lists, and location are not included.
             </Text>
 
             {status ? (
               <View style={styles.statusRow}>
                 <Ionicons
-                  name={status.startsWith('Report sent') ? 'checkmark-circle' : 'alert-circle'}
+                  name={
+                    status.startsWith('Email composer closed') || status.startsWith('Draft saved')
+                      ? 'checkmark-circle'
+                      : 'alert-circle'
+                  }
                   size={18}
-                  color={status.startsWith('Report sent') ? '#34C759' : '#FF9500'}
+                  color={
+                    status.startsWith('Email composer closed') || status.startsWith('Draft saved')
+                      ? '#34C759'
+                      : '#FF9500'
+                  }
                 />
                 <Text style={[styles.statusText, { color: theme.text }]}>{status}</Text>
               </View>
             ) : null}
 
             <Pressable
-              onPress={handleSend}
+              onPress={handleOpenDraft}
               disabled={busy}
               style={({ pressed }) => [
                 styles.sendButton,
                 { opacity: busy ? 0.6 : pressed ? 0.85 : 1 },
               ]}
               accessibilityRole="button"
-              accessibilityLabel="Send diagnostic report"
+              accessibilityLabel="Open email draft with diagnostic report"
             >
               {busy ? <ActivityIndicator color="#fff" /> : <Ionicons name="send" size={17} color="#fff" />}
-              <Text style={styles.sendText}>{busy ? 'Sending…' : 'Send report'}</Text>
+              <Text style={styles.sendText}>{busy ? 'Preparing draft…' : 'Open email draft'}</Text>
             </Pressable>
 
             <Pressable onPress={onClose} disabled={busy} style={styles.cancelButton}>
@@ -240,6 +313,24 @@ const styles = StyleSheet.create({
   included: {
     fontSize: 12,
     lineHeight: 17,
+  },
+  typeOptions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  typeOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    minHeight: 38,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  typeOptionText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   statusRow: {
     flexDirection: 'row',
