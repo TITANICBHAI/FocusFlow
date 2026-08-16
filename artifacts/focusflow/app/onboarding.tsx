@@ -2,9 +2,9 @@
  * OnboardingScreen
  *
  * Shown on first launch as a full-screen modal over the tabs.
- * Rich expandable permission cards matching the detail level of
- * the manage-permissions screen. Core access and optional setup are
- * shown as separate steps; personalization happens later from Settings.
+ * Mode selection is followed by dedicated core-access and optional-setup
+ * stages. Rich expandable permission cards match the detail level of the
+ * manage-permissions screen; personalization happens later from Settings.
  *
  * - Auto-checks all permission statuses on mount and on every app-resume.
  * - Button is always enabled; if permissions are missing a tip points the
@@ -46,6 +46,7 @@ import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 
 type PermStatus = 'granted' | 'denied' | 'unknown';
 type OnboardingStep = 'core' | 'optional';
+type OnboardingStage = 'mode' | OnboardingStep;
 type ProtectionMode = 'standard' | 'iron';
 
 interface PermItem {
@@ -270,7 +271,7 @@ async function checkStatus(id: string): Promise<PermStatus> {
 export default function OnboardingScreen() {
   const { state, updateSettings } = useApp();
   const { theme } = useTheme();
-  const [step, setStep] = useState<OnboardingStep>('core');
+  const [stage, setStage] = useState<OnboardingStage>('mode');
   const [protectionMode, setProtectionMode] = useState<ProtectionMode>(
     state.settings.protectionMode ?? 'standard',
   );
@@ -519,6 +520,9 @@ export default function OnboardingScreen() {
           style={styles.cardMain}
           onPress={() => setExpandedId(isExpanded ? null : perm.id)}
           activeOpacity={0.75}
+          testID={`onboarding-permission-${perm.id}`}
+          accessibilityRole="button"
+          accessibilityLabel={`${perm.title}, ${isExpanded ? 'hide' : 'show'} details`}
         >
           <View style={[styles.iconWrap, { backgroundColor: statusColor(status, perm.requiredToContinue) + '22' }]}>
             <Ionicons name={perm.icon} size={22} color={statusColor(status, perm.requiredToContinue)} />
@@ -546,6 +550,41 @@ export default function OnboardingScreen() {
           />
         </TouchableOpacity>
 
+        <View style={[styles.cardActionRow, { borderTopColor: theme.border }]}>
+          {status === 'granted' ? (
+            <TouchableOpacity
+              style={styles.reviewAction}
+              onPress={() => setExpandedId(isExpanded ? null : perm.id)}
+              activeOpacity={0.75}
+              testID={`onboarding-permission-review-${perm.id}`}
+              accessibilityRole="button"
+              accessibilityLabel={`Review ${perm.title} details`}
+            >
+              <Ionicons name="information-circle-outline" size={15} color={COLORS.primary} />
+              <Text style={styles.reviewActionText}>Review</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.setupAction}
+              onPress={() => handleGrant(perm)}
+              disabled={isLoading}
+              activeOpacity={0.8}
+              testID={`onboarding-permission-action-${perm.id}`}
+              accessibilityRole="button"
+              accessibilityLabel={`Set up ${perm.title}`}
+            >
+              {isLoading ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <>
+                  <Ionicons name="open-outline" size={14} color="#fff" />
+                  <Text style={styles.setupActionText}>Set up</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
+        </View>
+
         {isExpanded && (
           <View style={[styles.expandedSection, { backgroundColor: theme.surface, borderTopColor: theme.border }]}>
             <View style={styles.whyBox}>
@@ -565,22 +604,6 @@ export default function OnboardingScreen() {
               </View>
             )}
 
-            {status !== 'granted' && (
-              <TouchableOpacity
-                style={styles.grantBtn}
-                onPress={() => handleGrant(perm)}
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <>
-                    <Ionicons name="open-outline" size={14} color="#fff" />
-                    <Text style={styles.grantBtnText}>{perm.deepLinkLabel}</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            )}
           </View>
         )}
       </View>
@@ -612,390 +635,514 @@ export default function OnboardingScreen() {
     router.replace('/how-to-use?onboarding=1');
   };
 
+  const isModeSelection = stage === 'mode';
+  const isCoreStage = stage === 'core';
+  const isOptionalStage = stage === 'optional';
+  const isIronMode = protectionMode === 'iron';
+
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]}>
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-
+      <ScrollView
+        contentContainerStyle={[styles.scroll, !isModeSelection && styles.scrollWithBottomAction]}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Header */}
-        <View style={styles.header}>
+        <View style={[styles.header, isModeSelection && styles.headerModeSelection]}>
           <View style={styles.logoCircle}>
             <Ionicons name="shield-checkmark" size={38} color="#fff" />
           </View>
           <Text style={[styles.appName, { color: theme.text }]}>FocusFlow</Text>
+          <Text style={[styles.headerEyebrow, { color: isIronMode && !isModeSelection ? COLORS.orange : COLORS.primary }]}>
+            {isModeSelection
+              ? 'WELCOME TO FOCUSFLOW'
+              : isIronMode
+                ? 'IRON MODE SETUP'
+                : 'STANDARD SETUP'}
+          </Text>
+
+          {!isModeSelection && isIronMode && (
+            <View
+              style={styles.setupProgress}
+              accessibilityLabel={`Iron Mode setup, step ${isCoreStage ? '1 of 2' : '2 of 2'}, ${isCoreStage ? 'Core access current' : 'Extra protection current'}`}
+            >
+              <View style={styles.setupProgressStep}>
+                <Ionicons
+                  name={isCoreStage ? 'ellipse' : 'checkmark-circle'}
+                  size={16}
+                  color={isCoreStage ? COLORS.orange : COLORS.green}
+                />
+                <Text style={[styles.setupProgressLabel, { color: isCoreStage ? theme.text : COLORS.green }]}>
+                  Core access
+                </Text>
+              </View>
+              <View style={[styles.setupProgressLine, { backgroundColor: isOptionalStage ? COLORS.green : theme.border }]} />
+              <View style={styles.setupProgressStep}>
+                <Ionicons
+                  name={isOptionalStage ? 'ellipse' : 'ellipse-outline'}
+                  size={16}
+                  color={isOptionalStage ? COLORS.orange : theme.muted}
+                />
+                <Text style={[styles.setupProgressLabel, { color: isOptionalStage ? theme.text : theme.muted }]}>
+                  Extra protection
+                </Text>
+              </View>
+            </View>
+          )}
+
           <Text style={[styles.stepTitle, { color: theme.text }]}>
-            {step === 'core' ? 'Set up core access' : 'Optional protection'}
+            {isModeSelection
+              ? 'Choose your protection level'
+              : isCoreStage
+                ? 'Set up core access'
+                : 'Optional protection'}
           </Text>
           <Text style={[styles.tagline, { color: theme.muted }]}>
-            {step === 'core'
-              ? protectionMode === 'iron'
-                ? 'Build the strongest protection against distraction.'
-                : 'Start with the essential access FocusFlow needs.'
-              : 'Finish the extra layers or come back later.'}
+            {isModeSelection
+              ? 'Start with a setup that fits how much resistance you want against distraction.'
+              : isCoreStage
+                ? isIronMode
+                  ? 'Start with the essential access FocusFlow needs before adding extra Iron Mode protection.'
+                  : 'Start with the essential access FocusFlow needs.'
+                : 'Add extra layers that make it harder to bypass or interrupt a focus session.'}
           </Text>
         </View>
 
-        {step === 'core' && (
-          <>
-        {/* Protection mode choice stays on the existing onboarding screen so
-            choosing a stronger setup does not add another welcome step. */}
-        <View style={[styles.modeCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <Text style={[styles.modeTitle, { color: theme.text }]}>Choose your protection level</Text>
-          <Text style={[styles.modeSubtitle, { color: theme.muted }]}>
-            You can change this later from Settings → Permissions.
-          </Text>
-          <View style={styles.modeOptions}>
+        {isModeSelection && (
+          <View style={styles.modeChoiceSection}>
             <TouchableOpacity
-              style={[
-                styles.modeOption,
-                { borderColor: protectionMode === 'standard' ? COLORS.primary : theme.border },
-                protectionMode === 'standard' && { backgroundColor: COLORS.primaryLight },
-              ]}
-              onPress={() => setProtectionMode('standard')}
-              activeOpacity={0.8}
+              testID="onboarding-standard-mode"
+              style={[styles.modeChoiceCard, { backgroundColor: theme.card, borderColor: COLORS.primary + '66' }]}
+              onPress={() => {
+                setProtectionMode('standard');
+                setStage('core');
+              }}
+              activeOpacity={0.82}
+              accessibilityRole="button"
+              accessibilityLabel="Choose Standard setup"
             >
-              <Ionicons
-                name="shield-outline"
-                size={22}
-                color={protectionMode === 'standard' ? COLORS.primary : theme.muted}
-              />
-              <View style={styles.modeOptionBody}>
-                <Text style={[styles.modeOptionTitle, { color: theme.text }]}>Standard</Text>
-                <Text style={[styles.modeOptionText, { color: theme.muted }]}>
-                  Essential app blocking with four core permissions.
-                </Text>
-              </View>
-              {protectionMode === 'standard' && (
-                <Ionicons name="checkmark-circle" size={20} color={COLORS.primary} />
-              )}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.modeOption,
-                { borderColor: protectionMode === 'iron' ? COLORS.orange : theme.border },
-                protectionMode === 'iron' && { backgroundColor: COLORS.orangeLight },
-              ]}
-              onPress={() => setProtectionMode('iron')}
-              activeOpacity={0.8}
-            >
-              <Ionicons
-                name="shield-checkmark"
-                size={22}
-                color={protectionMode === 'iron' ? COLORS.orange : theme.muted}
-              />
-              <View style={styles.modeOptionBody}>
-                <View style={styles.modeOptionTitleRow}>
-                  <Text style={[styles.modeOptionTitle, { color: theme.text }]}>Iron Mode</Text>
-                  <View style={styles.ironBadge}>
-                    <Text style={styles.ironBadgeText}>STRONGER</Text>
-                  </View>
+              <View style={styles.choiceCardHeader}>
+                <View style={[styles.choiceIcon, { backgroundColor: COLORS.primaryLight }]}>
+                  <Ionicons name="shield-outline" size={28} color={COLORS.primary} />
                 </View>
-                <Text style={[styles.modeOptionText, { color: theme.muted }]}>
-                  Adds battery, VPN, Device Admin, and PIN protection.
-                </Text>
-              </View>
-              {protectionMode === 'iron' && (
-                <Ionicons name="checkmark-circle" size={20} color={COLORS.orange} />
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Restricted-settings unlock banner — shown above everything else
-            on the first-run flow when the OS is currently locking the
-            Accessibility toggle. Auto-hides the moment the user completes
-            the App Info → ⋮ → Allow restricted settings flow. */}
-        <View style={{ marginHorizontal: SPACING.lg, marginBottom: SPACING.md }}>
-          <RestrictedSettingsBanner />
-        </View>
-
-        {/* Why banner */}
-        <View style={styles.tutorialBanner}>
-          <View style={styles.tutorialIconWrap}>
-            <Ionicons name="shield-checkmark" size={24} color={COLORS.primary} />
-          </View>
-          <View style={styles.tutorialTextWrap}>
-            <Text style={styles.tutorialTitle}>Why these permissions?</Text>
-            <Text style={styles.tutorialBody}>
-              FocusFlow enforces focus at the system level — not just reminders.
-              To actually block apps and keep your session running, Android requires
-              special access that regular apps don't need.
-            </Text>
-          </View>
-        </View>
-
-        {/* Progress bar */}
-        <View style={styles.progressSection}>
-          <View style={styles.progressLabelRow}>
-            <Text style={[styles.progressLabel, { color: theme.muted }]}>Required access ready</Text>
-            <Text style={[styles.progressCount, allRequiredReady && styles.progressCountDone]}>
-              {grantedCount} / {requiredPerms.length}
-            </Text>
-          </View>
-          <View style={[styles.progressBar, { backgroundColor: theme.border }]}>
-            <View
-              style={[
-                styles.progressFill,
-                {
-                  width: `${(grantedCount / requiredPerms.length) * 100}%` as any,
-                  backgroundColor: allRequiredReady ? COLORS.green : COLORS.primary,
-                },
-              ]}
-            />
-          </View>
-          {allRequiredReady && (
-            <Text style={styles.allSetText}>
-              Core blocking access is ready.
-            </Text>
-          )}
-        </View>
-
-        {/* Section label */}
-         <Text style={[styles.sectionLabel, { color: theme.muted }]}>
-           {protectionMode === 'iron' ? 'IRON MODE CORE ACCESS' : 'ESSENTIAL ACCESS'} — TAP A CARD TO SEE DETAILS
-         </Text>
-
-         {/* Core permission cards */}
-         {protectionMode === 'standard'
-           ? visibleCorePerms.map((perm) => renderPermissionCard(perm))
-           : CORE_LAYER_GROUPS.map((group) => {
-               const groupPerms = PERMISSIONS.filter((p) => group.ids.includes(p.id));
-               const allGranted = groupPerms.every((p) => statuses[p.id] === 'granted');
-
-               return (
-                 <View key={group.label}>
-                   <View style={styles.layerHeader}>
-                     <View style={styles.layerHeaderLeft}>
-                       <Text style={[styles.layerLabel, { color: allGranted ? COLORS.green : COLORS.orange }]}>
-                         {group.label}
-                       </Text>
-                       {allGranted && (
-                         <Ionicons name="checkmark-circle" size={14} color={COLORS.green} />
-                       )}
-                     </View>
-                     <Text style={[styles.layerSubtitle, { color: theme.muted }]}>{group.subtitle}</Text>
-                   </View>
-                   {groupPerms.map((perm) => renderPermissionCard(perm))}
-                 </View>
-               );
-             })}
-
-        {/* Missing required permissions tip */}
-        {!allRequiredReady && (
-          <View style={styles.manageTip}>
-            <Ionicons name="information-circle-outline" size={18} color={COLORS.primary} />
-            <Text style={[styles.manageTipText, { color: theme.textSecondary }]}>
-              Usage Access, Accessibility Service, Appear on Top, and Notifications can be fixed anytime in{' '}
-              <Text style={styles.manageTipHighlight}>Settings → Permissions</Text>.
-            </Text>
-          </View>
-        )}
-
-        {protectionMode === 'standard' && (
-          <View style={[styles.ironPromo, { backgroundColor: COLORS.orangeLight, borderColor: COLORS.orange + '44' }]}>
-            <Ionicons name="shield-checkmark-outline" size={20} color={COLORS.orange} />
-            <View style={styles.ironPromoBody}>
-              <Text style={[styles.ironPromoTitle, { color: theme.text }]}>Want stronger protection later?</Text>
-              <Text style={[styles.ironPromoText, { color: theme.textSecondary }]}>
-                Switch to Iron Mode anytime from Settings → Permissions to add VPN network blocking, Device Admin, Battery Optimization, and PIN protection.
-              </Text>
-            </View>
-          </View>
-        )}
-
-        {protectionMode === 'iron' && (
-          <View style={[styles.ironPromo, { backgroundColor: COLORS.orangeLight, borderColor: COLORS.orange + '44' }]}>
-            <Ionicons name="lock-closed-outline" size={20} color={COLORS.orange} />
-            <View style={styles.ironPromoBody}>
-              <Text style={[styles.ironPromoTitle, { color: theme.text }]}>Iron Mode adds extra resistance</Text>
-              <Text style={[styles.ironPromoText, { color: theme.textSecondary }]}>
-                VPN can cut network access for selected distracting apps, while Device Admin makes force-stopping FocusFlow harder. You can still use a selected app’s downloaded content offline where Android allows it.
-              </Text>
-            </View>
-          </View>
-        )}
-          </>
-        )}
-
-        {step === 'optional' && (
-          <>
-        <TouchableOpacity
-          style={styles.backToCore}
-          onPress={() => setStep('core')}
-          activeOpacity={0.75}
-        >
-          <Ionicons name="chevron-back" size={16} color={COLORS.primary} />
-          <Text style={styles.backToCoreText}>Back to core setup</Text>
-        </TouchableOpacity>
-
-         {/* Optional permission cards */}
-         <View style={styles.layerHeader}>
-           <View style={styles.layerHeaderLeft}>
-             <Text style={[styles.layerLabel, { color: allOptionalGranted ? COLORS.green : COLORS.orange }]}>
-               Layer 3 — Resist bypass
-             </Text>
-             {allOptionalGranted && (
-               <Ionicons name="checkmark-circle" size={14} color={COLORS.green} />
-             )}
-           </View>
-           <Text style={[styles.layerSubtitle, { color: theme.muted }]}>
-             Cuts network access, resists force-stop, and locks settings behind a PIN.
-           </Text>
-         </View>
-        <Text style={[styles.optionalHint, { color: theme.muted }]}>
-           Configure the extra Iron Mode layers now, or enable them later from Settings → Permissions.
-        </Text>
-         {optionalPerms.map((perm) => renderPermissionCard(perm, true))}
-
-        {/* ── PIN Protection preference ─────────────────────────────────── */}
-        <Text style={[styles.sectionLabel, { color: theme.muted, marginTop: SPACING.sm }]}>
-          SECURITY PREFERENCE
-        </Text>
-        <View style={[styles.pinCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <View style={styles.pinCardMain}>
-            <View style={[styles.pinCardIcon, { backgroundColor: COLORS.primary + '1A' }]}>
-              <Ionicons name="lock-closed-outline" size={22} color={COLORS.primary} />
-            </View>
-            <View style={styles.pinCardBody}>
-              <Text style={[styles.pinCardTitle, { color: theme.text }]}>
-                PIN Protection
-              </Text>
-              <Text style={[styles.pinCardDesc, { color: theme.muted }]}>
-                Require a password to disable block enforcement toggles. Prevents impulsive self-sabotage mid-session.
-              </Text>
-            </View>
-            <Switch
-              value={pinProtectionChoice}
-              onValueChange={setPinProtectionChoice}
-              trackColor={{ false: COLORS.border, true: COLORS.primary + '88' }}
-              thumbColor={pinProtectionChoice ? COLORS.primary : COLORS.muted}
-            />
-          </View>
-          {pinProtectionChoice && defensePinSet && (
-            <View style={[styles.pinCardHint, { backgroundColor: COLORS.green + '12', borderTopColor: theme.border }]}>
-              <Ionicons name="checkmark-circle-outline" size={14} color={COLORS.green} />
-              <Text style={[styles.pinCardHintText, { color: COLORS.green }]}>
-                Defense Password set — your protections are locked.
-              </Text>
-            </View>
-          )}
-          {pinProtectionChoice && !defensePinSet && (
-            <View style={[styles.pinCardHint, { backgroundColor: COLORS.primary + '0D', borderTopColor: theme.border }]}>
-              <View style={{ flex: 1, gap: SPACING.xs }}>
-                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.xs }}>
-                  <Ionicons name="information-circle-outline" size={14} color={COLORS.primary} style={{ marginTop: 1 }} />
-                  <Text style={[styles.pinCardHintText, { color: theme.muted, flex: 1 }]}>
-                    Set your Defense Password now — or add it later in Block Enforcement.
+                <View style={styles.choiceCardHeading}>
+                  <View style={styles.modeOptionTitleRow}>
+                    <Text style={[styles.choiceCardTitle, { color: theme.text }]}>Standard</Text>
+                    <View style={[styles.recommendedBadge, { backgroundColor: COLORS.primary + '18', borderColor: COLORS.primary + '44' }]}>
+                      <Text style={[styles.recommendedBadgeText, { color: COLORS.primary }]}>RECOMMENDED</Text>
+                    </View>
+                  </View>
+                  <Text style={[styles.choiceCardSubtitle, { color: theme.muted }]}>
+                    Essential app blocking with a simpler first setup.
                   </Text>
                 </View>
-                <TouchableOpacity
-                  style={styles.setPinBtn}
-                  onPress={() => setPinSetupVisible(true)}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="key-outline" size={14} color="#fff" />
-                  <Text style={styles.setPinBtnText}>Set Password Now</Text>
-                </TouchableOpacity>
+              </View>
+              <View style={styles.choiceFeatureList}>
+                <View style={styles.choiceFeature}>
+                  <Ionicons name="checkmark-circle" size={16} color={COLORS.green} />
+                  <Text style={[styles.choiceFeatureText, { color: theme.textSecondary }]}>Core app blocking</Text>
+                </View>
+                <View style={styles.choiceFeature}>
+                  <Ionicons name="checkmark-circle" size={16} color={COLORS.green} />
+                  <Text style={[styles.choiceFeatureText, { color: theme.textSecondary }]}>Four required access steps</Text>
+                </View>
+              </View>
+              <View style={[styles.choiceCardAction, { borderTopColor: theme.border }]}>
+                <Text style={[styles.choiceCardActionText, { color: COLORS.primary }]}>Choose Standard</Text>
+                <Ionicons name="arrow-forward" size={18} color={COLORS.primary} />
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              testID="onboarding-iron-mode"
+              style={[styles.modeChoiceCard, styles.modeChoiceCardIron, { backgroundColor: theme.card, borderColor: COLORS.orange + '88' }]}
+              onPress={() => {
+                setProtectionMode('iron');
+                setStage('core');
+              }}
+              activeOpacity={0.82}
+              accessibilityRole="button"
+              accessibilityLabel="Choose Iron Mode setup"
+            >
+              <View style={styles.choiceCardHeader}>
+                <View style={[styles.choiceIcon, { backgroundColor: COLORS.orangeLight }]}>
+                  <Ionicons name="shield-checkmark" size={28} color={COLORS.orange} />
+                </View>
+                <View style={styles.choiceCardHeading}>
+                  <View style={styles.modeOptionTitleRow}>
+                    <Text style={[styles.choiceCardTitle, { color: theme.text }]}>Iron Mode</Text>
+                    <View style={styles.ironBadge}>
+                      <Text style={styles.ironBadgeText}>STRONGER</Text>
+                    </View>
+                  </View>
+                  <Text style={[styles.choiceCardSubtitle, { color: theme.muted }]}>
+                    Core blocking plus extra resistance against bypassing.
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.choiceFeatureList}>
+                <View style={styles.choiceFeature}>
+                  <Ionicons name="checkmark-circle" size={16} color={COLORS.orange} />
+                  <Text style={[styles.choiceFeatureText, { color: theme.textSecondary }]}>Network restriction</Text>
+                </View>
+                <View style={styles.choiceFeature}>
+                  <Ionicons name="checkmark-circle" size={16} color={COLORS.orange} />
+                  <Text style={[styles.choiceFeatureText, { color: theme.textSecondary }]}>Force-stop resistance and Defense Password</Text>
+                </View>
+              </View>
+              <View style={[styles.choiceCardAction, { borderTopColor: theme.border }]}>
+                <Text style={[styles.choiceCardActionText, { color: COLORS.orange }]}>Choose Iron Mode</Text>
+                <Ionicons name="arrow-forward" size={18} color={COLORS.orange} />
+              </View>
+            </TouchableOpacity>
+
+            <Text style={[styles.modeChoiceNote, { color: theme.muted }]}>
+              You can change your protection level later from Settings → Permissions.
+            </Text>
+          </View>
+        )}
+
+        {isCoreStage && (
+          <>
+            <TouchableOpacity
+              testID="onboarding-back-to-mode"
+              style={styles.setupBack}
+              onPress={() => setStage('mode')}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel="Back to protection level"
+            >
+              <Ionicons name="chevron-back" size={16} color={COLORS.primary} />
+              <Text style={styles.backToCoreText}>Back to protection level</Text>
+            </TouchableOpacity>
+
+            {/* Restricted-settings unlock banner — shown above everything else
+                on the first-run flow when the OS is currently locking the
+                Accessibility toggle. */}
+            <View style={styles.restrictedBannerWrap}>
+              <RestrictedSettingsBanner />
+            </View>
+
+            {/* Why banner */}
+            <View style={styles.tutorialBanner}>
+              <View style={styles.tutorialIconWrap}>
+                <Ionicons name="shield-checkmark" size={24} color={COLORS.primary} />
+              </View>
+              <View style={styles.tutorialTextWrap}>
+                <Text style={styles.tutorialTitle}>Why core access matters</Text>
+                <Text style={styles.tutorialBody}>
+                  FocusFlow enforces focus at the system level — not just reminders.
+                  These essential Android permissions let it detect distracting apps,
+                  show the block screen, and keep your focus session running.
+                </Text>
               </View>
             </View>
-          )}
-          {!pinProtectionChoice && (
-            <View style={[styles.pinCardHint, { backgroundColor: theme.border + '33', borderTopColor: theme.border }]}>
-              <Ionicons name="information-circle-outline" size={14} color={theme.muted} />
-              <Text style={[styles.pinCardHintText, { color: theme.muted }]}>
-                You can enable this anytime in Settings → PIN Protection or Block Enforcement.
+
+            {/* Progress bar */}
+            <View style={styles.progressSection}>
+              <View style={styles.progressLabelRow}>
+                <Text style={[styles.progressLabel, { color: theme.muted }]}>Required access ready</Text>
+                <Text style={[styles.progressCount, allRequiredReady && styles.progressCountDone]}>
+                  {grantedCount} / {requiredPerms.length}
+                </Text>
+              </View>
+              <View style={[styles.progressBar, { backgroundColor: theme.border }]}>
+                <View
+                  style={[
+                    styles.progressFill,
+                    {
+                      width: `${(grantedCount / requiredPerms.length) * 100}%` as any,
+                      backgroundColor: allRequiredReady ? COLORS.green : COLORS.primary,
+                    },
+                  ]}
+                />
+              </View>
+              {allRequiredReady && (
+                <Text style={styles.allSetText}>Core blocking access is ready.</Text>
+              )}
+            </View>
+
+            <View style={styles.sectionIntro}>
+              <Text style={[styles.sectionLabel, { color: isIronMode ? COLORS.orange : COLORS.primary }]}>
+                {isIronMode ? 'CORE PROTECTION' : 'ESSENTIAL ACCESS'}
+              </Text>
+              <Text style={[styles.sectionIntroText, { color: theme.muted }]}>
+                {isIronMode
+                  ? 'Required foundation for Iron Mode app blocking.'
+                  : 'Required for FocusFlow to block apps reliably.'}
+              </Text>
+              <Text style={[styles.cardInstruction, { color: theme.muted }]}>
+                Tap a card to learn why access is needed.
               </Text>
             </View>
-          )}
-        </View>
 
-         {/* Activation summary — makes the Iron Mode setup feel like an activation */}
-          {activationCardVisible && (
-           <View style={[styles.activationCard, {
-              backgroundColor: allOptionalGranted ? COLORS.primaryLight : theme.card,
-              borderColor: allOptionalGranted ? COLORS.primary + '55' : theme.border,
-           }]}>
-              <Animated.Text
-                style={[
-                  styles.activationTitle,
-                  {
-                    color: allOptionalGranted ? COLORS.primary : theme.text,
-                    opacity: activationTitleOpacity,
-                    transform: [{ translateY: activationTitleTranslateY }],
-                  },
-                ]}
-              >
-               {allOptionalGranted ? 'Iron Mode ready' : 'Layers active so far'}
-              </Animated.Text>
-              <Text
-                style={[
-                  styles.activationCount,
-                  { color: activeLayerCount === ACTIVATION_LAYERS.length ? COLORS.green : COLORS.primary },
-                ]}
-              >
-                {activeLayerCount} of {ACTIVATION_LAYERS.length} layers active
-              </Text>
-              {ACTIVATION_LAYERS.map((layer) => {
-                const active = isActivationLayerActive(layer, statuses);
-                const rowAnimation = activationRowAnimations[layer.key];
-               return (
-                  <View key={layer.key} style={styles.activationRow}>
-                    <Animated.View
-                      style={{
-                        opacity: rowAnimation.opacity,
-                        transform: [{ scale: rowAnimation.scale }],
-                      }}
-                    >
-                      <Ionicons
-                        name={active ? 'checkmark-circle' : 'ellipse-outline'}
-                        size={14}
-                        color={active ? COLORS.green : theme.muted}
-                      />
-                    </Animated.View>
-                   <Text style={[styles.activationRowText, { color: active ? theme.text : theme.muted }]}>
-                      {layer.label}
-                   </Text>
-                 </View>
-               );
-             })}
-           </View>
-         )}
+            {/* Core permission cards */}
+            {protectionMode === 'standard'
+              ? visibleCorePerms.map((perm) => renderPermissionCard(perm))
+              : CORE_LAYER_GROUPS.map((group) => {
+                  const groupPerms = PERMISSIONS.filter((p) => group.ids.includes(p.id));
+                  const allGranted = groupPerms.every((p) => statuses[p.id] === 'granted');
+
+                  return (
+                    <View key={group.label}>
+                      <View style={styles.layerHeader}>
+                        <View style={styles.layerHeaderLeft}>
+                          <Text style={[styles.layerLabel, { color: allGranted ? COLORS.green : COLORS.orange }]}>
+                            {group.label}
+                          </Text>
+                          {allGranted && (
+                            <Ionicons name="checkmark-circle" size={14} color={COLORS.green} />
+                          )}
+                        </View>
+                        <Text style={[styles.layerSubtitle, { color: theme.muted }]}>{group.subtitle}</Text>
+                      </View>
+                      {groupPerms.map((perm) => renderPermissionCard(perm))}
+                    </View>
+                  );
+                })}
+
+            {/* Missing required permissions tip */}
+            {!allRequiredReady && (
+              <View style={styles.manageTip}>
+                <Ionicons name="information-circle-outline" size={18} color={COLORS.primary} />
+                <Text style={[styles.manageTipText, { color: theme.textSecondary }]}>
+                  Usage Access, Accessibility Service, Appear on Top, and Notifications can be fixed anytime in{' '}
+                  <Text style={styles.manageTipHighlight}>Settings → Permissions</Text>.
+                </Text>
+              </View>
+            )}
+
+            {protectionMode === 'standard' && (
+              <View style={[styles.ironPromo, { backgroundColor: COLORS.orangeLight, borderColor: COLORS.orange + '44' }]}>
+                <Ionicons name="shield-checkmark-outline" size={20} color={COLORS.orange} />
+                <View style={styles.ironPromoBody}>
+                  <Text style={[styles.ironPromoTitle, { color: theme.text }]}>Want stronger protection later?</Text>
+                  <Text style={[styles.ironPromoText, { color: theme.textSecondary }]}>
+                    Switch to Iron Mode anytime from Settings → Permissions to add VPN network blocking, Device Admin, Battery Optimization, and PIN protection.
+                  </Text>
+                </View>
+              </View>
+            )}
           </>
         )}
 
-        {/* Continue buttons — only the required core permissions count
-            toward readiness; the button remains available so users can return
-            to Settings later if Android setup is interrupted. */}
-        <TouchableOpacity
-          style={[styles.enterBtn, step === 'core' && allRequiredReady && styles.enterBtnReady]}
-          onPress={() => {
-             if (step === 'core') {
-               if (protectionMode === 'iron') {
-                 setStep('optional');
-               } else {
-                 void handleFinish();
-               }
-            } else {
-              void handleFinish();
-            }
-          }}
-          activeOpacity={0.85}
-        >
-          <Text style={styles.enterBtnText}>
-            {step === 'core'
-              ? protectionMode === 'iron' ? 'Continue Iron Mode setup →' : 'Enter FocusFlow →'
-              : 'Activate Iron Mode & enter'}
-          </Text>
-        </TouchableOpacity>
+        {isOptionalStage && (
+          <>
+            <TouchableOpacity
+              testID="onboarding-back-to-core"
+              style={styles.backToCore}
+              onPress={() => setStage('core')}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel="Back to core setup"
+            >
+              <Ionicons name="chevron-back" size={16} color={COLORS.primary} />
+              <Text style={styles.backToCoreText}>Back to core setup</Text>
+            </TouchableOpacity>
 
-        <Text style={[styles.footerNote, { color: theme.muted }]}>
-          {step === 'core'
-            ? protectionMode === 'iron'
-              ? 'You can finish Iron Mode later from Settings → Permissions.'
-              : 'You can switch to Iron Mode later from Settings → Permissions.'
-            : 'Optional features can be enabled later from Settings.'}
-        </Text>
+            <View style={styles.optionalIntro}>
+              <View style={[styles.optionalIntroIcon, { backgroundColor: COLORS.orangeLight }]}>
+                <Ionicons name="layers-outline" size={22} color={COLORS.orange} />
+              </View>
+              <View style={styles.optionalIntroBody}>
+                <Text style={[styles.optionalIntroTitle, { color: theme.text }]}>Extra resistance layers</Text>
+                <Text style={[styles.optionalIntroText, { color: theme.muted }]}>
+                  These are optional. They strengthen an already-working focus setup against bypassing and interruption.
+                </Text>
+              </View>
+            </View>
+
+            {/* Optional permission cards */}
+            <View style={styles.layerHeader}>
+              <View style={styles.layerHeaderLeft}>
+                <Text style={[styles.layerLabel, { color: allOptionalGranted ? COLORS.green : COLORS.orange }]}>
+                  IRON MODE LAYERS
+                </Text>
+                {allOptionalGranted && (
+                  <Ionicons name="checkmark-circle" size={14} color={COLORS.green} />
+                )}
+              </View>
+              <Text style={[styles.layerSubtitle, { color: theme.muted }]}>
+                Cuts network access and resists force-stop.
+              </Text>
+            </View>
+            <Text style={[styles.optionalHint, { color: theme.muted }]}>
+              Configure the extra Iron Mode layers now, or enable them later from Settings → Permissions.
+            </Text>
+            {optionalPerms.map((perm) => renderPermissionCard(perm, true))}
+
+            {/* ── PIN Protection preference ─────────────────────────────────── */}
+            <Text style={[styles.sectionLabel, { color: theme.muted, marginTop: SPACING.sm }]}>
+              SECURITY PREFERENCE
+            </Text>
+            <View style={[styles.pinCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+              <View style={styles.pinCardMain}>
+                <View style={[styles.pinCardIcon, { backgroundColor: COLORS.primary + '1A' }]}>
+                  <Ionicons name="lock-closed-outline" size={22} color={COLORS.primary} />
+                </View>
+                <View style={styles.pinCardBody}>
+                  <Text style={[styles.pinCardTitle, { color: theme.text }]}>Defense Password</Text>
+                  <Text style={[styles.pinCardDesc, { color: theme.muted }]}>
+                    Require a password to disable block enforcement toggles and prevent impulsive self-sabotage mid-session.
+                  </Text>
+                </View>
+                <Switch
+                  value={pinProtectionChoice}
+                  onValueChange={setPinProtectionChoice}
+                  trackColor={{ false: COLORS.border, true: COLORS.primary + '88' }}
+                  thumbColor={pinProtectionChoice ? COLORS.primary : COLORS.muted}
+                />
+              </View>
+              {pinProtectionChoice && defensePinSet && (
+                <View style={[styles.pinCardHint, { backgroundColor: COLORS.green + '12', borderTopColor: theme.border }]}>
+                  <Ionicons name="checkmark-circle-outline" size={14} color={COLORS.green} />
+                  <Text style={[styles.pinCardHintText, { color: COLORS.green }]}>
+                    Defense Password set — your protections are locked.
+                  </Text>
+                </View>
+              )}
+              {pinProtectionChoice && !defensePinSet && (
+                <View style={[styles.pinCardHint, { backgroundColor: COLORS.primary + '0D', borderTopColor: theme.border }]}>
+                  <View style={{ flex: 1, gap: SPACING.xs }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.xs }}>
+                      <Ionicons name="information-circle-outline" size={14} color={COLORS.primary} style={{ marginTop: 1 }} />
+                      <Text style={[styles.pinCardHintText, { color: theme.muted, flex: 1 }]}>
+                        Set your Defense Password now — or add it later in Block Enforcement.
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.setPinBtn}
+                      onPress={() => setPinSetupVisible(true)}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="key-outline" size={14} color="#fff" />
+                      <Text style={styles.setPinBtnText}>Set Password Now</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+              {!pinProtectionChoice && (
+                <View style={[styles.pinCardHint, { backgroundColor: theme.border + '33', borderTopColor: theme.border }]}>
+                  <Ionicons name="information-circle-outline" size={14} color={theme.muted} />
+                  <Text style={[styles.pinCardHintText, { color: theme.muted }]}>
+                    You can enable this anytime in Settings → PIN Protection or Block Enforcement.
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {/* Activation summary — makes the Iron Mode setup feel like an activation */}
+            {activationCardVisible && (
+              <View style={[styles.activationCard, {
+                backgroundColor: allOptionalGranted ? COLORS.primaryLight : theme.card,
+                borderColor: allOptionalGranted ? COLORS.primary + '55' : theme.border,
+              }]}>
+                <Animated.Text
+                  style={[
+                    styles.activationTitle,
+                    {
+                      color: allOptionalGranted ? COLORS.primary : theme.text,
+                      opacity: activationTitleOpacity,
+                      transform: [{ translateY: activationTitleTranslateY }],
+                    },
+                  ]}
+                >
+                  {allOptionalGranted ? 'Iron Mode ready' : 'Layers active so far'}
+                </Animated.Text>
+                <Text
+                  style={[
+                    styles.activationCount,
+                    { color: activeLayerCount === ACTIVATION_LAYERS.length ? COLORS.green : COLORS.primary },
+                  ]}
+                >
+                  {activeLayerCount} of {ACTIVATION_LAYERS.length} layers active
+                </Text>
+                {ACTIVATION_LAYERS.map((layer) => {
+                  const active = isActivationLayerActive(layer, statuses);
+                  const rowAnimation = activationRowAnimations[layer.key];
+                  return (
+                    <View key={layer.key} style={styles.activationRow}>
+                      <Animated.View
+                        style={{
+                          opacity: rowAnimation.opacity,
+                          transform: [{ scale: rowAnimation.scale }],
+                        }}
+                      >
+                        <Ionicons
+                          name={active ? 'checkmark-circle' : 'ellipse-outline'}
+                          size={14}
+                          color={active ? COLORS.green : theme.muted}
+                        />
+                      </Animated.View>
+                      <Text style={[styles.activationRowText, { color: active ? theme.text : theme.muted }]}>
+                        {layer.label}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+          </>
+        )}
+
       </ScrollView>
+
+      {!isModeSelection && (
+        <View style={[styles.bottomActionBar, { backgroundColor: theme.background, borderTopColor: theme.border }]}>
+          <View style={styles.bottomActionSummary}>
+            <View style={[styles.bottomActionIcon, { backgroundColor: isOptionalStage ? COLORS.orangeLight : COLORS.primaryLight }]}>
+              <Ionicons
+                name={isOptionalStage ? 'layers-outline' : 'shield-checkmark-outline'}
+                size={18}
+                color={isOptionalStage ? COLORS.orange : COLORS.primary}
+              />
+            </View>
+            <View style={styles.bottomActionSummaryText}>
+              <Text style={[styles.bottomActionTitle, { color: theme.text }]}>
+                {isCoreStage
+                  ? allRequiredReady ? 'Core access ready' : 'Core access in progress'
+                  : allOptionalGranted ? 'Iron Mode ready' : 'Optional layers in progress'}
+              </Text>
+              <Text style={[styles.bottomActionCount, { color: theme.muted }]}>
+                {isCoreStage
+                  ? `${grantedCount} of ${requiredPerms.length} required access steps ready`
+                  : `${activeLayerCount} of ${ACTIVATION_LAYERS.length} Iron Mode layers active`}
+              </Text>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            testID="onboarding-primary-cta"
+            style={[styles.enterBtn, isCoreStage && allRequiredReady && styles.enterBtnReady]}
+            onPress={() => {
+              if (isCoreStage) {
+                if (isIronMode) {
+                  setStage('optional');
+                } else {
+                  void handleFinish();
+                }
+              } else {
+                void handleFinish();
+              }
+            }}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+          >
+            <Text style={styles.enterBtnText}>
+              {isCoreStage
+                ? isIronMode ? 'Continue Iron Mode setup →' : 'Enter FocusFlow →'
+                : 'Activate Iron Mode & enter'}
+            </Text>
+          </TouchableOpacity>
+
+          <Text style={[styles.footerNote, { color: theme.muted }]}>
+            {isCoreStage
+              ? isIronMode
+                ? 'You can finish Iron Mode later from Settings → Permissions.'
+                : 'You can switch to Iron Mode later from Settings → Permissions.'
+              : 'Optional features can be enabled later from Settings.'}
+          </Text>
+        </View>
+      )}
 
       <PinSetupModal
         visible={pinSetupVisible}
@@ -1048,12 +1195,16 @@ const badge = StyleSheet.create({
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.background },
   scroll: { padding: SPACING.lg, paddingBottom: 56, gap: SPACING.md },
+  scrollWithBottomAction: { paddingBottom: SPACING.xxl * 4 },
 
   // Header
   header: {
     alignItems: 'center',
     paddingVertical: SPACING.xl,
     gap: SPACING.sm,
+  },
+  headerModeSelection: {
+    paddingBottom: SPACING.md,
   },
   logoCircle: {
     width: 84,
@@ -1076,9 +1227,131 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     textAlign: 'center',
   },
+  headerEyebrow: {
+    fontSize: FONT.xs,
+    fontWeight: '800',
+    letterSpacing: 1.4,
+    textAlign: 'center',
+  },
   tagline: { fontSize: FONT.sm, color: COLORS.muted, textAlign: 'center' },
 
-  // Tutorial banner
+  // Mode selection
+  setupProgress: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: SPACING.xs,
+    paddingHorizontal: SPACING.xs,
+  },
+  setupProgressStep: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+  },
+  setupProgressLabel: {
+    fontSize: FONT.xs,
+    fontWeight: '700',
+  },
+  setupProgressLine: {
+    flex: 1,
+    maxWidth: 72,
+    height: StyleSheet.hairlineWidth,
+    marginHorizontal: SPACING.sm,
+  },
+  modeChoiceSection: {
+    gap: SPACING.md,
+  },
+  modeChoiceCard: {
+    borderRadius: RADIUS.xl,
+    borderWidth: 1.5,
+    padding: SPACING.lg,
+    gap: SPACING.md,
+    elevation: 2,
+  },
+  modeChoiceCardIron: {
+    elevation: 3,
+  },
+  choiceCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: SPACING.md,
+  },
+  choiceIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: RADIUS.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  choiceCardHeading: {
+    flex: 1,
+    gap: SPACING.xs,
+  },
+  choiceCardTitle: {
+    fontSize: FONT.lg,
+    fontWeight: '900',
+  },
+  recommendedBadge: {
+    borderWidth: 1,
+    borderRadius: RADIUS.full,
+    paddingHorizontal: SPACING.xs,
+    paddingVertical: 2,
+  },
+  recommendedBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.45,
+  },
+  choiceCardSubtitle: {
+    fontSize: FONT.sm,
+    lineHeight: 19,
+  },
+  choiceFeatureList: {
+    gap: SPACING.sm,
+    paddingLeft: 2,
+  },
+  choiceFeature: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  choiceFeatureText: {
+    flex: 1,
+    fontSize: FONT.sm,
+    lineHeight: 18,
+  },
+  choiceCardAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingTop: SPACING.md,
+  },
+  choiceCardActionText: {
+    fontSize: FONT.sm,
+    fontWeight: '800',
+  },
+  modeChoiceNote: {
+    fontSize: FONT.xs,
+    lineHeight: 16,
+    textAlign: 'center',
+    paddingHorizontal: SPACING.md,
+  },
+  setupBack: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 2,
+    paddingVertical: SPACING.xs,
+  },
+  restrictedBannerWrap: {
+    marginHorizontal: SPACING.lg,
+    marginBottom: SPACING.xs,
+  },
+
+  // Legacy mode card styles kept for shared title-row/badge styles.
   modeCard: {
     borderRadius: RADIUS.lg,
     borderWidth: StyleSheet.hairlineWidth,
@@ -1109,6 +1382,52 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   ironBadgeText: { color: COLORS.orange, fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
+
+  // Setup introduction
+  sectionIntro: {
+    gap: SPACING.xs,
+    marginTop: SPACING.xs,
+  },
+  sectionIntroText: {
+    fontSize: FONT.sm,
+    lineHeight: 18,
+  },
+  cardInstruction: {
+    fontSize: FONT.xs,
+    lineHeight: 16,
+  },
+  optionalIntro: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: SPACING.md,
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    borderColor: COLORS.orange + '44',
+    backgroundColor: COLORS.orangeLight,
+    padding: SPACING.md,
+  },
+  optionalIntroIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: RADIUS.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  optionalIntroBody: {
+    flex: 1,
+    gap: SPACING.xs,
+  },
+  optionalIntroTitle: {
+    fontSize: FONT.sm,
+    fontWeight: '800',
+  },
+  optionalIntroText: {
+    fontSize: FONT.xs,
+    lineHeight: 17,
+  },
+
+  // Tutorial banner
   ironPromo: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -1254,6 +1573,43 @@ const styles = StyleSheet.create({
   },
   cardTitle: { fontSize: FONT.md, fontWeight: '700', color: COLORS.text },
   cardDesc: { fontSize: FONT.xs, color: COLORS.muted, lineHeight: 17 },
+  cardActionRow: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
+  },
+  setupAction: {
+    minWidth: 92,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.xs,
+    backgroundColor: COLORS.primary,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
+  },
+  setupActionText: {
+    fontSize: FONT.xs,
+    fontWeight: '800',
+    color: '#fff',
+  },
+  reviewAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
+  },
+  reviewActionText: {
+    fontSize: FONT.xs,
+    fontWeight: '800',
+    color: COLORS.primary,
+  },
 
   // Expanded
   expandedSection: {
@@ -1399,6 +1755,38 @@ const styles = StyleSheet.create({
   },
 
   // Enter button
+  bottomActionBar: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.sm,
+    paddingBottom: SPACING.xs,
+    gap: SPACING.xs,
+  },
+  bottomActionSummary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  bottomActionIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: RADIUS.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  bottomActionSummaryText: {
+    flex: 1,
+    gap: 1,
+  },
+  bottomActionTitle: {
+    fontSize: FONT.sm,
+    fontWeight: '800',
+  },
+  bottomActionCount: {
+    fontSize: FONT.xs,
+    lineHeight: 16,
+  },
   enterBtn: {
     backgroundColor: COLORS.primaryLight,
     borderRadius: RADIUS.lg,
