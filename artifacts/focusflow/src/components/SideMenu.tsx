@@ -308,7 +308,7 @@ export function SideMenu({ visible, onOpen, onClose, tabBarHeight }: SideMenuPro
             <Text style={[styles.footerText, { color: isDark ? COLORS.muted : COLORS.textSecondary }]}>Privacy</Text>
           </TouchableOpacity>
           <View style={[styles.footerDivider, { backgroundColor: isDark ? COLORS.darkBorder : COLORS.border }]} />
-          <TouchableOpacity style={styles.footerBtn} onPress={() => navigate('/terms-of-service')}>
+          <TouchableOpacity style={styles.footerBtn} onPress={() => navigate('/privacy-policy')}>
             <Ionicons name="document-text-outline" size={14} color={isDark ? COLORS.muted : COLORS.textSecondary} />
             <Text style={[styles.footerText, { color: isDark ? COLORS.muted : COLORS.textSecondary }]}>Terms of Service</Text>
           </TouchableOpacity>
