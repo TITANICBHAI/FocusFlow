@@ -19,6 +19,8 @@ import { useTheme } from '@/hooks/useTheme';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 import type { GreyoutWindow } from '@/data/types';
 import { InstalledAppsModule, type InstalledApp } from '@/native-modules/InstalledAppsModule';
+import { PinVerifyModal } from '@/components/PinVerifyModal';
+import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
 
 interface Props {
   visible: boolean;
@@ -55,9 +57,32 @@ export function GreyoutScheduleModal({
   onSave,
   onClose,
   standaloneActive = false,
-  requireDefensePin,
+  requireDefensePin: _requireDefensePin,
 }: Props) {
   const { theme } = useTheme();
+  type InternalPinState =
+    | { visible: false }
+    | { visible: true; title: string; description: string; action: () => void };
+
+  const [internalPin, setInternalPin] = useState<InternalPinState>({ visible: false });
+
+  const handlePin = useCallback(
+    (title: string, description: string, action: () => void) => {
+      SharedPrefsModule.getString('defense_pin_hash')
+        .then((hash: string | null) => {
+          if (hash) {
+            setInternalPin({ visible: true, title, description, action });
+          } else {
+            action();
+          }
+        })
+        .catch(() => {
+          action();
+        });
+    },
+    [],
+  );
+
   const insets = useSafeAreaInsets();
   const [localWindows, setLocalWindows] = useState<GreyoutWindow[]>([]);
   const [mode, setMode] = useState<Mode>('list');
@@ -151,16 +176,12 @@ export function GreyoutScheduleModal({
 
   const removeSelectedApp = useCallback((pkg: string) => {
     const remove = () => setSelectedApps((prev) => prev.filter((a) => a.pkg !== pkg));
-    if (requireDefensePin) {
-      requireDefensePin(
-        'Remove App from Window',
-        'Enter your defense password to remove this app from the block window.',
-        remove,
-      );
-    } else {
-      remove();
-    }
-  }, [requireDefensePin]);
+    handlePin(
+      'Remove App from Window',
+      'Enter your defense password to remove this app from the block window.',
+      remove,
+    );
+  }, [handlePin]);
 
   const openAdd = () => {
     setDraft(BLANK_WINDOW);
@@ -183,15 +204,11 @@ export function GreyoutScheduleModal({
   };
 
   const openEdit = (idx: number) => {
-    if (requireDefensePin) {
-      requireDefensePin(
-        'Edit Block Window',
-        'Enter your defense password to edit this block window.',
-        () => doOpenEdit(idx),
-      );
-    } else {
-      doOpenEdit(idx);
-    }
+    handlePin(
+      'Edit Block Window',
+      'Enter your defense password to edit this block window.',
+      () => doOpenEdit(idx),
+    );
   };
 
   const commitDraft = () => {
@@ -222,10 +239,9 @@ export function GreyoutScheduleModal({
     if (
       editIndex !== null &&
       originalWindow &&
-      requireDefensePin &&
       windowDurationMinutes(draft) < windowDurationMinutes(originalWindow)
     ) {
-      requireDefensePin(
+      handlePin(
         'Shorten Block Window',
         'You are decreasing the block duration. Enter your defense password to confirm.',
         doCommit,
@@ -255,15 +271,11 @@ export function GreyoutScheduleModal({
         },
       ]);
     };
-    if (requireDefensePin) {
-      requireDefensePin(
-        'Delete Block Window',
-        'Enter your defense password to delete this block window.',
-        doDelete,
-      );
-    } else {
-      doDelete();
-    }
+    handlePin(
+      'Delete Block Window',
+      'Enter your defense password to delete this block window.',
+      doDelete,
+    );
   };
 
   const handleSave = async () => {
@@ -583,6 +595,20 @@ export function GreyoutScheduleModal({
         </View>
       </View>
       </KeyboardAvoidingView>
+      <PinVerifyModal
+        visible={internalPin.visible}
+        pinType="defense"
+        title={internalPin.visible ? internalPin.title : undefined}
+        description={internalPin.visible ? internalPin.description : undefined}
+        onVerified={() => {
+          if (internalPin.visible) {
+            const action = internalPin.action;
+            setInternalPin({ visible: false });
+            action();
+          }
+        }}
+        onCancel={() => setInternalPin({ visible: false })}
+      />
     </Modal>
   );
 }

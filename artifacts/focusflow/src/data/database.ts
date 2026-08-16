@@ -235,6 +235,7 @@ export async function getDb(): Promise<SQLite.SQLiteDatabase | null> {
     try {
       db = await openAndInit(PRIMARY_DB_NAME);
       void logger.debug('database', `getDb: primary opened OK in ${Date.now() - t0}ms`);
+      void SQLite.deleteDatabaseAsync(RECOVERY_DB_NAME).catch(() => {});
       return db;
     } catch (firstErr) {
       const ms1 = Date.now() - t0;
@@ -271,6 +272,7 @@ export async function getDb(): Promise<SQLite.SQLiteDatabase | null> {
       try {
         db = await openAndInit(PRIMARY_DB_NAME);
         void logger.debug('database', `getDb: primary opened OK on attempt 2 in ${Date.now() - t0}ms total`);
+        void SQLite.deleteDatabaseAsync(RECOVERY_DB_NAME).catch(() => {});
         return db;
       } catch (secondErr) {
         const ms2 = Date.now() - t0;
@@ -535,7 +537,7 @@ export async function dbGetTasksForDate(dateISO: string): Promise<Task[]> {
 
 export async function dbInsertTask(task: Task): Promise<void> {
   return runWithDb('dbInsertTask', (database) => database.runAsync(
-    `INSERT INTO tasks (id, title, description, start_time, end_time, duration_minutes, status, priority, tags, reminders, color, focus_mode, focus_allowed_packages, created_at, updated_at)
+    `INSERT OR IGNORE INTO tasks (id, title, description, start_time, end_time, duration_minutes, status, priority, tags, reminders, color, focus_mode, focus_allowed_packages, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       task.id,

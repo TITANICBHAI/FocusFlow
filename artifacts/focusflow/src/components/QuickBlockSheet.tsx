@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import dayjs from 'dayjs';
 import { useApp } from '@/context/AppContext';
@@ -43,14 +43,12 @@ export function QuickBlockSheet({ visible, app, onClose }: Props) {
   const { state, updateSettings, setQuickBlockTemporary } = useApp();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [showCustomPicker, setShowCustomPicker] = useState(false);
   const [customDate, setCustomDate] = useState(() => new Date(Date.now() + 60 * 60 * 1000));
 
   useEffect(() => {
     if (visible) {
       setLoading(false);
       setError('');
-      setShowCustomPicker(false);
       setCustomDate(new Date(Date.now() + 60 * 60 * 1000));
     }
   }, [visible, app?.packageName]);
@@ -61,7 +59,7 @@ export function QuickBlockSheet({ visible, app, onClose }: Props) {
     return new Date(state.settings.standaloneBlockUntil).getTime() > Date.now();
   }, [app, state.settings.standaloneBlockPackages, state.settings.standaloneBlockUntil]);
 
-  const run = async (action: () => Promise<void>) => {
+  const run = useCallback(async (action: () => Promise<void>) => {
     if (!app || isProtectedApp(app.packageName)) return;
     setLoading(true);
     setError('');
@@ -73,9 +71,37 @@ export function QuickBlockSheet({ visible, app, onClose }: Props) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [app, onClose]);
 
-  const temporary = (untilMs: number) => run(() => setQuickBlockTemporary(app!.packageName, untilMs));
+  const temporary = useCallback(
+    (untilMs: number) => run(() => setQuickBlockTemporary(app!.packageName, untilMs)),
+    [app, run, setQuickBlockTemporary],
+  );
+
+  const openAndroidPicker = useCallback(() => {
+    const minDate = new Date(Date.now() + 60 * 1000);
+    DateTimePickerAndroid.open({
+      value: customDate > minDate ? customDate : minDate,
+      mode: 'date',
+      minimumDate: minDate,
+      onChange: (dateEvent, pickedDate) => {
+        if (dateEvent.type !== 'set' || !pickedDate) return;
+        DateTimePickerAndroid.open({
+          value: pickedDate,
+          mode: 'time',
+          is24Hour: false,
+          onChange: (timeEvent, pickedTime) => {
+            if (timeEvent.type !== 'set' || !pickedTime) return;
+            const combined = new Date(pickedDate);
+            combined.setHours(pickedTime.getHours(), pickedTime.getMinutes(), 0, 0);
+            if (combined.getTime() <= Date.now()) return;
+            setCustomDate(combined);
+            void temporary(combined.getTime());
+          },
+        });
+      },
+    });
+  }, [customDate, temporary]);
 
   if (!app) return null;
 
@@ -108,7 +134,17 @@ export function QuickBlockSheet({ visible, app, onClose }: Props) {
             <ActionButton icon="time-outline" label="1 hour" onPress={() => temporary(Date.now() + 60 * 60 * 1000)} theme={theme} disabled={loading} />
             <ActionButton icon="sunny-outline" label="Until tonight" onPress={() => temporary(nextTime(20))} theme={theme} disabled={loading} />
             <ActionButton icon="moon-outline" label="Tomorrow morning" onPress={() => temporary(tomorrowMorning(state.settings.userProfile?.wakeUpTime))} theme={theme} disabled={loading} />
-            <ActionButton icon="calendar-outline" label="Choose time" onPress={() => setShowCustomPicker(true)} theme={theme} disabled={loading} />
+            <ActionButton
+              icon="calendar-outline"
+              label="Choose time"
+              onPress={() => {
+                if (Platform.OS === 'android') {
+                  openAndroidPicker();
+                }
+              }}
+              theme={theme}
+              disabled={loading}
+            />
           </View>
 
           <Text style={[styles.sectionLabel, { color: theme.muted }]}>ALWAYS-ON PROTECTION</Text>
@@ -136,21 +172,6 @@ export function QuickBlockSheet({ visible, app, onClose }: Props) {
           <Text style={[styles.privacyNote, { color: theme.muted }]}>Quick Block uses FocusFlow's existing block lists. No separate block history is created.</Text>
         </View>
       </View>
-      {showCustomPicker && (
-        <DateTimePicker
-          value={customDate}
-          mode="datetime"
-          minimumDate={new Date(Date.now() + 60 * 1000)}
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={(event: DateTimePickerEvent, selected?: Date) => {
-            setShowCustomPicker(false);
-            if (event.type === 'set' && selected) {
-              setCustomDate(selected);
-              void temporary(selected.getTime());
-            }
-          }}
-        />
-      )}
     </Modal>
   );
 }

@@ -123,7 +123,13 @@ export default function BlockDefenseScreen() {
           () => {},
         );
       }
-      if (tab === 'greyout') setGreyoutModalVisible(true);
+      if (tab === 'greyout') {
+        requireDefensePin(
+          'Manage Block Schedules',
+          'Enter your defense password to add, edit, or remove schedule batches.',
+          () => setGreyoutModalVisible(true),
+        );
+      }
     }, 400);
     return () => clearTimeout(timeout);
   }, [params.tab]);

@@ -131,24 +131,27 @@ class UsageStatsModule(private val reactContext: ReactApplicationContext) :
                 }
             }
 
-            val apps = rows.mapNotNull { row ->
-                val foregroundMinutes = (row.totalTimeInForeground / 60_000L).toInt()
+            val grouped = rows.groupBy { it.packageName }
+            val apps = grouped.mapNotNull { (pkg, pkgRows) ->
+                val foregroundMinutes = pkgRows.sumOf { it.totalTimeInForeground / 60_000L }.toInt()
                 if (foregroundMinutes <= 0) return@mapNotNull null
 
                 val appName = try {
                     packageManager.getApplicationLabel(
-                        packageManager.getApplicationInfo(row.packageName, 0)
+                        packageManager.getApplicationInfo(pkg, 0)
                     ).toString()
                 } catch (_: Exception) {
-                    row.packageName
+                    pkg
                 }
 
+                val lastUsed = pkgRows.maxOf { it.lastTimeUsed }
+
                 WritableNativeMap().apply {
-                    putString("packageName", row.packageName)
+                    putString("packageName", pkg)
                     putString("appName", appName)
                     putInt("foregroundMinutes", foregroundMinutes)
-                    putInt("launchCount", launchCounts[row.packageName] ?: 0)
-                    putDouble("lastUsedAt", row.lastTimeUsed.toDouble())
+                    putInt("launchCount", launchCounts[pkg] ?: 0)
+                    putDouble("lastUsedAt", lastUsed.toDouble())
                 }
             }.sortedByDescending { it.getInt("foregroundMinutes") }
 
