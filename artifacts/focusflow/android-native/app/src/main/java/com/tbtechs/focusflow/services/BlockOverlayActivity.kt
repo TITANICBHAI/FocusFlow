@@ -401,7 +401,7 @@ class BlockOverlayActivity : Activity() {
         layoutParams = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply { bottomMargin = dp(36) }
+        ).apply { bottomMargin = dp(if (blockReason.isNotEmpty()) 16 else 36) }
     }
 
     private fun buildReasonLabel(): TextView = TextView(this).apply {

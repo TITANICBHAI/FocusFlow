@@ -2553,7 +2553,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
      * No task switch occurs — the blocked app stays behind our view, invisible.
      */
     @Suppress("DEPRECATION")
-    private fun showWindowOverlay(blockedPackage: String, appName: String) {
+    private fun showWindowOverlay(blockedPackage: String, appName: String, blockReason: String = "") {
         dismissWindowOverlay()   // clear any stale overlay first
 
         val wm = getSystemService(WindowManager::class.java) ?: return
@@ -2645,8 +2645,20 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             gravity = Gravity.CENTER; letterSpacing = 0.12f
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply { bottomMargin = dp(36) }
+            ).apply { bottomMargin = dp(if (blockReason.isNotEmpty()) 16 else 36) }
         })
+        if (blockReason.isNotEmpty()) {               // reason label — why this app is blocked
+            col.addView(TextView(this).apply {
+                text = blockReason
+                textSize = 12f
+                setTextColor(Color.parseColor("#8888BB"))
+                gravity = Gravity.CENTER
+                setLineSpacing(0f, 1.4f)
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { bottomMargin = dp(28) }
+            })
+        }
         col.addView(TextView(this).apply {            // random quote
             text = "\u201C${resolveOverlayQuote()}\u201D"
             textSize = 20f; setTextColor(Color.parseColor("#E8E8F0"))
@@ -2806,6 +2818,65 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     }
 
     /**
+     * Builds a human-readable explanation of why an app is currently blocked.
+     *
+     * Returns an empty string when no reason can be determined (e.g. power-menu
+     * interception).  When multiple features stack (e.g. a focus session AND
+     * always-on protection both cover the same app) all active reasons are
+     * returned, one per line, so the overlay can display the full picture.
+     *
+     * Priority / order:
+     *   1. Focus mode (task name + end time if set)
+     *   2. Standalone block (end time if set)
+     *   3. Always-On protection
+     *   4. Block schedule / greyout (only when 1-3 are all inactive)
+     */
+    private fun buildBlockReason(pkg: String = ""): String {
+        val now   = System.currentTimeMillis()
+        val parts = mutableListOf<String>()
+
+        // 1. Focus mode (task-based session)
+        val focusActive = prefs.getBoolean(PREF_FOCUS_ON, false)
+        if (focusActive) {
+            val endMs = prefs.getLong("task_end_ms", 0L)
+            if (endMs <= 0L || now < endMs) {
+                val taskName = prefs.getString("task_name", "") ?: ""
+                val timeStr  = if (endMs > 0L) " (until ${formatBlockTime(endMs)})" else ""
+                parts += if (taskName.isNotBlank()) "Focus mode: $taskName$timeStr"
+                         else                       "Focus mode$timeStr"
+            }
+        }
+
+        // 2. Standalone block
+        val saActive = prefs.getBoolean(PREF_SA_ACTIVE, false)
+        if (saActive) {
+            val untilMs = prefs.getLong(PREF_SA_UNTIL, 0L)
+            if (untilMs <= 0L || now < untilMs) {
+                parts += if (untilMs > 0L) "Temporary block until ${formatBlockTime(untilMs)}"
+                         else              "Standalone block active"
+            }
+        }
+
+        // 3. Always-on protection
+        if (prefs.getBoolean(PREF_ALWAYS_BLOCK, false)) {
+            parts += "Always-On protection"
+        }
+
+        // 4. Block schedule (greyout) — shown only when no session-based reason is active
+        if (parts.isEmpty() && pkg.isNotEmpty() && isInGreyoutWindow(pkg)) {
+            parts += "Block schedule is active"
+        }
+
+        return parts.joinToString("\n")
+    }
+
+    /** Formats an epoch-ms timestamp as a short clock string, e.g. "5:30 PM". */
+    private fun formatBlockTime(epochMs: Long): String {
+        val sdf = java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault())
+        return sdf.format(java.util.Date(epochMs))
+    }
+
+    /**
      * Launches [BlockOverlayActivity] via a full-screen notification PendingIntent.
      *
      * Using a full-screen intent rather than startActivity() bypasses Android 10+
@@ -2815,11 +2886,12 @@ class AppBlockerAccessibilityService : AccessibilityService() {
      * activity is already showing.
      */
     private fun launchBlockOverlay(blockedPackage: String) {
-        val appName = resolveAppDisplayName(blockedPackage)
+        val appName     = resolveAppDisplayName(blockedPackage)
+        val blockReason = buildBlockReason(blockedPackage)
 
         // Prefer WindowManager overlay (appears directly over any app, no task switch)
         if (canUseWindowOverlay()) {
-            showWindowOverlay(blockedPackage, appName)
+            showWindowOverlay(blockedPackage, appName, blockReason)
             return
         }
 
@@ -2829,6 +2901,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
                 putExtra(BlockOverlayActivity.EXTRA_BLOCKED_PKG, blockedPackage)
                 putExtra(BlockOverlayActivity.EXTRA_BLOCKED_NAME, appName)
+                putExtra(BlockOverlayActivity.EXTRA_BLOCK_REASON, blockReason)
             }
             val pi = PendingIntent.getActivity(
                 applicationContext, 0, activityIntent,
@@ -2849,8 +2922,8 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) BLOCK_ALERT_CHANNEL else "default"
             ).apply {
                 setSmallIcon(android.R.drawable.ic_lock_lock)
-                setContentTitle("App Blocked")
-                setContentText("\u201C$appName\u201D is blocked during this session.")
+                setContentTitle("\u201C$appName\u201D is blocked")
+                setContentText(if (blockReason.isNotEmpty()) blockReason else "Active during this session.")
                 setFullScreenIntent(pi, true)
                 setAutoCancel(true)
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
