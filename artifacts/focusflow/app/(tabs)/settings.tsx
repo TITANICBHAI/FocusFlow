@@ -21,7 +21,6 @@ import Constants from 'expo-constants';
 import { dbDeleteAllTasks } from '@/data/database';
 import { cancelAllReminders, requestPermissions } from '@/services/notificationService';
 import { exportBackup, pickAndImportBackup } from '@/services/backupService';
-import { mergeIntoBlockPreset } from '@/services/blockListImport';
 import { formatDuration } from '@/services/taskService';
 import { AllowedAppsModal } from '@/components/AllowedAppsModal';
 import { StandaloneBlockModal } from '@/components/StandaloneBlockModal';
@@ -32,7 +31,6 @@ import { PinSetupModal } from '@/components/PinSetupModal';
 import { GreyoutScheduleModal } from '@/components/GreyoutScheduleModal';
 import { OverlayAppearanceModal } from '@/components/OverlayAppearanceModal';
 import DiagnosticsModal from '@/components/DiagnosticsModal';
-import { ImportFromOtherAppModal } from '@/components/ImportFromOtherAppModal';
 import { withScreenErrorBoundary } from '@/components/withScreenErrorBoundary';
 import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
 
@@ -50,7 +48,6 @@ function SettingsScreen() {
   const [greyoutModalVisible, setGreyoutModalVisible] = useState(false);
   const [overlayAppearanceVisible, setOverlayAppearanceVisible] = useState(false);
   const [diagnosticsVisible, setDiagnosticsVisible] = useState(false);
-  const [importOtherAppVisible, setImportOtherAppVisible] = useState(false);
   const [defPinVisible, setDefPinVisible] = useState(false);
   const [pinSetupVisible, setPinSetupVisible] = useState(false);
   const pendingDefAction = useRef<(() => void) | null>(null);
@@ -202,19 +199,6 @@ function SettingsScreen() {
     if (state.focusSession?.isActive) {
       await SharedPrefsModule.setAllowedPackages(packages);
     }
-  };
-
-  const handleImportFromOtherApp = async (packages: string[]) => {
-    const result = mergeIntoBlockPreset(packages, settings);
-    if (result.added === 0) {
-      Alert.alert('Nothing imported', 'No valid app names were found.');
-      return;
-    }
-    await update({ blockPresets: result.allPresets });
-    Alert.alert(
-      'Saved as a preset',
-      `${result.added} app${result.added !== 1 ? 's' : ''} saved as the preset "${result.preset.name}".\n\nNothing is being blocked yet — open Standalone Block, a Block Schedule batch, or Daily Allowance to use this preset whenever you're ready.`,
-    );
   };
 
   const withDefensePin = (action: () => void) => {
@@ -631,12 +615,6 @@ function SettingsScreen() {
             description="Restore from a .focusflow backup file"
             onPress={handleImportBackup}
           />
-          <SettingButton
-            icon="swap-horizontal-outline"
-            label="Import from Another App"
-            description="AppBlock, StayFree, ActionDash, Digital Wellbeing, or any plain-text list"
-            onPress={() => setImportOtherAppVisible(true)}
-          />
         </Section>
 
         {/* ── Permissions ── */}
@@ -781,12 +759,6 @@ function SettingsScreen() {
       <DiagnosticsModal
         visible={diagnosticsVisible}
         onClose={() => setDiagnosticsVisible(false)}
-      />
-
-      <ImportFromOtherAppModal
-        visible={importOtherAppVisible}
-        onClose={() => setImportOtherAppVisible(false)}
-        onImport={handleImportFromOtherApp}
       />
 
       <PinSetupModal

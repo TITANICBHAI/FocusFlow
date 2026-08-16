@@ -236,10 +236,7 @@ const CHANGELOG: Entry[] = [
     date: 'April 2026',
     sections: [
       {
-        heading: 'Import from Another Blocker',
-        icon: 'download-outline',
         items: [
-          'New "Import from another blocker" flow — bring your block list across from Stay Focused, AppBlock, StayFree, ActionDash, Digital Wellbeing, Lock Me Out and others without redoing the picking',
           'Two paths in one screen: pick an exported file (JSON / CSV / plain text) OR paste / type the app names yourself for blockers like Stay Focused that don\'t expose an export — names are fuzzy-matched against your installed apps so capitalisation and small typos still resolve',
           'Stay Focused is featured first because it has no public export — paste path is the recommended route for it',
           'One-tap "Switching from another blocker?" entry on the onboarding screen so new users land directly in the import flow',
