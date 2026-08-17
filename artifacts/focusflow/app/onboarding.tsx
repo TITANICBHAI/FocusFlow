@@ -325,6 +325,13 @@ export default function OnboardingScreen() {
   const requiredPerms = corePerms.filter((p) => p.requiredToContinue);
   const grantedCount = requiredPerms.filter((p) => statuses[p.id] === 'granted').length;
   const allRequiredReady = grantedCount === requiredPerms.length;
+  const optionalGrantedCount = optionalPerms.filter((p) => statuses[p.id] === 'granted').length;
+  const optionalButtonLabel =
+    optionalGrantedCount === 0
+      ? 'Skip optional setup — let’s start'
+      : optionalGrantedCount === optionalPerms.length
+        ? 'All optional access ready — let’s start'
+        : `${optionalGrantedCount} optional permission${optionalGrantedCount === 1 ? '' : 's'} enabled — let’s start`;
 
   const handleFinish = async () => {
     try {
@@ -356,10 +363,6 @@ export default function OnboardingScreen() {
 
         {/* Header */}
         <View style={styles.header}>
-          <View style={styles.logoCircle}>
-            <Ionicons name="shield-checkmark" size={38} color="#fff" />
-          </View>
-          <Text style={[styles.appName, { color: theme.text }]}>FocusFlow</Text>
           <Text style={[styles.stepTitle, { color: theme.text }]}>
             {step === 'core' ? 'Set up core access' : 'Optional protection'}
           </Text>
@@ -433,8 +436,31 @@ export default function OnboardingScreen() {
           return (
             <View
               key={perm.id}
-              style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }, status === 'granted' && styles.cardGranted]}
+              style={[
+                styles.card,
+                { backgroundColor: theme.card, borderColor: theme.border },
+                status === 'granted' && styles.cardGranted,
+                (perm.id === 'vpn' || perm.id === 'device_admin') && styles.attentionCard,
+              ]}
             >
+              {perm.id === 'vpn' && (
+                <View style={styles.attentionCallout}>
+                  <Ionicons name="school-outline" size={17} color={COLORS.orange} />
+                  <Text style={styles.attentionCalloutText}>
+                    <Text style={styles.attentionCalloutTitle}>Helpful for YouTube study: </Text>
+                    keep YouTube available for lessons while blocked social apps lose internet access during a focus session.
+                  </Text>
+                </View>
+              )}
+              {perm.id === 'device_admin' && (
+                <View style={styles.attentionCallout}>
+                  <Ionicons name="lock-closed-outline" size={17} color={COLORS.orange} />
+                  <Text style={styles.attentionCalloutText}>
+                    <Text style={styles.attentionCalloutTitle}>Extra protection against quitting: </Text>
+                    makes it harder to force-stop FocusFlow and bypass a focus session from the recent-apps screen.
+                  </Text>
+                </View>
+              )}
               <TouchableOpacity
                 style={styles.cardMain}
                 onPress={() => setExpandedId(isExpanded ? null : perm.id)}
@@ -680,7 +706,10 @@ export default function OnboardingScreen() {
             toward readiness; the button remains available so users can return
             to Settings later if Android setup is interrupted. */}
         <TouchableOpacity
-          style={[styles.enterBtn, step === 'core' && allRequiredReady && styles.enterBtnReady]}
+          style={[
+            styles.enterBtn,
+            (step === 'optional' || (step === 'core' && allRequiredReady)) && styles.enterBtnReady,
+          ]}
           onPress={() => {
             if (step === 'core') {
               setStep('optional');
@@ -691,7 +720,7 @@ export default function OnboardingScreen() {
           activeOpacity={0.85}
         >
           <Text style={styles.enterBtnText}>
-            {step === 'core' ? 'Continue to optional setup →' : 'Got it — let’s start'}
+            {step === 'core' ? 'Continue to optional setup →' : optionalButtonLabel}
           </Text>
         </TouchableOpacity>
 
@@ -757,23 +786,8 @@ const styles = StyleSheet.create({
   // Header
   header: {
     alignItems: 'center',
-    paddingVertical: SPACING.xl,
+    paddingVertical: SPACING.lg,
     gap: SPACING.sm,
-  },
-  logoCircle: {
-    width: 84,
-    height: 84,
-    borderRadius: 42,
-    backgroundColor: COLORS.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 6,
-  },
-  appName: {
-    fontSize: FONT.xxl + 4,
-    fontWeight: '900',
-    color: COLORS.text,
-    letterSpacing: -1,
   },
   stepTitle: {
     fontSize: FONT.lg,
@@ -875,6 +889,31 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   cardGranted: { borderColor: COLORS.green + '55' },
+  attentionCard: {
+    borderColor: COLORS.orange,
+    borderWidth: 2,
+  },
+  attentionCallout: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    backgroundColor: COLORS.orangeLight,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.orange + '55',
+  },
+  attentionCalloutText: {
+    flex: 1,
+    fontSize: FONT.xs,
+    lineHeight: 17,
+    color: COLORS.orange,
+    fontWeight: '600',
+  },
+  attentionCalloutTitle: {
+    fontWeight: '800',
+    color: COLORS.orange,
+  },
   cardMain: {
     flexDirection: 'row',
     alignItems: 'flex-start',

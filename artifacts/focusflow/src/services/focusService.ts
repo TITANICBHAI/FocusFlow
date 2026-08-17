@@ -122,6 +122,16 @@ export function getCurrentFocusTask(): Task | null {
   return currentTask;
 }
 
+/**
+ * Keeps the module-level session snapshot aligned when the active task is
+ * edited or extended while focus mode is running.
+ */
+export function updateCurrentFocusTask(task: Task): void {
+  if (currentTask?.id === task.id) {
+    currentTask = task;
+  }
+}
+
 // ─── App State Handling ───────────────────────────────────────────────────────
 
 function handleAppStateChange(_state: AppStateStatus): void {

@@ -388,6 +388,7 @@ class ForegroundTaskService : Service() {
                 clearFocusActive()
                 sendBroadcast(Intent(ACTION_TASK_ENDED).apply {
                     `package` = applicationContext.packageName
+                    putExtra("taskId", endedTaskId)
                 })
                 // Wake the device with a full-screen alarm so the user doesn't
                 // miss the end of their task.  The task itself stays in the
