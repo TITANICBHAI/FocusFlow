@@ -1,4 +1,5 @@
 - [Android usage launch counts](usage-stats-launch-count.md) — derive app-entry counts from UsageEvents, not UsageStats.appLaunchCount, for this Android build.
+- [Android usage aggregation](usage-stats-aggregation.md) — aggregate UsageStats milliseconds before converting to display minutes; bucket-by-bucket flooring undercounts.
 - [Onboarding permission tiers](onboarding-permission-tiers.md) — keep first-run focused: three permissions gate readiness, while recommended access and personalization stay non-blocking.
 - [User-controlled diagnostic email](user-controlled-diagnostic-email.md) — keep reports in a user-reviewed native email draft with a sanitized text attachment, not a server relay.
 - [Imported audit verification](imported-audit-verification.md) — uploaded codebase audits may describe fixes already present; validate each finding against the current checkout before editing.

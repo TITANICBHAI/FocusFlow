@@ -225,7 +225,7 @@ export function UsageInsights({
 
       <Text style={[styles.heroValue, { color: COLORS.blue }]}>{formatMinutes(summary.totalMinutes)}</Text>
       <Text style={[styles.caption, { color: theme.muted }]}>
-        Android foreground time — not a productivity score
+        Android app foreground time — FocusFlow home-screen time excluded
       </Text>
 
       <View style={[styles.comparison, { borderTopColor: theme.border }]}>

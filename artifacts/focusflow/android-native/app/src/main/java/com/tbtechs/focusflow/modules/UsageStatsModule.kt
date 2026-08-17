@@ -131,10 +131,24 @@ class UsageStatsModule(private val reactContext: ReactApplicationContext) :
                 }
             }
 
-            val grouped = rows.groupBy { it.packageName }
+            /*
+             * FocusFlow is also the device's HOME launcher. Android therefore
+             * reports LauncherActivity as foreground for the time the user is
+             * sitting on the FocusFlow home screen. Digital Wellbeing does not
+             * present that launcher/home time as ordinary app usage. Exclude
+             * our own package so this card remains comparable to app-time
+             * dashboards instead of measuring "time with the launcher open".
+             */
+            val appRows = rows.filterNot { it.packageName == reactContext.packageName }
+            val grouped = appRows.groupBy { it.packageName }
             val apps = grouped.mapNotNull { (pkg, pkgRows) ->
-                val foregroundMinutes = pkgRows.sumOf { it.totalTimeInForeground / 60_000L }.toInt()
-                if (foregroundMinutes <= 0) return@mapNotNull null
+                // Keep the millisecond precision while aggregating all
+                // buckets for a package. Flooring each daily bucket before
+                // summing can lose nearly one minute per bucket and makes
+                // short-but-real usage disappear from the report.
+                val foregroundMs = pkgRows.sumOf { it.totalTimeInForeground }
+                val foregroundMinutes = (foregroundMs / 60_000L).toInt()
+                if (foregroundMs <= 0L) return@mapNotNull null
 
                 val appName = try {
                     packageManager.getApplicationLabel(
@@ -155,12 +169,15 @@ class UsageStatsModule(private val reactContext: ReactApplicationContext) :
                 }
             }.sortedByDescending { it.getInt("foregroundMinutes") }
 
-            val totalMinutes = apps.sumOf { it.getInt("foregroundMinutes") }
+            // Calculate the headline from raw milliseconds rather than from
+            // already-rounded package rows. The package list is intentionally
+            // still displayed in whole minutes for a compact UI.
+            val totalMinutes = appRows.sumOf { it.totalTimeInForeground } / 60_000L
             val appArray = com.facebook.react.bridge.Arguments.createArray()
             apps.forEach { appArray.pushMap(it) }
 
             val result = WritableNativeMap().apply {
-                putInt("totalMinutes", totalMinutes)
+                putInt("totalMinutes", totalMinutes.toInt())
                 putArray("apps", appArray)
             }
             promise.resolve(result)
@@ -195,7 +212,11 @@ class UsageStatsModule(private val reactContext: ReactApplicationContext) :
             if (mode == AppOpsManager.MODE_DEFAULT) {
                 val usm = reactContext.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
                 val now = System.currentTimeMillis()
-                val stats = usm.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, now - 60_000, now)
+                val stats = usm.queryUsageStats(
+                    UsageStatsManager.INTERVAL_DAILY,
+                    now - 24 * 60 * 60 * 1_000L,
+                    now,
+                )
                 promise.resolve(!stats.isNullOrEmpty())
                 return
             }
@@ -205,7 +226,11 @@ class UsageStatsModule(private val reactContext: ReactApplicationContext) :
             if (mode != AppOpsManager.MODE_IGNORED && mode != AppOpsManager.MODE_ERRORED) {
                 val usm = reactContext.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
                 val now = System.currentTimeMillis()
-                val stats = usm.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, now - 60_000, now)
+                val stats = usm.queryUsageStats(
+                    UsageStatsManager.INTERVAL_DAILY,
+                    now - 24 * 60 * 60 * 1_000L,
+                    now,
+                )
                 if (!stats.isNullOrEmpty()) {
                     promise.resolve(true)
                     return
