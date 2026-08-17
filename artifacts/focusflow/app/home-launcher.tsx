@@ -546,11 +546,10 @@ export default function HomeLauncherScreen() {
             ) : (
               Array.from(blockedPackages).map((pkg, idx) => {
                 const app = apps.find((a) => a.packageName === pkg);
-                const name = app?.appName ?? pkg;
                 return (
                   <AppToggleRow
                     key={pkg}
-                    app={{ packageName: pkg, appName: name, isIme: false }}
+                    app={app ?? { packageName: pkg, appName: pkg, isIme: false }}
                     checked={hiddenSet.has(pkg)}
                     onToggle={() => toggleHidden(pkg)}
                     theme={theme}

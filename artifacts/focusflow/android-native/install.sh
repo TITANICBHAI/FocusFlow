@@ -17,6 +17,7 @@ ANDROID_DIR="$ROOT_DIR/android"
 PKG_DIR="$ANDROID_DIR/app/src/main/java/com/tbtechs/focusflow"
 RES_DIR="$ANDROID_DIR/app/src/main/res"
 MANIFEST="$ANDROID_DIR/app/src/main/AndroidManifest.xml"
+APP_GRADLE="$ANDROID_DIR/app/build.gradle"
 
 # ── Cross-platform sed -i ─────────────────────────────────────────────────────
 # macOS BSD sed requires a backup extension with -i; GNU sed (Linux) does not.
@@ -118,6 +119,15 @@ else
 fi
 
 echo "📋  Patching AndroidManifest.xml..."
+
+# RecyclerView is used by LauncherActivity for a recycled, searchable app
+# drawer. Expo/RN projects do not all include it as a direct dependency, so
+# ensure generated Android projects compile the launcher after installation.
+if [ -f "$APP_GRADLE" ] && ! grep -q "androidx.recyclerview:recyclerview" "$APP_GRADLE"; then
+  sedi '/dependencies[[:space:]]*{/a\
+    implementation "androidx.recyclerview:recyclerview:1.3.2"' "$APP_GRADLE"
+  echo "   ✓ AndroidX RecyclerView dependency added"
+fi
 
 # ── Ensure xmlns:tools namespace is declared in <manifest> ───────────────────
 # NOTE: manifest existence is confirmed above — safe to patch here.
