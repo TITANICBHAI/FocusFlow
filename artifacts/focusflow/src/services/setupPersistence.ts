@@ -5,6 +5,8 @@ import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
 export type ProtectionMode = 'standard' | 'iron';
 
 const ASYNC_BACKUP_KEY = '@focusflow/setup-state';
+const ASYNC_PRIVACY_KEY = '@focusflow/privacy-accepted';
+const ASYNC_ONBOARDING_KEY = '@focusflow/onboarding-complete';
 
 type SetupBackup = {
   privacyAccepted: boolean;
@@ -36,6 +38,10 @@ export async function persistSetupBackups(settings: Pick<
     SharedPrefsModule.putString('onboarding_complete', String(backup.onboardingComplete)),
     SharedPrefsModule.putString('protection_mode', backup.protectionMode),
     AsyncStorage.setItem(ASYNC_BACKUP_KEY, JSON.stringify(backup)),
+    // Keep individual AsyncStorage markers as well as the combined record.
+    // This preserves compatibility with partial/corrupt setup-state writes.
+    AsyncStorage.setItem(ASYNC_PRIVACY_KEY, String(backup.privacyAccepted)),
+    AsyncStorage.setItem(ASYNC_ONBOARDING_KEY, String(backup.onboardingComplete)),
   ]);
 }
 
@@ -45,6 +51,8 @@ export async function readSetupBackups(): Promise<Partial<SetupBackup>> {
     SharedPrefsModule.getString('onboarding_complete'),
     SharedPrefsModule.getString('protection_mode'),
     AsyncStorage.getItem(ASYNC_BACKUP_KEY),
+    AsyncStorage.getItem(ASYNC_PRIVACY_KEY),
+    AsyncStorage.getItem(ASYNC_ONBOARDING_KEY),
   ]);
   const valueAt = (index: number): string | null => {
     const result = results[index];
@@ -54,6 +62,8 @@ export async function readSetupBackups(): Promise<Partial<SetupBackup>> {
   const onboardingComplete = valueAt(1);
   const protectionMode = valueAt(2);
   const asyncBackup = valueAt(3);
+  const asyncPrivacyAccepted = valueAt(4);
+  const asyncOnboardingComplete = valueAt(5);
 
   let parsed: Partial<SetupBackup> = {};
   if (asyncBackup) {
@@ -72,8 +82,14 @@ export async function readSetupBackups(): Promise<Partial<SetupBackup>> {
   }
 
   return {
-    privacyAccepted: privacyAccepted === 'true' || parsed.privacyAccepted === true,
-    onboardingComplete: onboardingComplete === 'true' || parsed.onboardingComplete === true,
+    privacyAccepted:
+      privacyAccepted === 'true' ||
+      asyncPrivacyAccepted === 'true' ||
+      parsed.privacyAccepted === true,
+    onboardingComplete:
+      onboardingComplete === 'true' ||
+      asyncOnboardingComplete === 'true' ||
+      parsed.onboardingComplete === true,
     protectionMode: isProtectionMode(protectionMode)
       ? protectionMode
       : parsed.protectionMode,

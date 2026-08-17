@@ -459,6 +459,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (restoredFromBackup) {
         try { await dbSaveSettings(settings); } catch { /* non-fatal — primary path is the in-memory state */ }
       }
+      // Heal all backup stores from the final merged settings. This covers
+      // upgrades where only one of SharedPreferences, AsyncStorage, or SQLite
+      // still contains the first-run decision.
+      try { await persistSetupBackups(settings); } catch { /* non-fatal */ }
 
       void logger.info('AppContext', 'Dispatching SET_SETTINGS + SET_DB_READY');
       dispatch({ type: 'SET_SETTINGS', payload: settings });
@@ -585,7 +589,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       void logger.info('AppContext', '[STARTUP_COMPLETE] init() finished successfully');
     } catch (e) {
       void logger.error('AppContext', `[STARTUP_ERROR] Unhandled init error: ${String(e)}`);
-      dispatch({ type: 'SET_SETTINGS', payload: defaultSettings });
+      // Even if a non-critical startup step fails before the DB path completes,
+      // recover the first-run markers before showing the app. Otherwise a
+      // returning user could be sent back through privacy/onboarding merely
+      // because initialization hit a transient native error.
+      let recoveredSettings = defaultSettings;
+      try {
+        const backup = await readSetupBackups();
+        recoveredSettings = {
+          ...defaultSettings,
+          privacyAccepted: backup.privacyAccepted === true,
+          onboardingComplete: backup.onboardingComplete === true,
+          protectionMode: backup.protectionMode ?? defaultSettings.protectionMode,
+        };
+        await persistSetupBackups(recoveredSettings);
+      } catch {
+        // Keep the safe defaults if backup reads are also unavailable.
+      }
+      dispatch({ type: 'SET_SETTINGS', payload: recoveredSettings });
       dispatch({ type: 'SET_DB_READY' });
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
