@@ -49,6 +49,30 @@ export const SharedPrefsModule = {
     await callNative('setFocusActive', () => SharedPrefs.setFocusActive(active, pinHash));
   },
 
+  /**
+   * Temporarily pauses focus blocking for an intentional Pomodoro break.
+   * Unlike setFocusActive(false), this path is not a session-ending action and
+   * therefore never requires the session PIN.
+   */
+  async setFocusBreak(active: boolean, untilMs: number): Promise<void> {
+    if (!hasSharedPrefsMethod('setFocusBreak')) return;
+    await callNative('setFocusBreak', () => SharedPrefs.setFocusBreak(active, untilMs));
+  },
+
+  async clearFocusBreak(): Promise<void> {
+    if (!hasSharedPrefsMethod('clearFocusBreak')) return;
+    await callNative('clearFocusBreak', () => SharedPrefs.clearFocusBreak());
+  },
+
+  async getFocusBreakUntilMs(): Promise<number> {
+    if (!hasSharedPrefsMethod('getFocusBreakUntilMs')) return 0;
+    const result = await callNative(
+      'getFocusBreakUntilMs',
+      () => SharedPrefs.getFocusBreakUntilMs() as Promise<number>,
+    );
+    return Number(result ?? 0);
+  },
+
   async setAllowedPackages(packages: string[]): Promise<void> {
     if (!hasSharedPrefsMethod('setAllowedPackages')) return;
     await callNative('setAllowedPackages', () => SharedPrefs.setAllowedPackages(packages));

@@ -66,6 +66,37 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
     }
 
     /**
+     * Pauses or resumes blocking for an intentional Pomodoro break.
+     * This does not end the focus session and deliberately bypasses the
+     * session-PIN gate used by setFocusActive(false).
+     */
+    @ReactMethod
+    fun setFocusBreak(active: Boolean, untilMs: Double, promise: Promise) {
+        val editor = prefs().edit()
+        if (active) {
+            editor.putBoolean("focus_active", false)
+                .putLong("focus_break_until_ms", untilMs.toLong())
+        } else {
+            editor.putBoolean("focus_active", true)
+                .remove("focus_break_until_ms")
+        }
+        editor.apply()
+        promise.resolve(null)
+    }
+
+    /** Clears a pending break while leaving the focus_active flag unchanged. */
+    @ReactMethod
+    fun clearFocusBreak(promise: Promise) {
+        prefs().edit().remove("focus_break_until_ms").apply()
+        promise.resolve(null)
+    }
+
+    @ReactMethod
+    fun getFocusBreakUntilMs(promise: Promise) {
+        promise.resolve(prefs().getLong("focus_break_until_ms", 0L))
+    }
+
+    /**
      * Writes the list of ALLOWED package names for task-based focus blocking.
      * The AccessibilityService blocks any app NOT in this list during a task focus.
      * Pass the full allow-list every call — the service replaces the previous value.

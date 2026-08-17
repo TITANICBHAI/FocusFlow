@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { withScreenErrorBoundary } from '@/components/withScreenErrorBoundary';
 import {
@@ -24,6 +24,7 @@ import { COLORS, FONT, RADIUS, SPACING, SHADOW } from '@/styles/theme';
 import { useTheme } from '@/hooks/useTheme';
 import type { Task } from '@/data/types';
 import { formatTime, isAwaitingDecision } from '@/services/taskService';
+import { analyzeScheduleHealth } from '@/services/schedulerEngine';
 
 function ScheduleScreen() {
   const insets = useSafeAreaInsets();
@@ -68,6 +69,19 @@ function ScheduleScreen() {
 
   const completedCount = todayTasks.filter((t) => t.status === 'completed').length;
   const totalCount = todayTasks.length;
+  const scheduleHealth = useMemo(() => analyzeScheduleHealth(todayTasks), [todayTasks]);
+  const healthWarning = scheduleHealth.overlaps.length > 0
+    ? `${scheduleHealth.overlaps.length} overlapping task${scheduleHealth.overlaps.length !== 1 ? 's' : ''}`
+    : scheduleHealth.overloadedHours.length > 0
+      ? `${scheduleHealth.overloadedHours.length} overloaded hour${scheduleHealth.overloadedHours.length !== 1 ? 's' : ''}`
+      : scheduleHealth.gaps.length > 0
+        ? `${scheduleHealth.gaps[0].gapMinutes}-minute gap before your next task`
+        : null;
+  const healthColor = scheduleHealth.overlaps.length > 0
+    ? COLORS.red
+    : scheduleHealth.overloadedHours.length > 0
+      ? COLORS.orange
+      : COLORS.green;
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
@@ -77,6 +91,32 @@ function ScheduleScreen() {
           <Text style={[styles.dateText, { color: theme.text }]}>{dayjs().format('dddd, MMMM D')}</Text>
           <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
             {totalCount === 0 ? 'No tasks today' : `${completedCount}/${totalCount} tasks done`}
+          </Text>
+        </View>
+      </View>
+
+      {/* Non-blocking schedule quality signal. The existing analyzer catches
+          conflicts and unusually large gaps; keep it visible without turning
+          it into another modal or interruptive workflow. */}
+      <View
+        style={[
+          styles.scheduleHealth,
+          { backgroundColor: healthColor + '12', borderColor: healthColor + '35' },
+        ]}
+      >
+        <Ionicons
+          name={healthWarning ? 'warning-outline' : 'checkmark-circle-outline'}
+          size={16}
+          color={healthColor}
+        />
+        <View style={styles.scheduleHealthCopy}>
+          <Text style={[styles.scheduleHealthTitle, { color: healthColor }]}>
+            {healthWarning ?? 'Schedule looks clean'}
+          </Text>
+          <Text style={[styles.scheduleHealthDetail, { color: theme.textSecondary }]}>
+            {healthWarning
+              ? 'Review the affected task times below.'
+              : `${Math.round(scheduleHealth.totalScheduledMinutes)} minutes scheduled today`}
           </Text>
         </View>
       </View>
@@ -251,6 +291,20 @@ const styles = StyleSheet.create({
   activeBannerLabel: { fontSize: FONT.xs, fontWeight: '700', color: 'rgba(255,255,255,0.7)', letterSpacing: 1 },
   activeBannerTitle: { fontSize: FONT.md, fontWeight: '700', color: '#fff' },
   activeBannerTime: { fontSize: FONT.xs, color: 'rgba(255,255,255,0.7)' },
+  scheduleHealth: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    marginHorizontal: SPACING.lg,
+    marginTop: SPACING.md,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+  },
+  scheduleHealthCopy: { flex: 1, gap: 2 },
+  scheduleHealthTitle: { fontSize: FONT.sm, fontWeight: '700' },
+  scheduleHealthDetail: { fontSize: FONT.xs },
   activeBannerActions: { flexDirection: 'row', gap: SPACING.xs },
   bannerAction: {
     width: 30,

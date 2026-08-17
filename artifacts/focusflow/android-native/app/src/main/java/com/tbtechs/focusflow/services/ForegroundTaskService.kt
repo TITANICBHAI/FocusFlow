@@ -53,6 +53,8 @@ class ForegroundTaskService : Service() {
         const val NOTIFICATION_ID   = 1001
         const val ACTION_STOP       = "com.tbtechs.focusflow.STOP_SERVICE"
         const val ACTION_SET_IDLE   = "com.tbtechs.focusflow.SET_IDLE"
+        const val ACTION_SET_BREAK  = "com.tbtechs.focusflow.SET_BREAK"
+        const val ACTION_CLEAR_BREAK = "com.tbtechs.focusflow.CLEAR_BREAK"
         const val ACTION_TASK_ENDED = "com.tbtechs.focusflow.TASK_ENDED"
 
         const val EXTRA_TASK_ID     = "taskId"
@@ -60,6 +62,7 @@ class ForegroundTaskService : Service() {
         const val EXTRA_END_MS      = "endTimeMs"
         const val EXTRA_START_MS    = "startTimeMs"
         const val EXTRA_NEXT_NAME   = "nextName"
+        const val EXTRA_BREAK_UNTIL_MS = "breakUntilMs"
 
         private const val PREFS_NAME = "focusday_prefs"
 
@@ -196,6 +199,7 @@ class ForegroundTaskService : Service() {
     private var startTimeMs: Long = 0L
     private var nextName: String? = null
     private var isActiveMode: Boolean = false
+    private var breakUntilMs: Long = 0L
 
     /** Wall-clock ms when this service process first called onCreate(). Used
      *  by the idle notification chronometer so it always counts up from when
@@ -406,6 +410,32 @@ class ForegroundTaskService : Service() {
         }
     }
 
+    private val breakTickRunnable = object : Runnable {
+        override fun run() {
+            // A break must never suppress the task-end event. This can happen
+            // when the final Pomodoro break runs into the task's scheduled end.
+            if (endTimeMs > 0L && System.currentTimeMillis() >= endTimeMs) {
+                val endedTaskId = taskId
+                val endedTaskName = taskName
+                clearFocusActive()
+                sendBroadcast(Intent(ACTION_TASK_ENDED).apply {
+                    `package` = applicationContext.packageName
+                    putExtra("taskId", endedTaskId)
+                })
+                triggerTaskAlarm(endedTaskId, endedTaskName, endTimeMs)
+                goIdle()
+                return
+            }
+            if (breakUntilMs <= 0L || System.currentTimeMillis() >= breakUntilMs) {
+                resumeFromBreak()
+                return
+            }
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            nm.notify(NOTIFICATION_ID, buildBreakNotification())
+            handler.postDelayed(this, 1_000L)
+        }
+    }
+
     /**
      * Fallback blocker poll runnable — runs every [FALLBACK_POLL_MS] ms.
      *
@@ -523,8 +553,17 @@ class ForegroundTaskService : Service() {
             }
             ACTION_SET_IDLE -> {
                 handler.removeCallbacks(tickRunnable)
+                handler.removeCallbacks(breakTickRunnable)
                 clearFocusActive()
                 goIdle()
+                return START_STICKY
+            }
+            ACTION_SET_BREAK -> {
+                enterBreak(intent?.getLongExtra(EXTRA_BREAK_UNTIL_MS, 0L) ?: 0L)
+                return START_STICKY
+            }
+            ACTION_CLEAR_BREAK -> {
+                resumeFromBreak()
                 return START_STICKY
             }
             else -> {
@@ -539,6 +578,8 @@ class ForegroundTaskService : Service() {
                     taskName  = name
                     endTimeMs = endMs
                     nextName  = next
+                    breakUntilMs = 0L
+                    handler.removeCallbacks(breakTickRunnable)
 
                     // Only reset the start time on the first launch of a session.
                     // If isActiveMode is already true this is an update call (e.g. after
@@ -577,7 +618,20 @@ class ForegroundTaskService : Service() {
                     // All member variables are reset — restore session state from SharedPreferences.
                     val prefs        = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                     val focusActive  = prefs.getBoolean("focus_active", false)
-                    if (focusActive) {
+                    val restoredBreakUntil = prefs.getLong("focus_break_until_ms", 0L)
+                    if (restoredBreakUntil > System.currentTimeMillis()) {
+                        taskId      = prefs.getString("task_id", "") ?: ""
+                        taskName    = prefs.getString("task_name", "Focus session") ?: "Focus session"
+                        endTimeMs   = prefs.getLong("task_end_ms", 0L)
+                        nextName    = prefs.getString("next_task_name", null)
+                        startTimeMs = prefs.getLong("task_start_ms", System.currentTimeMillis())
+                        isActiveMode = true
+                        breakUntilMs = restoredBreakUntil
+                        startForeground(NOTIFICATION_ID, buildBreakNotification())
+                        WakeLockManager.acquire(this)
+                        handler.removeCallbacks(breakTickRunnable)
+                        handler.post(breakTickRunnable)
+                    } else if (focusActive) {
                         val restoredName  = prefs.getString("task_name", null)
                         val restoredEndMs = prefs.getLong("task_end_ms", 0L)
                         if (restoredName != null && restoredEndMs > System.currentTimeMillis()) {
@@ -631,12 +685,15 @@ class ForegroundTaskService : Service() {
 
     private fun goIdle() {
         isActiveMode = false
+        breakUntilMs = 0L
         taskId       = ""
         taskName     = ""
         endTimeMs    = 0L
         startTimeMs  = 0L
         nextName     = null
         handler.removeCallbacks(tickRunnable)
+        handler.removeCallbacks(breakTickRunnable)
+        blockPrefs.edit().remove("focus_break_until_ms").apply()
         // Release the wake lock — CPU throttling is fine again when no session is active
         WakeLockManager.release()
         // Stop all aversive deterrents (dim overlay, vibration) if they were running
@@ -646,6 +703,42 @@ class ForegroundTaskService : Service() {
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         nm.notify(NOTIFICATION_ID, buildIdleNotification())
         // Update widget to idle state
+        FocusFlowWidget.pushWidgetUpdate(applicationContext)
+    }
+
+    private fun enterBreak(untilMs: Long) {
+        if (untilMs <= System.currentTimeMillis()) {
+            resumeFromBreak()
+            return
+        }
+        breakUntilMs = untilMs
+        blockPrefs.edit()
+            .putBoolean("focus_active", false)
+            .putLong("focus_break_until_ms", untilMs)
+            .apply()
+        handler.removeCallbacks(tickRunnable)
+        handler.removeCallbacks(breakTickRunnable)
+        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        nm.notify(NOTIFICATION_ID, buildBreakNotification())
+        handler.postDelayed(breakTickRunnable, 1_000L)
+        FocusFlowWidget.pushWidgetUpdate(applicationContext)
+    }
+
+    private fun resumeFromBreak() {
+        breakUntilMs = 0L
+        blockPrefs.edit()
+            .putBoolean("focus_active", true)
+            .remove("focus_break_until_ms")
+            .apply()
+        handler.removeCallbacks(breakTickRunnable)
+        if (isActiveMode && endTimeMs > System.currentTimeMillis()) {
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            nm.notify(NOTIFICATION_ID, buildActiveNotification(endTimeMs - System.currentTimeMillis()))
+            handler.removeCallbacks(tickRunnable)
+            handler.post(tickRunnable)
+        } else if (isActiveMode) {
+            goIdle()
+        }
         FocusFlowWidget.pushWidgetUpdate(applicationContext)
     }
 
@@ -950,6 +1043,31 @@ class ForegroundTaskService : Service() {
         val notification = buildActiveNotification(remainingMs)
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         nm.notify(NOTIFICATION_ID, notification)
+    }
+
+    private fun buildBreakNotification(): Notification {
+        val tapIntent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
+        }
+        val tapPending = PendingIntent.getActivity(
+            this, PI_TAP, tapIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val chronometerBase = breakUntilMs - System.currentTimeMillis() + SystemClock.elapsedRealtime()
+        return NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("☕ Break · $taskName")
+            .setContentText("Apps temporarily unlocked")
+            .setSubText("Back to work when the break ends")
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setContentIntent(tapPending)
+            .setWhen(chronometerBase)
+            .setUsesChronometer(true)
+            .setChronometerCountDown(true)
+            .setShowWhen(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .build()
     }
 
     private fun clearFocusActive() {

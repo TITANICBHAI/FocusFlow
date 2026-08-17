@@ -710,7 +710,13 @@ function FocusScreen() {
           <Text style={[styles.statusText, { color: theme.textSecondary }]}>
             {isFocusing
               ? (settings.pomodoroEnabled ?? false)
-                ? `Focus Mode Active · ${pomodoro.phase === 'work' ? '🎯 Work' : '☕ Break'} Phase`
+                ? `Focus Mode Active · ${
+                    pomodoro.isBreakActive
+                      ? '☕ Break · apps unlocked'
+                      : pomodoro.phase === 'work'
+                        ? '🎯 Work'
+                        : '☕ Break available'
+                  }`
                 : 'Focus Mode Active'
               : 'Task In Progress'}
           </Text>
@@ -800,6 +806,7 @@ function FocusScreen() {
             pomodoro={pomodoro}
             workMinutes={settings.pomodoroDuration ?? 25}
             breakMinutes={settings.pomodoroBreak ?? 5}
+            onTakeBreak={() => { void pomodoro.takeBreak(); }}
           />
         )}
 
@@ -1180,12 +1187,15 @@ function PomodoroStrip({
   pomodoro,
   workMinutes,
   breakMinutes,
+  onTakeBreak,
 }: {
   pomodoro: import('@/hooks/usePomodoro').PomodoroState;
   workMinutes: number;
   breakMinutes: number;
+  onTakeBreak: () => void;
 }) {
   const isWork = pomodoro.phase === 'work';
+  const isBreakActive = pomodoro.isBreakActive;
   const accentColor = isWork ? COLORS.primary : COLORS.green;
   const mins = Math.floor(pomodoro.secondsLeft / 60);
   const secs = pomodoro.secondsLeft % 60;
@@ -1221,8 +1231,20 @@ function PomodoroStrip({
       <Text style={[pomStyles.hint, { color: accentColor + 'bb' }]}>
         {isWork
           ? `${mins}m left → ${breakMinutes}m break`
-          : `${mins}m rest left → back to ${workMinutes}m work`}
+           : isBreakActive
+             ? `Apps unlocked · blocking resumes in ${timeStr}`
+             : `${mins}m rest available · tap below to unlock apps`}
       </Text>
+      {!isWork && !isBreakActive && (
+        <TouchableOpacity
+          style={[pomStyles.breakButton, { backgroundColor: COLORS.green }]}
+          onPress={onTakeBreak}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="cafe-outline" size={15} color="#fff" />
+          <Text style={pomStyles.breakButtonText}>Take {breakMinutes}m break</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -1701,6 +1723,16 @@ const pomStyles = StyleSheet.create({
     fontSize: FONT.xs,
     fontWeight: '700',
   },
+  breakButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.xs,
+    borderRadius: RADIUS.md,
+    paddingVertical: SPACING.sm,
+    marginTop: SPACING.xs,
+  },
+  breakButtonText: { color: '#fff', fontSize: FONT.sm, fontWeight: '700' },
   progressTrack: {
     height: 4,
     borderRadius: 2,
