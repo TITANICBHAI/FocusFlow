@@ -23,6 +23,7 @@
 import * as TaskManager from 'expo-task-manager';
 import * as BackgroundFetch from 'expo-background-fetch';
 import * as Notifications from 'expo-notifications';
+import { AppState } from 'react-native';
 
 import { dbGetTasksForDate, dbUpdateTask, dbGetSettings } from '@/data/database';
 import { rebalanceAfterOverrun } from '@/services/schedulerEngine';
@@ -184,6 +185,17 @@ TaskManager.defineTask(TASK_NOTIFICATION_BG, async ({ data, error }: any) => {
 
   void logger.debug('bgTask', 'NOTIFICATION_BG: handler started');
   try {
+    // When the React app is already in the foreground, the response listener
+    // in app/_layout.tsx owns the action and routes it through AppContext.
+    // Letting this headless task mutate the same task as well can apply
+    // EXTEND twice or make the foreground UI write over a background update
+    // using stale state. This task remains the owner when the app is
+    // backgrounded or killed.
+    if (AppState.currentState === 'active') {
+      void logger.debug('bgTask', 'NOTIFICATION_BG: app is active, foreground listener owns action');
+      return;
+    }
+
     const actionId: string  = data?.actionIdentifier ?? '';
     const notifData = data?.notification?.request?.content?.data as {
       taskId?: string;

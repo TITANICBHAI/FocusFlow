@@ -1209,11 +1209,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // ── Native event subscriptions ───────────────────────────────────────────────
 
   useEffect(() => {
-    const unsubTaskEnded = EventBridge.subscribe('TASK_ENDED', () => {
+    const unsubTaskEnded = EventBridge.subscribe('TASK_ENDED', (event) => {
       // Do NOT auto-stop focus or hide the task. The user must explicitly
       // resolve the task (Complete / Extend / Skip) via the in-app prompt.
       // Keeping focus mode running prevents distractions while they decide.
-      void logger.info('AppContext', 'TASK_ENDED received — awaiting user decision');
+      // Refreshing here is important when the event arrives while the app is
+      // mounted: the native service has already ended its timer, but React may
+      // still be holding an older task snapshot. The refresh makes the
+      // awaiting-decision prompt and widget state converge immediately without
+      // changing the explicit-resolution UX.
+      void logger.info(
+        'AppContext',
+        `TASK_ENDED received for ${event.taskId ?? 'unknown task'} — refreshing before user decision`,
+      );
+      void refreshTasks().catch((e) => {
+        void logger.warn('AppContext', `TASK_ENDED refresh failed: ${String(e)}`);
+      });
+      void SharedPrefsModule.pushWidgetUpdate();
     });
 
     const unsubAppBlocked = EventBridge.subscribe('APP_BLOCKED', (event) => {
