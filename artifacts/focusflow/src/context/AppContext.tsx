@@ -822,6 +822,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } catch (e) {
       void logger.warn('AppContext', `launcher clock style sync failed: ${String(e)}`);
     }
+    try {
+      await SharedPrefsModule.putString('launcher_wallpaper', settings.launcherWallpaperUri ?? '');
+    } catch (e) {
+      void logger.warn('AppContext', `launcher wallpaper sync failed: ${String(e)}`);
+    }
   }
 
   /**

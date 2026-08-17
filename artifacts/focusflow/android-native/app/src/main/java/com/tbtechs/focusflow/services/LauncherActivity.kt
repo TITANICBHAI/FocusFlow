@@ -12,10 +12,12 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Typeface
+import android.graphics.BitmapFactory
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.net.Uri
 import android.text.Editable
 import android.text.TextUtils
 import android.text.TextWatcher
@@ -23,6 +25,7 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.VelocityTracker
 import android.view.WindowManager
 import android.view.animation.AccelerateInterpolator
 import android.view.animation.DecelerateInterpolator
@@ -71,6 +74,7 @@ class LauncherActivity : Activity() {
         private const val PREF_LAUNCHER_HIDDEN  = "launcher_hidden_packages"
         private const val PREF_LAUNCHER_PINNED  = "launcher_pinned_packages"
         private const val PREF_LAUNCHER_DOCK    = "launcher_dock_packages"
+        private const val PREF_LAUNCHER_WALLPAPER = "launcher_wallpaper"
         private const val PREF_SA_ACTIVE        = AppBlockerAccessibilityService.PREF_SA_ACTIVE
         private const val PREF_SA_PKGS          = AppBlockerAccessibilityService.PREF_SA_PKGS
         private const val PREF_SA_UNTIL         = AppBlockerAccessibilityService.PREF_SA_UNTIL
@@ -112,11 +116,34 @@ class LauncherActivity : Activity() {
     private var digitalTimeRow: LinearLayout? = null
     private var allowanceStripContainer: LinearLayout? = null
     private var allowanceTickCount = 0
+    private var customWallpaperView: ImageView? = null
     private var homeGrid: GridLayout? = null
     private var dockRow: LinearLayout? = null
     private var drawerOverlay: FrameLayout? = null
     private var isDrawerOpen = false
     private var swipeTouchStartY = 0f
+    private var swipeVelocityTracker: VelocityTracker? = null
+
+    private val preferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == PREF_LAUNCHER_PINNED ||
+            key == PREF_LAUNCHER_DOCK ||
+            key == PREF_LAUNCHER_HIDDEN ||
+            key == PREF_SA_ACTIVE ||
+            key == PREF_SA_PKGS ||
+            key == PREF_SA_UNTIL ||
+            key == PREF_ALWAYS_BLOCK ||
+            key == PREF_ALWAYS_BLOCK_PKGS ||
+            key == PREF_LAUNCHER_WALLPAPER ||
+            key == "launcher_clock_style"
+        ) {
+            runOnUiThread {
+                refreshHomeGrid()
+                refreshDock()
+                updateClockText()
+                loadCustomWallpaper()
+            }
+        }
+    }
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -134,12 +161,20 @@ class LauncherActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        prefs.registerOnSharedPreferenceChangeListener(preferenceListener)
         refreshHomeGrid()
         refreshDock()
         refreshAllowanceStrip()
+        loadCustomWallpaper()
+    }
+
+    override fun onPause() {
+        prefs.unregisterOnSharedPreferenceChangeListener(preferenceListener)
+        super.onPause()
     }
 
     override fun onDestroy() {
+        prefs.unregisterOnSharedPreferenceChangeListener(preferenceListener)
         super.onDestroy()
         clockRunnable?.let { handler.removeCallbacks(it) }
     }
@@ -152,6 +187,20 @@ class LauncherActivity : Activity() {
     // ── Home layout ───────────────────────────────────────────────────────────
 
     private fun buildHomeLayout() {
+        // A selected launcher wallpaper sits above the system wallpaper but
+        // below the scrim and all launcher controls. Empty means use the
+        // device's normal wallpaper via FLAG_SHOW_WALLPAPER.
+        customWallpaperView = ImageView(this).apply {
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            visibility = View.GONE
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+        }
+        rootFrame.addView(customWallpaperView)
+        loadCustomWallpaper()
+
         // Wallpaper scrim — light translucent overlay (20% black) so the user's
         // wallpaper stays visible. FLAG_SHOW_WALLPAPER composites it behind the window.
         val scrim = View(this).apply {
@@ -228,15 +277,31 @@ class LauncherActivity : Activity() {
             when (ev.action) {
                 MotionEvent.ACTION_DOWN -> {
                     swipeTouchStartY = ev.rawY
+                    swipeVelocityTracker?.recycle()
+                    swipeVelocityTracker = VelocityTracker.obtain().also { it.addMovement(ev) }
+                    false
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    swipeVelocityTracker?.addMovement(ev)
                     false
                 }
                 MotionEvent.ACTION_UP -> {
+                    swipeVelocityTracker?.addMovement(ev)
+                    swipeVelocityTracker?.computeCurrentVelocity(1000)
+                    val velocityY = swipeVelocityTracker?.yVelocity ?: 0f
+                    swipeVelocityTracker?.recycle()
+                    swipeVelocityTracker = null
                     val dy = swipeTouchStartY - ev.rawY
                     when {
-                        dy > dp(60) && !isDrawerOpen -> { openDrawer(); true }
-                        dy < -dp(80) -> { expandNotificationsPanel(); true }
+                        dy > dp(60) && velocityY < -250f && !isDrawerOpen -> { openDrawer(); true }
+                        dy < -dp(80) && velocityY > 250f -> { expandNotificationsPanel(); true }
                         else -> false
                     }
+                }
+                MotionEvent.ACTION_CANCEL -> {
+                    swipeVelocityTracker?.recycle()
+                    swipeVelocityTracker = null
+                    false
                 }
                 else -> false
             }
@@ -422,6 +487,34 @@ class LauncherActivity : Activity() {
 
         for (pkg in pinned) {
             addHomeGridIcon(grid, pkg, blocked.contains(pkg))
+        }
+    }
+
+    private fun loadCustomWallpaper() {
+        val view = customWallpaperView ?: return
+        val path = prefs.getString(PREF_LAUNCHER_WALLPAPER, "")?.trim().orEmpty()
+        if (path.isEmpty()) {
+            view.setImageDrawable(null)
+            view.visibility = View.GONE
+            return
+        }
+
+        val bitmap = try {
+            if (path.startsWith("content://")) {
+                contentResolver.openInputStream(Uri.parse(path))?.use(BitmapFactory::decodeStream)
+            } else {
+                BitmapFactory.decodeFile(path.removePrefix("file://"))
+            }
+        } catch (_: Exception) {
+            null
+        }
+
+        if (bitmap != null) {
+            view.setImageBitmap(bitmap)
+            view.visibility = View.VISIBLE
+        } else {
+            view.setImageDrawable(null)
+            view.visibility = View.GONE
         }
     }
 
