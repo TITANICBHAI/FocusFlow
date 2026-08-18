@@ -705,6 +705,28 @@ function withFocusDayBuildConfig(config) {
 
       let content = fs.readFileSync(buildGradlePath, 'utf8');
 
+      // ── AndroidX RecyclerView for LauncherActivity's app drawer ───────────
+      // LauncherActivity uses RecyclerView and GridLayoutManager directly.
+      // Keep this in the config plugin because `expo prebuild --clean`
+      // regenerates android/ and does not rely on android-native/install.sh.
+      const recyclerDependency =
+        'implementation "androidx.recyclerview:recyclerview:1.3.2"';
+      if (!content.includes('androidx.recyclerview:recyclerview')) {
+        const recyclerPatched = content.replace(
+          /(^\s*dependencies\s*\{)/m,
+          `$1\n    ${recyclerDependency}`
+        );
+
+        if (recyclerPatched === content) {
+          throw new Error(
+            '[withFocusDayAndroid] Could not find dependencies block in app/build.gradle.'
+          );
+        }
+
+        content = recyclerPatched;
+        console.log('[withFocusDayAndroid] Added AndroidX RecyclerView dependency.');
+      }
+
       // ── Enable R8 full minification for release ──────────────────────────
       // Expo default: minifyEnabled (findProperty('android.enableProguardInReleaseBuilds')?.toBoolean() ?: false)
       // We force it true so R8 runs unconditionally on release builds.

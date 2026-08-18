@@ -4,3 +4,4 @@
 - [User-controlled diagnostic email](user-controlled-diagnostic-email.md) — keep reports in a user-reviewed native email draft with a sanitized text attachment, not a server relay.
 - [Imported audit verification](imported-audit-verification.md) — uploaded codebase audits may describe fixes already present; validate each finding against the current checkout before editing.
 - [Android SQLite write serialization](android-sqlite-write-serialization.md) — single-flight database opening does not prevent concurrent Expo SQLite writes from contending.
+- [Android prebuild native patches](android-prebuild-native-patches.md) — release-critical Gradle changes must be mirrored in the Expo config plugin, not only install.sh.
