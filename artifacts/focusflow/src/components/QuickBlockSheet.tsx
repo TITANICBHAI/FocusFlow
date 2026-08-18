@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import dayjs from 'dayjs';
 import { useApp } from '@/context/AppContext';
 import { useTheme } from '@/hooks/useTheme';
@@ -60,7 +61,11 @@ export function QuickBlockSheet({ visible, app, onClose }: Props) {
   }, [app, state.settings.standaloneBlockPackages, state.settings.standaloneBlockUntil]);
 
   const run = useCallback(async (action: () => Promise<void>) => {
-    if (!app || isProtectedApp(app.packageName)) return;
+    if (!app) return;
+    if (isProtectedApp(app.packageName)) {
+      setError(`${app.appName} is a protected system app and cannot be blocked.`);
+      return;
+    }
     setLoading(true);
     setError('');
     try {
@@ -167,6 +172,48 @@ export function QuickBlockSheet({ visible, app, onClose }: Props) {
             </View>
           </TouchableOpacity>
 
+          <View style={[styles.manageCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <View style={styles.manageHeader}>
+              <Ionicons name="help-circle-outline" size={19} color={COLORS.primary} />
+              <Text style={[styles.manageTitle, { color: theme.text }]}>Need to remove this later?</Text>
+            </View>
+            {isTemporarilyBlocked || isAlwaysOn ? (
+              <>
+                <Text style={[styles.manageDescription, { color: theme.muted }]}>
+                  {isTemporarilyBlocked && isAlwaysOn
+                    ? 'This app has both a timed block and Always-On protection. Manage each one separately:'
+                    : isTemporarilyBlocked
+                      ? 'This timed block is managed from Active. It cannot be removed while its timer is running and expires automatically.'
+                      : 'Always-On protection stays until you remove the app from the Always-On list. A defense password may be required.'}
+                </Text>
+                <View style={styles.manageActions}>
+                  {isTemporarilyBlocked ? (
+                    <TouchableOpacity
+                      style={[styles.manageButton, { borderColor: theme.border }]}
+                      onPress={() => { onClose(); router.push('/active'); }}
+                    >
+                      <Ionicons name="pulse-outline" size={16} color={COLORS.primary} />
+                      <Text style={[styles.manageButtonText, { color: theme.text }]}>Open Active</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                  {isAlwaysOn ? (
+                    <TouchableOpacity
+                      style={[styles.manageButton, { borderColor: theme.border }]}
+                      onPress={() => { onClose(); router.push('/always-on'); }}
+                    >
+                      <Ionicons name="settings-outline" size={16} color={COLORS.primary} />
+                      <Text style={[styles.manageButtonText, { color: theme.text }]}>Open Always-On</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+              </>
+            ) : (
+              <Text style={[styles.manageDescription, { color: theme.muted }]}>
+                Temporary blocks expire automatically. If you choose “Block always”, remove the app later from Settings → Always-On.
+              </Text>
+            )}
+          </View>
+
           {error ? <Text style={styles.error}>{error}</Text> : null}
           {loading ? <ActivityIndicator color={COLORS.primary} style={styles.loading} /> : null}
           <Text style={[styles.privacyNote, { color: theme.muted }]}>Quick Block uses FocusFlow's existing block lists. No separate block history is created.</Text>
@@ -221,6 +268,13 @@ const styles = StyleSheet.create({
   alwaysText: { flex: 1, gap: 2 },
   alwaysTitle: { fontSize: FONT.sm, fontWeight: '800' },
   alwaysSub: { fontSize: FONT.xs, lineHeight: 16 },
+  manageCard: { borderWidth: 1, borderRadius: RADIUS.md, padding: SPACING.sm, gap: SPACING.xs },
+  manageHeader: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs },
+  manageTitle: { fontSize: FONT.sm, fontWeight: '800' },
+  manageDescription: { fontSize: FONT.xs, lineHeight: 17 },
+  manageActions: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.xs, marginTop: SPACING.xs },
+  manageButton: { minHeight: 36, borderWidth: 1, borderRadius: RADIUS.sm, paddingHorizontal: SPACING.sm, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  manageButtonText: { fontSize: FONT.xs, fontWeight: '700' },
   error: { color: COLORS.red, fontSize: FONT.xs, textAlign: 'center' },
   loading: { marginTop: -SPACING.xs },
   privacyNote: { fontSize: FONT.xs, textAlign: 'center', lineHeight: 17, marginTop: SPACING.xs },

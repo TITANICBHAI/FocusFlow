@@ -2439,7 +2439,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
 
     // ─── Enforcement ─────────────────────────────────────────────────────────
 
-    private fun handleBlockedApp(blockedPackage: String) {
+    private fun handleBlockedApp(blockedPackage: String, blockReason: String? = null) {
         val broadcast = Intent(FocusDayBridgeModule.ACTION_APP_BLOCKED).apply {
             `package` = packageName
             putExtra(FocusDayBridgeModule.EXTRA_BLOCKED_PKG, blockedPackage)
@@ -2459,7 +2459,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         // 3. Launch the full-screen overlay. This takes the foreground before the
         //    blocked app finishes rendering on most devices. The overlay handles its
         //    own re-raise on slow phones via onPause(), so this service can back off.
-        launchBlockOverlay(blockedPackage)
+        launchBlockOverlay(blockedPackage, blockReason)
 
         // 4. Close the blocked app: BACK → HOME (150 ms) → BACK (160 ms).
         //    These key presses act on the blocked app itself and do not affect the
@@ -2647,16 +2647,32 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply { bottomMargin = dp(if (blockReason.isNotEmpty()) 16 else 36) }
         })
-        if (blockReason.isNotEmpty()) {               // reason label — why this app is blocked
+        if (blockReason.isNotEmpty()) {               // reason heading + label — why this app is blocked
             col.addView(TextView(this).apply {
-                text = blockReason
-                textSize = 12f
-                setTextColor(Color.parseColor("#8888BB"))
+                text = "WHY THIS APP IS BLOCKED"
+                textSize = 11f
+                setTextColor(Color.parseColor("#D7D7F0"))
                 gravity = Gravity.CENTER
-                setLineSpacing(0f, 1.4f)
+                letterSpacing = 0.08f
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
-                ).apply { bottomMargin = dp(28) }
+                ).apply { bottomMargin = dp(6) }
+            })
+            col.addView(TextView(this).apply {
+                text = blockReason
+                textSize = 13f
+                setTextColor(Color.parseColor("#F1F1FA"))
+                gravity = Gravity.CENTER
+                setLineSpacing(0f, 1.4f)
+                setPadding(dp(16), dp(12), dp(16), dp(12))
+                background = GradientDrawable().apply {
+                    cornerRadius = dp(12).toFloat()
+                    setColor(Color.parseColor("#332E5A"))
+                    setStroke(dp(1), Color.parseColor("#665FA0"))
+                }
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { bottomMargin = dp(24) }
             })
         }
         col.addView(TextView(this).apply {            // random quote
@@ -2842,8 +2858,11 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             if (endMs <= 0L || now < endMs) {
                 val taskName = prefs.getString("task_name", "") ?: ""
                 val timeStr  = if (endMs > 0L) " (until ${formatBlockTime(endMs)})" else ""
-                parts += if (taskName.isNotBlank()) "Focus mode: $taskName$timeStr"
-                         else                       "Focus mode$timeStr"
+                parts += if (taskName.isNotBlank()) {
+                    "Focus Mode active for “$taskName”$timeStr"
+                } else {
+                    "Focus Mode active$timeStr"
+                }
             }
         }
 
@@ -2852,22 +2871,25 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         if (saActive) {
             val untilMs = prefs.getLong(PREF_SA_UNTIL, 0L)
             if (untilMs <= 0L || now < untilMs) {
-                parts += if (untilMs > 0L) "Temporary block until ${formatBlockTime(untilMs)}"
-                         else              "Standalone block active"
+                parts += if (untilMs > 0L) {
+                    "Timed block active until ${formatBlockTime(untilMs)}"
+                } else {
+                    "Standalone block active"
+                }
             }
         }
 
         // 3. Always-on protection
         if (prefs.getBoolean(PREF_ALWAYS_BLOCK, false)) {
-            parts += "Always-On protection"
+            parts += "Always-On protection active"
         }
 
         // 4. Block schedule (greyout) — shown only when no session-based reason is active
         if (parts.isEmpty() && pkg.isNotEmpty() && isInGreyoutWindow(pkg)) {
-            parts += "Block schedule is active"
+            parts += "Block schedule active"
         }
 
-        return parts.joinToString("\n")
+        return parts.joinToString("\n\n")
     }
 
     /** Formats an epoch-ms timestamp as a short clock string, e.g. "5:30 PM". */

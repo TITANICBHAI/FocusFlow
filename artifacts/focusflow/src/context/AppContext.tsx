@@ -731,6 +731,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           endMin: sched.endMin,
           days: sched.days,
           scheduleId: sched.id,
+          scheduleName: sched.name,
         });
       }
     }

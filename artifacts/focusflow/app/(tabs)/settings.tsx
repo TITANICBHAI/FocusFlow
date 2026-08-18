@@ -35,6 +35,7 @@ import { PinSetupModal } from '@/components/PinSetupModal';
 import { GreyoutScheduleModal } from '@/components/GreyoutScheduleModal';
 import { OverlayAppearanceModal } from '@/components/OverlayAppearanceModal';
 import DiagnosticsModal from '@/components/DiagnosticsModal';
+import ReportIssueModal from '@/components/ReportIssueModal';
 import { withScreenErrorBoundary } from '@/components/withScreenErrorBoundary';
 import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
 
@@ -52,6 +53,7 @@ function SettingsScreen() {
   const [greyoutModalVisible, setGreyoutModalVisible] = useState(false);
   const [overlayAppearanceVisible, setOverlayAppearanceVisible] = useState(false);
   const [diagnosticsVisible, setDiagnosticsVisible] = useState(false);
+  const [reportIssueVisible, setReportIssueVisible] = useState(false);
   const [defPinVisible, setDefPinVisible] = useState(false);
   const [pinSetupVisible, setPinSetupVisible] = useState(false);
   const pendingDefAction = useRef<(() => void) | null>(null);
@@ -638,9 +640,15 @@ function SettingsScreen() {
           <Section title="Diagnostics">
             <SettingButton
               icon="terminal-outline"
-              label="View Logs & Report an Issue"
-              description="Review local diagnostics and optionally send a report"
+              label="View Logs"
+              description="Review local diagnostics and refresh the error log"
               onPress={() => setDiagnosticsVisible(true)}
+            />
+            <SettingButton
+              icon="paper-plane-outline"
+              label="Report an Issue"
+              description="Open the same report form used from the log screen"
+              onPress={() => setReportIssueVisible(true)}
             />
           </Section>
         )}
@@ -765,6 +773,11 @@ function SettingsScreen() {
       <DiagnosticsModal
         visible={diagnosticsVisible}
         onClose={() => setDiagnosticsVisible(false)}
+      />
+
+      <ReportIssueModal
+        visible={reportIssueVisible}
+        onClose={() => setReportIssueVisible(false)}
       />
 
       <PinSetupModal

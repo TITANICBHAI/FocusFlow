@@ -69,6 +69,7 @@ export interface GreyoutWindow {
   endMin: number;
   days: number[]; // Calendar.DAY_OF_WEEK: 1=Sun 2=Mon 3=Tue 4=Wed 5=Thu 6=Fri 7=Sat
   scheduleId?: string; // if set, this window was auto-generated from a RecurringBlockSchedule
+  scheduleName?: string; // display name copied from the recurring/group schedule
 }
 
 /**

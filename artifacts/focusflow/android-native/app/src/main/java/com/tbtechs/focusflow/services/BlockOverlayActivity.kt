@@ -370,7 +370,10 @@ class BlockOverlayActivity : Activity() {
         }
         col.addView(buildLockEmoji())
         col.addView(buildBlockedLabel())
-        if (blockReason.isNotEmpty()) col.addView(buildReasonLabel())
+        if (blockReason.isNotEmpty()) {
+            col.addView(buildReasonHeading())
+            col.addView(buildReasonLabel())
+        }
         col.addView(buildQuoteView())
         col.addView(buildSubLabel())
         root.addView(col)
@@ -404,16 +407,34 @@ class BlockOverlayActivity : Activity() {
         ).apply { bottomMargin = dp(if (blockReason.isNotEmpty()) 16 else 36) }
     }
 
-    private fun buildReasonLabel(): TextView = TextView(this).apply {
-        text = blockReason
-        textSize = 12f
-        setTextColor(Color.parseColor("#8888BB"))
+    private fun buildReasonHeading(): TextView = TextView(this).apply {
+        text = "WHY THIS APP IS BLOCKED"
+        textSize = 11f
+        setTextColor(Color.parseColor("#D7D7F0"))
         gravity = Gravity.CENTER
-        setLineSpacing(0f, 1.4f)
+        letterSpacing = 0.08f
         layoutParams = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply { bottomMargin = dp(28) }
+        ).apply { bottomMargin = dp(6) }
+    }
+
+    private fun buildReasonLabel(): TextView = TextView(this).apply {
+        text = blockReason
+        textSize = 13f
+        setTextColor(Color.parseColor("#F1F1FA"))
+        gravity = Gravity.CENTER
+        setLineSpacing(0f, 1.4f)
+        setPadding(dp(16), dp(12), dp(16), dp(12))
+        background = GradientDrawable().apply {
+            cornerRadius = dp(12).toFloat()
+            setColor(Color.parseColor("#332E5A"))
+            setStroke(dp(1), Color.parseColor("#665FA0"))
+        }
+        layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { bottomMargin = dp(24) }
     }
 
     private fun buildQuoteView(): TextView = TextView(this).apply {
