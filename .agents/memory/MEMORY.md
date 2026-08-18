@@ -3,3 +3,4 @@
 - [Onboarding permission tiers](onboarding-permission-tiers.md) — keep first-run focused: three permissions gate readiness, while recommended access and personalization stay non-blocking.
 - [User-controlled diagnostic email](user-controlled-diagnostic-email.md) — keep reports in a user-reviewed native email draft with a sanitized text attachment, not a server relay.
 - [Imported audit verification](imported-audit-verification.md) — uploaded codebase audits may describe fixes already present; validate each finding against the current checkout before editing.
+- [Android SQLite write serialization](android-sqlite-write-serialization.md) — single-flight database opening does not prevent concurrent Expo SQLite writes from contending.

@@ -11,6 +11,7 @@ import { Alert, AppState as RNAppState, Appearance, type AppStateStatus } from '
 import type { Task, AppSettings, FocusSession, DailyAllowanceEntry, RecurringBlockSchedule, GreyoutWindow } from '@/data/types';
 import {
   dbGetTasksForDate,
+  dbGetAllTasks,
   dbGetRecentUnresolvedTasks,
   dbInsertTask,
   dbUpdateTask,
@@ -47,7 +48,8 @@ import {
 } from '@/services/schedulerEngine';
 import {
   scheduleTaskReminders,
-  cancelTaskReminders,
+  scheduleTaskRemindersBatch,
+  cancelTaskRemindersBatch,
   setupNotificationChannels,
   requestPermissions,
   scheduleStandaloneBlockExpiry,
@@ -576,11 +578,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       try {
         void logger.info('AppContext', 'Checking for overdue tasks');
-        const allTasks = await dbGetTasksForDate(new Date().toISOString());
+        const allTasks = await dbGetAllTasks();
         const overdue = getUnfinishedOverdueTasks(allTasks);
-        for (const t of overdue) {
-          const marked = updateTaskStatus(t, 'overdue');
-          await dbUpdateTask(marked);
+        if (overdue.length > 0) {
+          await dbUpdateTasksBatch(overdue.map((t) => updateTaskStatus(t, 'overdue')));
         }
         if (overdue.length > 0) {
           void logger.info('AppContext', `Marked ${overdue.length} tasks as overdue`);
@@ -1263,11 +1264,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const addTask = useCallback(async (task: Task) => {
+  const addTask = useCallback(async (task: Task, options?: { skipAlarms?: boolean }) => {
     try {
       await dbInsertTask(task);
       dispatch({ type: 'ADD_TASK', payload: task });
-      await scheduleTaskReminders(task);
+      if (!options?.skipAlarms) {
+        await scheduleTaskReminders(task);
+      }
     } catch (e) {
       void logger.error('AppContext', `addTask failed: ${String(e)}`);
       throw e;
@@ -1278,7 +1281,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try {
       await dbUpdateTask(task);
       dispatch({ type: 'UPDATE_TASK', payload: task });
-      await cancelTaskReminders(task.id);
       await scheduleTaskReminders(task);
 
       // The native focus service and AccessibilityService do not read the
@@ -1332,11 +1334,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       await dbDeleteTask(taskId);
       await dbUpdateTasksBatch(shifted);
-      await cancelTaskReminders(taskId);
-      for (const shiftedTask of shifted) {
-        await cancelTaskReminders(shiftedTask.id);
-        await scheduleTaskReminders(shiftedTask);
-      }
+      await cancelTaskRemindersBatch([taskId]);
+      await scheduleTaskRemindersBatch(shifted);
 
       // Deleting a future scheduled task frees its entire reserved slot. Pull
       // only later, unresolved tasks forward; active/history rows never move.
@@ -1392,11 +1391,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const shifted = changedTasks.filter((candidate) => candidate.id !== taskId);
 
         await dbUpdateTasksBatch(changedTasks);
-        await cancelTaskReminders(taskId);
-        for (const shiftedTask of shifted) {
-          await cancelTaskReminders(shiftedTask.id);
-          await scheduleTaskReminders(shiftedTask);
-        }
+        await cancelTaskRemindersBatch([taskId]);
+        await scheduleTaskRemindersBatch(shifted);
         // Dismiss the full-screen task-end alarm if it is currently ringing
         // for this task — keeps the alarm UI in sync with in-app resolution.
         void TaskAlarmModule.dismissAlarm(taskId);
@@ -1469,12 +1465,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const shifted = changedTasks.filter((candidate) => candidate.id !== taskId);
 
         await dbUpdateTasksBatch(changedTasks);
-        await cancelTaskReminders(taskId);
+        await cancelTaskRemindersBatch([taskId]);
         void TaskAlarmModule.dismissAlarm(taskId);
-        for (const shiftedTask of shifted) {
-          await cancelTaskReminders(shiftedTask.id);
-          await scheduleTaskReminders(shiftedTask);
-        }
+        await scheduleTaskRemindersBatch(shifted);
         dispatch({ type: 'SET_TASKS', payload: compressed });
       } catch (e) {
         void logger.error('AppContext', `skipTask failed: ${String(e)}`);
@@ -1498,7 +1491,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
         const extended = extendTask(task, extraMinutes);
 
-        const { updatedSchedule, needsUserConfirm, skipped, shifted } = rebalanceAfterOverrun(extended, extraMinutes, tasks);
+        const { updatedSchedule, needsUserConfirm, skipped } = rebalanceAfterOverrun(extended, extraMinutes, tasks);
 
         await dbUpdateTasksBatch([extended, ...updatedSchedule.filter((t) => t.id !== extended.id)]);
 
@@ -1509,22 +1502,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         });
         dispatch({ type: 'SET_TASKS', payload: finalTasks });
 
-        // Reschedule the extended task at its new end time
-        await cancelTaskReminders(taskId);
-        await scheduleTaskReminders(extended);
-
-        // Reschedule every task that was shifted to new times — their old
-        // pre-start / mid-session / end notifications would fire at wrong times.
-        for (const t of shifted) {
-          await cancelTaskReminders(t.id);
-          await scheduleTaskReminders(t);
-        }
-
-        // Cancel notifications for tasks the scheduler auto-skipped — they
-        // are no longer going to run so their reminders should not fire.
-        for (const t of skipped) {
-          await cancelTaskReminders(t.id);
-        }
+        // Re-arm the extended schedule in one pass. Skipped tasks are included
+        // for cancellation but are filtered out from new scheduling.
+        await scheduleTaskRemindersBatch([
+          extended,
+          ...updatedSchedule.filter((t) => t.id !== extended.id),
+        ]);
 
         // Dismiss the full-screen task-end alarm only after the extension has
         // been persisted — keeps the alarm UI in sync with task state so a

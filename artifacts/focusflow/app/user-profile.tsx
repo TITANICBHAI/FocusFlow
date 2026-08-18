@@ -17,7 +17,11 @@ import { useApp } from '@/context/AppContext';
 import { useTheme } from '@/hooks/useTheme';
 import type { UserProfile } from '@/data/types';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
-import { scheduleMorningDigest, scheduleWeeklyReport } from '@/services/notificationService';
+import {
+  scheduleMorningDigest,
+  scheduleWeeklyReport,
+  scheduleTaskRemindersBatch,
+} from '@/services/notificationService';
 import { pickAndImportBackup } from '@/services/backupService';
 import {
   dbGetTodayFocusMinutes,
@@ -309,6 +313,7 @@ export default function UserProfileScreen() {
       const result = await pickAndImportBackup({
         updateSettings,
         addTask,
+        scheduleTasks: scheduleTaskRemindersBatch,
         deleteTask,
         refreshTasks,
         replaceTasks: false,

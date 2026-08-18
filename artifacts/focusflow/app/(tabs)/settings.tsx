@@ -19,7 +19,11 @@ import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 import { useTheme } from '@/hooks/useTheme';
 import Constants from 'expo-constants';
 import { dbDeleteAllTasks } from '@/data/database';
-import { cancelAllReminders, requestPermissions } from '@/services/notificationService';
+import {
+  cancelAllReminders,
+  requestPermissions,
+  scheduleTaskRemindersBatch,
+} from '@/services/notificationService';
 import { exportBackup, pickAndImportBackup } from '@/services/backupService';
 import { formatDuration } from '@/services/taskService';
 import { AllowedAppsModal } from '@/components/AllowedAppsModal';
@@ -157,6 +161,7 @@ function SettingsScreen() {
       const result = await pickAndImportBackup({
         updateSettings,
         addTask,
+        scheduleTasks: scheduleTaskRemindersBatch,
         deleteTask,
         refreshTasks,
         replaceTasks,
