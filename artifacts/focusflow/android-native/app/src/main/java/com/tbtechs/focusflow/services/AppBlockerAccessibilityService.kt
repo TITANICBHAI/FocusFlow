@@ -2907,9 +2907,12 @@ class AppBlockerAccessibilityService : AccessibilityService() {
      * cannot block it.  The notification is auto-cancelled after 2 s once the
      * activity is already showing.
      */
-    private fun launchBlockOverlay(blockedPackage: String) {
+    private fun launchBlockOverlay(
+        blockedPackage: String,
+        blockReasonOverride: String? = null,
+    ) {
         val appName     = resolveAppDisplayName(blockedPackage)
-        val blockReason = buildBlockReason(blockedPackage)
+        val blockReason = blockReasonOverride ?: buildBlockReason(blockedPackage)
 
         // Prefer WindowManager overlay (appears directly over any app, no task switch)
         if (canUseWindowOverlay()) {
