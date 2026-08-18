@@ -680,7 +680,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                     if (!samePackage || cooldownExpired) {
                         lastBlockedPkg = pkg
                         lastBlockedAtMs = now
-                        handleBlockedApp(pkg)
+                        handleBlockedApp(pkg, "Blocked by the standalone app block list")
                         scheduleRetryCheck(pkg, 1, focusActive, saActive, alwaysBlockActive)
                     }
                     return
@@ -695,7 +695,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                     if (!samePackage || cooldownExpired) {
                         lastBlockedPkg = pkg
                         lastBlockedAtMs = now
-                        handleBlockedApp(pkg)
+                        handleBlockedApp(pkg, "Not allowed in the current Focus Mode app list")
                         scheduleRetryCheck(pkg, 1, focusActive, saActive, alwaysBlockActive)
                     }
                     return
@@ -868,58 +868,58 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                 // own process — isUninstallDialog() catches "uninstall"/"remove app"
                 // in that popup's node tree and blocks it before it can be tapped.
                 if (isLauncherPkg && isUninstallDialog(ev)) {
-                    handleBlockedApp(pkg)
+                    handleBlockedApp(pkg, "System Protection blocked an uninstall or app-removal action")
                     return
                 }
 
                 // Block uninstall dialogs — show overlay so user sees why they're blocked.
                 if (isUninstallDialog(ev)) {
-                    handleBlockedApp(pkg)
+                    handleBlockedApp(pkg, "System Protection blocked an uninstall or app-removal action")
                     return
                 }
                 // Block accessibility settings to prevent disabling this service mid-session.
                 if (isAccessibilitySettingsPage(ev)) {
-                    handleBlockedApp(pkg)
+                    handleBlockedApp(pkg, "System Protection blocked the Accessibility settings page")
                     return
                 }
                 // Block "Clear data / Clear storage" dialogs in Settings during any block session.
                 if (isClearDataDialog(ev)) {
-                    handleBlockedApp(pkg)
+                    handleBlockedApp(pkg, "System Protection blocked the app data settings page")
                     return
                 }
                 // Block date/time settings to prevent clock manipulation.
                 if (isDateTimeSettingsPage(ev)) {
-                    handleBlockedApp(pkg)
+                    handleBlockedApp(pkg, "System Protection blocked the date and time settings page")
                     return
                 }
                 // Block Usage Access settings to prevent revoking usage permission.
                 if (isUsageAccessSettingsPage(ev)) {
-                    handleBlockedApp(pkg)
+                    handleBlockedApp(pkg, "System Protection blocked the Usage Access settings page")
                     return
                 }
                 // Block Battery Optimization settings to prevent killing the blocking service.
                 if (isBatteryOptimizationSettingsPage(ev)) {
-                    handleBlockedApp(pkg)
+                    handleBlockedApp(pkg, "System Protection blocked the Battery Optimization settings page")
                     return
                 }
                 // Block Device Admin settings to prevent deactivating admin rights.
                 if (isDeviceAdminSettingsPage(ev)) {
-                    handleBlockedApp(pkg)
+                    handleBlockedApp(pkg, "System Protection blocked the Device Admin settings page")
                     return
                 }
                 // Block Developer Options to prevent ADB, "Don't keep activities", etc.
                 if (isDeveloperOptionsPage(ev)) {
-                    handleBlockedApp(pkg)
+                    handleBlockedApp(pkg, "System Protection blocked the Developer Options page")
                     return
                 }
                 // Block Reset settings pages — would disable accessibility service or wipe the phone.
                 if (isResetSettingsPage(ev)) {
-                    handleBlockedApp(pkg)
+                    handleBlockedApp(pkg, "System Protection blocked the reset settings page")
                     return
                 }
                 // Block Special Access page — gateway to device admin, overlay, usage access, etc.
                 if (isSpecialAccessPage(ev)) {
-                    handleBlockedApp(pkg)
+                    handleBlockedApp(pkg, "System Protection blocked the Special Access settings page")
                     return
                 }
                 // Block "Default home app" / "Choose home app" Settings page during active
@@ -948,7 +948,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             INSTALLER_PACKAGES.any { pkg.equals(it, ignoreCase = true) } &&
             isUninstallDialog(ev)
         ) {
-            handleBlockedApp(pkg)
+            handleBlockedApp(pkg, "System Protection blocked an uninstall or app-removal action")
             return
         }
 
@@ -975,15 +975,15 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         //   • blockYoutubeShorts   — YouTube Shorts player (rest of YouTube OK).
         //   • blockInstagramReels  — Instagram Reels / clips viewer (rest of IG OK).
         if (blockInstallActions && isInstallActionContext(ev, pkg)) {
-            handleBlockedApp(pkg)
+            handleBlockedApp(pkg, "Install and uninstall protection is active")
             return
         }
         if (blockYoutubeShorts && pkg == "com.google.android.youtube" && isYoutubeShorts(ev)) {
-            handleBlockedApp(pkg)
+            handleBlockedApp(pkg, "YouTube Shorts are blocked by your FocusFlow rule")
             return
         }
         if (blockInstagramReels && pkg == "com.instagram.android" && isInstagramReels(ev)) {
-            handleBlockedApp(pkg)
+            handleBlockedApp(pkg, "Instagram Reels are blocked by your FocusFlow rule")
             return
         }
 
@@ -997,18 +997,15 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         run {
             val blockedWords = getBlockedWords()
             if (blockedWords.isNotEmpty()) {
-                val isBrowser = BROWSER_PACKAGES.contains(pkg)
-                if (isBrowser) {
+                val match = if (BROWSER_PACKAGES.contains(pkg)) {
                     // Deep full scan for browsers + also extract URL bar specifically
-                    if (containsBlockedWordBrowser(ev, blockedWords)) {
-                        handleBlockedApp(pkg)
-                        return
-                    }
+                    findBlockedWordBrowser(ev, blockedWords)
                 } else {
-                    if (containsBlockedWord(ev, blockedWords)) {
-                        handleBlockedApp(pkg)
-                        return
-                    }
+                    findBlockedWord(ev, blockedWords)
+                }
+                if (match != null) {
+                    handleBlockedApp(pkg, blockedWordReason(match))
+                    return
                 }
             }
         }
@@ -1022,7 +1019,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             if (!samePackage || cooldownDone) {
                 lastBlockedPkg  = pkg
                 lastBlockedAtMs = now
-                handleBlockedApp(pkg)
+                handleBlockedApp(pkg, "Blocked by your active block schedule")
                 scheduleGreyoutRetryCheck(pkg, 1)
             }
             return
@@ -1047,7 +1044,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             if (!samePackage || cooldownExpired) {
                 lastBlockedPkg = pkg
                 lastBlockedAtMs = now
-                handleBlockedApp(pkg)
+                handleBlockedApp(pkg, explicitBlockReason(pkg, focusActive, saActive, alwaysBlockActive))
                 scheduleRetryCheck(pkg, 1, focusActive, saActive, alwaysBlockActive)
             }
             return
@@ -1094,7 +1091,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             if (!samePackage || cooldownExpired) {
                 lastBlockedPkg = pkg
                 lastBlockedAtMs = now
-                handleBlockedApp(pkg)
+                handleBlockedApp(pkg, allowanceExhaustedReason(pkg, allowanceEntry))
                 scheduleRetryCheck(pkg, 1, focusActive, saActive, alwaysBlockActive)
             }
             return
@@ -1108,7 +1105,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             if (!samePackage || cooldownExpired) {
                 lastBlockedPkg = pkg
                 lastBlockedAtMs = now
-                handleBlockedApp(pkg)
+                handleBlockedApp(pkg, explicitBlockReason(pkg, focusActive, saActive, alwaysBlockActive))
                 scheduleRetryCheck(pkg, 1, focusActive, saActive, alwaysBlockActive)
             }
         } else {
@@ -2449,7 +2446,14 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         // 1. Kill the network first — before the overlay even appears, the blocked
         //    app's pending requests are already cut. On a slow phone the user may
         //    briefly see the app, but it will be loading a blank screen.
-        triggerNetworkBlock(blockedPackage)
+        val networkBlockActive = triggerNetworkBlock(blockedPackage)
+        val fullReason = buildBlockReason(
+            blockedPackage,
+            listOfNotNull(
+                blockReason?.takeIf { it.isNotBlank() },
+                networkBlockActive.takeIf { it }?.let { "Network blocking is active for this app" },
+            ).joinToString("\n\n").ifBlank { null },
+        )
 
         // 2. Set the awaiting package BEFORE launching/dismissing so the very next
         //    window event (launcher coming to front) is guaranteed to trigger the
@@ -2459,7 +2463,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         // 3. Launch the full-screen overlay. This takes the foreground before the
         //    blocked app finishes rendering on most devices. The overlay handles its
         //    own re-raise on slow phones via onPause(), so this service can back off.
-        launchBlockOverlay(blockedPackage, blockReason)
+        launchBlockOverlay(blockedPackage, fullReason)
 
         // 4. Close the blocked app: BACK → HOME (150 ms) → BACK (160 ms).
         //    These key presses act on the blocked app itself and do not affect the
@@ -2489,10 +2493,10 @@ class AppBlockerAccessibilityService : AccessibilityService() {
      * Those supplementary actions are handled by NetworkBlockModule from the JS layer
      * when the user manually starts a session. The VPN tunnel covers both channels.
      */
-    private fun triggerNetworkBlock(blockedPackage: String) {
-        if (!prefs.getBoolean("net_block_enabled", false)) return
-        if (!prefs.getBoolean("net_block_vpn", true)) return
-        if (NetworkBlockerVpnService.isRunning) return   // already active
+    private fun triggerNetworkBlock(blockedPackage: String): Boolean {
+        if (!prefs.getBoolean("net_block_enabled", false)) return false
+        if (!prefs.getBoolean("net_block_vpn", true)) return false
+        if (NetworkBlockerVpnService.isRunning) return true   // already active
 
         // net_block_packages is the single canonical list. If it is empty,
         // protect the app that triggered the event; otherwise protect the
@@ -2504,13 +2508,13 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         } catch (_: Exception) {
             emptyList()
         }
-        if (canonicalPackages.isNotEmpty() && blockedPackage !in canonicalPackages) return
+        if (canonicalPackages.isNotEmpty() && blockedPackage !in canonicalPackages) return false
 
         // VPN permission check — prepare() returns null if permission is already held
         try {
             val permissionIntent = VpnService.prepare(applicationContext)
-            if (permissionIntent != null) return  // not yet granted — skip, don't crash
-        } catch (_: Exception) { return }
+            if (permissionIntent != null) return false  // not yet granted — skip, don't crash
+        } catch (_: Exception) { return false }
 
         val global = prefs.getBoolean("net_block_global", false)
         val mode   = if (global) NetworkBlockerVpnService.MODE_GLOBAL
@@ -2532,11 +2536,13 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             } else {
                 startService(intent)
             }
+            return true
             } catch (e: Exception) {
                 prefs.edit()
                     .putString("vpn_status", NetworkBlockerVpnService.STATUS_STARTUP_FAILED)
                     .putString("vpn_error", e.message ?: "AccessibilityService could not start VPN service")
                     .apply()
+            return false
             }
     }
 
@@ -2833,6 +2839,101 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         return pool.random()
     }
 
+    /** Formats a matched configured keyword without exposing captured page/input text. */
+    private fun blockedWordReason(word: String): String {
+        val safeWord = word.replace(Regex("\\s+"), " ").trim().take(80)
+        return "Blocked keyword “$safeWord” detected"
+    }
+
+    /**
+     * Explains an explicit package-list block. Focus, standalone, and Always-On
+     * lists are checked independently because their protections can overlap.
+     */
+    private fun explicitBlockReason(
+        pkg: String,
+        focusActive: Boolean,
+        saActive: Boolean,
+        alwaysBlockActive: Boolean,
+    ): String {
+        val reasons = mutableListOf<String>()
+
+        if (INSTALLER_PACKAGES.any { pkg.equals(it, ignoreCase = true) } &&
+            (focusActive || saActive || alwaysBlockActive)
+        ) {
+            reasons += "System Protection blocked this installer action"
+        }
+
+        if (focusActive) {
+            val allowedList = parseJsonArray(prefs.getString(PREF_ALLOWED_PKG, "[]") ?: "[]")
+            if (allowedList.isNotEmpty() && allowedList.none { it.equals(pkg, ignoreCase = true) }) {
+                reasons += "Not allowed in the current Focus Mode app list"
+            } else if (allowedList.isEmpty() &&
+                !prefs.getString(PREF_DAILY_ALLOWANCE_CONFIG, null).isNullOrBlank() &&
+                findAllowanceEntry(pkg) == null
+            ) {
+                reasons += "Not included in the current daily allowance list"
+            }
+        }
+
+        if (saActive) {
+            val blocked = parseJsonArray(prefs.getString(PREF_SA_PKGS, "[]") ?: "[]")
+            if (blocked.any { it.equals(pkg, ignoreCase = true) }) {
+                reasons += "Blocked by the standalone app block list"
+            }
+        }
+
+        if (alwaysBlockActive) {
+            val blocked = parseJsonArray(prefs.getString(PREF_ALWAYS_BLOCK_PKGS, "[]") ?: "[]")
+            if (blocked.any { it.equals(pkg, ignoreCase = true) }) {
+                reasons += "Blocked by Always-On protection"
+            }
+        }
+
+        return reasons.distinct().joinToString("\n\n").ifBlank {
+            "Blocked by active FocusFlow protection"
+        }
+    }
+
+    /** Describes the exact quota that prevented an allowance app from opening. */
+    private fun allowanceExhaustedReason(pkg: String, entry: AllowanceEntry): String {
+        val used = loadUsedObject().optJSONObject(pkg)
+        return when (entry.mode) {
+            "count" -> {
+                val today = todayDateString()
+                val usedCount = if (used?.optString("date", "") == today) {
+                    used.optInt("count", 0)
+                } else {
+                    0
+                }
+                "Daily allowance exhausted — $usedCount/${entry.countPerDay} opens used today"
+            }
+            "time_budget" -> {
+                val today = todayDateString()
+                val usedMs = if (used?.optString("date", "") == today) {
+                    used.optLong("usedMs", 0L)
+                } else {
+                    0L
+                }
+                "Daily allowance exhausted — ${formatAllowanceDuration(usedMs)} of " +
+                    "${formatAllowanceDuration(entry.budgetMs)} used today"
+            }
+            "interval" -> {
+                val usedMs = used?.optLong("usedMs", 0L) ?: 0L
+                val windowHours = (entry.windowMs / 3_600_000L).coerceAtLeast(1L)
+                "Allowance window exhausted — ${formatAllowanceDuration(usedMs)} of " +
+                    "${formatAllowanceDuration(entry.intervalMs)} used in the " +
+                    "${windowHours}-hour window"
+            }
+            else -> "Daily allowance exhausted"
+        }
+    }
+
+    private fun formatAllowanceDuration(durationMs: Long): String {
+        val minutes = durationMs.coerceAtLeast(0L) / 60_000L
+        if (minutes == 0L && durationMs > 0L) return "<1 minute"
+        return if (minutes == 1L) "1 minute" else "$minutes minutes"
+    }
+
     /**
      * Builds a human-readable explanation of why an app is currently blocked.
      *
@@ -2842,14 +2943,19 @@ class AppBlockerAccessibilityService : AccessibilityService() {
      * returned, one per line, so the overlay can display the full picture.
      *
      * Priority / order:
-     *   1. Focus mode (task name + end time if set)
-     *   2. Standalone block (end time if set)
-     *   3. Always-On protection
-     *   4. Block schedule / greyout (only when 1-3 are all inactive)
+     *   1. Immediate trigger (keyword, quota, explicit list, or system guard)
+     *   2. Focus mode (task name + end time if set)
+     *   3. Standalone block (end time if set)
+     *   4. Always-On protection
+     *   5. Block schedule / greyout
      */
-    private fun buildBlockReason(pkg: String = ""): String {
+    private fun buildBlockReason(
+        pkg: String = "",
+        immediateReason: String? = null,
+    ): String {
         val now   = System.currentTimeMillis()
         val parts = mutableListOf<String>()
+        immediateReason?.trim()?.takeIf { it.isNotEmpty() }?.let { parts += it }
 
         // 1. Focus mode (task-based session)
         val focusActive = prefs.getBoolean(PREF_FOCUS_ON, false)
@@ -2884,8 +2990,11 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             parts += "Always-On protection active"
         }
 
-        // 4. Block schedule (greyout) — shown only when no session-based reason is active
-        if (parts.isEmpty() && pkg.isNotEmpty() && isInGreyoutWindow(pkg)) {
+        // 5. Include a schedule alongside a keyword/quota trigger, but avoid
+        // duplicating it when an active session already explains the block.
+        if (!focusActive && !saActive && !prefs.getBoolean(PREF_ALWAYS_BLOCK, false) &&
+            pkg.isNotEmpty() && isInGreyoutWindow(pkg)
+        ) {
             parts += "Block schedule active"
         }
 
@@ -3238,8 +3347,9 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         val runnable = Runnable {
             val currentWords = getBlockedWords()
             if (currentWords.isEmpty()) return@Runnable
-            if (containsBlockedWordSubstring(captured, currentWords)) {
-                handleBlockedApp(capturedPkg)
+            val match = findBlockedWordSubstring(captured, currentWords)
+            if (match != null) {
+                handleBlockedApp(capturedPkg, blockedWordReason(match))
             }
         }
         textDebounceRunnable = runnable
@@ -3272,8 +3382,13 @@ class AppBlockerAccessibilityService : AccessibilityService() {
 
         // Scan the URL bar specifically (fast path) then fall back to shallow scan
         val urlText = extractUrlBarText(event)
-        if (urlText.isNotBlank() && containsBlockedWordSubstring(urlText, words)) {
-            handleBlockedApp(pkg)
+        val urlMatch = if (urlText.isNotBlank()) {
+            findBlockedWordSubstring(urlText, words)
+        } else {
+            null
+        }
+        if (urlMatch != null) {
+            handleBlockedApp(pkg, blockedWordReason(urlMatch))
             return
         }
         // Also do a shallow node scan for visible page content
@@ -3284,8 +3399,13 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                 finally { root.recycle() }
             }
         }.lowercase()
-        if (corpus.isNotBlank() && containsBlockedWordSubstring(corpus, words)) {
-            handleBlockedApp(pkg)
+        val contentMatch = if (corpus.isNotBlank()) {
+            findBlockedWordSubstring(corpus, words)
+        } else {
+            null
+        }
+        if (contentMatch != null) {
+            handleBlockedApp(pkg, blockedWordReason(contentMatch))
         }
     }
 
@@ -3330,9 +3450,13 @@ class AppBlockerAccessibilityService : AccessibilityService() {
      * Used for URL bars and search fields where keywords are part of a continuous
      * string (e.g. "gaming" inside "gaming.com" or "search?q=gaming+news").
      */
-    private fun containsBlockedWordSubstring(text: String, words: List<String>): Boolean {
+    private fun findBlockedWordSubstring(text: String, words: List<String>): String? {
         val lower = text.lowercase()
-        return words.any { it.lowercase() in lower }
+        return words.firstOrNull { it.lowercase() in lower }
+    }
+
+    private fun containsBlockedWordSubstring(text: String, words: List<String>): Boolean {
+        return findBlockedWordSubstring(text, words) != null
     }
 
     /**
@@ -3343,10 +3467,12 @@ class AppBlockerAccessibilityService : AccessibilityService() {
      * 3. Also does whole-word matching on the page title / visible text so that
      *    a legitimate word in an article title is still caught.
      */
-    private fun containsBlockedWordBrowser(event: AccessibilityEvent, words: List<String>): Boolean {
+    private fun findBlockedWordBrowser(event: AccessibilityEvent, words: List<String>): String? {
         // ① Check URL bar first — substring match (no word boundaries needed)
         val urlText = extractUrlBarText(event)
-        if (urlText.isNotBlank() && containsBlockedWordSubstring(urlText, words)) return true
+        if (urlText.isNotBlank()) {
+            findBlockedWordSubstring(urlText, words)?.let { return it }
+        }
 
         // ② Build a full corpus from the visible node tree (deep scan for browsers)
         val corpus = buildString {
@@ -3357,16 +3483,20 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                 finally { root.recycle() }
             }
         }.lowercase()
-        if (corpus.isBlank()) return false
+        if (corpus.isBlank()) return null
 
         // ③ Substring match on full corpus (catches query strings, path segments)
-        if (containsBlockedWordSubstring(corpus, words)) return true
+        findBlockedWordSubstring(corpus, words)?.let { return it }
 
         // ④ Also whole-word match — catches article titles where partial substrings
         //    would cause false positives (e.g. "game" matching "games" in sports news)
-        return words.any { word ->
+        return words.firstOrNull { word ->
             Regex("\\b${Regex.escape(word.lowercase())}\\b").containsMatchIn(corpus)
         }
+    }
+
+    private fun containsBlockedWordBrowser(event: AccessibilityEvent, words: List<String>): Boolean {
+        return findBlockedWordBrowser(event, words) != null
     }
 
     private fun getBlockedWords(): List<String> {
@@ -3384,7 +3514,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
      * For browser packages, use [containsBlockedWordBrowser] instead which also
      * checks the URL bar with substring matching.
      */
-    private fun containsBlockedWord(event: AccessibilityEvent, words: List<String>): Boolean {
+    private fun findBlockedWord(event: AccessibilityEvent, words: List<String>): String? {
         val corpus = buildString {
             event.text?.forEach { t -> t?.let { append(it); append(' ') } }
             event.contentDescription?.let { append(it); append(' ') }
@@ -3396,11 +3526,15 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                 }
             }
         }.lowercase()
-        if (corpus.isBlank()) return false
-        return words.any { word ->
+        if (corpus.isBlank()) return null
+        return words.firstOrNull { word ->
             val pattern = Regex("\\b${Regex.escape(word.lowercase())}\\b")
             pattern.containsMatchIn(corpus)
         }
+    }
+
+    private fun containsBlockedWord(event: AccessibilityEvent, words: List<String>): Boolean {
+        return findBlockedWord(event, words) != null
     }
 
     // ─── Node text collectors ─────────────────────────────────────────────────
