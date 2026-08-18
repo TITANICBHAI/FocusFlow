@@ -14,6 +14,7 @@ import android.os.PowerManager
 import android.os.Process
 import android.provider.Settings
 import android.view.accessibility.AccessibilityManager
+import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
@@ -93,94 +94,99 @@ class UsageStatsModule(private val reactContext: ReactApplicationContext) :
                 return
             }
 
-            val usageManager =
-                reactContext.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
-            val rows = usageManager.queryUsageStats(
-                UsageStatsManager.INTERVAL_DAILY,
-                start,
-                end,
-            ).orEmpty()
+            val usageManager = reactContext.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
             val packageManager = reactContext.packageManager
-            /*
-             * UsageStats rows expose aggregated foreground time, but the public
-             * UsageStats API available to this build does not expose a usable
-             * app-launch count. Count foreground transitions from the device's
-             * event stream instead. De-duplicating consecutive events for the
-             * same package avoids treating in-app activity navigation as a new
-             * launch.
-             */
-            val launchCounts = mutableMapOf<String, Int>()
-            val usageEvents = usageManager.queryEvents(start, end)
-            val event = UsageEvents.Event()
-            val foregroundEventType =
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    UsageEvents.Event.ACTIVITY_RESUMED
-                } else {
-                    UsageEvents.Event.MOVE_TO_FOREGROUND
-                }
-            var lastForegroundPackage: String? = null
-            while (usageEvents.hasNextEvent()) {
-                usageEvents.getNextEvent(event)
-                if (event.eventType != foregroundEventType) continue
+            val ownPackage = reactContext.packageName
 
-                val packageName = event.packageName
-                if (packageName != lastForegroundPackage) {
-                    launchCounts[packageName] =
-                        (launchCounts[packageName] ?: 0) + 1
-                    lastForegroundPackage = packageName
+            val foregroundType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
+                UsageEvents.Event.ACTIVITY_RESUMED else UsageEvents.Event.MOVE_TO_FOREGROUND
+            val backgroundType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
+                UsageEvents.Event.ACTIVITY_PAUSED  else UsageEvents.Event.MOVE_TO_BACKGROUND
+
+            // Per-package accumulators
+            val fgStartMs    = mutableMapOf<String, Long>()   // foreground session start timestamp
+            val foregroundMs = mutableMapOf<String, Long>()   // clipped foreground duration
+            val launchCounts = mutableMapOf<String, Int>()
+            val lastUsedAt   = mutableMapOf<String, Long>()
+            var lastFgPkg: String? = null
+
+            // Query 24h before `start` so sessions already in progress at the boundary
+            // (e.g. an app open at midnight) are captured. The maxOf(fgStart, start)
+            // clamp below clips their pre-boundary portion correctly.
+            val queryStart = start - 24L * 60 * 60 * 1000L
+            val events = usageManager.queryEvents(queryStart, end)
+            val event  = UsageEvents.Event()
+
+            while (events.hasNextEvent()) {
+                events.getNextEvent(event)
+                val pkg = event.packageName
+                if (pkg == ownPackage) continue
+
+                lastUsedAt[pkg] = maxOf(lastUsedAt[pkg] ?: 0L, event.timeStamp)
+
+                when (event.eventType) {
+                    foregroundType -> {
+                        fgStartMs[pkg] = event.timeStamp  // may be before `start` — intentional
+                        if (pkg != lastFgPkg) {
+                            // Only count as a launch if the foreground event is inside the window
+                            if (event.timeStamp >= start) {
+                                launchCounts[pkg] = (launchCounts[pkg] ?: 0) + 1
+                            }
+                            lastFgPkg = pkg
+                        }
+                    }
+                    backgroundType -> {
+                        val fgStart = fgStartMs.remove(pkg) ?: continue
+                        val clippedStart = maxOf(fgStart, start)   // clips pre-start portion
+                        val clippedEnd   = minOf(event.timeStamp, end)
+                        if (clippedEnd > clippedStart) {
+                            foregroundMs[pkg] = (foregroundMs[pkg] ?: 0L) + (clippedEnd - clippedStart)
+                        }
+                    }
                 }
             }
 
-            /*
-             * FocusFlow is also the device's HOME launcher. Android therefore
-             * reports LauncherActivity as foreground for the time the user is
-             * sitting on the FocusFlow home screen. Digital Wellbeing does not
-             * present that launcher/home time as ordinary app usage. Exclude
-             * our own package so this card remains comparable to app-time
-             * dashboards instead of measuring "time with the launcher open".
-             */
-            val appRows = rows.filterNot { it.packageName == reactContext.packageName }
-            val grouped = appRows.groupBy { it.packageName }
-            val apps = grouped.mapNotNull { (pkg, pkgRows) ->
-                // Keep the millisecond precision while aggregating all
-                // buckets for a package. Flooring each daily bucket before
-                // summing can lose nearly one minute per bucket and makes
-                // short-but-real usage disappear from the report.
-                val foregroundMs = pkgRows.sumOf { it.totalTimeInForeground }
-                val foregroundMinutes = (foregroundMs / 60_000L).toInt()
-                if (foregroundMs <= 0L) return@mapNotNull null
-
-                val appName = try {
-                    packageManager.getApplicationLabel(
-                        packageManager.getApplicationInfo(pkg, 0)
-                    ).toString()
-                } catch (_: Exception) {
-                    pkg
+            // Handle sessions still in foreground at the end of the query window
+            // (app was foregrounded but no BACKGROUND event arrived before `end`)
+            val now = System.currentTimeMillis()
+            for ((pkg, fgStart) in fgStartMs) {
+                val clippedStart = maxOf(fgStart, start)
+                val clippedEnd   = minOf(now, end)
+                if (clippedEnd > clippedStart) {
+                    foregroundMs[pkg] = (foregroundMs[pkg] ?: 0L) + (clippedEnd - clippedStart)
                 }
+            }
 
-                val lastUsed = pkgRows.maxOf { it.lastTimeUsed }
+            // Build the app list sorted by foreground time descending
+            val apps = foregroundMs.entries
+                .filter { it.value > 0L }
+                .map { (pkg, ms) ->
+                    val appName = try {
+                        packageManager.getApplicationLabel(
+                            packageManager.getApplicationInfo(pkg, 0)
+                        ).toString()
+                    } catch (_: Exception) { pkg }
 
-                WritableNativeMap().apply {
-                    putString("packageName", pkg)
-                    putString("appName", appName)
-                    putInt("foregroundMinutes", foregroundMinutes)
-                    putInt("launchCount", launchCounts[pkg] ?: 0)
-                    putDouble("lastUsedAt", lastUsed.toDouble())
+                    WritableNativeMap().apply {
+                        putString("packageName",    pkg)
+                        putString("appName",        appName)
+                        putInt("foregroundMinutes", (ms / 60_000L).toInt())
+                        putInt("launchCount",       launchCounts[pkg] ?: 0)
+                        putDouble("lastUsedAt",     (lastUsedAt[pkg] ?: 0L).toDouble())
+                    }
                 }
-            }.sortedByDescending { it.getInt("foregroundMinutes") }
+                .sortedByDescending { it.getInt("foregroundMinutes") }
 
-            // Calculate the headline from raw milliseconds rather than from
-            // already-rounded package rows. The package list is intentionally
-            // still displayed in whole minutes for a compact UI.
-            val totalMinutes = appRows.sumOf { it.totalTimeInForeground } / 60_000L
-            val appArray = com.facebook.react.bridge.Arguments.createArray()
+            val totalMs      = foregroundMs.values.sumOf { it }
+            val totalMinutes = (totalMs / 60_000L).toInt()
+
+            val appArray = Arguments.createArray()
             apps.forEach { appArray.pushMap(it) }
 
-            val result = WritableNativeMap().apply {
-                putInt("totalMinutes", totalMinutes.toInt())
+            promise.resolve(WritableNativeMap().apply {
+                putInt("totalMinutes", totalMinutes)
                 putArray("apps", appArray)
-            }
-            promise.resolve(result)
+            })
         } catch (e: Exception) {
             promise.reject("USAGE_SUMMARY_ERROR", e.message, e)
         }
