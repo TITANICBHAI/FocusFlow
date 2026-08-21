@@ -39,8 +39,8 @@ Use `[blocked]` only when work cannot proceed; explain the blocker and do not ti
 | 4 | Focus tab restructure | [blocked] Implemented; typecheck blocked by package firewall | ☐ |
 | 5 | Schedule cleanup | [blocked] Implemented; typecheck blocked by missing dependencies | ☐ |
 | 6 | Task creation redesign | [blocked] Implemented; typecheck blocked by missing dependencies | ☐ |
-| 7 | Stats internal swipe | [blocked] Pager integration added; dependency/typecheck blocked | ☐ |
-| 8 | Main-tab swipe | ☐ Not started | ☐ |
+| 7 | Stats internal swipe | [blocked] Pager integration added; package linking/typecheck blocked by package firewall | ☐ |
+| 8 | Main-tab swipe | [blocked] Implemented; typecheck blocked by package firewall | ☐ |
 | 9 | `.focusflow` file association | ☐ Not started | ☐ |
 | F | Final verification | ☐ Not started | ☐ |
 
@@ -134,7 +134,7 @@ Use `[blocked]` only when work cannot proceed; explain the blocker and do not ti
   - Evidence: `artifacts/focusflow/app/(tabs)/focus.tsx` — `taskPanel`, `timerPanel`, `progressTrack`, `progressFill`, `taskTitle`, and `taskTime` styles support the new layout.
 - [x] **P4.10** Confirm `focus.tsx` has exactly one component return and no conditional hook calls.
   - Evidence: `rg -n "return \\(" artifacts/focusflow/app/(tabs)/focus.tsx` — one `FocusScreen` return; hooks are declared before the single return and not inside render branches.
-- [ ] **P4.TS** Run `tsc --noEmit`; zero errors.
+- [blocked] **P4.TS** Run `tsc --noEmit`; zero errors.
   - Evidence: `pnpm install --frozen-lockfile --filter @workspace/focusflow --ignore-scripts` and `pnpm --filter @workspace/focusflow run typecheck` — blocked by the package firewall rejecting `shell-quote@1.8.3` (HTTP 403), leaving `tsc` unavailable.
 
 ---
@@ -145,7 +145,7 @@ Use `[blocked]` only when work cannot proceed; explain the blocker and do not ti
   - Evidence: `artifacts/focusflow/app/(tabs)/index.tsx` — the non-blocking schedule-health `<View>` was removed; the active/time's-up banner and all other Schedule UI remain.
 - [x] **P5.2** Retain `scheduleHealth`, `healthWarning`, and `healthColor` variables.
   - Evidence: `artifacts/focusflow/app/(tabs)/index.tsx` — all three derived variables remain immediately before the component return.
-- [ ] **P5.TS** Run `tsc --noEmit`; zero errors.
+- [blocked] **P5.TS** Run `tsc --noEmit`; zero errors.
   - Evidence: `pnpm --filter @workspace/focusflow run typecheck` — blocked because FocusFlow dependencies are missing after the package firewall rejected `shell-quote@1.8.3` with HTTP 403; `tsc` is unavailable.
 
 ---
@@ -174,7 +174,7 @@ Use `[blocked]` only when work cannot proceed; explain the blocker and do not ti
   - Evidence: `artifacts/focusflow/src/components/EditTaskModal.tsx` — `showNotes` initializes from existing description content and controls the Notes disclosure.
 - [x] **P6.11** Add all requested chip, tag, allowed-app, and notes styles.
   - Evidence: `artifacts/focusflow/src/components/EditTaskModal.tsx` — duration, tag, Customize, allowed-app description, Notes disclosure, and helper styles are defined and used.
-- [ ] **P6.TS** Run `tsc --noEmit`; zero errors.
+- [blocked] **P6.TS** Run `tsc --noEmit`; zero errors.
   - Evidence: `pnpm --filter @workspace/focusflow run typecheck` — blocked because FocusFlow dependencies are missing after the package firewall rejected `shell-quote@1.8.3` with HTTP 403; `tsc` is unavailable.
 
 ---
@@ -182,7 +182,7 @@ Use `[blocked]` only when work cannot proceed; explain the blocker and do not ti
 ## Phase 7 — Stats internal swipe (`app/(tabs)/stats.tsx`)
 
 - [blocked] **P7.1** Install/use `react-native-pager-view` and add the PagerView import.
-  - Evidence: `artifacts/focusflow/app/(tabs)/stats.tsx` — PagerView import and integration are present, but the package is absent from the manifests because installation remains blocked by the package firewall.
+  - Evidence: `artifacts/focusflow/package.json`, `pnpm-lock.yaml`, `artifacts/focusflow/app/(tabs)/stats.tsx` — dependency declaration and lockfile resolution for `react-native-pager-view@9.0.2` are now present and the import/integration is wired; package linking remains blocked by the package firewall rejecting `shell-quote@1.8.3` with HTTP 403.
 - [x] **P7.2** Add the PagerView ref and `FILTER_ORDER` mapping.
   - Evidence: `artifacts/focusflow/app/(tabs)/stats.tsx` — `pagerRef`, `FILTER_ORDER`, and the separate Today-first `FILTER_PILL_ORDER` are defined.
 - [x] **P7.3** Make filter pills update both filter state and pager page.
@@ -191,23 +191,23 @@ Use `[blocked]` only when work cannot proceed; explain the blocker and do not ti
   - Evidence: `artifacts/focusflow/app/(tabs)/stats.tsx` — Yesterday, Today, Week, and All Time blocks are direct pager pages with their existing content preserved.
 - [x] **P7.5** Keep content outside/after the four blocks, such as QuickBlockSheet, outside PagerView.
   - Evidence: `artifacts/focusflow/app/(tabs)/stats.tsx` — `QuickBlockSheet` remains after the closing `PagerView`.
-- [ ] **P7.TS** Run `tsc --noEmit`; zero errors.
-  - Evidence: `pnpm --filter @workspace/focusflow run typecheck` — blocked because `tsc` is unavailable with missing FocusFlow dependencies; the package firewall previously rejected `shell-quote@1.8.3` with HTTP 403.
+- [blocked] **P7.TS** Run `tsc --noEmit`; zero errors.
+  - Evidence: `pnpm --filter @workspace/focusflow run typecheck` — blocked because dependency linking failed when the package firewall rejected `shell-quote@1.8.3` with HTTP 403.
 
 ---
 
 ## Phase 8 — Swipe between main tabs (`app/(tabs)/_layout.tsx`)
 
-- [ ] **P8.1** Add gesture-handler and pathname/router imports.
-  - Evidence:
-- [ ] **P8.2** Add the ordered tab path map and sub-page guard.
-  - Evidence:
-- [ ] **P8.3** Add horizontal pan behavior with the specified offsets and 60px navigation thresholds.
-  - Evidence:
-- [ ] **P8.4** Wrap the existing tab layout root with `GestureDetector` without removing existing side-menu behavior.
-  - Evidence:
-- [ ] **P8.TS** Run `tsc --noEmit`; zero errors.
-  - Evidence:
+- [x] **P8.1** Add gesture-handler and pathname/router imports.
+  - Evidence: `artifacts/focusflow/app/(tabs)/_layout.tsx` — imports `Gesture`, `GestureDetector`, `router`, and `usePathname` from the repository's existing APIs.
+- [x] **P8.2** Add the ordered tab path map and sub-page guard.
+  - Evidence: `artifacts/focusflow/app/(tabs)/_layout.tsx` — `TAB_PATHS` follows Focus, Schedule, Defense, Stats, Settings, and swiping is ignored when `pathname` is outside that exact main-tab set.
+- [x] **P8.3** Add horizontal pan behavior with the specified offsets and 60px navigation thresholds.
+  - Evidence: `artifacts/focusflow/app/(tabs)/_layout.tsx` — `Gesture.Pan()` uses 20px horizontal activation/vertical failure offsets and navigates left/right only at the 60px translation threshold.
+- [x] **P8.4** Wrap the existing tab layout root with `GestureDetector` without removing existing side-menu behavior.
+  - Evidence: `artifacts/focusflow/app/(tabs)/_layout.tsx` — `Tabs`, `SideMenuToggle`, `SideMenuGuideTip`, and `SideMenu` remain intact inside the new gesture wrapper.
+- [blocked] **P8.TS** Run `tsc --noEmit`; zero errors.
+  - Evidence: `pnpm --filter @workspace/focusflow run typecheck` — blocked because FocusFlow-local `tsc` is unavailable after the package firewall rejected `shell-quote@1.8.3` with HTTP 403.
 
 ---
 
@@ -215,62 +215,62 @@ Use `[blocked]` only when work cannot proceed; explain the blocker and do not ti
 
 ### 9A — Android intent filter (`plugins/withFocusDayAndroid.js`)
 
-- [ ] **P9A.1** Add the file-association config plugin.
-  - Evidence:
-- [ ] **P9A.2** Add guarded `content://` octet-stream and `file://` `.focusflow` VIEW filters.
-  - Evidence:
-- [ ] **P9A.3** Compose the plugin as the final step before `module.exports`.
-  - Evidence:
+- [x] **P9A.1** Add the file-association config plugin.
+  - Evidence: `artifacts/focusflow/plugins/withFocusDayAndroid.js` — `withFocusFlowFileAssociation` adds the guarded file-association modifier.
+- [x] **P9A.2** Add guarded `content://` octet-stream and `file://` `.focusflow` VIEW filters.
+  - Evidence: `artifacts/focusflow/plugins/withFocusDayAndroid.js` — guarded `VIEW` filters include `DEFAULT`/`BROWSABLE`, `content` + `application/octet-stream`, and `file` + `application/octet-stream` + `.*\\.focusflow`.
+- [x] **P9A.3** Compose the plugin as the final step before `module.exports`.
+  - Evidence: `artifacts/focusflow/plugins/withFocusDayAndroid.js` — `withFocusFlowFileAssociation(config)` is composed after backup rules and immediately before returning the config.
 
 ### 9B — Import host (`app/_layout.tsx`)
 
-- [ ] **P9B.1** Add FileSystem, Linking, backup-service, and Alert imports as needed.
-  - Evidence:
-- [ ] **P9B.2** Add `FileImportHost` inside `AppProvider`.
-  - Evidence:
-- [ ] **P9B.3** Handle initial and subsequent links, accept only `.focusflow`/content/file URIs, and show read/invalid-file errors.
-  - Evidence:
-- [ ] **P9B.4** Show a user-confirmed import summary before merging backup data.
-  - Evidence:
-- [ ] **P9B.5** Preserve current tasks/settings and refresh after applying the backup.
-  - Evidence:
+- [x] **P9B.1** Add FileSystem, Linking, backup-service, and Alert imports as needed.
+  - Evidence: `artifacts/focusflow/app/_layout.tsx` — imports `expo-file-system/legacy`, `Linking`, `Alert`, `parseBackupJson`, `restoreFromJson`, and task reminder scheduling.
+- [x] **P9B.2** Add `FileImportHost` inside `AppProvider`.
+  - Evidence: `artifacts/focusflow/app/_layout.tsx` — `FileImportHost` uses `useApp()` and is rendered inside the existing `AppProvider`.
+- [x] **P9B.3** Handle initial and subsequent links, accept only `.focusflow`/content/file URIs, and show read/invalid-file errors.
+  - Evidence: `artifacts/focusflow/app/_layout.tsx` — handles `Linking.getInitialURL()` and `url` events, accepts guarded `content://` or `.focusflow` `file://` URIs, reads them with FileSystem, and reports read/validation failures.
+- [x] **P9B.4** Show a user-confirmed import summary before merging backup data.
+  - Evidence: `artifacts/focusflow/app/_layout.tsx` — validates first, presents task/blocked-word counts, and requires the user to press Import before calling `restoreFromJson`.
+- [x] **P9B.5** Preserve current tasks/settings and refresh after applying the backup.
+  - Evidence: `artifacts/focusflow/app/_layout.tsx`, `artifacts/focusflow/src/services/backupService.ts` — passes current state with `replaceTasks: false`, uses the existing merge restore path, and supplies `refreshTasks`.
 
 ### 9C — Backup service exports (`src/services/backupService.ts`)
 
-- [ ] **P9C.1** Confirm `BackupEnvelope` is exported; add only the export keyword if missing.
-  - Evidence:
-- [ ] **P9C.2** Confirm `parseBackupJson` and `restoreFromJson` are exported; flag missing functions rather than inventing implementations.
-  - Evidence:
-- [ ] **P9.TS** Run `tsc --noEmit`; zero errors.
-  - Evidence:
+- [x] **P9C.1** Confirm `BackupEnvelope` is exported; add only the export keyword if missing.
+  - Evidence: `artifacts/focusflow/src/services/backupService.ts` — `BackupEnvelope` is already exported; no change was needed.
+- [x] **P9C.2** Confirm `parseBackupJson` and `restoreFromJson` are exported; flag missing functions rather than inventing implementations.
+  - Evidence: `artifacts/focusflow/src/services/backupService.ts` — both existing exports are used by `FileImportHost`; no replacement implementation was added.
+- [blocked] **P9.TS** Run `tsc --noEmit`; zero errors.
+  - Evidence: `pnpm --filter @workspace/focusflow run typecheck` — blocked because FocusFlow-local `tsc` is unavailable after the package firewall rejected `shell-quote@1.8.3` with HTTP 403.
 
 ---
 
 ## Final verification gate
 
-- [ ] **F.1** Run `tsc --noEmit` and confirm zero errors.
-  - Evidence:
-- [ ] **F.2** Confirm `app/(tabs)/defense.tsx` exists and is referenced in `_layout.tsx`.
-  - Evidence:
-- [ ] **F.3** Confirm `DarkModeToggle` appears in `settings.tsx` and is not rendered in `_layout.tsx`.
-  - Evidence:
-- [ ] **F.4** Confirm `focus.tsx` has exactly one return statement.
-  - Evidence:
-- [ ] **F.5** Confirm `StandaloneCountdown` remains in `focus.tsx`.
-  - Evidence:
-- [ ] **F.6** Confirm `PomodoroStrip` and `SecondaryBtn` remain in `focus.tsx`.
-  - Evidence:
-- [ ] **F.7** Confirm no file was deleted.
-  - Evidence:
-- [ ] **F.8** Re-check every phase above: no unchecked item may be described as complete.
-  - Evidence:
-- [ ] **F.9** Record any deviations from the attached source plan here:
-  - Evidence:
+- [blocked] **F.1** Run `tsc --noEmit` and confirm zero errors.
+  - Evidence: `pnpm --filter @workspace/focusflow run typecheck` — blocked because `tsc` is unavailable after the package firewall rejected `shell-quote@1.8.3` with HTTP 403.
+- [x] **F.2** Confirm `app/(tabs)/defense.tsx` exists and is referenced in `_layout.tsx`.
+  - Evidence: `defense.tsx` exists and `_layout.tsx` registers the `defense` tab.
+- [x] **F.3** Confirm `DarkModeToggle` appears in `settings.tsx` and is not rendered in `_layout.tsx`.
+  - Evidence: `DarkModeToggle` is rendered in `settings.tsx`; `_layout.tsx` has no render usage.
+- [x] **F.4** Confirm `focus.tsx` has exactly one return statement.
+  - Evidence: `FocusScreen` has one component return; helper components retain their required returns.
+- [x] **F.5** Confirm `StandaloneCountdown` remains in `focus.tsx`.
+  - Evidence: `StandaloneCountdown` remains defined and rendered by `focus.tsx`.
+- [x] **F.6** Confirm `PomodoroStrip` and `SecondaryBtn` remain in `focus.tsx`.
+  - Evidence: both components remain defined and rendered by `focus.tsx`.
+- [x] **F.7** Confirm no file was deleted.
+  - Evidence: `git diff --name-status` contains no deleted files.
+- [x] **F.8** Re-check every phase above: no unchecked item may be described as complete.
+  - Evidence: incomplete verification items are explicitly marked `[blocked]` with evidence; implementation items have evidence.
+- [x] **F.9** Record any deviations from the attached source plan here:
+  - Evidence: TypeScript verification is the only deviation; it is blocked by the unavailable compiler after the package-firewall failure. Structural and implementation checks otherwise match the plan.
 
 ## Completion record
 
 - Started:
 - Last updated:
 - Completed:
-- Overall status: ☐ Not started  ☐ In progress  ☐ Blocked  ☐ Complete
+- Overall status: ☐ Not started  ☐ In progress  ☒ Blocked  ☐ Complete
 - Final verification owner:
