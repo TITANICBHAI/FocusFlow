@@ -12,9 +12,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import dayjs from 'dayjs';
 import { useApp } from '@/context/AppContext';
-import type { DailyAllowanceEntry, GreyoutWindow } from '@/data/types';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 import { useTheme } from '@/hooks/useTheme';
 import Constants from 'expo-constants';
@@ -27,9 +25,6 @@ import {
 import { exportBackup, pickAndImportBackup } from '@/services/backupService';
 import { formatDuration } from '@/services/taskService';
 import { AllowedAppsModal } from '@/components/AllowedAppsModal';
-import { StandaloneBlockModal } from '@/components/StandaloneBlockModal';
-import { BlockedWordsModal } from '@/components/BlockedWordsModal';
-import { GreyoutScheduleModal } from '@/components/GreyoutScheduleModal';
 import { OverlayAppearanceModal } from '@/components/OverlayAppearanceModal';
 import DiagnosticsModal from '@/components/DiagnosticsModal';
 import ReportIssueModal from '@/components/ReportIssueModal';
@@ -41,13 +36,10 @@ const DURATION_OPTIONS = [30, 45, 60, 90, 120];
 
 function SettingsScreen() {
   const insets = useSafeAreaInsets();
-  const { state, updateSettings, setStandaloneBlockAndAllowance, setBlockedWords, refreshTasks, deleteTask, addTask } = useApp();
+  const { state, updateSettings, refreshTasks, deleteTask, addTask } = useApp();
   const { settings } = state;
   const { theme } = useTheme();
   const [appsModalVisible, setAppsModalVisible] = useState(false);
-  const [blockModalVisible, setBlockModalVisible] = useState(false);
-  const [wordsModalVisible, setWordsModalVisible] = useState(false);
-  const [greyoutModalVisible, setGreyoutModalVisible] = useState(false);
   const [overlayAppearanceVisible, setOverlayAppearanceVisible] = useState(false);
   const [diagnosticsVisible, setDiagnosticsVisible] = useState(false);
   const [reportIssueVisible, setReportIssueVisible] = useState(false);
@@ -70,32 +62,6 @@ function SettingsScreen() {
 
   const update = async (partial: Partial<typeof settings>) => {
     await updateSettings({ ...settings, ...partial });
-  };
-
-  // ── Standalone block status ───────────────────────────────────────────────
-
-  const standaloneActive = (() => {
-    if (!settings.standaloneBlockUntil) return false;
-    if ((settings.standaloneBlockPackages ?? []).length === 0) return false;
-    return new Date(settings.standaloneBlockUntil).getTime() > Date.now();
-  })();
-
-  const blockUntilLabel = standaloneActive && settings.standaloneBlockUntil
-    ? dayjs(settings.standaloneBlockUntil).format('MMM D [at] h:mm A')
-    : null;
-
-  const handleSaveStandaloneBlock = async (packages: string[], untilMs: number | null, allowanceEntries: DailyAllowanceEntry[], vpnPackages?: string[]) => {
-    await setStandaloneBlockAndAllowance(packages, untilMs, allowanceEntries, vpnPackages);
-  };
-
-  const handleSaveBlockPreset = async (preset: import('@/data/types').BlockPreset) => {
-    const presets = [...(settings.blockPresets ?? []), preset];
-    await update({ blockPresets: presets });
-  };
-
-  const handleDeleteBlockPreset = async (id: string) => {
-    const presets = (settings.blockPresets ?? []).filter((p) => p.id !== id);
-    await update({ blockPresets: presets });
   };
 
   // ── Other handlers ────────────────────────────────────────────────────────
@@ -208,13 +174,6 @@ function SettingsScreen() {
 
       <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { paddingBottom: 60 + insets.bottom + 20 }]}>
 
-        {/* ── Appearance ── */}
-        <Section title="Appearance">
-          <SettingRow label="Dark Mode" description="Use a darker color palette throughout FocusFlow">
-            <DarkModeToggle />
-          </SettingRow>
-        </Section>
-
         {/* ── Profile ── */}
         <Section title="Profile">
           <SettingButton
@@ -233,6 +192,23 @@ function SettingsScreen() {
             }
             onPress={() => router.push('/user-profile')}
           />
+        </Section>
+
+        {/* ── Active ── */}
+        <Section title="Active">
+          <SettingButton
+            icon="pulse-outline"
+            label="Active Blocks"
+            description="See every focus session, standalone block, and recurring block running now"
+            onPress={() => router.push('/active')}
+          />
+        </Section>
+
+        {/* ── Appearance ── */}
+        <Section title="Appearance">
+          <SettingRow label="Dark Mode" description="Use a darker color palette throughout FocusFlow">
+            <DarkModeToggle />
+          </SettingRow>
         </Section>
 
         {/* ── Notifications ── */}
@@ -289,62 +265,6 @@ function SettingsScreen() {
             label="Manage Allowed Apps"
             description={settings.allowedInFocus.length === 0 ? 'All apps will be blocked during Focus Mode' : `${settings.allowedInFocus.length} app${settings.allowedInFocus.length !== 1 ? 's' : ''} allowed during Focus Mode`}
             onPress={() => setAppsModalVisible(true)}
-          />
-        </Section>
-
-        {/* ── Word Blocking ── */}
-        <Section title="Word Blocking">
-          <SettingButton
-            icon="text-outline"
-            label="Manage Blocked Keywords"
-            description={
-              (settings.blockedWords ?? []).length === 0
-                ? 'No keywords set — blocked in URLs, searches & on-screen text'
-                : `${(settings.blockedWords ?? []).length} keyword${(settings.blockedWords ?? []).length !== 1 ? 's' : ''} — blocked in URLs, searches & on-screen text`
-            }
-            onPress={() => setWordsModalVisible(true)}
-          />
-        </Section>
-
-        {/* ── Block Schedules ── */}
-        <Section title="Block Schedules">
-          <SettingButton
-            icon="time-outline"
-            label="Manage Time-Window Blocks"
-            description={
-              (settings.greyoutSchedule ?? []).length === 0
-                ? 'No windows set — block apps during specific hours and days'
-                : `${(settings.greyoutSchedule ?? []).length} window${(settings.greyoutSchedule ?? []).length !== 1 ? 's' : ''} active — tap to manage`
-            }
-            onPress={() => setGreyoutModalVisible(true)}
-          />
-        </Section>
-
-        {/* ── Standalone Block ── */}
-        <Section title="Standalone Block">
-          {standaloneActive ? (
-            <View style={styles.blockActiveCard}>
-              <View style={styles.blockActiveRow}>
-                <View style={styles.blockDot} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.blockActiveTitle}>Block active</Text>
-                  <Text style={styles.blockActiveDesc}>
-                    {(settings.standaloneBlockPackages ?? []).length} app{(settings.standaloneBlockPackages ?? []).length !== 1 ? 's' : ''} blocked until {blockUntilLabel}
-                  </Text>
-                </View>
-              </View>
-            </View>
-          ) : (
-            <View style={styles.blockInactiveCard}>
-              <Ionicons name="shield-outline" size={18} color={theme.muted} />
-              <Text style={[styles.blockInactiveText, { color: theme.muted }]}>No scheduled block active</Text>
-            </View>
-          )}
-          <SettingButton
-            icon={standaloneActive ? 'lock-closed-outline' : 'ban-outline'}
-            label={standaloneActive ? 'Add More Apps to Block' : 'Set Standalone Block'}
-            description={standaloneActive ? 'Block is locked — you can add apps but not remove any until it expires' : 'Block specific apps until a date and time — regardless of tasks. Apps stay retained for always-on enforcement after the timer ends.'}
-            onPress={() => setBlockModalVisible(true)}
           />
         </Section>
 
@@ -487,36 +407,6 @@ function SettingsScreen() {
         allowedPackages={settings.allowedInFocus}
         onSave={handleSaveAllowedApps}
         onClose={() => setAppsModalVisible(false)}
-      />
-
-      <StandaloneBlockModal
-        visible={blockModalVisible}
-        blockedPackages={settings.standaloneBlockPackages ?? []}
-        blockUntil={settings.standaloneBlockUntil}
-        locked={standaloneActive}
-        dailyAllowanceEntries={settings.dailyAllowanceEntries ?? []}
-        vpnPackages={settings.standaloneVpnPackages ?? []}
-        blockPresets={settings.blockPresets ?? []}
-        onSave={handleSaveStandaloneBlock}
-        onSavePreset={handleSaveBlockPreset}
-        onDeletePreset={handleDeleteBlockPreset}
-        onClose={() => setBlockModalVisible(false)}
-      />
-
-      <BlockedWordsModal
-        visible={wordsModalVisible}
-        words={settings.blockedWords ?? []}
-        locked={standaloneActive}
-        requireDefensePin={true}
-        onSave={async (words) => { await setBlockedWords(words); }}
-        onClose={() => setWordsModalVisible(false)}
-      />
-
-      <GreyoutScheduleModal
-        visible={greyoutModalVisible}
-        windows={settings.greyoutSchedule ?? []}
-        onSave={async (windows: GreyoutWindow[]) => { await update({ greyoutSchedule: windows }); }}
-        onClose={() => setGreyoutModalVisible(false)}
       />
 
       <OverlayAppearanceModal

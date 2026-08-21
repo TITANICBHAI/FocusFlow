@@ -97,7 +97,7 @@ export default function HowToUseScreen() {
   const { theme, isDark } = useTheme();
   const params = useLocalSearchParams<{ onboarding?: string }>();
   // When opened as part of the first-run flow, hide the back arrow and show
-  // a prominent "Get Started" CTA at the bottom that drops the user on /.
+  // a prominent "Get Started" CTA at the bottom that drops the user on Defense.
   const isOnboarding = params.onboarding === '1';
   const [expanded, setExpanded] = useState<number | null>(0);
 
@@ -109,7 +109,7 @@ export default function HowToUseScreen() {
   useEffect(() => {
     if (!isOnboarding) return;
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      router.replace('/');
+      router.replace('/(tabs)/defense');
       return true;
     });
     return () => sub.remove();
@@ -133,7 +133,7 @@ export default function HowToUseScreen() {
         </View>
         {isOnboarding && (
           <TouchableOpacity
-            onPress={() => router.replace('/')}
+            onPress={() => router.replace('/(tabs)/defense')}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             style={styles.skipLink}
           >
@@ -205,7 +205,7 @@ export default function HowToUseScreen() {
         {isOnboarding && (
           <TouchableOpacity
             style={[styles.ctaBtn, { backgroundColor: COLORS.primary }]}
-            onPress={() => router.replace('/')}
+            onPress={() => router.replace('/(tabs)/defense')}
             activeOpacity={0.85}
           >
             <Text style={styles.ctaText}>Got it — let&apos;s start</Text>

@@ -549,28 +549,28 @@ export function StandaloneBlockModal({
     }
   };
 
-  const onDateChange = (_: DateTimePickerEvent, date?: Date) => {
+  const onDateChange = (event: DateTimePickerEvent, date?: Date) => {
     setShowDatePicker(false);
-    if (date) {
-      const merged = dayjs(date)
-        .hour(untilDate.getHours())
-        .minute(untilDate.getMinutes())
+    if (event.type !== 'set' || !date) return;
+    setUntilDate((current) =>
+      dayjs(date)
+        .hour(current.getHours())
+        .minute(current.getMinutes())
         .second(0)
-        .toDate();
-      setUntilDate(merged);
-    }
+        .toDate(),
+    );
   };
 
-  const onTimeChange = (_: DateTimePickerEvent, date?: Date) => {
+  const onTimeChange = (event: DateTimePickerEvent, date?: Date) => {
     setShowTimePicker(false);
-    if (date) {
-      const merged = dayjs(untilDate)
+    if (event.type !== 'set' || !date) return;
+    setUntilDate((current) =>
+      dayjs(current)
         .hour(date.getHours())
         .minute(date.getMinutes())
         .second(0)
-        .toDate();
-      setUntilDate(merged);
-    }
+        .toDate(),
+    );
   };
 
   const allowanceSummary = (entry: DailyAllowanceEntry) => {

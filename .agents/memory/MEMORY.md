@@ -9,3 +9,4 @@
 - [React UI plan companion](react-ui-plan-traceability.md) — the second imported UI plan is related but noisier; validate it against the primary plan before implementation.
 - [Dependency installation timing](dependency-installation-timing.md) — read the applicable plan and do requested code edits before installing dependencies; install when the user asks or verification requires it.
 - [Workspace package firewall](workspace-package-firewall.md) — filtered frozen installs can still fail on the shared shell-quote tarball before workspace-local node_modules is linked.
+- [System-control enforcement gate](system-control-enforcement-gate.md) — installer and system-control interception must require the explicit Protect system controls toggle.

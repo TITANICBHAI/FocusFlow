@@ -2386,7 +2386,12 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         saActive: Boolean,
         alwaysBlockActive: Boolean = false,
     ): Boolean {
-        if (focusActive || saActive || alwaysBlockActive) {
+        // Installer/package-manager protection belongs exclusively to the
+        // Protect system controls toggle. Focus, Standalone, and Always-On
+        // app blocking must not make Android package installation unusable.
+        if (prefs.getBoolean(PREF_SYSTEM_GUARD_ENABLED, false) &&
+            (focusActive || saActive || alwaysBlockActive)
+        ) {
             if (INSTALLER_PACKAGES.any { pkg.equals(it, ignoreCase = true) }) return true
         }
 

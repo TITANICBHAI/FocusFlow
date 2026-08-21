@@ -1,19 +1,14 @@
 import { BlurView } from "expo-blur";
 import { router, Tabs, usePathname } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useCallback } from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 
 import { COLORS } from "@/styles/theme";
 import { useTheme } from "@/hooks/useTheme";
-import DarkModeToggle from "@/components/DarkModeToggle";
-import { SideMenu, SideMenuToggle, SideMenuGuideTip } from "@/components/SideMenu";
-import { useApp } from "@/context/AppContext";
 
-const SIDE_MENU_TIP_KEY = "@focusflow/sideMenuTipSeen";
 const TAB_PATHS = [
   "/(tabs)/focus",
   "/(tabs)",
@@ -30,35 +25,6 @@ export default function TabLayout() {
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
   const { theme, isDark } = useTheme();
-  const { state } = useApp();
-
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [showGuideTip, setShowGuideTip] = useState(false);
-
-  // Show guide tip once after onboarding completes
-  useEffect(() => {
-    if (!state.isDbReady || !state.settings.onboardingComplete) return;
-    void AsyncStorage.getItem(SIDE_MENU_TIP_KEY).then((seen) => {
-      if (!seen) {
-        // Small delay so the user sees the main screen first
-        const t = setTimeout(() => setShowGuideTip(true), 1800);
-        return () => clearTimeout(t);
-      }
-    });
-  }, [state.isDbReady, state.settings.onboardingComplete]);
-
-  const dismissGuideTip = useCallback(async () => {
-    setShowGuideTip(false);
-    await AsyncStorage.setItem(SIDE_MENU_TIP_KEY, "1");
-  }, []);
-
-  const openMenu = useCallback(() => {
-    setMenuOpen(true);
-    // Dismiss the tip if still showing
-    if (showGuideTip) void dismissGuideTip();
-  }, [showGuideTip, dismissGuideTip]);
-
-  const closeMenu = useCallback(() => setMenuOpen(false), []);
 
   const tabBarH = isWeb ? 84 : 60 + insets.bottom;
   const currentTabIndex = TAB_PATHS.indexOf(pathname as TabPath);
@@ -69,8 +35,9 @@ export default function TabLayout() {
   }, [currentTabIndex]);
 
   const tabSwipeGesture = Gesture.Pan()
-    .activeOffsetX([-20, 20])
-    .failOffsetY([-20, 20])
+    .activeOffsetX([-32, 32])
+    .failOffsetY([-14, 14])
+    .minDistance(32)
     .runOnJS(true)
     .onEnd((event) => {
       if (currentTabIndex < 0) return;
@@ -193,28 +160,6 @@ export default function TabLayout() {
           }}
         />
         </Tabs>
-
-        {/* Side menu toggle — "›" tab above bottom nav bar */}
-        <SideMenuToggle
-          onPress={menuOpen ? closeMenu : openMenu}
-          isOpen={menuOpen}
-          tabBarHeight={tabBarH}
-        />
-
-        {/* Guide tip — one-time hint pointing to the side menu button */}
-        <SideMenuGuideTip
-          visible={showGuideTip}
-          onDismiss={dismissGuideTip}
-          tabBarHeight={tabBarH}
-        />
-
-        {/* Side menu panel + backdrop */}
-        <SideMenu
-          visible={menuOpen}
-          onOpen={openMenu}
-          onClose={closeMenu}
-          tabBarHeight={tabBarH}
-        />
       </View>
     </GestureDetector>
   );
