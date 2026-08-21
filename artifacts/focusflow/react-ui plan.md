@@ -36,10 +36,10 @@ Use `[blocked]` only when work cannot proceed; explain the blocker and do not ti
 | 1 | Tab navigation shell | [blocked] Typecheck blocked by incomplete install | ☐ |
 | 2 | Defense tab | [blocked] Typecheck blocked by incomplete install | ☐ |
 | 3 | Settings cleanup | [blocked] Typecheck blocked by incomplete install | ☐ |
-| 4 | Focus tab restructure | ☐ Not started | ☐ |
-| 5 | Schedule cleanup | ☐ Not started | ☐ |
-| 6 | Task creation redesign | ☐ Not started | ☐ |
-| 7 | Stats internal swipe | ☐ Not started | ☐ |
+| 4 | Focus tab restructure | [blocked] Implemented; typecheck blocked by package firewall | ☐ |
+| 5 | Schedule cleanup | [blocked] Implemented; typecheck blocked by missing dependencies | ☐ |
+| 6 | Task creation redesign | [blocked] Implemented; typecheck blocked by missing dependencies | ☐ |
+| 7 | Stats internal swipe | [blocked] Pager integration added; dependency/typecheck blocked | ☐ |
 | 8 | Main-tab swipe | ☐ Not started | ☐ |
 | 9 | `.focusflow` file association | ☐ Not started | ☐ |
 | F | Final verification | ☐ Not started | ☐ |
@@ -114,85 +114,85 @@ Use `[blocked]` only when work cannot proceed; explain the blocker and do not ti
 
 ## Phase 4 — Focus tab restructure (`app/(tabs)/focus.tsx`)
 
-- [ ] **P4.1** Read the complete file before editing.
-  - Evidence:
-- [ ] **P4.2** Remove ring animation refs/effects, `useWindowDimensions`, and unused `Animated` import.
-  - Evidence:
-- [ ] **P4.3** Update `TimerDisplay` to the non-ring timer shape, retaining it only if needed.
-  - Evidence:
-- [ ] **P4.4** Remove the old no-task empty UI and unified enforcement panel.
-  - Evidence:
-- [ ] **P4.5** Remove obsolete enforcement variables, defense/daily allowance modal state, `TipsCard`, and `TIPS`.
-  - Evidence:
-- [ ] **P4.6** Keep `useTaskTimer` unconditional at component level.
-  - Evidence:
-- [ ] **P4.7** Replace the multiple-return structure with one return containing the accessibility banner, standalone block panel, and task session panel.
-  - Evidence:
-- [ ] **P4.8** Preserve standalone countdown, Pomodoro strip, secondary buttons, task actions, and all required modals.
-  - Evidence:
-- [ ] **P4.9** Add the new panel, progress, task-title, and task-time styles without removing still-used styles.
-  - Evidence:
-- [ ] **P4.10** Confirm `focus.tsx` has exactly one component return and no conditional hook calls.
-  - Evidence:
+- [x] **P4.1** Read the complete file before editing.
+  - Evidence: `artifacts/focusflow/app/(tabs)/focus.tsx` — complete 1,760-line source was read before the Phase 4 edit.
+- [x] **P4.2** Remove ring animation refs/effects, `useWindowDimensions`, and unused `Animated` import.
+  - Evidence: `artifacts/focusflow/app/(tabs)/focus.tsx` — ring refs/effects, window sizing, and `Animated` import are absent.
+- [x] **P4.3** Update `TimerDisplay` to the non-ring timer shape, retaining it only if needed.
+  - Evidence: `artifacts/focusflow/app/(tabs)/focus.tsx` — `TimerDisplay` now renders a standalone timer panel from the unconditional `TimerState`.
+- [x] **P4.4** Remove the old no-task empty UI and unified enforcement panel.
+  - Evidence: `artifacts/focusflow/app/(tabs)/focus.tsx` — old no-task copy, enforcement panel, and its rows were replaced by the compact ready/standalone panels.
+- [x] **P4.5** Remove obsolete enforcement variables, defense/daily allowance modal state, `TipsCard`, and `TIPS`.
+  - Evidence: `artifacts/focusflow/app/(tabs)/focus.tsx` — enforcement helpers/state, daily allowance modal state, `TipsCard`, and `TIPS` are absent.
+- [x] **P4.6** Keep `useTaskTimer` unconditional at component level.
+  - Evidence: `artifacts/focusflow/app/(tabs)/focus.tsx` — `useTaskTimer` is called once before the render branches with empty-string inputs when no task exists.
+- [x] **P4.7** Replace the multiple-return structure with one return containing the accessibility banner, standalone block panel, and task session panel.
+  - Evidence: `artifacts/focusflow/app/(tabs)/focus.tsx` — `FocusScreen` has one return containing the ready/standalone panels, accessibility banner, and task session panel.
+- [x] **P4.8** Preserve standalone countdown, Pomodoro strip, secondary buttons, task actions, and all required modals.
+  - Evidence: `artifacts/focusflow/app/(tabs)/focus.tsx` — `StandaloneCountdown`, `PomodoroStrip`, `SecondaryBtn`, task actions, standalone block, extend, rotation, and focus PIN modals remain wired.
+- [x] **P4.9** Add the new panel, progress, task-title, and task-time styles without removing still-used styles.
+  - Evidence: `artifacts/focusflow/app/(tabs)/focus.tsx` — `taskPanel`, `timerPanel`, `progressTrack`, `progressFill`, `taskTitle`, and `taskTime` styles support the new layout.
+- [x] **P4.10** Confirm `focus.tsx` has exactly one component return and no conditional hook calls.
+  - Evidence: `rg -n "return \\(" artifacts/focusflow/app/(tabs)/focus.tsx` — one `FocusScreen` return; hooks are declared before the single return and not inside render branches.
 - [ ] **P4.TS** Run `tsc --noEmit`; zero errors.
-  - Evidence:
+  - Evidence: `pnpm install --frozen-lockfile --filter @workspace/focusflow --ignore-scripts` and `pnpm --filter @workspace/focusflow run typecheck` — blocked by the package firewall rejecting `shell-quote@1.8.3` (HTTP 403), leaving `tsc` unavailable.
 
 ---
 
 ## Phase 5 — Schedule tab cleanup (`app/(tabs)/index.tsx`)
 
-- [ ] **P5.1** Remove only the rendered schedule health banner.
-  - Evidence:
-- [ ] **P5.2** Retain `scheduleHealth`, `healthWarning`, and `healthColor` variables.
-  - Evidence:
+- [x] **P5.1** Remove only the rendered schedule health banner.
+  - Evidence: `artifacts/focusflow/app/(tabs)/index.tsx` — the non-blocking schedule-health `<View>` was removed; the active/time's-up banner and all other Schedule UI remain.
+- [x] **P5.2** Retain `scheduleHealth`, `healthWarning`, and `healthColor` variables.
+  - Evidence: `artifacts/focusflow/app/(tabs)/index.tsx` — all three derived variables remain immediately before the component return.
 - [ ] **P5.TS** Run `tsc --noEmit`; zero errors.
-  - Evidence:
+  - Evidence: `pnpm --filter @workspace/focusflow run typecheck` — blocked because FocusFlow dependencies are missing after the package firewall rejected `shell-quote@1.8.3` with HTTP 403; `tsc` is unavailable.
 
 ---
 
 ## Phase 6 — Task creation redesign (`src/components/EditTaskModal.tsx`)
 
-- [ ] **P6.1** Read the complete modal before editing.
-  - Evidence:
-- [ ] **P6.2** Remove redundant field-label Text elements while retaining input placeholders.
-  - Evidence:
-- [ ] **P6.3** Replace typed duration input with 25m/45m/1h/1h 30m/2h preset chips.
-  - Evidence:
-- [ ] **P6.4** Auto-set task color from priority and remove the color picker UI; retain color state for saving.
-  - Evidence:
-- [ ] **P6.5** Remove only the Pomodoro toggle from the Focus Mode section.
-  - Evidence:
-- [ ] **P6.6** Simplify allowed-apps UI to the Customize row and global-list description.
-  - Evidence:
-- [ ] **P6.7** Remove `useGlobalApps` state and setter without changing focus-service behavior.
-  - Evidence:
-- [ ] **P6.8** Replace comma-separated tags input with removable tag chips and submit-to-add input.
-  - Evidence:
-- [ ] **P6.9** Save `localTags` and preserve existing tags when editing.
-  - Evidence:
-- [ ] **P6.10** Make Notes collapsed by default unless existing content is present.
-  - Evidence:
-- [ ] **P6.11** Add all requested chip, tag, allowed-app, and notes styles.
-  - Evidence:
+- [x] **P6.1** Read the complete modal before editing.
+  - Evidence: `artifacts/focusflow/src/components/EditTaskModal.tsx` — complete 474-line modal was read before the Phase 6 edit.
+- [x] **P6.2** Remove redundant field-label Text elements while retaining input placeholders.
+  - Evidence: `artifacts/focusflow/src/components/EditTaskModal.tsx` — redundant Title, Notes, Start Time, Duration, Tags, and Color labels were removed while input placeholders remain.
+- [x] **P6.3** Replace typed duration input with 25m/45m/1h/1h 30m/2h preset chips.
+  - Evidence: `artifacts/focusflow/src/components/EditTaskModal.tsx` — `DURATION_PRESETS` renders the five requested chips and saves their numeric minute values.
+- [x] **P6.4** Auto-set task color from priority and remove the color picker UI; retain color state for saving.
+  - Evidence: `artifacts/focusflow/src/components/EditTaskModal.tsx` — priority selection updates `color` from `PRIORITY_COLORS`; color state is saved and the color picker is absent.
+- [x] **P6.5** Remove only the Pomodoro toggle from the Focus Mode section.
+  - Evidence: `artifacts/focusflow/src/components/EditTaskModal.tsx` — Focus Mode and allowed-app behavior remain; the Pomodoro toggle and its settings mutation are removed.
+- [x] **P6.6** Simplify allowed-apps UI to the Customize row and global-list description.
+  - Evidence: `artifacts/focusflow/src/components/EditTaskModal.tsx` — Focus Mode now shows the global/custom description and a single Customize row that opens `AppPickerSheet`.
+- [x] **P6.7** Remove `useGlobalApps` state and setter without changing focus-service behavior.
+  - Evidence: `artifacts/focusflow/src/components/EditTaskModal.tsx` — `useGlobalApps` state/setter are absent; undefined global packages and custom package arrays are still saved through `focusAllowedPackages`.
+- [x] **P6.8** Replace comma-separated tags input with removable tag chips and submit-to-add input.
+  - Evidence: `artifacts/focusflow/src/components/EditTaskModal.tsx` — existing tags render as removable chips and the Add a tag input adds on submit.
+- [x] **P6.9** Save `localTags` and preserve existing tags when editing.
+  - Evidence: `artifacts/focusflow/src/components/EditTaskModal.tsx` — `localTags` initializes from `task.tags` and is saved directly.
+- [x] **P6.10** Make Notes collapsed by default unless existing content is present.
+  - Evidence: `artifacts/focusflow/src/components/EditTaskModal.tsx` — `showNotes` initializes from existing description content and controls the Notes disclosure.
+- [x] **P6.11** Add all requested chip, tag, allowed-app, and notes styles.
+  - Evidence: `artifacts/focusflow/src/components/EditTaskModal.tsx` — duration, tag, Customize, allowed-app description, Notes disclosure, and helper styles are defined and used.
 - [ ] **P6.TS** Run `tsc --noEmit`; zero errors.
-  - Evidence:
+  - Evidence: `pnpm --filter @workspace/focusflow run typecheck` — blocked because FocusFlow dependencies are missing after the package firewall rejected `shell-quote@1.8.3` with HTTP 403; `tsc` is unavailable.
 
 ---
 
 ## Phase 7 — Stats internal swipe (`app/(tabs)/stats.tsx`)
 
-- [ ] **P7.1** Install/use `react-native-pager-view` and add the PagerView import.
-  - Evidence:
-- [ ] **P7.2** Add the PagerView ref and `FILTER_ORDER` mapping.
-  - Evidence:
-- [ ] **P7.3** Make filter pills update both filter state and pager page.
-  - Evidence:
-- [ ] **P7.4** Wrap the four existing filter content blocks in one PagerView without changing their content.
-  - Evidence:
-- [ ] **P7.5** Keep content outside/after the four blocks, such as QuickBlockSheet, outside PagerView.
-  - Evidence:
+- [blocked] **P7.1** Install/use `react-native-pager-view` and add the PagerView import.
+  - Evidence: `artifacts/focusflow/app/(tabs)/stats.tsx` — PagerView import and integration are present, but the package is absent from the manifests because installation remains blocked by the package firewall.
+- [x] **P7.2** Add the PagerView ref and `FILTER_ORDER` mapping.
+  - Evidence: `artifacts/focusflow/app/(tabs)/stats.tsx` — `pagerRef`, `FILTER_ORDER`, and the separate Today-first `FILTER_PILL_ORDER` are defined.
+- [x] **P7.3** Make filter pills update both filter state and pager page.
+  - Evidence: `artifacts/focusflow/app/(tabs)/stats.tsx` — pill presses call `setFilter` and `pagerRef.current?.setPage`; `onPageSelected` synchronizes swipe changes back to `filter`.
+- [x] **P7.4** Wrap the four existing filter content blocks in one PagerView without changing their content.
+  - Evidence: `artifacts/focusflow/app/(tabs)/stats.tsx` — Yesterday, Today, Week, and All Time blocks are direct pager pages with their existing content preserved.
+- [x] **P7.5** Keep content outside/after the four blocks, such as QuickBlockSheet, outside PagerView.
+  - Evidence: `artifacts/focusflow/app/(tabs)/stats.tsx` — `QuickBlockSheet` remains after the closing `PagerView`.
 - [ ] **P7.TS** Run `tsc --noEmit`; zero errors.
-  - Evidence:
+  - Evidence: `pnpm --filter @workspace/focusflow run typecheck` — blocked because `tsc` is unavailable with missing FocusFlow dependencies; the package firewall previously rejected `shell-quote@1.8.3` with HTTP 403.
 
 ---
 

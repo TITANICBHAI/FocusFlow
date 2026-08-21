@@ -95,32 +95,6 @@ function ScheduleScreen() {
         </View>
       </View>
 
-      {/* Non-blocking schedule quality signal. The existing analyzer catches
-          conflicts and unusually large gaps; keep it visible without turning
-          it into another modal or interruptive workflow. */}
-      <View
-        style={[
-          styles.scheduleHealth,
-          { backgroundColor: healthColor + '12', borderColor: healthColor + '35' },
-        ]}
-      >
-        <Ionicons
-          name={healthWarning ? 'warning-outline' : 'checkmark-circle-outline'}
-          size={16}
-          color={healthColor}
-        />
-        <View style={styles.scheduleHealthCopy}>
-          <Text style={[styles.scheduleHealthTitle, { color: healthColor }]}>
-            {healthWarning ?? 'Schedule looks clean'}
-          </Text>
-          <Text style={[styles.scheduleHealthDetail, { color: theme.textSecondary }]}>
-            {healthWarning
-              ? 'Review the affected task times below.'
-              : `${Math.round(scheduleHealth.totalScheduledMinutes)} minutes scheduled today`}
-          </Text>
-        </View>
-      </View>
-
       {/* Active / Time's-up Banner — surfaces ended-but-undecided tasks too. */}
       {bannerTask && (
         <TouchableOpacity

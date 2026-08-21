@@ -9,7 +9,7 @@
  *  All Time  — lifetime hero numbers, 12-week calendar heatmap, milestone badges
  */
 
-import React, { useMemo, useEffect, useState, useCallback } from 'react';
+import React, { useMemo, useEffect, useState, useCallback, useRef } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { withScreenErrorBoundary } from '@/components/withScreenErrorBoundary';
 import {
@@ -36,10 +36,13 @@ import {
 import { GreyoutModule, TemptationEntry } from '@/native-modules/GreyoutModule';
 import { UsageInsights } from '@/components/UsageInsights';
 import { QuickBlockSheet } from '@/components/QuickBlockSheet';
+import PagerView from 'react-native-pager-view';
 import type { UsageApp } from '@/native-modules/UsageStatsModule';
 import type { Task } from '@/data/types';
 
 type Filter = 'yesterday' | 'today' | 'week' | 'alltime';
+const FILTER_ORDER: Filter[] = ['yesterday', 'today', 'week', 'alltime'];
+const FILTER_PILL_ORDER: Filter[] = ['today', 'yesterday', 'week', 'alltime'];
 
 interface AppStat  { pkg: string; appName: string; count: number }
 interface DayStat  { day: string; date: string; count: number }
@@ -81,6 +84,7 @@ function StatsScreen() {
   const { width }       = useWindowDimensions();
 
   const [filter, setFilter] = useState<Filter>('yesterday');
+  const pagerRef = useRef<PagerView>(null);
   const [quickBlockApp, setQuickBlockApp] = useState<UsageApp | null>(null);
 
   // ── TODAY DB data ─────────────────────────────────────────────────────────
@@ -416,7 +420,7 @@ function StatsScreen() {
 
       {/* ── Tab pills (sticky, high-contrast) ────────────────────────── */}
       <View style={[styles.filterRow, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
-        {(['yesterday', 'today', 'week', 'alltime'] as const).map((f) => {
+        {FILTER_PILL_ORDER.map((f) => {
           const isActive = filter === f;
           return (
             <TouchableOpacity
@@ -428,7 +432,10 @@ function StatsScreen() {
                   borderColor: isActive ? COLORS.primary : COLORS.primary + '33',
                 },
               ]}
-              onPress={() => setFilter(f)}
+              onPress={() => {
+                setFilter(f);
+                pagerRef.current?.setPage(FILTER_ORDER.indexOf(f));
+              }}
               activeOpacity={0.8}
             >
               <Text style={[styles.filterLabel, { color: isActive ? '#fff' : COLORS.primary }]}>
@@ -449,7 +456,17 @@ function StatsScreen() {
         </View>
       )}
 
+      <PagerView
+        ref={pagerRef}
+        style={styles.pager}
+        initialPage={0}
+        onPageSelected={(event) => {
+          const nextFilter = FILTER_ORDER[event.nativeEvent.position];
+          if (nextFilter && nextFilter !== filter) setFilter(nextFilter);
+        }}
+      >
       {/* ════════════════ YESTERDAY ═════════════════════════════════════ */}
+      <View key="yesterday" style={styles.page}>
       {filter === 'yesterday' && (
         weekLoading ? (
           <View style={styles.center}><ActivityIndicator size="large" color={COLORS.primary} /></View>
@@ -612,9 +629,10 @@ function StatsScreen() {
 
           </ScrollView>
         )
-      )}
+      )}</View>
 
       {/* ════════════════ TODAY ═════════════════════════════════════════ */}
+      <View key="today" style={styles.page}>
       {filter === 'today' && (
         <ScrollView style={styles.scroll}
           contentContainerStyle={[styles.content, { paddingBottom: 60 + insets.bottom + 24 }]}
@@ -726,9 +744,10 @@ function StatsScreen() {
             </Text>
           </View>
         </ScrollView>
-      )}
+      )}</View>
 
       {/* ════════════════ WEEK ══════════════════════════════════════════ */}
+      <View key="week" style={styles.page}>
       {filter === 'week' && (
         weekLoading ? (
           <View style={styles.center}><ActivityIndicator size="large" color={COLORS.primary} /></View>
@@ -832,9 +851,10 @@ function StatsScreen() {
             )}
           </ScrollView>
         )
-      )}
+      )}</View>
 
       {/* ════════════════ ALL TIME ══════════════════════════════════════ */}
+      <View key="alltime" style={styles.page}>
       {filter === 'alltime' && (
         allTimeLoading ? (
           <View style={styles.center}><ActivityIndicator size="large" color={COLORS.primary} /></View>
@@ -899,7 +919,8 @@ function StatsScreen() {
 
           </ScrollView>
         )
-      )}
+      )}</View>
+      </PagerView>
       <QuickBlockSheet
         visible={quickBlockApp !== null}
         app={quickBlockApp}
@@ -1146,6 +1167,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   filterLabel: { fontSize: FONT.sm, fontWeight: '800', letterSpacing: 0.3 },
+  pager: { flex: 1 },
+  page: { flex: 1 },
 
   dbErrorBanner: {
     flexDirection: 'row',
