@@ -95,6 +95,19 @@ export default function TabLayout() {
         }}
       >
         <Tabs.Screen
+          name="focus"
+          options={{
+            title: "Focus",
+            tabBarIcon: ({ color, focused }) => (
+              <Ionicons
+                name={focused ? "timer" : "timer-outline"}
+                size={22}
+                color={color}
+              />
+            ),
+          }}
+        />
+        <Tabs.Screen
           name="index"
           options={{
             title: "Schedule",
@@ -108,9 +121,9 @@ export default function TabLayout() {
           }}
         />
         <Tabs.Screen
-          name="focus"
+          name="defense"
           options={{
-            title: "Focus",
+            title: "Defense",
             tabBarIcon: ({ color, focused }) => (
               <Ionicons
                 name={
@@ -150,17 +163,6 @@ export default function TabLayout() {
         />
       </Tabs>
 
-      {/* Floating dark mode toggle — top-right corner, above all tab content */}
-      <View
-        style={[
-          styles.toggleContainer,
-          { top: insets.top + 10, right: 14 },
-        ]}
-        pointerEvents="box-none"
-      >
-        <DarkModeToggle />
-      </View>
-
       {/* Side menu toggle — "›" tab above bottom nav bar */}
       <SideMenuToggle
         onPress={menuOpen ? closeMenu : openMenu}
@@ -185,10 +187,3 @@ export default function TabLayout() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  toggleContainer: {
-    position: "absolute",
-    zIndex: 999,
-  },
-});

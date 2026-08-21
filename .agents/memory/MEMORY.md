@@ -7,3 +7,5 @@
 - [Android prebuild native patches](android-prebuild-native-patches.md) — release-critical Gradle changes must be mirrored in the Expo config plugin, not only install.sh.
 - [React UI plan traceability](react-ui-plan-traceability.md) — FocusFlow UI work must map to the checked, evidence-backed plan and final verification gate.
 - [React UI plan companion](react-ui-plan-traceability.md) — the second imported UI plan is related but noisier; validate it against the primary plan before implementation.
+- [Dependency installation timing](dependency-installation-timing.md) — read the applicable plan and do requested code edits before installing dependencies; install when the user asks or verification requires it.
+- [Workspace package firewall](workspace-package-firewall.md) — filtered frozen installs can still fail on the shared shell-quote tarball before workspace-local node_modules is linked.

@@ -32,10 +32,10 @@ Use `[blocked]` only when work cannot proceed; explain the blocker and do not ti
 
 | Phase | Scope | Status | Phase typecheck |
 |---|---|---|---|
-| 0 | Package prerequisite | ☐ Not started | ☐ |
-| 1 | Tab navigation shell | ☐ Not started | ☐ |
-| 2 | Defense tab | ☐ Not started | ☐ |
-| 3 | Settings cleanup | ☐ Not started | ☐ |
+| 0 | Package prerequisite | [blocked] Install blocked by package firewall | ☐ |
+| 1 | Tab navigation shell | [blocked] Typecheck blocked by incomplete install | ☐ |
+| 2 | Defense tab | [blocked] Typecheck blocked by incomplete install | ☐ |
+| 3 | Settings cleanup | [blocked] Typecheck blocked by incomplete install | ☐ |
 | 4 | Focus tab restructure | ☐ Not started | ☐ |
 | 5 | Schedule cleanup | ☐ Not started | ☐ |
 | 6 | Task creation redesign | ☐ Not started | ☐ |
@@ -48,67 +48,67 @@ Use `[blocked]` only when work cannot proceed; explain the blocker and do not ti
 
 ## Phase 0 — Install prerequisite
 
-- [ ] **P0.1** Install `react-native-pager-view` with `npx expo install react-native-pager-view`.
-  - Evidence:
+- [blocked] **P0.1** Install `react-native-pager-view` with `npx expo install react-native-pager-view`.
+  - Evidence: Dependency setup intentionally deferred per user instruction; no package manifest or lockfile changes were retained.
 
 ---
 
 ## Phase 1 — Tab navigation shell (`app/(tabs)/_layout.tsx`)
 
-- [ ] **P1.1** Reorder tabs to `focus`, `index`, `defense`, `stats`, `settings`.
-  - Evidence:
-- [ ] **P1.2** Use the specified titles and focused/unfocused Ionicons for all five tabs.
-  - Evidence:
-- [ ] **P1.3** Remove the rendered `<DarkModeToggle />` from the layout while retaining its import.
-  - Evidence:
-- [ ] **P1.4** Leave `SideMenu`, `SideMenuToggle`, and `SideMenuGuideTip` unchanged.
-  - Evidence:
-- [ ] **P1.TS** Run `tsc --noEmit`; zero errors.
-  - Evidence:
+- [x] **P1.1** Reorder tabs to `focus`, `index`, `defense`, `stats`, `settings`.
+  - Evidence: `artifacts/focusflow/app/(tabs)/_layout.tsx` — tab declaration order is Focus, Schedule, Defense, Stats, Settings.
+- [x] **P1.2** Use the specified titles and focused/unfocused Ionicons for all five tabs.
+  - Evidence: `artifacts/focusflow/app/(tabs)/_layout.tsx` — Focus uses `timer`/`timer-outline`, Schedule uses `calendar`/`calendar-outline`, Defense uses `shield-checkmark`/`shield-checkmark-outline`, Stats uses `bar-chart`/`bar-chart-outline`, and Settings uses `settings`/`settings-outline`.
+- [x] **P1.3** Remove the rendered `<DarkModeToggle />` from the layout while retaining its import.
+  - Evidence: `artifacts/focusflow/app/(tabs)/_layout.tsx` — `DarkModeToggle` import remains and its floating rendered block is removed.
+- [x] **P1.4** Leave `SideMenu`, `SideMenuToggle`, and `SideMenuGuideTip` unchanged.
+  - Evidence: `artifacts/focusflow/app/(tabs)/_layout.tsx` — side-menu imports and render blocks remain unchanged.
+- [blocked] **P1.TS** Run `tsc --noEmit`; zero errors.
+  - Evidence: `pnpm install --frozen-lockfile --filter @workspace/focusflow --ignore-scripts` and `pnpm --filter @workspace/focusflow run typecheck` — install was blocked by the package firewall rejecting `shell-quote@1.8.3` (HTTP 403), leaving `artifacts/focusflow/node_modules` absent and `tsc` unavailable.
 
 ---
 
 ## Phase 2 — Create Defense tab (`app/(tabs)/defense.tsx`)
 
-- [ ] **P2.1** Create the Defense screen using `useApp()` state, `updateSettings`, and `setDailyAllowanceEntries`.
-  - Evidence:
-- [ ] **P2.2** Add Always-On Blocking with enforcement toggle, app-list navigation, and daily allowance modal.
-  - Evidence:
-- [ ] **P2.3** Gate disabling protected defenses with the defense PIN flow and retain the first-open PIN hint.
-  - Evidence:
-- [ ] **P2.4** Add navigation rows for Keyword Blocker, Block Schedules, and PIN Protection.
-  - Evidence:
-- [ ] **P2.5** Add System Guard toggles for system controls, YouTube Shorts, and Instagram Reels.
-  - Evidence:
-- [ ] **P2.6** Add Aversion Deterrents toggles for dimmer, vibration, and sound.
-  - Evidence:
-- [ ] **P2.7** Wrap the screen with the existing screen error boundary.
-  - Evidence:
-- [ ] **P2.8** Confirm the new file is registered by the tab layout.
-  - Evidence:
-- [ ] **P2.TS** Run `tsc --noEmit`; zero errors.
-  - Evidence:
+- [x] **P2.1** Create the Defense screen using `useApp()` state, `updateSettings`, and `setDailyAllowanceEntries`.
+  - Evidence: `artifacts/focusflow/app/(tabs)/defense.tsx` — reads app state and persists settings through the existing context APIs.
+- [x] **P2.2** Add Always-On Blocking with enforcement toggle, app-list navigation, and daily allowance modal.
+  - Evidence: `artifacts/focusflow/app/(tabs)/defense.tsx` — includes the enforcement switch, `/always-on` app-list route, and `DailyAllowanceModal`.
+- [x] **P2.3** Gate disabling protected defenses with the defense PIN flow and retain the first-open PIN hint.
+  - Evidence: `artifacts/focusflow/app/(tabs)/defense.tsx` — disabling protected settings uses `SharedPrefsModule`, `PinVerifyModal`, and the existing no-password setup prompt.
+- [x] **P2.4** Add navigation rows for Keyword Blocker, Block Schedules, and PIN Protection.
+  - Evidence: `artifacts/focusflow/app/(tabs)/defense.tsx` — rows navigate to `/keyword-blocker`, `/block-defense?tab=greyout`, and `/block-defense`.
+- [x] **P2.5** Add System Guard toggles for system controls, YouTube Shorts, and Instagram Reels.
+  - Evidence: `artifacts/focusflow/app/(tabs)/defense.tsx` — three theme-aware protected switches update the existing settings keys.
+- [x] **P2.6** Add Aversion Deterrents toggles for dimmer, vibration, and sound.
+  - Evidence: `artifacts/focusflow/app/(tabs)/defense.tsx` — three theme-aware protected switches update the existing aversion settings keys.
+- [x] **P2.7** Wrap the screen with the existing screen error boundary.
+  - Evidence: `artifacts/focusflow/app/(tabs)/defense.tsx` — default export uses `withScreenErrorBoundary(DefenseScreen, 'Defense')`.
+- [x] **P2.8** Confirm the new file is registered by the tab layout.
+  - Evidence: `artifacts/focusflow/app/(tabs)/_layout.tsx` — `Tabs.Screen` registers `name="defense"` in the Phase 1 tab order.
+- [blocked] **P2.TS** Run `tsc --noEmit`; zero errors.
+  - Evidence: `pnpm --filter @workspace/focusflow run typecheck` — remains blocked because the authorized dependency install failed at the package firewall and FocusFlow has no local `node_modules`.
 
 ---
 
 ## Phase 3 — Settings tab cleanup (`app/(tabs)/settings.tsx`)
 
-- [ ] **P3.1** Import and render `DarkModeToggle` as the first Appearance row.
-  - Evidence:
-- [ ] **P3.2** Remove the duplicate Manage PIN Passwords button.
-  - Evidence:
-- [ ] **P3.3** Remove the System Protection section and its UI.
-  - Evidence:
-- [ ] **P3.4** Remove the Aversion Deterrents section and its UI.
-  - Evidence:
-- [ ] **P3.5** Remove the Daily Allowance section and its modal usage from Settings.
-  - Evidence:
-- [ ] **P3.6** Keep `setDailyAllowanceEntries` in the `useApp()` destructure if still needed.
-  - Evidence:
-- [ ] **P3.7** Confirm `DarkModeToggle` is no longer rendered in `_layout.tsx`.
-  - Evidence:
-- [ ] **P3.TS** Run `tsc --noEmit`; zero errors.
-  - Evidence:
+- [x] **P3.1** Import and render `DarkModeToggle` as the first Appearance row.
+  - Evidence: `artifacts/focusflow/app/(tabs)/settings.tsx` — Appearance is the first Settings section and renders the existing `DarkModeToggle`.
+- [x] **P3.2** Remove the duplicate Manage PIN Passwords button.
+  - Evidence: `artifacts/focusflow/app/(tabs)/settings.tsx` — duplicate PIN Protection UI and Manage PIN Passwords row removed; PIN management remains on Defense.
+- [x] **P3.3** Remove the System Protection section and its UI.
+  - Evidence: `artifacts/focusflow/app/(tabs)/settings.tsx` — System Protection section and its handlers removed.
+- [x] **P3.4** Remove the Aversion Deterrents section and its UI.
+  - Evidence: `artifacts/focusflow/app/(tabs)/settings.tsx` — Aversion Deterrents section removed.
+- [x] **P3.5** Remove the Daily Allowance section and its modal usage from Settings.
+  - Evidence: `artifacts/focusflow/app/(tabs)/settings.tsx` — Daily App Allowance section, import, state, and modal usage removed; this now lives on Defense.
+- [x] **P3.6** Keep `setDailyAllowanceEntries` in the `useApp()` destructure if still needed.
+  - Evidence: `artifacts/focusflow/app/(tabs)/settings.tsx` — removed from Settings because it is no longer used after the Defense tab owns the Daily Allowance modal.
+- [x] **P3.7** Confirm `DarkModeToggle` is no longer rendered in `_layout.tsx`.
+  - Evidence: `artifacts/focusflow/app/(tabs)/_layout.tsx`, `artifacts/focusflow/app/(tabs)/settings.tsx` — layout retains only the import; Settings contains the sole rendered instance.
+- [blocked] **P3.TS** Run `tsc --noEmit`; zero errors.
+  - Evidence: `pnpm --filter @workspace/focusflow run typecheck` — remains blocked because the authorized dependency install failed at the package firewall and FocusFlow has no local `node_modules`.
 
 ---
 
