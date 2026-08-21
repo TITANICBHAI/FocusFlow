@@ -5,3 +5,5 @@
 - [Imported audit verification](imported-audit-verification.md) — uploaded codebase audits may describe fixes already present; validate each finding against the current checkout before editing.
 - [Android SQLite write serialization](android-sqlite-write-serialization.md) — single-flight database opening does not prevent concurrent Expo SQLite writes from contending.
 - [Android prebuild native patches](android-prebuild-native-patches.md) — release-critical Gradle changes must be mirrored in the Expo config plugin, not only install.sh.
+- [React UI plan traceability](react-ui-plan-traceability.md) — FocusFlow UI work must map to the checked, evidence-backed plan and final verification gate.
+- [React UI plan companion](react-ui-plan-traceability.md) — the second imported UI plan is related but noisier; validate it against the primary plan before implementation.
