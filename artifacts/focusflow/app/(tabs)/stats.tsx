@@ -41,7 +41,7 @@ import type { UsageApp } from '@/native-modules/UsageStatsModule';
 import type { Task } from '@/data/types';
 
 type Filter = 'yesterday' | 'today' | 'week' | 'alltime';
-const FILTER_ORDER: Filter[] = ['yesterday', 'today', 'week', 'alltime'];
+const PAGE_ORDER: Filter[] = ['yesterday', 'today', 'week', 'alltime'];
 const FILTER_PILL_ORDER: Filter[] = ['today', 'yesterday', 'week', 'alltime'];
 
 interface AppStat  { pkg: string; appName: string; count: number }
@@ -83,7 +83,7 @@ function StatsScreen() {
   const { theme }       = useTheme();
   const { width }       = useWindowDimensions();
 
-  const [filter, setFilter] = useState<Filter>('yesterday');
+  const [filter, setFilter] = useState<Filter>('today');
   const pagerRef = useRef<PagerView>(null);
   const [quickBlockApp, setQuickBlockApp] = useState<UsageApp | null>(null);
 
@@ -434,7 +434,7 @@ function StatsScreen() {
               ]}
               onPress={() => {
                 setFilter(f);
-                pagerRef.current?.setPage(FILTER_ORDER.indexOf(f));
+                pagerRef.current?.setPage(PAGE_ORDER.indexOf(f));
               }}
               activeOpacity={0.8}
             >
@@ -459,9 +459,9 @@ function StatsScreen() {
       <PagerView
         ref={pagerRef}
         style={styles.pager}
-        initialPage={0}
+        initialPage={1}
         onPageSelected={(event) => {
-          const nextFilter = FILTER_ORDER[event.nativeEvent.position];
+          const nextFilter = PAGE_ORDER[event.nativeEvent.position];
           if (nextFilter && nextFilter !== filter) setFilter(nextFilter);
         }}
       >

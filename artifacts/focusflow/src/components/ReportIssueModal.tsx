@@ -32,12 +32,14 @@ export default function ReportIssueModal({ visible, onClose, error }: Props) {
   const [status, setStatus] = useState<string | null>(null);
   const [logs, setLogs] = useState('');
   const [reportType, setReportType] = useState<DiagnosticsReportType>('bug');
+  const [includeLogs, setIncludeLogs] = useState(true);
 
   useEffect(() => {
     if (!visible) return;
     setStatus(null);
     setDescription('');
     setReportType('bug');
+    setIncludeLogs(true);
     void formatLogsForShare().then(setLogs).catch(() => setLogs('(logs unavailable)'));
   }, [visible]);
 
@@ -51,7 +53,7 @@ export default function ReportIssueModal({ visible, onClose, error }: Props) {
       : '';
     const result = await sendDiagnosticsReport({
       description,
-      logs: `${errorDetails}${logs}`,
+      logs: includeLogs ? `${errorDetails}${logs}` : '',
       type: reportType,
     });
 
@@ -194,8 +196,27 @@ export default function ReportIssueModal({ visible, onClose, error }: Props) {
               ]}
             />
 
+            <Pressable
+              style={styles.logsOption}
+              onPress={() => setIncludeLogs((current) => !current)}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: includeLogs }}
+            >
+              <View style={[styles.checkbox, includeLogs && styles.checkboxChecked]}>
+                {includeLogs && <Ionicons name="checkmark" size={15} color="#fff" />}
+              </View>
+              <View style={styles.logsOptionCopy}>
+                <Text style={[styles.logsOptionTitle, { color: theme.text }]}>
+                  Include diagnostic logs
+                </Text>
+                <Text style={[styles.logsOptionDescription, { color: theme.textSecondary ?? '#888' }]}>
+                  Add recent sanitized logs as an attachment when available.
+                </Text>
+              </View>
+            </Pressable>
+
             <Text style={[styles.included, { color: theme.textSecondary ?? '#888' }]}>
-              Attached: the error details, app version, OS version, and recent diagnostic logs in a .txt file. Personal files, contacts, installed-app lists, and location are not included.
+              Your message stays in the email for easy review. If selected and available, sanitized diagnostic logs are attached separately. Personal files, contacts, installed-app lists, and location are not included.
             </Text>
 
             {status ? (
@@ -310,6 +331,28 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
   },
+  logsOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 4,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: '#A1A1AA',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxChecked: {
+    backgroundColor: '#6366F1',
+    borderColor: '#6366F1',
+  },
+  logsOptionCopy: { flex: 1, gap: 2 },
+  logsOptionTitle: { fontSize: 14, fontWeight: '600' },
+  logsOptionDescription: { fontSize: 12, lineHeight: 17 },
   included: {
     fontSize: 12,
     lineHeight: 17,

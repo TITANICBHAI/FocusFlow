@@ -1,26 +1,43 @@
-# What's New — FocusFlow v1.0.8
+# What's New — FocusFlow v1.0.9
 
-## New Two-Mode Onboarding
+## Navigation and Focus Workflow
 
-FocusFlow v1.0.8 introduces a new two-mode first-run setup so users can choose
-the right level of protection:
+- Bottom navigation is now organized as Focus, Schedule, Defense, Stats, and
+  Settings.
+- Persistent blocking controls live in the dedicated Defense tab, with
+  one-time guidance hints explaining the move.
+- Stats opens on Today, with Yesterday in the second position and swipe
+  navigation kept in sync.
+- New Task and Edit Task forms no longer force the keyboard open or trap the
+  user above the bottom controls.
 
-- **Standard Mode** keeps setup focused on the essential access required for
-  app blocking.
-- **Iron Mode** adds layered setup for VPN network restriction, Device Admin
-  resistance, and Defense Password protection.
-- Both modes use a clearer, more readable setup hierarchy.
-- Iron Mode uses indigo for the main activation experience and orange only for
-  stronger-protection emphasis.
-- A live protection-layer counter shows exactly how much of the setup is active.
-- Checkmarks animate only when real permission states become active.
-- Reduced-motion preferences are respected without adding a new animation package.
+## Backup and Import Safety
+
+- Task imports check the complete database for ID collisions.
+- Add tasks skips matching IDs; Replace everything removes existing tasks
+  before importing.
+- Imported task Focus Mode settings are preserved per task, while reminders
+  are scheduled without automatically starting a focus session.
+- Standalone Block runtime state remains local and is not changed by import.
+- Backups contain named feature preset sections without portable
+  enabled/disabled state.
+- Imported keyword lists and reusable blocking configuration are available
+  without changing the importing device’s live protection switches.
+
+## Diagnostics and Reporting
+
+- Settings keeps Report an Issue as the primary diagnostics action while the
+  detailed log viewer remains available through existing diagnostic entry
+  points.
+- Diagnostic logs are optional and empty text attachments are avoided.
+- Bug reports, feedback, and reviews keep the user’s message in the email body
+  for review before sending.
 
 ---
 
 ## Database Reliability
 
-FocusFlow v1.0.8 strengthens the local SQLite data layer:
+FocusFlow v1.0.9 strengthens the local SQLite data layer:
 
 - Database connections are opened, reused, and closed predictably.
 - Related task and settings updates use safer transaction boundaries.

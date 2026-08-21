@@ -11,6 +11,7 @@ import {
   Switch,
   Alert,
   Platform,
+  Keyboard,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
@@ -177,7 +178,9 @@ export default function QuickAddModal({ visible, onClose, onSave, initialStartTi
             <ScrollView
               style={styles.body}
               contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
-              keyboardShouldPersistTaps="handled"
+              keyboardShouldPersistTaps="never"
+              keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+              onScrollBeginDrag={Keyboard.dismiss}
             >
 
               {/* Quick input */}
@@ -191,7 +194,6 @@ export default function QuickAddModal({ visible, onClose, onSave, initialStartTi
                     onChangeText={setQuickText}
                     onSubmitEditing={handleQuickParse}
                     returnKeyType="done"
-                    autoFocus
                   />
                   <TouchableOpacity style={styles.parseBtn} onPress={handleQuickParse}>
                     <Ionicons name="flash" size={18} color="#fff" />
@@ -209,7 +211,6 @@ export default function QuickAddModal({ visible, onClose, onSave, initialStartTi
                       placeholderTextColor={theme.muted}
                       value={title}
                       onChangeText={setTitle}
-                      autoFocus={isAdvanced}
                     />
                   </Field>
 
@@ -332,7 +333,6 @@ export default function QuickAddModal({ visible, onClose, onSave, initialStartTi
                           keyboardType="number-pad"
                           placeholder="Minutes"
                           placeholderTextColor={theme.muted}
-                          autoFocus
                         />
                         <Text style={[styles.customDurationLabel, { color: theme.textSecondary }]}>minutes</Text>
                       </View>

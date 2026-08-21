@@ -27,7 +27,10 @@ import { PinVerifyModal } from '@/components/PinVerifyModal';
 import { SessionPinModule } from '@/native-modules/SessionPinModule';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 import { useTheme } from '@/hooks/useTheme';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { TimerState } from '@/hooks/useTimer';
+
+const FOCUS_DEFENSE_HINT_DISMISSED_KEY = '@focusflow/focusDefenseHintDismissed';
 
 function FocusScreen() {
   const insets = useSafeAreaInsets();
@@ -54,6 +57,7 @@ function FocusScreen() {
   const [pinRotationVisible, setPinRotationVisible] = useState(false);
   const [pendingStartTaskId, setPendingStartTaskId] = useState<string | null>(null);
   const [focusStopPinVisible, setFocusStopPinVisible] = useState(false);
+  const [showDefenseHint, setShowDefenseHint] = useState(false);
   const pendingStartTaskTimer = task?.startTime ?? '';
   const pendingEndTaskTimer = task?.endTime ?? '';
   const taskTimer = useTaskTimer(pendingStartTaskTimer, pendingEndTaskTimer);
@@ -72,6 +76,17 @@ function FocusScreen() {
     settings.pomodoroDuration ?? 25,
     settings.pomodoroBreak ?? 5,
   );
+
+  useEffect(() => {
+    void AsyncStorage.getItem(FOCUS_DEFENSE_HINT_DISMISSED_KEY).then((dismissed) => {
+      if (!dismissed) setShowDefenseHint(true);
+    });
+  }, []);
+
+  const dismissDefenseHint = () => {
+    setShowDefenseHint(false);
+    void AsyncStorage.setItem(FOCUS_DEFENSE_HINT_DISMISSED_KEY, '1');
+  };
 
   const handleActivateFocus = async (taskId: string) => {
     const pinSet = await SessionPinModule.isPinSet().catch(() => false);
@@ -184,6 +199,22 @@ function FocusScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: task ? task.color + '18' : theme.background }]}>
+      {showDefenseHint && (
+        <View style={[styles.hintBanner, { backgroundColor: COLORS.primary + '12', borderColor: COLORS.primary + '35' }]}>
+          <Ionicons name="shield-checkmark-outline" size={20} color={COLORS.primary} />
+          <Text style={[styles.hintText, { color: theme.text }]}>
+            Always-On Blocking and related protection tools have moved to the Defense tab.
+          </Text>
+          <TouchableOpacity
+            onPress={dismissDefenseHint}
+            accessibilityRole="button"
+            accessibilityLabel="Dismiss Defense hint"
+            hitSlop={8}
+          >
+            <Ionicons name="close" size={19} color={theme.muted} />
+          </TouchableOpacity>
+        </View>
+      )}
       {!task && standaloneActive ? (
         <ScrollView
           contentContainerStyle={[styles.panelContent, { paddingBottom: 60 + insets.bottom + 20 }]}
@@ -540,6 +571,17 @@ function SecondaryBtn({ icon, label, color, onPress }: { icon: keyof typeof Ioni
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
+  hintBanner: {
+    marginHorizontal: SPACING.md,
+    marginTop: SPACING.sm,
+    padding: SPACING.sm,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  hintText: { flex: 1, fontSize: FONT.xs, lineHeight: 17 },
   panelContent: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: SPACING.xl, gap: SPACING.md },
   panelTitle: { fontSize: FONT.xl, fontWeight: '700', textAlign: 'center' },
   panelSubtitle: { fontSize: FONT.md, textAlign: 'center', lineHeight: 22 },

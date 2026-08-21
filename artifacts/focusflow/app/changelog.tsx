@@ -14,7 +14,7 @@ type Entry = {
 
 const CHANGELOG: Entry[] = [
   {
-    version: '1.0.8',
+    version: '1.0.9',
     date: 'August 2026',
     sections: [
       {
@@ -25,14 +25,33 @@ const CHANGELOG: Entry[] = [
         ],
       },
       {
-        heading: 'New Two-Mode Onboarding',
-        icon: 'git-branch-outline',
+        heading: 'Navigation and Focus Workflow',
+        icon: 'navigate-outline',
         items: [
-          'Introduced separate Standard and Iron Mode onboarding paths so new users can choose between essential blocking and stronger system-level protection',
-          'Standard Mode keeps first-run setup focused on the essential access required for app blocking',
-          'Iron Mode adds layered setup for VPN network restriction, Device Admin resistance, and Defense Password protection',
-          'Added a live protection-layer counter and honest permission-based activation feedback',
-          'Added subtle checkmark and activation-state transitions with reduced-motion support',
+          'Reordered the bottom navigation into Focus, Schedule, Defense, Stats, and Settings',
+          'Moved persistent blocking controls into the dedicated Defense tab and added one-time guidance hints for the new locations',
+          'Moved Stats Today ahead of Yesterday and kept the internal Stats pages synchronized with swipe navigation',
+          'Fixed New Task and Edit Task forms opening with a forced keyboard and prevented the keyboard from blocking the lower controls',
+        ],
+      },
+      {
+        heading: 'Backup and Import Safety',
+        icon: 'cloud-done-outline',
+        items: [
+          'Task imports now check the complete database for ID collisions; Add tasks skips matching IDs while Replace everything removes all existing tasks before importing',
+          'Imported task Focus Mode behavior is preserved per task, while imported tasks receive reminders without automatically starting a focus session',
+          'Standalone Block runtime state stays local and is not changed by backup import',
+          'Backups now describe reusable feature presets in named sections without exporting live enabled or disabled states',
+          'Imported keyword lists and reusable blocking configuration become available without changing the importing device’s active protection switches',
+        ],
+      },
+      {
+        heading: 'Diagnostics and Reporting',
+        icon: 'paper-plane-outline',
+        items: [
+          'Settings now keeps Report an Issue as the main diagnostics action while the detailed log viewer remains available through existing diagnostic entry points',
+          'Added optional diagnostic-log inclusion so empty text attachments are not created',
+          'Bug reports, feedback, and reviews now keep the user’s written message directly in the email body for review before sending',
         ],
       },
     ],
@@ -276,7 +295,7 @@ const CHANGELOG: Entry[] = [
     ],
   },
   {
-    version: 'c1.0.8',
+    version: 'c1.0.9',
     date: 'April 2026',
     sections: [
       {

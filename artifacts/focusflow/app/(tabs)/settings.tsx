@@ -424,15 +424,9 @@ function SettingsScreen() {
         {showDiagnostics && (
           <Section title="Diagnostics">
             <SettingButton
-              icon="terminal-outline"
-              label="View Logs"
-              description="Review local diagnostics and refresh the error log"
-              onPress={() => setDiagnosticsVisible(true)}
-            />
-            <SettingButton
               icon="paper-plane-outline"
               label="Report an Issue"
-              description="Open the same report form used from the log screen"
+              description="Review and email a bug report, feedback, or app review"
               onPress={() => setReportIssueVisible(true)}
             />
           </Section>
@@ -483,7 +477,7 @@ function SettingsScreen() {
         </Section>
 
         <View style={styles.footer}>
-          <Text style={[styles.footerText, { color: theme.muted }]}>FocusFlow v1.0.8 (build 9)</Text>
+          <Text style={[styles.footerText, { color: theme.muted }]}>FocusFlow v1.0.9 (build 10)</Text>
           <Text style={[styles.footerText, { color: theme.muted }]}>All data stored locally on device</Text>
         </View>
       </ScrollView>

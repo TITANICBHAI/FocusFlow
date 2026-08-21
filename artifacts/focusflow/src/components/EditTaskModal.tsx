@@ -9,6 +9,8 @@ import {
   StyleSheet,
   Alert,
   Platform,
+  Keyboard,
+  KeyboardAvoidingView,
 } from 'react-native';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -160,6 +162,10 @@ export default function EditTaskModal({ task, visible, onClose, onSave, onDelete
   return (
     <>
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
       <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]}>
         {/* Header */}
         <View style={[styles.header, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
@@ -174,7 +180,13 @@ export default function EditTaskModal({ task, visible, onClose, onSave, onDelete
           </TouchableOpacity>
         </View>
 
-        <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          style={styles.body}
+          contentContainerStyle={styles.bodyContent}
+          keyboardShouldPersistTaps="never"
+          keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+          onScrollBeginDrag={Keyboard.dismiss}
+        >
 
           <View style={styles.field}>
             <TextInput
@@ -184,7 +196,6 @@ export default function EditTaskModal({ task, visible, onClose, onSave, onDelete
               placeholder="Task title"
               placeholderTextColor={theme.muted}
               returnKeyType="next"
-              autoFocus
             />
           </View>
 
@@ -355,6 +366,7 @@ export default function EditTaskModal({ task, visible, onClose, onSave, onDelete
           <Text style={styles.deleteBtnText}>Delete Task</Text>
         </TouchableOpacity>
       </SafeAreaView>
+      </KeyboardAvoidingView>
     </Modal>
 
     {/* Nested app picker sheet — rendered outside the main Modal to avoid z-index issues */}

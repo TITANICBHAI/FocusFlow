@@ -20,8 +20,10 @@ import { PinSetupModal } from '@/components/PinSetupModal';
 import { PinVerifyModal } from '@/components/PinVerifyModal';
 import { withScreenErrorBoundary } from '@/components/withScreenErrorBoundary';
 import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type DefenseAction = (defensePinHash?: string) => void;
+const DEFENSE_HINT_DISMISSED_KEY = '@focusflow/defenseHintDismissed';
 
 function DefenseScreen() {
   const insets = useSafeAreaInsets();
@@ -35,7 +37,19 @@ function DefenseScreen() {
     | { type: 'verify'; title: string; description: string; action: DefenseAction }
     | { type: 'setup'; action: DefenseAction }
   >({ type: 'none' });
+  const [showDefenseHint, setShowDefenseHint] = useState(false);
   const pendingSetupAction = useRef<DefenseAction | null>(null);
+
+  React.useEffect(() => {
+    void AsyncStorage.getItem(DEFENSE_HINT_DISMISSED_KEY).then((dismissed) => {
+      if (!dismissed) setShowDefenseHint(true);
+    });
+  }, []);
+
+  const dismissDefenseHint = useCallback(() => {
+    setShowDefenseHint(false);
+    void AsyncStorage.setItem(DEFENSE_HINT_DISMISSED_KEY, '1');
+  }, []);
 
   const update = useCallback(
     async (partial: Partial<typeof settings>, defensePinHash: string | null = null) => {
@@ -124,6 +138,22 @@ function DefenseScreen() {
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
       <Header theme={theme} />
+      {showDefenseHint && (
+        <View style={[styles.hintBanner, { backgroundColor: COLORS.primary + '12', borderColor: COLORS.primary + '35' }]}>
+          <Ionicons name="information-circle-outline" size={20} color={COLORS.primary} />
+          <Text style={[styles.hintText, { color: theme.text }]}>
+            Defense Password and PIN Protection are lower down this page — scroll to find them.
+          </Text>
+          <TouchableOpacity
+            onPress={dismissDefenseHint}
+            accessibilityRole="button"
+            accessibilityLabel="Dismiss Defense hint"
+            hitSlop={8}
+          >
+            <Ionicons name="close" size={19} color={theme.muted} />
+          </TouchableOpacity>
+        </View>
+      )}
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={[styles.content, { paddingBottom: 70 + insets.bottom }]}
@@ -422,6 +452,17 @@ function SettingButton({
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
+  hintBanner: {
+    marginHorizontal: SPACING.md,
+    marginTop: SPACING.sm,
+    padding: SPACING.sm,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  hintText: { flex: 1, fontSize: FONT.xs, lineHeight: 17 },
   header: {
     minHeight: 76,
     paddingHorizontal: SPACING.lg,
