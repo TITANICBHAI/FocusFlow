@@ -147,7 +147,7 @@ function DefenseScreen() {
         <View style={[styles.hintBanner, { backgroundColor: COLORS.primary + '12', borderColor: COLORS.primary + '35' }]}>
           <Ionicons name="information-circle-outline" size={20} color={COLORS.primary} />
           <Text style={[styles.hintText, { color: theme.text }]}>
-            Defense Password and PIN Protection are lower down this page — scroll to find them.
+            Password Protection has its own page below the blocking tools, so your security settings stay easy to find.
           </Text>
           <TouchableOpacity
             onPress={dismissDefenseHint}
@@ -234,7 +234,7 @@ function DefenseScreen() {
           />
           <SettingButton
             icon="time-outline"
-            label="Block Schedules"
+            label="Block Schedule"
             description="Manage recurring time-window blocks"
             onPress={() =>
               requireDefensePin(
@@ -246,6 +246,13 @@ function DefenseScreen() {
             theme={theme}
           />
           <SettingButton
+            icon="globe-outline"
+            label="Network Protection"
+            description="Choose apps for local VPN blocking and manage VPN self-healing"
+            onPress={() => router.push('/block-defense?tab=network')}
+            theme={theme}
+          />
+          <SettingButton
             icon="shield-half-outline"
             label="PIN Protection"
             description={
@@ -253,7 +260,7 @@ function DefenseScreen() {
                 ? 'Defense password required before disabling protection'
                 : 'Require a password before protections can be disabled'
             }
-            onPress={() => router.push('/block-defense')}
+            onPress={() => router.push('/password-protection')}
             theme={theme}
           />
         </Section>
