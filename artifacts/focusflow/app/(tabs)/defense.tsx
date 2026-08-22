@@ -48,13 +48,27 @@ function DefenseScreen() {
   const [showDefenseHint, setShowDefenseHint] = useState(false);
   const [alwaysOnPinRotationVisible, setAlwaysOnPinRotationVisible] = useState(false);
   const [vpnConsentVisible, setVpnConsentVisible] = useState(false);
+  const [protectionNotice, setProtectionNotice] = useState<string | null>(null);
   const vpnConsentResolveRef = useRef<((confirmed: boolean) => void) | null>(null);
   const pendingSetupAction = useRef<DefenseAction | null>(null);
+  const protectionNoticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   React.useEffect(() => {
     void AsyncStorage.getItem(DEFENSE_HINT_DISMISSED_KEY).then((dismissed) => {
       if (!dismissed) setShowDefenseHint(true);
     });
+    return () => {
+      if (protectionNoticeTimer.current) clearTimeout(protectionNoticeTimer.current);
+    };
+  }, []);
+
+  const showProtectionNotice = useCallback((message: string) => {
+    setProtectionNotice(message);
+    if (protectionNoticeTimer.current) clearTimeout(protectionNoticeTimer.current);
+    protectionNoticeTimer.current = setTimeout(() => {
+      setProtectionNotice(null);
+      protectionNoticeTimer.current = null;
+    }, 4500);
   }, []);
 
   const dismissDefenseHint = useCallback(() => {
@@ -126,7 +140,7 @@ function DefenseScreen() {
       return;
     }
     if (state.focusSession?.isActive || isStandaloneActive(settings)) {
-      Alert.alert('Protection is active', `${label} cannot be turned off while a block is active.`);
+      showProtectionNotice(`${label} can't be turned off while a Focus session or Standalone block is running.`);
       return;
     }
     requireDefensePin(`Disable ${label}`, `Enter your defense password to turn off ${label}.`, (hash) => {
@@ -142,10 +156,7 @@ function DefenseScreen() {
 
   const handleVpnToggle = async (enabled: boolean) => {
     if (!enabled && activeBlock) {
-      Alert.alert(
-        'VPN protection is locked',
-        'Network Protection cannot be turned off while a Focus session or Standalone block is running.',
-      );
+      showProtectionNotice('Network Protection can\'t be turned off while a Focus session or Standalone block is running.');
       return;
     }
     if (!enabled) {
@@ -245,10 +256,7 @@ function DefenseScreen() {
                   void update({ alwaysOnEnforcementEnabled: true });
                 } else {
                     if (activeBlock) {
-                      Alert.alert(
-                        'Always-On Enforcement is locked',
-                        'Always-On Enforcement cannot be turned off while a Focus session or Standalone block is running.',
-                      );
+                      showProtectionNotice('Always-On Enforcement can\'t be turned off while a Focus session or Standalone block is running.');
                       return;
                     }
                   requireDefensePin(
@@ -448,7 +456,7 @@ function DefenseScreen() {
               value={settings.launcherLockDuringStandalone ?? true}
               onValueChange={(value) => {
                 if (!value && isStandaloneActive(settings)) {
-                  Alert.alert('Home Launcher is locked', 'This option cannot be turned off while a Standalone block is running.');
+                  showProtectionNotice('Home Launcher can\'t be turned off while a Standalone block is running.');
                   return;
                 }
                 void update({ launcherLockDuringStandalone: value });
@@ -471,7 +479,7 @@ function DefenseScreen() {
               value={settings.launcherBlockUninstall ?? false}
               onValueChange={(value) => {
                 if (!value && activeBlock) {
-                  Alert.alert('Uninstall protection is locked', 'This option cannot be turned off while a Focus session or Standalone block is running.');
+                  showProtectionNotice('Uninstall protection can\'t be turned off while a Focus session or Standalone block is running.');
                   return;
                 }
                 void update({ launcherBlockUninstall: value });
@@ -487,7 +495,7 @@ function DefenseScreen() {
             description="Choose pinned apps, hidden apps, wallpaper, and clock style"
             onPress={() => {
               if (isStandaloneActive(settings)) {
-                Alert.alert('Home Launcher is locked', 'Launcher settings are unavailable while a Standalone block is running.');
+                showProtectionNotice('Home Launcher settings are unavailable while a Standalone block is running.');
                 return;
               }
               router.push('/home-launcher');
@@ -569,6 +577,16 @@ function DefenseScreen() {
           vpnConsentResolveRef.current = null;
         }}
       />
+      {protectionNotice && (
+        <View
+          style={[styles.protectionNotice, { bottom: insets.bottom + 76 }]}
+          accessibilityLiveRegion="polite"
+          accessibilityRole="alert"
+        >
+          <Ionicons name="lock-closed-outline" size={17} color="#fff" />
+          <Text style={styles.protectionNoticeText}>{protectionNotice}</Text>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -716,6 +734,31 @@ const styles = StyleSheet.create({
     gap: SPACING.sm,
   },
   activeNoticeText: { flex: 1, fontSize: FONT.xs, lineHeight: 17, fontWeight: '600' },
+  protectionNotice: {
+    position: 'absolute',
+    left: SPACING.md,
+    right: SPACING.md,
+    minHeight: 48,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: RADIUS.lg,
+    backgroundColor: '#3f3f46',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+  },
+  protectionNoticeText: {
+    flex: 1,
+    color: '#fff',
+    fontSize: FONT.xs,
+    lineHeight: 17,
+    fontWeight: '600',
+  },
   header: {
     minHeight: 76,
     paddingHorizontal: SPACING.lg,

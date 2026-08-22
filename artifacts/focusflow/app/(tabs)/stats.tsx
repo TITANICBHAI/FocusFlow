@@ -9,7 +9,7 @@
  *  All Time  — lifetime hero numbers, 12-week calendar heatmap, milestone badges
  */
 
-import React, { useMemo, useEffect, useState, useCallback, useRef } from 'react';
+import React, { useMemo, useEffect, useState, useCallback } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { ActiveHeaderButton } from '@/components/ActiveHeaderButton';
 import { withScreenErrorBoundary } from '@/components/withScreenErrorBoundary';
@@ -37,12 +37,10 @@ import {
 import { GreyoutModule, TemptationEntry } from '@/native-modules/GreyoutModule';
 import { UsageInsights } from '@/components/UsageInsights';
 import { QuickBlockSheet } from '@/components/QuickBlockSheet';
-import PagerView from 'react-native-pager-view';
 import type { UsageApp } from '@/native-modules/UsageStatsModule';
 import type { Task } from '@/data/types';
 
 type Filter = 'yesterday' | 'today' | 'week' | 'alltime';
-const PAGE_ORDER: Filter[] = ['yesterday', 'today', 'week', 'alltime'];
 const FILTER_PILL_ORDER: Filter[] = ['today', 'yesterday', 'week', 'alltime'];
 
 interface AppStat  { pkg: string; appName: string; count: number }
@@ -85,7 +83,6 @@ function StatsScreen() {
   const { width }       = useWindowDimensions();
 
   const [filter, setFilter] = useState<Filter>('today');
-  const pagerRef = useRef<PagerView>(null);
   const [quickBlockApp, setQuickBlockApp] = useState<UsageApp | null>(null);
 
   // ── TODAY DB data ─────────────────────────────────────────────────────────
@@ -436,7 +433,6 @@ function StatsScreen() {
               ]}
               onPress={() => {
                 setFilter(f);
-                pagerRef.current?.setPage(PAGE_ORDER.indexOf(f));
               }}
               activeOpacity={0.8}
             >
@@ -458,17 +454,7 @@ function StatsScreen() {
         </View>
       )}
 
-      <PagerView
-        ref={pagerRef}
-        style={styles.pager}
-        initialPage={1}
-        onPageSelected={(event) => {
-          const nextFilter = PAGE_ORDER[event.nativeEvent.position];
-          if (nextFilter && nextFilter !== filter) setFilter(nextFilter);
-        }}
-      >
       {/* ════════════════ YESTERDAY ═════════════════════════════════════ */}
-      <View key="yesterday" style={styles.page}>
       {filter === 'yesterday' && (
         weekLoading ? (
           <View style={styles.center}><ActivityIndicator size="large" color={COLORS.primary} /></View>
@@ -631,10 +617,9 @@ function StatsScreen() {
 
           </ScrollView>
         )
-      )}</View>
+      )}
 
       {/* ════════════════ TODAY ═════════════════════════════════════════ */}
-      <View key="today" style={styles.page}>
       {filter === 'today' && (
         <ScrollView style={styles.scroll}
           contentContainerStyle={[styles.content, { paddingBottom: 60 + insets.bottom + 24 }]}
@@ -746,10 +731,9 @@ function StatsScreen() {
             </Text>
           </View>
         </ScrollView>
-      )}</View>
+      )}
 
       {/* ════════════════ WEEK ══════════════════════════════════════════ */}
-      <View key="week" style={styles.page}>
       {filter === 'week' && (
         weekLoading ? (
           <View style={styles.center}><ActivityIndicator size="large" color={COLORS.primary} /></View>
@@ -853,10 +837,9 @@ function StatsScreen() {
             )}
           </ScrollView>
         )
-      )}</View>
+      )}
 
       {/* ════════════════ ALL TIME ══════════════════════════════════════ */}
-      <View key="alltime" style={styles.page}>
       {filter === 'alltime' && (
         allTimeLoading ? (
           <View style={styles.center}><ActivityIndicator size="large" color={COLORS.primary} /></View>
@@ -921,8 +904,7 @@ function StatsScreen() {
 
           </ScrollView>
         )
-      )}</View>
-      </PagerView>
+      )}
       <QuickBlockSheet
         visible={quickBlockApp !== null}
         app={quickBlockApp}
@@ -1169,8 +1151,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   filterLabel: { fontSize: FONT.sm, fontWeight: '800', letterSpacing: 0.3 },
-  pager: { flex: 1 },
-  page: { flex: 1 },
 
   dbErrorBanner: {
     flexDirection: 'row',

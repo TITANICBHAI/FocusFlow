@@ -39,7 +39,9 @@ import org.json.JSONArray
  *      fades in the ✕ button in the top-right corner.
  *   5. User taps ✕ → overlay finishes.  No navigation — they're already at home.
  *
- * Back button: intentionally swallowed — overlay cannot be dismissed by back press.
+ * Back button: opens FocusFlow so the user can return to the app without
+ * dismissing the active block itself. The overlay's re-raise guard treats
+ * MainActivity as a trusted FocusFlow screen.
  * onPause re-raise: kept from the original for slow-device protection.
  *
  * SharedPrefs keys read:
@@ -144,11 +146,11 @@ class BlockOverlayActivity : Activity() {
         intent?.getStringExtra(EXTRA_BLOCK_REASON)?.let { if (it.isNotEmpty()) blockReason = it }
     }
 
-    // ─── Back button: fully swallowed — only ✕ can dismiss the overlay ─────────
+    // ─── Back button: return to FocusFlow without ending the block ─────────────
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
-        // Intentionally do nothing — back is completely ignored
+        launchFocusFlow()
     }
 
     // ─── Power button: block power-off menu during session ────────────────────
@@ -515,6 +517,36 @@ class BlockOverlayActivity : Activity() {
             // open of the same blocked app is caught immediately (no 2 s gap).
             .putBoolean("block_cooldown_reset", true)
             .apply()
+        finish()
+    }
+
+    /**
+     * Opens the main FocusFlow activity while leaving the current block active.
+     *
+     * MainActivity is included in TRUSTED_FOCUSFLOW_CLASSES, so onPause() will
+     * not re-raise the blocking overlay after this navigation. The block
+     * remains enforced by the accessibility service and the user can use
+     * FocusFlow's in-app controls to review the active session.
+     */
+    private fun launchFocusFlow() {
+        intentionalFinish = true
+        AversiveActionsManager.stopAll(applicationContext)
+        prefs.edit()
+            .putBoolean(PREF_OVERLAY_X_READY, false)
+            .putBoolean("block_cooldown_reset", true)
+            .apply()
+
+        try {
+            val focusFlowIntent = android.content.Intent(this, MainActivity::class.java).apply {
+                flags = android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                        android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP
+            }
+            startActivity(focusFlowIntent)
+        } catch (_: Exception) {
+            // If the main activity cannot be resolved, keep the overlay active.
+            intentionalFinish = false
+            return
+        }
         finish()
     }
 

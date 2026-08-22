@@ -61,7 +61,6 @@
     "expo-sqlite": "~16.0.10",
     "expo-task-manager": "~14.0.9",
     "nanoid": "^5.1.7",
-    "react-native-pager-view": "6.5.0",
     "react-native-size-matters": "^0.4.2"
   }
 }

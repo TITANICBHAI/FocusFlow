@@ -1035,6 +1035,21 @@ export function StandaloneBlockModal({
                 </>
               )}
 
+              {/* ── Stronger blocking hint ── */}
+              <View style={[styles.strongerBlockHint, { backgroundColor: COLORS.primary + '10', borderColor: COLORS.primary + '35' }]}>
+                <Ionicons name="shield-checkmark-outline" size={18} color={COLORS.primary} />
+                <View style={styles.strongerBlockHintContent}>
+                  <Text style={[styles.strongerBlockHintTitle, { color: theme.text }]}>
+                    Want a stronger block?
+                  </Text>
+                  <Text style={[styles.strongerBlockHintText, { color: theme.textSecondary }]}>
+                    1. Select <Text style={styles.strongerBlockHintEmphasis}>Settings</Text> in this app list.
+                    {'\n'}
+                    2. In the <Text style={styles.strongerBlockHintEmphasis}>Defense</Text> tab, scroll down a little and turn on <Text style={styles.strongerBlockHintEmphasis}>Protect system controls</Text>.
+                  </Text>
+                </View>
+              </View>
+
               {/* Search and installed apps header */}
               <View style={[styles.searchContainer, { backgroundColor: theme.card, borderColor: theme.border }]}>
                 <Ionicons name="search" size={16} color={COLORS.muted} style={styles.searchIcon} />
@@ -1601,6 +1616,30 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: FONT.sm,
     fontWeight: '600',
+  },
+  strongerBlockHint: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: SPACING.sm,
+    marginTop: SPACING.lg,
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    padding: SPACING.md,
+  },
+  strongerBlockHintContent: {
+    flex: 1,
+    gap: 3,
+  },
+  strongerBlockHintTitle: {
+    fontSize: FONT.sm,
+    fontWeight: '700',
+  },
+  strongerBlockHintText: {
+    fontSize: FONT.xs,
+    lineHeight: 18,
+  },
+  strongerBlockHintEmphasis: {
+    fontWeight: '700',
   },
 
   // ── Category styles ────────────────────────────────────────────────────────
