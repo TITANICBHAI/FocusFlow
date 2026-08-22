@@ -11,6 +11,7 @@
 
 import React, { useMemo, useEffect, useState, useCallback, useRef } from 'react';
 import { useFocusEffect } from 'expo-router';
+import { ActiveHeaderButton } from '@/components/ActiveHeaderButton';
 import { withScreenErrorBoundary } from '@/components/withScreenErrorBoundary';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
@@ -416,6 +417,7 @@ function StatsScreen() {
            :                         'All time'}
           </Text>
         </View>
+        <ActiveHeaderButton />
       </View>
 
       {/* ── Tab pills (sticky, high-contrast) ────────────────────────── */}

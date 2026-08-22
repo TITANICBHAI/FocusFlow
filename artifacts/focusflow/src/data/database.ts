@@ -1022,6 +1022,13 @@ export async function dbDeleteAllTasks(): Promise<void> {
   );
 }
 
+/** Deletes every task except the task currently running in focus mode. */
+export async function dbDeleteAllTasksExcept(taskId: string): Promise<void> {
+  return runWithDbWrite('dbDeleteAllTasksExcept', (database) =>
+    database.runAsync('DELETE FROM tasks WHERE id != ?', [taskId]).then(() => undefined),
+  );
+}
+
 /** Best consecutive-day streak ever recorded (50% completion threshold). */
 export async function dbGetBestStreak(): Promise<number> {
   return runWithDbOr('dbGetBestStreak', 0, async (database) => {

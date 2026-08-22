@@ -10,3 +10,4 @@
 - [Dependency installation timing](dependency-installation-timing.md) — read the applicable plan and do requested code edits before installing dependencies; install when the user asks or verification requires it.
 - [Workspace package firewall](workspace-package-firewall.md) — filtered frozen installs can still fail on the shared shell-quote tarball before workspace-local node_modules is linked.
 - [System-control enforcement gate](system-control-enforcement-gate.md) — installer and system-control interception must require the explicit Protect system controls toggle.
+- [Task deletion and focus cleanup](task-deletion-focus-cleanup.md) — clearing tasks must end active focus sessions before deleting their task rows, without changing block settings.

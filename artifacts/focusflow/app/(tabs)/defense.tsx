@@ -16,6 +16,8 @@ import { useApp } from '@/context/AppContext';
 import { useTheme } from '@/hooks/useTheme';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 import { DailyAllowanceModal } from '@/components/DailyAllowanceModal';
+import { GreyoutScheduleModal } from '@/components/GreyoutScheduleModal';
+import { ActiveHeaderButton } from '@/components/ActiveHeaderButton';
 import { PinSetupModal } from '@/components/PinSetupModal';
 import { PinVerifyModal } from '@/components/PinVerifyModal';
 import { withScreenErrorBoundary } from '@/components/withScreenErrorBoundary';
@@ -32,6 +34,7 @@ function DefenseScreen() {
   const { settings } = state;
 
   const [dailyAllowanceVisible, setDailyAllowanceVisible] = useState(false);
+  const [greyoutScheduleVisible, setGreyoutScheduleVisible] = useState(false);
   const [pinModal, setPinModal] = useState<
     | { type: 'none' }
     | { type: 'verify'; title: string; description: string; action: DefenseAction }
@@ -221,7 +224,13 @@ function DefenseScreen() {
             icon="time-outline"
             label="Block Schedules"
             description="Manage recurring time-window blocks"
-            onPress={() => router.push('/block-defense?tab=greyout')}
+            onPress={() =>
+              requireDefensePin(
+                'Manage Block Schedules',
+                'Enter your defense password to add, edit, or remove schedule batches.',
+                () => setGreyoutScheduleVisible(true),
+              )
+            }
             theme={theme}
           />
           <SettingButton
@@ -301,6 +310,17 @@ function DefenseScreen() {
         onClose={() => setDailyAllowanceVisible(false)}
       />
 
+      <GreyoutScheduleModal
+        visible={greyoutScheduleVisible}
+        windows={settings.greyoutSchedule ?? []}
+        standaloneActive={isStandaloneActive(settings)}
+        onSave={async (windows) => {
+          await update({ greyoutSchedule: windows });
+          setGreyoutScheduleVisible(false);
+        }}
+        onClose={() => setGreyoutScheduleVisible(false)}
+      />
+
       <PinVerifyModal
         visible={pinModal.type === 'verify'}
         pinType="defense"
@@ -350,6 +370,7 @@ function Header({ theme }: { theme: ReturnType<typeof useTheme>['theme'] }) {
         <Text style={[styles.title, { color: theme.text }]}>Defense</Text>
         <Text style={[styles.subtitle, { color: theme.muted }]}>Make distractions harder to reach</Text>
       </View>
+        <ActiveHeaderButton />
     </View>
   );
 }

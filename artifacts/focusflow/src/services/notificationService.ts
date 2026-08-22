@@ -334,6 +334,33 @@ export function cancelAllReminders(): Promise<void> {
   });
 }
 
+/** Cancels task reminders while preserving the reminders for one active task. */
+export function cancelAllRemindersExcept(taskId: string): Promise<void> {
+  return enqueueNotificationWrite(async () => {
+    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+    const taskIds = [
+      ...new Set(
+        scheduled
+          .map((notification) => notification.content.data?.taskId)
+          .filter(
+            (scheduledTaskId): scheduledTaskId is string =>
+              typeof scheduledTaskId === 'string' &&
+              scheduledTaskId.length > 0 &&
+              scheduledTaskId !== taskId,
+          ),
+      ),
+    ];
+    await Promise.all(
+      scheduled
+        .filter((notification) => notification.content.data?.taskId !== taskId)
+        .map((notification) => Notifications.cancelScheduledNotificationAsync(notification.identifier)),
+    );
+    if (Platform.OS === 'android') {
+      await Promise.all(taskIds.map((scheduledTaskId) => TaskAlarmModule.cancelAlarm(scheduledTaskId)));
+    }
+  });
+}
+
 // ─── Persistent "in-progress" notification ───────────────────────────────────
 // The persistent notification is owned entirely by the native ForegroundTaskService.
 // It uses setOngoing(true) + IMPORTANCE_LOW so Samsung One UI does not flag it.

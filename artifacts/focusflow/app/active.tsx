@@ -78,9 +78,9 @@ export default function ActiveScreen() {
     count?: number;
     route?: string;
   }> = [
-    { key: 'systemGuard', label: 'System Protection',     on: settings.systemGuardEnabled ?? false,         icon: 'lock-closed-outline', route: '/block-defense?tab=system' },
-    { key: 'shorts',      label: 'YouTube Shorts Block',  on: settings.blockYoutubeShortsEnabled ?? false,  icon: 'logo-youtube',        route: '/block-defense?tab=system' },
-    { key: 'reels',       label: 'Instagram Reels Block', on: settings.blockInstagramReelsEnabled ?? false, icon: 'logo-instagram',      route: '/block-defense?tab=system' },
+    { key: 'systemGuard', label: 'System Protection',     on: settings.systemGuardEnabled ?? false,         icon: 'lock-closed-outline', route: '/(tabs)/defense' },
+    { key: 'shorts',      label: 'YouTube Shorts Block',  on: settings.blockYoutubeShortsEnabled ?? false,  icon: 'logo-youtube',        route: '/(tabs)/defense' },
+    { key: 'reels',       label: 'Instagram Reels Block', on: settings.blockInstagramReelsEnabled ?? false, icon: 'logo-instagram',      route: '/(tabs)/defense' },
     { key: 'keywords',    label: 'Keyword Blocker',       on: (settings.blockedWords ?? []).length > 0,     icon: 'text-outline', count: (settings.blockedWords ?? []).length, route: '/keyword-blocker' },
   ];
   const enforcementOnCount = enforcementLayers.filter((l) => l.on).length;
@@ -390,7 +390,7 @@ export default function ActiveScreen() {
           )}
           <TouchableOpacity
             style={[styles.linkBtn, { borderColor: theme.border }]}
-            onPress={() => router.push('/block-defense?tab=greyout')}
+            onPress={() => router.push('/(tabs)/defense')}
           >
             <Ionicons name="settings-outline" size={14} color={COLORS.primary} />
             <Text style={[styles.linkBtnText, { color: COLORS.primary }]}>Manage Schedules</Text>
@@ -503,13 +503,13 @@ export default function ActiveScreen() {
           <QuickAction
             icon="time-outline"
             label="Edit Block Schedules"
-            onPress={() => router.push('/block-defense?tab=greyout')}
+            onPress={() => router.push('/(tabs)/defense')}
             theme={theme}
           />
           <QuickAction
             icon="shield-checkmark-outline"
             label="Block Enforcement Settings"
-            onPress={() => router.push('/block-defense')}
+            onPress={() => router.push('/(tabs)/defense')}
             theme={theme}
           />
           <QuickAction

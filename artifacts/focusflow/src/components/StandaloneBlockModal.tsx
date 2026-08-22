@@ -14,7 +14,7 @@ import {
   Platform,
   Alert,
 } from 'react-native';
-import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import DateTimePicker, { DateTimePickerAndroid, type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import dayjs from 'dayjs';
 import { InstalledAppsModule, InstalledApp } from '@/native-modules/InstalledAppsModule';
@@ -573,6 +573,47 @@ export function StandaloneBlockModal({
     );
   };
 
+  // Android's inline DateTimePicker mounts/unmounts a native dialog whenever
+  // its controlling React state changes. In a Modal this can cause the dialog
+  // to briefly show the selected value and then re-open with the old value.
+  // Use the imperative Android API so the picker owns its lifecycle and only
+  // commit the merged value after the user confirms.
+  const openAndroidDatePicker = () => {
+    const current = untilDate;
+    DateTimePickerAndroid.open({
+      value: current,
+      mode: 'date',
+      minimumDate: new Date(),
+      onChange: (event, date) => {
+        if (event.type !== 'set' || !date) return;
+        const merged = dayjs(date)
+          .hour(current.getHours())
+          .minute(current.getMinutes())
+          .second(0)
+          .toDate();
+        setUntilDate(merged);
+      },
+    });
+  };
+
+  const openAndroidTimePicker = () => {
+    const current = untilDate;
+    DateTimePickerAndroid.open({
+      value: current,
+      mode: 'time',
+      is24Hour: false,
+      onChange: (event, date) => {
+        if (event.type !== 'set' || !date) return;
+        const merged = dayjs(current)
+          .hour(date.getHours())
+          .minute(date.getMinutes())
+          .second(0)
+          .toDate();
+        setUntilDate(merged);
+      },
+    });
+  };
+
   const allowanceSummary = (entry: DailyAllowanceEntry) => {
     if (entry.mode === 'time_budget') return `${entry.budgetMinutes ?? 30} min/day`;
     if (entry.mode === 'interval') return `${entry.intervalMinutes ?? 5} min every ${entry.intervalHours ?? 1}hr`;
@@ -793,7 +834,11 @@ export function StandaloneBlockModal({
           <View style={styles.expiryRow}>
             <TouchableOpacity
               style={[styles.expiryBtn, locked && styles.expiryBtnLocked]}
-              onPress={() => { if (!locked) setShowDatePicker(true); }}
+              onPress={() => {
+                if (locked) return;
+                if (Platform.OS === 'android') openAndroidDatePicker();
+                else setShowDatePicker(true);
+              }}
               activeOpacity={locked ? 1 : 0.7}
             >
               <Ionicons name={locked ? 'lock-closed-outline' : 'calendar-outline'} size={16} color={locked ? COLORS.muted : COLORS.primary} />
@@ -803,7 +848,11 @@ export function StandaloneBlockModal({
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.expiryBtn, locked && styles.expiryBtnLocked]}
-              onPress={() => { if (!locked) setShowTimePicker(true); }}
+              onPress={() => {
+                if (locked) return;
+                if (Platform.OS === 'android') openAndroidTimePicker();
+                else setShowTimePicker(true);
+              }}
               activeOpacity={locked ? 1 : 0.7}
             >
               <Ionicons name={locked ? 'lock-closed-outline' : 'time-outline'} size={16} color={locked ? COLORS.muted : COLORS.primary} />
@@ -831,7 +880,7 @@ export function StandaloneBlockModal({
           )}
         </View>
 
-        {showDatePicker && (
+        {showDatePicker && Platform.OS !== 'android' && (
           <DateTimePicker
             value={untilDate}
             mode="date"
@@ -840,7 +889,7 @@ export function StandaloneBlockModal({
             onChange={onDateChange}
           />
         )}
-        {showTimePicker && (
+        {showTimePicker && Platform.OS !== 'android' && (
           <DateTimePicker
             value={untilDate}
             mode="time"

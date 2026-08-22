@@ -11,6 +11,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { ActiveHeaderButton } from '@/components/ActiveHeaderButton';
 import { Ionicons } from '@expo/vector-icons';
 import dayjs from 'dayjs';
 import { useApp } from '@/context/AppContext';
@@ -93,6 +94,7 @@ function ScheduleScreen() {
             {totalCount === 0 ? 'No tasks today' : `${completedCount}/${totalCount} tasks done`}
           </Text>
         </View>
+        <ActiveHeaderButton />
       </View>
 
       {/* Active / Time's-up Banner — surfaces ended-but-undecided tasks too. */}

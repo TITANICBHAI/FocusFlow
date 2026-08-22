@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -16,9 +16,10 @@ import { useApp } from '@/context/AppContext';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 import { useTheme } from '@/hooks/useTheme';
 import Constants from 'expo-constants';
-import { dbDeleteAllTasks } from '@/data/database';
+import { dbDeleteAllTasks, dbDeleteAllTasksExcept, dbEndFocusSession } from '@/data/database';
 import {
   cancelAllReminders,
+  cancelAllRemindersExcept,
   requestPermissions,
   scheduleTaskRemindersBatch,
 } from '@/services/notificationService';
@@ -31,18 +32,23 @@ import ReportIssueModal from '@/components/ReportIssueModal';
 import { withScreenErrorBoundary } from '@/components/withScreenErrorBoundary';
 import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
 import DarkModeToggle from '@/components/DarkModeToggle';
+import { ActiveHeaderButton } from '@/components/ActiveHeaderButton';
+import { PinVerifyModal } from '@/components/PinVerifyModal';
+import { SessionPinModule } from '@/native-modules/SessionPinModule';
 
 const DURATION_OPTIONS = [30, 45, 60, 90, 120];
 
 function SettingsScreen() {
   const insets = useSafeAreaInsets();
-  const { state, updateSettings, refreshTasks, deleteTask, addTask } = useApp();
+  const { state, updateSettings, refreshTasks, deleteTask, addTask, stopFocusMode } = useApp();
   const { settings } = state;
   const { theme } = useTheme();
   const [appsModalVisible, setAppsModalVisible] = useState(false);
   const [overlayAppearanceVisible, setOverlayAppearanceVisible] = useState(false);
   const [diagnosticsVisible, setDiagnosticsVisible] = useState(false);
   const [reportIssueVisible, setReportIssueVisible] = useState(false);
+  const [focusPinVisible, setFocusPinVisible] = useState(false);
+  const pendingClearAllRef = useRef(false);
   // Logs are useful in release builds too: WARN/ERROR entries are retained
   // locally and the user can explicitly choose whether to report them.
   const showDiagnostics = true;
@@ -143,6 +149,36 @@ function SettingsScreen() {
     }
   };
 
+  const clearAllTasks = async (focusPinHash: string | null = null) => {
+    const activeFocusTaskId = state.focusSession?.isActive ? state.focusSession.taskId : null;
+    if (activeFocusTaskId) {
+      if (focusPinHash) {
+        await stopFocusMode(focusPinHash);
+        // stopFocusMode normally closes this row through focusService. Repeat
+        // the idempotent update here so a recovered session with no in-memory
+        // task reference cannot leave an active focus_sessions row behind.
+        await dbEndFocusSession(activeFocusTaskId);
+        await cancelAllReminders();
+        await dbDeleteAllTasks();
+      } else {
+        // Without the Focus PIN, preserve the protected task and its live
+        // session. Only the other task rows and their reminders are removed.
+        await cancelAllRemindersExcept(activeFocusTaskId);
+        await dbDeleteAllTasksExcept(activeFocusTaskId);
+      }
+    } else {
+      await cancelAllReminders();
+      await dbDeleteAllTasks();
+    }
+    await refreshTasks();
+    Alert.alert(
+      'Done',
+      activeFocusTaskId && !focusPinHash
+        ? 'All other tasks cleared. The active focus task was kept running.'
+        : 'All tasks cleared.',
+    );
+  };
+
   const handleClearAllTasks = () => {
     Alert.alert('Clear All Tasks', 'This will delete ALL tasks. Are you sure?', [
       { text: 'Cancel', style: 'cancel' },
@@ -150,10 +186,15 @@ function SettingsScreen() {
         text: 'Clear All',
         style: 'destructive',
         onPress: async () => {
-          await cancelAllReminders();
-          await dbDeleteAllTasks();
-          await refreshTasks();
-          Alert.alert('Done', 'All tasks cleared.');
+          if (state.focusSession?.isActive) {
+            const pinSet = await SessionPinModule.isPinSet().catch(() => false);
+            if (pinSet) {
+              pendingClearAllRef.current = true;
+              setFocusPinVisible(true);
+              return;
+            }
+          }
+          await clearAllTasks();
         },
       },
     ]);
@@ -170,6 +211,7 @@ function SettingsScreen() {
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
       <View style={[styles.header, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
         <Text style={[styles.title, { color: theme.text }]}>Settings</Text>
+        <ActiveHeaderButton />
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { paddingBottom: 60 + insets.bottom + 20 }]}>
@@ -423,6 +465,27 @@ function SettingsScreen() {
         visible={reportIssueVisible}
         onClose={() => setReportIssueVisible(false)}
       />
+      <PinVerifyModal
+        visible={focusPinVisible}
+        pinType="focus"
+        title="Focus Session Password Required"
+        description="Enter your focus session password before clearing tasks and ending the active focus session."
+        onVerified={(hash) => {
+          setFocusPinVisible(false);
+          if (!pendingClearAllRef.current) return;
+          pendingClearAllRef.current = false;
+          void clearAllTasks(hash).catch(() => {
+            Alert.alert('Clear failed', 'Could not stop the active focus session and clear tasks.');
+          });
+        }}
+        onCancel={() => {
+          pendingClearAllRef.current = false;
+          setFocusPinVisible(false);
+          void clearAllTasks().catch(() => {
+            Alert.alert('Clear failed', 'Could not clear the other tasks.');
+          });
+        }}
+      />
 
     </SafeAreaView>
   );
@@ -490,6 +553,9 @@ function SettingButton({
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.background },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     padding: SPACING.lg,
     backgroundColor: COLORS.card,
     borderBottomWidth: StyleSheet.hairlineWidth,

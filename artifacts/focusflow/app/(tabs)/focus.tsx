@@ -21,6 +21,7 @@ import { formatTime, isAwaitingDecision } from '@/services/taskService';
 import { dbLogFocusOverride } from '@/data/database';
 import { UsageStatsModule } from '@/native-modules/UsageStatsModule';
 import { StandaloneBlockModal } from '@/components/StandaloneBlockModal';
+import { ActiveHeaderButton } from '@/components/ActiveHeaderButton';
 import ExtendModal from '@/components/ExtendModal';
 import { PinRotationModal } from '@/components/PinRotationModal';
 import { PinVerifyModal } from '@/components/PinVerifyModal';
@@ -199,6 +200,9 @@ function FocusScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: task ? task.color + '18' : theme.background }]}>
+      <View style={styles.activeHeaderAction}>
+        <ActiveHeaderButton />
+      </View>
       {showDefenseHint && (
         <View style={[styles.hintBanner, { backgroundColor: COLORS.primary + '12', borderColor: COLORS.primary + '35' }]}>
           <Ionicons name="shield-checkmark-outline" size={20} color={COLORS.primary} />
@@ -571,6 +575,12 @@ function SecondaryBtn({ icon, label, color, onPress }: { icon: keyof typeof Ioni
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
+  activeHeaderAction: {
+    position: 'absolute',
+    top: SPACING.sm,
+    right: SPACING.lg,
+    zIndex: 10,
+  },
   hintBanner: {
     marginHorizontal: SPACING.md,
     marginTop: SPACING.sm,
