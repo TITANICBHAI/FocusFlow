@@ -20,6 +20,7 @@ import { GreyoutScheduleModal } from '@/components/GreyoutScheduleModal';
 import { ActiveHeaderButton } from '@/components/ActiveHeaderButton';
 import { PinSetupModal } from '@/components/PinSetupModal';
 import { PinVerifyModal } from '@/components/PinVerifyModal';
+import { PinRotationModal } from '@/components/PinRotationModal';
 import { withScreenErrorBoundary } from '@/components/withScreenErrorBoundary';
 import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -41,6 +42,7 @@ function DefenseScreen() {
     | { type: 'setup'; action: DefenseAction }
   >({ type: 'none' });
   const [showDefenseHint, setShowDefenseHint] = useState(false);
+  const [alwaysOnPinRotationVisible, setAlwaysOnPinRotationVisible] = useState(false);
   const pendingSetupAction = useRef<DefenseAction | null>(null);
 
   React.useEffect(() => {
@@ -177,10 +179,20 @@ function DefenseScreen() {
                 if (enabled) {
                   void update({ alwaysOnEnforcementEnabled: true });
                 } else {
+                    if (isStandaloneActive(settings)) {
+                      Alert.alert(
+                        'Protection is active',
+                        'Always-On Enforcement cannot be turned off while a standalone block is active.',
+                      );
+                      return;
+                    }
                   requireDefensePin(
                     'Disable Always-On Enforcement',
                     'Enter your defense password to turn off always-on protection.',
-                    (hash) => void update({ alwaysOnEnforcementEnabled: false }, hash ?? null),
+                    (hash) => {
+                      void update({ alwaysOnEnforcementEnabled: false }, hash ?? null);
+                      setAlwaysOnPinRotationVisible(true);
+                    },
                   );
                 }
               }}
@@ -347,6 +359,15 @@ function DefenseScreen() {
           pendingSetupAction.current = null;
           setPinModal({ type: 'none' });
         }}
+      />
+      <PinRotationModal
+        visible={alwaysOnPinRotationVisible}
+        pinType="defense"
+        reuseTrackerKey="alwayson"
+        actionLabel="Update Always-On Password"
+        actionDescription="Always-On Enforcement has been paused. Set the password that will be required next time you change this setting."
+        onComplete={() => setAlwaysOnPinRotationVisible(false)}
+        onCancel={() => setAlwaysOnPinRotationVisible(false)}
       />
     </SafeAreaView>
   );

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { withScreenErrorBoundary } from '@/components/withScreenErrorBoundary';
 import {
   View,
@@ -71,11 +71,19 @@ function FocusScreen() {
   const awaitingDecision = task ? isAwaitingDecision(task) : false;
   const otherActiveCount = Math.max(0, activeTasks.filter((item) => item.id !== task?.id).length);
   const blockPresets = settings.blockPresets ?? [];
+  const handlePomodoroBreakStart = useCallback((seconds: number) => {
+    if (!task) return;
+    // Pause the task clock for the break by moving its end forward by the
+    // exact break duration. This preserves the remaining focus time even
+    // when the user is not using the phone during the break.
+    void extendTaskTime(task.id, Math.ceil(seconds / 60));
+  }, [extendTaskTime, task?.id]);
   const pomodoro = usePomodoro(
     isFocusing && (settings.pomodoroEnabled ?? false),
     state.focusSession?.startedAt ?? null,
     settings.pomodoroDuration ?? 25,
     settings.pomodoroBreak ?? 5,
+    handlePomodoroBreakStart,
   );
 
   useEffect(() => {

@@ -1,30 +1,19 @@
 /**
- * active.tsx
+ * Live status dashboard for every blocking layer in FocusFlow.
  *
- * "Active" screen — live dashboard of every blocking surface in the app.
- * Replaces the old "What's blocking right now" panel that lived inside
- * Block Enforcement. Reachable from the Side Menu (top entry, above
- * Block Controls).
- *
- * Sections:
- *   1. Focus session card           — running task, time remaining, stop btn
- *   2. Timed standalone block       — countdown, blocked-app count, add-time
- *   3. Always-on enforcement        — list count + one-tap clear
- *   4. Active Block Schedules       — recurring/time-window blocks live now
- *   5. Active enforcement layers    — System Guard, Shorts, Reels, Keywords
- *   6. Today's daily allowance      — per-app remaining count/minutes
- *   7. Today's stats                — focus minutes + distractions blocked
- *   8. Quick actions                — start standalone, edit schedules, etc.
+ * Active is intentionally a status surface, not a second Defense settings
+ * screen. It always shows the six live protection categories and expands only
+ * the lists where the user needs more detail.
  */
 
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  StyleSheet,
   Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -34,104 +23,131 @@ import dayjs from 'dayjs';
 import { useApp } from '@/context/AppContext';
 import { useTheme } from '@/hooks/useTheme';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
-import { dbGetRecentDayCompletions, dbGetTodayFocusMinutes, dbGetTodayOverrideCount } from '@/data/database';
+import { dbGetTodayFocusMinutes, dbGetTodayOverrideCount, dbGetRecentDayCompletions } from '@/data/database';
 import { PinVerifyModal } from '@/components/PinVerifyModal';
 import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
 import { SessionPinModule } from '@/native-modules/SessionPinModule';
+import { InstalledAppsModule, type InstalledApp } from '@/native-modules/InstalledAppsModule';
+import { NetworkBlockModule, type NetworkBlockStatus } from '@/native-modules/NetworkBlockModule';
+import type { DailyAllowanceEntry } from '@/data/types';
+
+type AllowanceUsage = {
+  date?: string;
+  count?: number;
+  usedMs?: number;
+  windowStartMs?: number;
+};
 
 export default function ActiveScreen() {
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
   const { state, stopFocusMode, setStandaloneBlockAndAllowance } = useApp();
   const { settings } = state;
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [apps, setApps] = useState<InstalledApp[]>([]);
+  const [allowanceUsage, setAllowanceUsage] = useState<Record<string, AllowanceUsage>>({});
+  const [vpnStatus, setVpnStatus] = useState<NetworkBlockStatus | null>(null);
+  const [todayStats, setTodayStats] = useState({ completed: 0, total: 0, focusMinutes: 0, blocked: 0 });
   const [defPinVisible, setDefPinVisible] = useState(false);
   const [focusPinVisible, setFocusPinVisible] = useState(false);
   const pendingDefAction = useRef<(() => void) | null>(null);
 
-  // ── Derived live state ────────────────────────────────────────────────────
   const focusActive = state.focusSession?.isActive === true;
   const focusTask = state.focusSession
-    ? state.tasks.find((t) => t.id === state.focusSession?.taskId)
+    ? state.tasks.find((task) => task.id === state.focusSession?.taskId)
     : null;
-
-  const standalonePkgs = settings.standaloneBlockPackages ?? [];
-  const standaloneUntil = settings.standaloneBlockUntil
-    ? new Date(settings.standaloneBlockUntil)
-    : null;
-  const standaloneTimerActive =
-    !!standaloneUntil && standalonePkgs.length > 0 && standaloneUntil.getTime() > Date.now();
-
+  const standalonePackages = settings.standaloneBlockPackages ?? [];
+  const standaloneUntil = settings.standaloneBlockUntil ? new Date(settings.standaloneBlockUntil) : null;
+  const standaloneActive = Boolean(
+    standaloneUntil &&
+      standalonePackages.length > 0 &&
+      standaloneUntil.getTime() > Date.now(),
+  );
+  const alwaysOnPackages = settings.alwaysOnPackages ?? [];
+  const alwaysOnVpnPackages = settings.alwaysOnVpnPackages ?? [];
   const allowanceEntries = settings.dailyAllowanceEntries ?? [];
-  const alwaysOnActive = standalonePkgs.length > 0 || allowanceEntries.length > 0;
+  const keywords = settings.blockedWords ?? [];
+  const vpnPackages = useMemo(
+    () => unique([
+      ...alwaysOnVpnPackages,
+      ...(settings.standaloneVpnPackages ?? []),
+    ]),
+    [alwaysOnVpnPackages, settings.standaloneVpnPackages],
+  );
+  const appNames = useMemo(
+    () => new Map(apps.map((app) => [app.packageName, app.appName])),
+    [apps],
+  );
 
-  const recurringSchedules = settings.recurringBlockSchedules ?? [];
-  const greyoutWindows = settings.greyoutSchedule ?? [];
-  const activeWindows = computeActiveWindows(greyoutWindows, recurringSchedules);
-
-  // Each layer row optionally has a `route` so tapping it deep-links to the
-  // dedicated management page. Layers without a route stay informational.
-  const enforcementLayers: Array<{
-    key: string;
-    label: string;
-    on: boolean;
-    icon: 'lock-closed-outline' | 'logo-youtube' | 'logo-instagram' | 'text-outline';
-    count?: number;
-    route?: string;
-  }> = [
-    { key: 'systemGuard', label: 'System Protection',     on: settings.systemGuardEnabled ?? false,         icon: 'lock-closed-outline', route: '/(tabs)/defense' },
-    { key: 'shorts',      label: 'YouTube Shorts Block',  on: settings.blockYoutubeShortsEnabled ?? false,  icon: 'logo-youtube',        route: '/(tabs)/defense' },
-    { key: 'reels',       label: 'Instagram Reels Block', on: settings.blockInstagramReelsEnabled ?? false, icon: 'logo-instagram',      route: '/(tabs)/defense' },
-    { key: 'keywords',    label: 'Keyword Blocker',       on: (settings.blockedWords ?? []).length > 0,     icon: 'text-outline', count: (settings.blockedWords ?? []).length, route: '/keyword-blocker' },
-  ];
-  const enforcementOnCount = enforcementLayers.filter((l) => l.on).length;
-
-  // ── Today's stats from daily_completions + focus_sessions ─────────────────
-  const [todayStats, setTodayStats] = useState<{
-    completed: number;
-    total: number;
-    focusMinutes: number;
-    distractionsBlocked: number;
-  } | null>(null);
+  const refreshLiveData = useCallback(async () => {
+    const [rawUsage, status] = await Promise.all([
+      SharedPrefsModule.getString('daily_allowance_used').catch(() => null),
+      NetworkBlockModule.getNetworkBlockStatus().catch(() => null),
+    ]);
+    if (rawUsage) {
+      try {
+        const parsed = JSON.parse(rawUsage) as Record<string, AllowanceUsage>;
+        const today = dayjs().format('YYYY-MM-DD');
+        setAllowanceUsage(Object.fromEntries(
+          Object.entries(parsed).map(([pkg, value]) => [pkg, value.date === today ? value : {}]),
+        ));
+      } catch {
+        setAllowanceUsage({});
+      }
+    } else {
+      setAllowanceUsage({});
+    }
+    setVpnStatus(status);
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
       let mounted = true;
-      (async () => {
-        try {
-          const [rows, focusMinutes, distractions] = await Promise.all([
-            dbGetRecentDayCompletions(1),
-            dbGetTodayFocusMinutes(),
-            dbGetTodayOverrideCount(),
-          ]);
-          const todayKey = dayjs().format('YYYY-MM-DD');
-          const today = rows.find((r) => r.date === todayKey);
-          const todayTasks = state.tasks.filter(
-            (t) => dayjs(t.startTime).format('YYYY-MM-DD') === todayKey,
-          );
-          if (mounted) {
+      const refresh = () => {
+        void refreshLiveData();
+        void (async () => {
+          try {
+            const [rows, focusMinutes, blocked] = await Promise.all([
+              dbGetRecentDayCompletions(1),
+              dbGetTodayFocusMinutes(),
+              dbGetTodayOverrideCount(),
+            ]);
+            if (!mounted) return;
+            const todayKey = dayjs().format('YYYY-MM-DD');
+            const today = rows.find((row) => row.date === todayKey);
+            const total = state.tasks.filter((task) => dayjs(task.startTime).format('YYYY-MM-DD') === todayKey).length;
             setTodayStats({
               completed: today?.completed ?? 0,
-              total: today?.total ?? todayTasks.length,
+              total: today?.total ?? total,
               focusMinutes,
-              distractionsBlocked: distractions,
+              blocked,
             });
+          } catch {
+            if (mounted) setTodayStats({ completed: 0, total: 0, focusMinutes: 0, blocked: 0 });
           }
-        } catch {
-          if (mounted) setTodayStats({ completed: 0, total: 0, focusMinutes: 0, distractionsBlocked: 0 });
-        }
-      })();
-      return () => { mounted = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [])
+        })();
+      };
+      refresh();
+      const timer = setInterval(refresh, 15_000);
+      return () => {
+        mounted = false;
+        clearInterval(timer);
+      };
+    }, [refreshLiveData, state.tasks]),
   );
 
-  // ── Pin helpers ───────────────────────────────────────────────────────────
+  useEffect(() => {
+    let mounted = true;
+    InstalledAppsModule.getInstalledApps()
+      .then((installed) => { if (mounted) setApps(installed); })
+      .catch(() => {});
+    return () => { mounted = false; };
+  }, []);
+
   const withDefensePin = (action: () => void) => {
     SharedPrefsModule.getString('defense_pin_hash')
       .then((hash) => {
         if (hash) {
-          // A defense PIN is configured — always require it, regardless of
-          // whether the pinProtectionEnabled toggle is on.
           pendingDefAction.current = action;
           setDefPinVisible(true);
         } else {
@@ -141,677 +157,246 @@ export default function ActiveScreen() {
       .catch(() => action());
   };
 
-  // ── Actions ───────────────────────────────────────────────────────────────
-  const handleClearAlwaysOn = () => {
-    if (standaloneTimerActive) {
-      Alert.alert(
-        'Block Timer Running',
-        'A timed block is currently active. Clearing the list will stop always-on enforcement after the timer ends, but cannot remove apps until the timer expires.',
-      );
+  const stopFocus = () => {
+    SessionPinModule.isPinSet().then((pinSet) => {
+      if (pinSet) {
+        setFocusPinVisible(true);
+      } else {
+        Alert.alert('Stop focus session?', 'This ends app blocking for the current task.', [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Stop', style: 'destructive', onPress: () => { void stopFocusMode(); } },
+        ]);
+      }
+    }).catch(() => {});
+  };
+
+  const clearStandalone = () => {
+    if (standaloneActive) {
+      Alert.alert('Block Timer Running', 'The standalone block cannot be cleared until its timer expires.');
       return;
     }
     withDefensePin(() => {
       Alert.alert(
-        'Clear standalone block list?',
-        `This removes ${standalonePkgs.length} app${standalonePkgs.length !== 1 ? 's' : ''} from the always-on block list. Daily allowance rules are not affected.`,
+        'Clear standalone apps?',
+        `Remove ${standalonePackages.length} app${standalonePackages.length === 1 ? '' : 's'} from the timed block list?`,
         [
           { text: 'Cancel', style: 'cancel' },
           {
             text: 'Clear',
             style: 'destructive',
-            onPress: () => {
-              void setStandaloneBlockAndAllowance([], null, allowanceEntries);
-            },
+            onPress: () => { void setStandaloneBlockAndAllowance([], null, allowanceEntries); },
           },
         ],
       );
     });
   };
 
-  const handleStopFocus = () => {
-    SessionPinModule.isPinSet()
-      .catch(() => false)
-      .then((pinSet) => {
-        if (pinSet) {
-          setFocusPinVisible(true);
-        } else {
-          Alert.alert('Stop focus session?', 'This ends app blocking for the current task.', [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Stop', style: 'destructive', onPress: () => { void stopFocusMode(); } },
-          ]);
-        }
-      });
-  };
+  const alwaysOnActive = (settings.alwaysOnEnforcementEnabled ?? false) && alwaysOnPackages.length > 0;
+  const vpnConfigured = vpnPackages.length > 0 || settings.vpnBlockEnabled === true;
+  const vpnRunning = vpnStatus?.running === true;
+  const nothingActive = !focusActive && !standaloneActive && !alwaysOnActive && allowanceEntries.length === 0 &&
+    keywords.length === 0 && !vpnRunning;
 
-  const standaloneEndsLabel = standaloneUntil
-    ? `${standaloneUntil.getHours().toString().padStart(2, '0')}:${standaloneUntil.getMinutes().toString().padStart(2, '0')}`
-    : null;
-
-  const nothingActive =
-    !focusActive &&
-    !standaloneTimerActive &&
-    !alwaysOnActive &&
-    activeWindows.length === 0 &&
-    enforcementOnCount === 0;
-
-  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
       <View style={[styles.header, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+        <TouchableOpacity onPress={() => router.back()} hitSlop={10}>
           <Ionicons name="chevron-back" size={24} color={theme.text} />
         </TouchableOpacity>
-        <View style={{ flex: 1, marginLeft: SPACING.sm }}>
+        <View style={styles.headerCopy}>
           <Text style={[styles.title, { color: theme.text }]}>Active</Text>
-          <Text style={[styles.subtitle, { color: theme.muted }]}>Live status of every block running now</Text>
+          <Text style={[styles.subtitle, { color: theme.muted }]}>Live status of your protections</Text>
         </View>
+        <View style={[styles.liveDot, { backgroundColor: nothingActive ? theme.muted : COLORS.green }]} />
       </View>
 
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={[styles.content, { paddingBottom: 40 + insets.bottom }]}
-      >
-        {/* All-clear banner ─────────────────────────────────── */}
-        {nothingActive && (
-          <View style={[styles.allClearCard, { backgroundColor: COLORS.green + '12', borderColor: COLORS.green + '44' }]}>
-            <Ionicons name="checkmark-circle" size={28} color={COLORS.green} />
-            <View style={{ flex: 1, gap: 2 }}>
-              <Text style={[styles.allClearTitle, { color: theme.text }]}>All clear</Text>
-              <Text style={[styles.allClearDesc, { color: theme.muted }]}>
-                No focus session, no timed block, no always-on enforcement, no schedules running.
-              </Text>
-            </View>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 40 + insets.bottom }]} showsVerticalScrollIndicator={false}>
+        <View style={[styles.summary, { backgroundColor: nothingActive ? theme.card : COLORS.primary + '12', borderColor: nothingActive ? theme.border : COLORS.primary + '35' }]}>
+          <Ionicons name={nothingActive ? 'checkmark-circle-outline' : 'pulse-outline'} size={22} color={nothingActive ? COLORS.green : COLORS.primary} />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.summaryTitle, { color: theme.text }]}>{nothingActive ? 'Nothing blocking right now' : 'Protection is active'}</Text>
+            <Text style={[styles.summaryText, { color: theme.muted }]}>
+              {nothingActive ? 'Start Focus or configure a protection layer in Defense.' : 'This page updates automatically while it is open.'}
+            </Text>
           </View>
-        )}
+        </View>
 
-        {/* 1. Focus session ────────────────────────────────── */}
-        <SectionCard
-          icon="hourglass-outline"
-          iconBg={focusActive ? COLORS.primary : theme.muted}
-          title="Focus Session"
-          theme={theme}
-        >
+        <StatusCard icon="hourglass-outline" color={focusActive ? COLORS.primary : theme.muted} title="Focus Session" status={focusActive ? 'Active' : 'Not active'} theme={theme}>
           {focusActive && focusTask ? (
             <>
-              <Row label="Task" value={focusTask.title} theme={theme} />
-              <Row
-                label="Ends"
-                value={dayjs(focusTask.endTime).format('HH:mm')}
-                theme={theme}
-              />
-              <TouchableOpacity
-                style={[styles.dangerBtn, { borderColor: COLORS.red + '55', backgroundColor: COLORS.red + '14' }]}
-                onPress={handleStopFocus}
-              >
+              <DetailRow label="Task" value={focusTask.title} theme={theme} />
+              <DetailRow label="Ends at" value={dayjs(focusTask.endTime).format('HH:mm')} theme={theme} />
+              <TouchableOpacity style={[styles.action, { borderColor: COLORS.red + '55', backgroundColor: COLORS.red + '12' }]} onPress={stopFocus}>
                 <Ionicons name="stop-circle-outline" size={16} color={COLORS.red} />
-                <Text style={[styles.dangerBtnText, { color: COLORS.red }]}>Stop Focus</Text>
+                <Text style={[styles.actionText, { color: COLORS.red }]}>Stop Focus</Text>
               </TouchableOpacity>
             </>
           ) : (
-            <Text style={[styles.emptyRow, { color: theme.muted }]}>No focus session running.</Text>
+            <EmptyText text="No task-based focus session is running." theme={theme} />
           )}
-        </SectionCard>
+        </StatusCard>
 
-        {/* 2. Timed standalone block ───────────────────────── */}
-        <SectionCard
-          icon="ban-outline"
-          iconBg={standaloneTimerActive ? COLORS.red : theme.muted}
-          title="Timed Standalone Block"
-          theme={theme}
-        >
-          {standaloneTimerActive ? (
-            <>
-              <Row label="Apps blocked" value={`${standalonePkgs.length}`} theme={theme} />
-              <Row label="Ends at" value={standaloneEndsLabel ?? '—'} theme={theme} />
-              <TouchableOpacity
-                style={[styles.linkBtn, { borderColor: theme.border }]}
-                onPress={() => router.push('/(tabs)/focus')}
-              >
-                <Ionicons name="add-circle-outline" size={14} color={COLORS.primary} />
-                <Text style={[styles.linkBtnText, { color: COLORS.primary }]}>Add Time / More Apps</Text>
-              </TouchableOpacity>
-            </>
-          ) : (
-            <Text style={[styles.emptyRow, { color: theme.muted }]}>No timed block running.</Text>
-          )}
-        </SectionCard>
+        <StatusCard icon="ban-outline" color={standaloneActive ? COLORS.red : theme.muted} title="Standalone Block" status={standaloneActive ? 'Active' : 'Not active'} theme={theme}>
+          <DetailRow label="Apps" value={standalonePackages.length ? `${standalonePackages.length} blocked` : 'None selected'} theme={theme} />
+          <DetailRow label="Until" value={standaloneUntil ? formatDateTime(standaloneUntil) : 'No timer running'} theme={theme} />
+          {standaloneActive ? (
+            <TouchableOpacity style={[styles.action, { borderColor: theme.border }]} onPress={() => router.push('/(tabs)/focus')}>
+              <Ionicons name="add-circle-outline" size={16} color={COLORS.primary} />
+              <Text style={[styles.actionText, { color: COLORS.primary }]}>Add time or apps</Text>
+            </TouchableOpacity>
+          ) : standalonePackages.length > 0 ? (
+            <TouchableOpacity style={[styles.action, { borderColor: COLORS.red + '55' }]} onPress={clearStandalone}>
+              <Ionicons name="trash-outline" size={16} color={COLORS.red} />
+              <Text style={[styles.actionText, { color: COLORS.red }]}>Clear saved apps</Text>
+            </TouchableOpacity>
+          ) : null}
+        </StatusCard>
 
-        {/* 3. Always-on enforcement ────────────────────────── */}
-        {(() => {
-          const alwaysOnOverlayPkgs = settings.alwaysOnPackages ?? [];
-          const alwaysOnVpnPkgs = settings.alwaysOnVpnPackages ?? [];
-          const hasOverlay = alwaysOnOverlayPkgs.length > 0;
-          const hasVpn = alwaysOnVpnPkgs.length > 0;
-          const sectionActive = alwaysOnActive || hasOverlay || hasVpn;
-          return (
-            <SectionCard
-              icon="shield-checkmark-outline"
-              iconBg={sectionActive ? COLORS.orange : theme.muted}
-              title="Always-on Enforcement"
-              theme={theme}
-            >
-              {sectionActive ? (
-                <>
-                  <Row
-                    label="Overlay block (24/7)"
-                    value={
-                      hasOverlay
-                        ? `${alwaysOnOverlayPkgs.length} app${alwaysOnOverlayPkgs.length !== 1 ? 's' : ''} accessibility-blocked`
-                        : 'None'
-                    }
-                    theme={theme}
-                  />
-                  <Row
-                    label="VPN block (network)"
-                    value={
-                      hasVpn
-                        ? `${alwaysOnVpnPkgs.length} app${alwaysOnVpnPkgs.length !== 1 ? 's' : ''} internet-cut 24/7`
-                        : 'None'
-                    }
-                    theme={theme}
-                  />
-                  {allowanceEntries.length > 0 && (
-                    <Row
-                      label="Daily allowance rules"
-                      value={`${allowanceEntries.length} rule${allowanceEntries.length !== 1 ? 's' : ''}`}
-                      theme={theme}
-                    />
-                  )}
-                  <Text style={[styles.helperLine, { color: theme.muted }]}>
-                    These enforcement layers run 24/7 — no timer or session needed.
-                  </Text>
-                  <View style={styles.actionRow}>
-                    {hasOverlay && (
-                      <TouchableOpacity
-                        style={[styles.linkBtn, { borderColor: theme.border, flex: 1 }]}
-                        onPress={() => router.push('/always-on')}
-                      >
-                        <Ionicons name="infinite-outline" size={14} color={COLORS.orange} />
-                        <Text style={[styles.linkBtnText, { color: COLORS.orange }]}>Overlay List</Text>
-                      </TouchableOpacity>
-                    )}
-                    <TouchableOpacity
-                      style={[styles.linkBtn, { borderColor: theme.border, flex: 1 }]}
-                      onPress={() => router.push('/vpn-block-list')}
-                    >
-                      <Ionicons name="shield-checkmark-outline" size={14} color={COLORS.primary} />
-                      <Text style={[styles.linkBtnText, { color: COLORS.primary }]}>VPN List</Text>
-                    </TouchableOpacity>
-                  </View>
-                  {standalonePkgs.length > 0 && (
-                    <TouchableOpacity
-                      style={[styles.dangerBtn, { borderColor: COLORS.red + '55', backgroundColor: COLORS.red + '14' }]}
-                      onPress={handleClearAlwaysOn}
-                    >
-                      <Ionicons name="trash-outline" size={16} color={COLORS.red} />
-                      <Text style={[styles.dangerBtnText, { color: COLORS.red }]}>Clear Standalone Block</Text>
-                    </TouchableOpacity>
-                  )}
-                </>
-              ) : (
-                <>
-                  <Text style={[styles.emptyRow, { color: theme.muted }]}>
-                    Empty block list — nothing enforced outside of timed sessions.
-                  </Text>
-                  <TouchableOpacity
-                    style={[styles.linkBtn, { borderColor: theme.border }]}
-                    onPress={() => router.push('/vpn-block-list')}
-                  >
-                    <Ionicons name="shield-checkmark-outline" size={14} color={COLORS.primary} />
-                    <Text style={[styles.linkBtnText, { color: COLORS.primary }]}>Set Up VPN Block List</Text>
-                  </TouchableOpacity>
-                </>
-              )}
-            </SectionCard>
-          );
-        })()}
-
-        {/* 4. Active Block Schedules ───────────────────────── */}
-        <SectionCard
-          icon="time-outline"
-          iconBg={activeWindows.length > 0 ? COLORS.primary : theme.muted}
-          title="Active Block Schedules"
-          theme={theme}
-        >
-          {activeWindows.length === 0 ? (
-            <Text style={[styles.emptyRow, { color: theme.muted }]}>
-              No schedule windows are running right now.
-            </Text>
-          ) : (
-            activeWindows.map((w, i) => (
-              <Row
-                key={i}
-                label={w.label}
-                value={`${w.startLabel} – ${w.endLabel}`}
-                theme={theme}
-                isLast={i === activeWindows.length - 1}
-              />
-            ))
-          )}
-          <TouchableOpacity
-            style={[styles.linkBtn, { borderColor: theme.border }]}
-            onPress={() => router.push('/(tabs)/defense')}
-          >
-            <Ionicons name="settings-outline" size={14} color={COLORS.primary} />
-            <Text style={[styles.linkBtnText, { color: COLORS.primary }]}>Manage Schedules</Text>
+        <StatusCard icon="infinite-outline" color={alwaysOnActive ? COLORS.orange : theme.muted} title="Always-On Apps" status={alwaysOnActive ? 'Active' : 'Not active'} theme={theme} expandable={alwaysOnPackages.length > 0} expanded={expanded === 'alwaysOn'} onToggle={() => setExpanded(expanded === 'alwaysOn' ? null : 'alwaysOn')}>
+          <DetailRow label="Apps" value={alwaysOnPackages.length ? `${alwaysOnPackages.length} blocked continuously` : 'No always-on apps'} theme={theme} />
+          {expanded === 'alwaysOn' && <PackageList packages={alwaysOnPackages} appNames={appNames} theme={theme} />}
+          <TouchableOpacity style={[styles.action, { borderColor: theme.border }]} onPress={() => router.push('/always-on')}>
+            <Ionicons name="settings-outline" size={16} color={COLORS.primary} />
+            <Text style={[styles.actionText, { color: COLORS.primary }]}>Manage Always-On apps</Text>
           </TouchableOpacity>
-        </SectionCard>
+        </StatusCard>
 
-        {/* 5. Active enforcement layers ────────────────────── */}
-        <SectionCard
-          icon="layers-outline"
-          iconBg={enforcementOnCount > 0 ? COLORS.primary : theme.muted}
-          title={`Enforcement Layers (${enforcementOnCount}/${enforcementLayers.length})`}
-          theme={theme}
-        >
-          {enforcementLayers.map((layer, i) => {
-            const rowContent = (
-              <>
-                <Ionicons name={layer.icon} size={14} color={layer.on ? COLORS.primary : theme.muted} />
-                <Text style={[styles.layerLabel, { color: theme.text, flex: 1 }]}>{layer.label}</Text>
-                <View
-                  style={[
-                    styles.pill,
-                    { backgroundColor: layer.on ? COLORS.green + '22' : theme.muted + '22' },
-                  ]}
-                >
-                  <Text style={[styles.pillText, { color: layer.on ? COLORS.green : theme.muted }]}>
-                    {layer.on ? (layer.count ? `ON · ${layer.count}` : 'ON') : 'OFF'}
-                  </Text>
-                </View>
-                {layer.route && <Ionicons name="chevron-forward" size={12} color={theme.muted} />}
-              </>
-            );
-            const rowStyle = [
-              styles.layerRow,
-              i < enforcementLayers.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.border },
-            ];
-            if (layer.route) {
-              return (
-                <TouchableOpacity
-                  key={layer.key}
-                  style={rowStyle}
-                  onPress={() => router.push(layer.route as never)}
-                  activeOpacity={0.7}
-                >
-                  {rowContent}
-                </TouchableOpacity>
-              );
-            }
-            return <View key={layer.key} style={rowStyle}>{rowContent}</View>;
-          })}
-        </SectionCard>
+        <StatusCard icon="sunny-outline" color={allowanceEntries.length ? COLORS.orange : theme.muted} title="Daily Allowance" status={allowanceEntries.length ? `${allowanceEntries.length} app${allowanceEntries.length === 1 ? '' : 's'} configured` : 'Not configured'} theme={theme} expandable={allowanceEntries.length > 0} expanded={expanded === 'allowance'} onToggle={() => setExpanded(expanded === 'allowance' ? null : 'allowance')}>
+          {allowanceEntries.length === 0 ? (
+            <EmptyText text="No per-app daily limits are configured." theme={theme} />
+          ) : expanded === 'allowance' ? (
+            allowanceEntries.map((entry) => <AllowanceRow key={entry.packageName} entry={entry} usage={allowanceUsage[entry.packageName]} appName={appNames.get(entry.packageName)} theme={theme} />)
+          ) : (
+            <Text style={[styles.preview, { color: theme.muted }]}>Tap to see usage, remaining allowance, and reset times.</Text>
+          )}
+          <TouchableOpacity style={[styles.action, { borderColor: theme.border }]} onPress={() => router.push('/(tabs)/defense')}>
+            <Ionicons name="settings-outline" size={16} color={COLORS.primary} />
+            <Text style={[styles.actionText, { color: COLORS.primary }]}>Manage daily allowance</Text>
+          </TouchableOpacity>
+        </StatusCard>
 
-        {/* 6. Today's daily allowance ──────────────────────── */}
-        {allowanceEntries.length > 0 && (
-          <SectionCard
-            icon="sunny-outline"
-            iconBg={COLORS.orange}
-            title="Today's Daily Allowance"
-            theme={theme}
-          >
-            {allowanceEntries.map((e, i) => (
-              <Row
-                key={`${e.packageName}-${i}`}
-                label={shortPkgLabel(e.packageName)}
-                value={describeAllowance(e)}
-                theme={theme}
-                isLast={i === allowanceEntries.length - 1}
-              />
-            ))}
-          </SectionCard>
-        )}
+        <StatusCard icon="text-outline" color={keywords.length ? COLORS.primary : theme.muted} title="Keyword Blocker" status={keywords.length ? 'Active' : 'Not active'} theme={theme} expandable={keywords.length > 0} expanded={expanded === 'keywords'} onToggle={() => setExpanded(expanded === 'keywords' ? null : 'keywords')}>
+          <DetailRow label="Keywords" value={keywords.length ? `${keywords.length} active immediately` : 'No keywords configured'} theme={theme} />
+          {expanded === 'keywords' && <View style={styles.chips}>{keywords.map((word) => <View key={word} style={[styles.chip, { backgroundColor: COLORS.primary + '14' }]}><Text style={[styles.chipText, { color: COLORS.primary }]}>{word}</Text></View>)}</View>}
+          <TouchableOpacity style={[styles.action, { borderColor: theme.border }]} onPress={() => router.push('/keyword-blocker')}>
+            <Ionicons name="create-outline" size={16} color={COLORS.primary} />
+            <Text style={[styles.actionText, { color: COLORS.primary }]}>Manage keywords</Text>
+          </TouchableOpacity>
+        </StatusCard>
 
-        {/* 7. Today's stats ────────────────────────────────── */}
-        <SectionCard
-          icon="bar-chart-outline"
-          iconBg={COLORS.primary}
-          title="Today"
-          theme={theme}
-        >
-          <Row
-            label="Tasks completed"
-            value={todayStats ? `${todayStats.completed} / ${Math.max(todayStats.total, todayStats.completed)}` : '—'}
-            theme={theme}
-          />
-          <Row
-            label="Focus minutes"
-            value={todayStats ? `${todayStats.focusMinutes} min` : '—'}
-            theme={theme}
-          />
-          <Row
-            label="Distractions blocked"
-            value={todayStats ? `${todayStats.distractionsBlocked}` : '—'}
-            theme={theme}
-            isLast
-          />
-        </SectionCard>
+        <StatusCard icon="shield-checkmark-outline" color={vpnRunning ? COLORS.green : theme.muted} title="VPN Blocking" status={vpnRunning ? 'Active' : 'Not active'} theme={theme} expandable={vpnPackages.length > 0} expanded={expanded === 'vpn'} onToggle={() => setExpanded(expanded === 'vpn' ? null : 'vpn')}>
+          <DetailRow label="Status" value={vpnRunning ? (vpnStatus?.error ? `Running · ${vpnStatus.error}` : vpnStatus.failedPackages.length > 0 ? `Running · ${vpnStatus.failedPackages.length} app${vpnStatus.failedPackages.length === 1 ? '' : 's'} failed` : 'Running normally') : vpnConfigured ? (vpnStatus?.state === 'permission_missing' ? 'Permission required' : 'Configured but stopped') : 'No VPN apps configured'} theme={theme} />
+          {vpnPackages.length > 0 && <DetailRow label="Apps" value={`${vpnPackages.length} app${vpnPackages.length === 1 ? '' : 's'} selected`} theme={theme} />}
+          {expanded === 'vpn' && <PackageList packages={vpnPackages} appNames={appNames} theme={theme} />}
+          <TouchableOpacity style={[styles.action, { borderColor: theme.border }]} onPress={() => router.push('/block-defense?tab=system')}>
+            <Ionicons name="settings-outline" size={16} color={COLORS.primary} />
+            <Text style={[styles.actionText, { color: COLORS.primary }]}>Manage VPN blocking</Text>
+          </TouchableOpacity>
+        </StatusCard>
 
-        {/* 8. Quick actions ────────────────────────────────── */}
-        <SectionCard
-          icon="flash-outline"
-          iconBg={COLORS.primary}
-          title="Quick Actions"
-          theme={theme}
-        >
-          <QuickAction
-            icon="ban-outline"
-            label="Start Standalone Block"
-            onPress={() => router.push('/(tabs)/focus')}
-            theme={theme}
-          />
-          <QuickAction
-            icon="time-outline"
-            label="Edit Block Schedules"
-            onPress={() => router.push('/(tabs)/defense')}
-            theme={theme}
-          />
-          <QuickAction
-            icon="shield-checkmark-outline"
-            label="Block Enforcement Settings"
-            onPress={() => router.push('/(tabs)/defense')}
-            theme={theme}
-          />
-          <QuickAction
-            icon="bar-chart-outline"
-            label="Open Stats"
-            onPress={() => router.push('/(tabs)/stats')}
-            theme={theme}
-            isLast
-          />
-        </SectionCard>
+        <View style={[styles.today, { borderTopColor: theme.border }]}>
+          <Text style={[styles.todayLabel, { color: theme.muted }]}>TODAY</Text>
+          <Text style={[styles.todayText, { color: theme.text }]}>
+            {todayStats.completed}/{Math.max(todayStats.total, todayStats.completed)} tasks · {todayStats.focusMinutes}m focus · {todayStats.blocked} blocked attempts
+          </Text>
+        </View>
       </ScrollView>
 
-      <PinVerifyModal
-        visible={defPinVisible}
-        pinType="defense"
-        title="Defense Password Required"
-        description="Enter your defense password to make this change."
-        onVerified={() => {
-          setDefPinVisible(false);
-          pendingDefAction.current?.();
-          pendingDefAction.current = null;
-        }}
-        onCancel={() => {
-          setDefPinVisible(false);
-          pendingDefAction.current = null;
-        }}
-      />
-
-      <PinVerifyModal
-        visible={focusPinVisible}
-        pinType="focus"
-        title="Stop Focus Session"
-        description="Enter your focus session password to end the session and stop all blocking."
-        onVerified={() => {
-          setFocusPinVisible(false);
-          void stopFocusMode();
-        }}
-        onCancel={() => setFocusPinVisible(false)}
-      />
+      <PinVerifyModal visible={defPinVisible} pinType="defense" title="Defense Password Required" description="Enter your defense password to make this change." onVerified={() => { setDefPinVisible(false); pendingDefAction.current?.(); pendingDefAction.current = null; }} onCancel={() => { setDefPinVisible(false); pendingDefAction.current = null; }} />
+      <PinVerifyModal visible={focusPinVisible} pinType="focus" title="Stop Focus Session" description="Enter your focus session password to end the session and stop blocking." onVerified={() => { setFocusPinVisible(false); void stopFocusMode(); }} onCancel={() => setFocusPinVisible(false)} />
     </SafeAreaView>
   );
 }
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
+function StatusCard({ icon, color, title, status, theme, children, expandable = false, expanded = false, onToggle }: { icon: keyof typeof Ionicons.glyphMap; color: string; title: string; status: string; theme: ReturnType<typeof useTheme>['theme']; children: React.ReactNode; expandable?: boolean; expanded?: boolean; onToggle?: () => void }) {
+  return (
+    <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
+      <TouchableOpacity style={styles.cardHeader} onPress={expandable ? onToggle : undefined} activeOpacity={expandable ? 0.7 : 1}>
+        <View style={[styles.icon, { backgroundColor: color + '20' }]}><Ionicons name={icon} size={17} color={color} /></View>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.cardTitle, { color: theme.text }]}>{title}</Text>
+          <Text style={[styles.cardStatus, { color: color === theme.muted ? theme.muted : color }]}>{status}</Text>
+        </View>
+        {expandable && <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={17} color={theme.muted} />}
+      </TouchableOpacity>
+      <View style={styles.cardBody}>{children}</View>
+    </View>
+  );
+}
 
-function shortPkgLabel(pkg: string): string {
-  // "com.instagram.android" → "Instagram"
+function DetailRow({ label, value, theme }: { label: string; value: string; theme: ReturnType<typeof useTheme>['theme'] }) {
+  return <View style={[styles.detailRow, { borderBottomColor: theme.border }]}><Text style={[styles.detailLabel, { color: theme.muted }]}>{label}</Text><Text style={[styles.detailValue, { color: theme.text }]} numberOfLines={2}>{value}</Text></View>;
+}
+
+function PackageList({ packages, appNames, theme }: { packages: string[]; appNames: Map<string, string>; theme: ReturnType<typeof useTheme>['theme'] }) {
+  return <View style={[styles.packageList, { backgroundColor: theme.surface }]}>{packages.map((pkg) => <Text key={pkg} style={[styles.packageName, { color: theme.text }]}>{appNames.get(pkg) ?? shortPackageName(pkg)}</Text>)}</View>;
+}
+
+function AllowanceRow({ entry, usage, appName, theme }: { entry: DailyAllowanceEntry; usage?: AllowanceUsage; appName?: string; theme: ReturnType<typeof useTheme>['theme'] }) {
+  const used = entry.mode === 'count' ? (usage?.count ?? 0) : Math.round((usage?.usedMs ?? 0) / 60_000);
+  const limit = entry.mode === 'count' ? entry.countPerDay : entry.mode === 'time_budget' ? entry.budgetMinutes : entry.intervalMinutes;
+  const unit = entry.mode === 'count' ? 'opens' : 'min';
+  const reset = entry.mode === 'interval' ? intervalResetLabel(entry, usage) : 'Resets at midnight';
+  return <View style={[styles.allowanceRow, { borderBottomColor: theme.border }]}><Text style={[styles.allowanceName, { color: theme.text }]}>{appName ?? shortPackageName(entry.packageName)}</Text><Text style={[styles.allowanceUsage, { color: used >= limit ? COLORS.red : theme.muted }]}>{used} / {limit} {unit} used · {reset}</Text></View>;
+}
+
+function EmptyText({ text, theme }: { text: string; theme: ReturnType<typeof useTheme>['theme'] }) {
+  return <Text style={[styles.empty, { color: theme.muted }]}>{text}</Text>;
+}
+
+function formatDateTime(date: Date): string {
+  return `${dayjs(date).format('MMM D')} at ${dayjs(date).format('HH:mm')}`;
+}
+
+function intervalResetLabel(entry: DailyAllowanceEntry, usage?: AllowanceUsage): string {
+  if (!usage?.windowStartMs) return 'New window available';
+  const remaining = Math.max(0, Math.round((usage.windowStartMs + entry.intervalHours * 3_600_000 - Date.now()) / 60_000));
+  return remaining > 0 ? `Resets in ${remaining}m` : 'New window available';
+}
+
+function shortPackageName(pkg: string): string {
   const parts = pkg.split('.');
   const last = parts[parts.length - 1] === 'android' ? parts[parts.length - 2] : parts[parts.length - 1];
-  if (!last) return pkg;
-  return last.charAt(0).toUpperCase() + last.slice(1);
+  return last ? last.charAt(0).toUpperCase() + last.slice(1) : pkg;
 }
 
-function describeAllowance(e: import('@/data/types').DailyAllowanceEntry): string {
-  if (e.mode === 'count') return `${e.countPerDay} opens / day`;
-  if (e.mode === 'time_budget') return `${e.budgetMinutes} min / day`;
-  if (e.mode === 'interval') return `${e.intervalMinutes} min every ${e.intervalHours}h`;
-  return String(e.mode);
-}
-
-type ActiveWindow = { label: string; startLabel: string; endLabel: string };
-
-function computeActiveWindows(
-  greyoutWindows: import('@/data/types').GreyoutWindow[],
-  recurring: import('@/data/types').RecurringBlockSchedule[],
-): ActiveWindow[] {
-  const now = new Date();
-  // Calendar.DAY_OF_WEEK: 1=Sun..7=Sat; JS getDay(): 0=Sun..6=Sat
-  const today = now.getDay() + 1;
-  const nowMin = now.getHours() * 60 + now.getMinutes();
-  const out: ActiveWindow[] = [];
-
-  for (const w of greyoutWindows) {
-    if (w.days && w.days.length > 0 && !w.days.includes(today)) continue;
-    const startM = w.startHour * 60 + w.startMin;
-    const endM = w.endHour * 60 + w.endMin;
-    if (isWithinWindow(nowMin, startM, endM)) {
-      out.push({
-        label: 'Time-window block',
-        startLabel: minToLabel(startM),
-        endLabel: minToLabel(endM),
-      });
-    }
-  }
-  for (const r of recurring) {
-    if (r.enabled === false) continue;
-    if (r.days && r.days.length > 0 && !r.days.includes(today)) continue;
-    const startM = r.startHour * 60 + r.startMin;
-    const endM = r.endHour * 60 + r.endMin;
-    if (isWithinWindow(nowMin, startM, endM)) {
-      out.push({
-        label: r.name ?? 'Recurring block',
-        startLabel: minToLabel(startM),
-        endLabel: minToLabel(endM),
-      });
-    }
-  }
-  return out;
-}
-
-function isWithinWindow(nowMin: number, start: number, end: number): boolean {
-  if (start === end) return false;
-  if (start < end) return nowMin >= start && nowMin < end;
-  return nowMin >= start || nowMin < end;
-}
-
-function minToLabel(m: number): string {
-  const h = Math.floor(m / 60).toString().padStart(2, '0');
-  const mm = (m % 60).toString().padStart(2, '0');
-  return `${h}:${mm}`;
-}
-
-// ── Sub-components ──────────────────────────────────────────────────────────
-
-function SectionCard({
-  icon,
-  iconBg,
-  title,
-  theme,
-  children,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  iconBg: string;
-  title: string;
-  theme: ReturnType<typeof useTheme>['theme'];
-  children: React.ReactNode;
-}) {
-  return (
-    <View style={[styles.sectionCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-      <View style={styles.sectionHeader}>
-        <View style={[styles.sectionIcon, { backgroundColor: iconBg + '22' }]}>
-          <Ionicons name={icon} size={14} color={iconBg} />
-        </View>
-        <Text style={[styles.sectionTitle, { color: theme.text }]}>{title}</Text>
-      </View>
-      <View style={styles.sectionBody}>{children}</View>
-    </View>
-  );
-}
-
-function Row({
-  label,
-  value,
-  theme,
-  isLast = false,
-}: {
-  label: string;
-  value: string;
-  theme: ReturnType<typeof useTheme>['theme'];
-  isLast?: boolean;
-}) {
-  return (
-    <View
-      style={[
-        styles.row,
-        !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.border },
-      ]}
-    >
-      <Text style={[styles.rowLabel, { color: theme.muted }]}>{label}</Text>
-      <Text style={[styles.rowValue, { color: theme.text }]} numberOfLines={2}>{value}</Text>
-    </View>
-  );
-}
-
-function QuickAction({
-  icon,
-  label,
-  onPress,
-  theme,
-  isLast = false,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  label: string;
-  onPress: () => void;
-  theme: ReturnType<typeof useTheme>['theme'];
-  isLast?: boolean;
-}) {
-  return (
-    <TouchableOpacity
-      style={[
-        styles.quickActionRow,
-        !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.border },
-      ]}
-      onPress={onPress}
-      activeOpacity={0.7}
-    >
-      <Ionicons name={icon} size={16} color={COLORS.primary} />
-      <Text style={[styles.quickActionLabel, { color: theme.text, flex: 1 }]}>{label}</Text>
-      <Ionicons name="chevron-forward" size={14} color={theme.border} />
-    </TouchableOpacity>
-  );
+function unique(values: string[]): string[] {
+  return Array.from(new Set(values.filter(Boolean)));
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACING.lg, paddingVertical: SPACING.md, borderBottomWidth: StyleSheet.hairlineWidth },
+  headerCopy: { flex: 1, marginLeft: SPACING.sm },
   title: { fontSize: FONT.lg, fontWeight: '800' },
   subtitle: { fontSize: FONT.xs, marginTop: 2 },
-  content: { padding: SPACING.lg, gap: SPACING.md },
-
-  allClearCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.md,
-    padding: SPACING.md,
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-  },
-  allClearTitle: { fontSize: FONT.md, fontWeight: '700' },
-  allClearDesc: { fontSize: FONT.xs, lineHeight: 17 },
-
-  sectionCard: {
-    borderRadius: RADIUS.md,
-    borderWidth: StyleSheet.hairlineWidth,
-    overflow: 'hidden',
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm + 2,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'transparent',
-  },
-  sectionIcon: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sectionTitle: { fontSize: FONT.sm, fontWeight: '700' },
-  sectionBody: { paddingHorizontal: SPACING.md, paddingVertical: SPACING.xs },
-
-  row: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: SPACING.md,
-    paddingVertical: SPACING.sm,
-  },
-  rowLabel: { fontSize: FONT.xs, fontWeight: '600', flex: 0, minWidth: 100 },
-  rowValue: { fontSize: FONT.xs, fontWeight: '500', flex: 1, textAlign: 'right' },
-
-  emptyRow: { fontSize: FONT.xs, paddingVertical: SPACING.sm, lineHeight: 17 },
-  helperLine: { fontSize: FONT.xs, lineHeight: 17, paddingVertical: SPACING.xs, fontStyle: 'italic' },
-
-  layerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-    paddingVertical: SPACING.sm + 2,
-  },
-  layerLabel: { fontSize: FONT.xs, fontWeight: '500' },
-  pill: {
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 2,
-    borderRadius: RADIUS.sm,
-  },
-  pillText: { fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
-
-  quickActionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-    paddingVertical: SPACING.sm + 2,
-  },
-  quickActionLabel: { fontSize: FONT.sm, fontWeight: '500' },
-
-  dangerBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: SPACING.xs,
-    paddingVertical: SPACING.sm,
-    borderRadius: RADIUS.sm,
-    borderWidth: 1,
-    marginTop: SPACING.sm,
-  },
-  dangerBtnText: { fontSize: FONT.xs, fontWeight: '700' },
-
-  linkBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: SPACING.xs,
-    paddingVertical: SPACING.xs + 2,
-    borderRadius: RADIUS.sm,
-    borderWidth: StyleSheet.hairlineWidth,
-    marginTop: SPACING.sm,
-  },
-  linkBtnText: { fontSize: FONT.xs, fontWeight: '600' },
-  actionRow: {
-    flexDirection: 'row',
-    gap: SPACING.sm,
-    marginTop: SPACING.xs,
-  },
+  liveDot: { width: 9, height: 9, borderRadius: 5 },
+  content: { padding: SPACING.md, gap: SPACING.md },
+  summary: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, padding: SPACING.md, borderRadius: RADIUS.md, borderWidth: 1 },
+  summaryTitle: { fontSize: FONT.md, fontWeight: '700' },
+  summaryText: { fontSize: FONT.xs, marginTop: 3 },
+  card: { borderWidth: 1, borderRadius: RADIUS.md, overflow: 'hidden' },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, padding: SPACING.md },
+  icon: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+  cardTitle: { fontSize: FONT.md, fontWeight: '700' },
+  cardStatus: { fontSize: FONT.xs, fontWeight: '600', marginTop: 2 },
+  cardBody: { paddingHorizontal: SPACING.md, paddingBottom: SPACING.sm },
+  detailRow: { flexDirection: 'row', justifyContent: 'space-between', gap: SPACING.md, paddingVertical: SPACING.sm, borderBottomWidth: StyleSheet.hairlineWidth },
+  detailLabel: { fontSize: FONT.xs, minWidth: 70 },
+  detailValue: { flex: 1, textAlign: 'right', fontSize: FONT.xs, fontWeight: '600' },
+  empty: { fontSize: FONT.xs, lineHeight: 18, paddingVertical: SPACING.xs },
+  preview: { fontSize: FONT.xs, paddingVertical: SPACING.xs },
+  action: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACING.xs, paddingVertical: SPACING.sm, marginTop: SPACING.sm, borderRadius: RADIUS.sm, borderWidth: 1 },
+  actionText: { fontSize: FONT.xs, fontWeight: '700' },
+  packageList: { borderRadius: RADIUS.sm, marginTop: SPACING.sm, paddingHorizontal: SPACING.sm },
+  packageName: { fontSize: FONT.xs, paddingVertical: SPACING.xs, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(128,128,128,0.18)' },
+  allowanceRow: { paddingVertical: SPACING.sm, borderBottomWidth: StyleSheet.hairlineWidth },
+  allowanceName: { fontSize: FONT.sm, fontWeight: '700' },
+  allowanceUsage: { fontSize: FONT.xs, marginTop: 3 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.xs, paddingVertical: SPACING.xs },
+  chip: { borderRadius: RADIUS.sm, paddingHorizontal: SPACING.sm, paddingVertical: 5 },
+  chipText: { fontSize: FONT.xs, fontWeight: '600' },
+  today: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: SPACING.md, marginTop: SPACING.xs },
+  todayLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 1 },
+  todayText: { fontSize: FONT.xs, marginTop: 4 },
 });
