@@ -288,7 +288,7 @@ export default function ActiveScreen() {
           <DetailRow label="Status" value={vpnRunning ? (vpnStatus?.error ? `Running · ${vpnStatus.error}` : vpnStatus.failedPackages.length > 0 ? `Running · ${vpnStatus.failedPackages.length} app${vpnStatus.failedPackages.length === 1 ? '' : 's'} failed` : 'Running normally') : vpnConfigured ? (vpnStatus?.state === 'permission_missing' ? 'Permission required' : 'Configured but stopped') : 'No VPN apps configured'} theme={theme} />
           {vpnPackages.length > 0 && <DetailRow label="Apps" value={`${vpnPackages.length} app${vpnPackages.length === 1 ? '' : 's'} selected`} theme={theme} />}
           {expanded === 'vpn' && <PackageList packages={vpnPackages} appNames={appNames} theme={theme} />}
-          <TouchableOpacity style={[styles.action, { borderColor: theme.border }]} onPress={() => router.push('/block-defense?tab=system')}>
+          <TouchableOpacity style={[styles.action, { borderColor: theme.border }]} onPress={() => router.push('/vpn-block-list')}>
             <Ionicons name="settings-outline" size={16} color={COLORS.primary} />
             <Text style={[styles.actionText, { color: COLORS.primary }]}>Manage VPN blocking</Text>
           </TouchableOpacity>

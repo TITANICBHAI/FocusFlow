@@ -332,6 +332,47 @@ function FocusScreen() {
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
+            {standaloneActive && settings.standaloneBlockUntil && (
+              <View style={[styles.standaloneSplitCard, { backgroundColor: theme.card, borderColor: COLORS.red + '44' }]}>
+                <View style={styles.standaloneSplitHeader}>
+                  <View style={[styles.standaloneSplitIcon, { backgroundColor: COLORS.red + '15' }]}>
+                    <Ionicons name="ban" size={17} color={COLORS.red} />
+                  </View>
+                  <View style={styles.standaloneSplitCopy}>
+                    <Text style={[styles.standaloneSplitTitle, { color: theme.text }]}>Standalone Block</Text>
+                    <Text style={[styles.standaloneSplitDescription, { color: theme.muted }]}>
+                      Active independently of this task
+                    </Text>
+                  </View>
+                </View>
+                <StandaloneCountdown
+                  untilIso={settings.standaloneBlockUntil}
+                  blockedCount={(settings.standaloneBlockPackages ?? []).length}
+                />
+                <TouchableOpacity
+                  style={[styles.outlineAction, styles.splitOutlineAction, { backgroundColor: theme.card, borderColor: COLORS.red + '44' }]}
+                  onPress={() => setBlockModalVisible(true)}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="add-circle-outline" size={17} color={COLORS.red} />
+                  <Text style={[styles.outlineActionText, { color: COLORS.red }]}>Add Apps / Quick Presets</Text>
+                </TouchableOpacity>
+                <Text style={[styles.sectionLabel, { color: theme.muted }]}>ADD TIME</Text>
+                <View style={[styles.addTimeRow, styles.splitAddTimeRow, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                  {[30, 60, 120, 240].map((minutes) => (
+                    <TouchableOpacity
+                      key={minutes}
+                      style={[styles.addTimeBtn, styles.splitAddTimeBtn, { backgroundColor: COLORS.primary + '14', borderColor: COLORS.primary + '44' }]}
+                      onPress={() => { void handleAddTime(minutes); }}
+                    >
+                      <Text style={[styles.addTimeBtnText, { color: COLORS.primary }]}>
+                        +{minutes >= 60 ? `${minutes / 60}h` : `${minutes}m`}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
             <View style={styles.statusRow}>
               <View style={[styles.statusDot, { backgroundColor: isFocusing ? COLORS.green : COLORS.muted }]} />
               <Text style={[styles.statusText, { color: theme.textSecondary }]}>
@@ -339,7 +380,7 @@ function FocusScreen() {
                   ? (settings.pomodoroEnabled ?? false)
                     ? `Focus Mode Active · ${pomodoro.isBreakActive ? '☕ Break · apps unlocked' : pomodoro.phase === 'work' ? '🎯 Work' : '☕ Break available'}`
                     : 'Focus Mode Active'
-                  : 'Task In Progress'}
+                  : taskTimer.isOverdue ? 'Task ended — choose next action' : 'Task scheduled'}
               </Text>
             </View>
             <View style={[styles.taskPanel, { backgroundColor: theme.card, borderColor: task.color + '66' }]}>
@@ -469,13 +510,6 @@ function FocusScreen() {
               </View>
             )}
           </ScrollView>
-          {standaloneActive && settings.standaloneBlockUntil && (
-            <TouchableOpacity style={styles.standaloneChip} onPress={() => setBlockModalVisible(true)}>
-              <Ionicons name="ban" size={13} color={COLORS.red} />
-              <Text style={styles.standaloneChipText}>+{(settings.standaloneBlockPackages ?? []).length} extra apps blocked</Text>
-              <Ionicons name="add-outline" size={13} color={COLORS.red} />
-            </TouchableOpacity>
-          )}
         </>
       )}
       {blockModal}
@@ -644,6 +678,15 @@ const styles = StyleSheet.create({
   emergencyBtnText: { fontSize: FONT.sm, fontWeight: '600', color: COLORS.red },
   standaloneChip: { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'center', backgroundColor: COLORS.red + '12', borderRadius: RADIUS.full, paddingHorizontal: SPACING.md, paddingVertical: 5, marginBottom: SPACING.sm, borderWidth: 1, borderColor: COLORS.red + '30' },
   standaloneChipText: { fontSize: FONT.xs, fontWeight: '700', color: COLORS.red },
+  standaloneSplitCard: { marginHorizontal: SPACING.md, marginTop: SPACING.md, padding: SPACING.md, borderRadius: RADIUS.xl, borderWidth: 1.5, gap: SPACING.sm },
+  standaloneSplitHeader: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  standaloneSplitIcon: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  standaloneSplitCopy: { flex: 1 },
+  standaloneSplitTitle: { fontSize: FONT.md, fontWeight: '800' },
+  standaloneSplitDescription: { fontSize: FONT.xs, marginTop: 2 },
+  splitOutlineAction: { paddingVertical: SPACING.sm },
+  splitAddTimeRow: { padding: SPACING.sm, gap: SPACING.xs },
+  splitAddTimeBtn: { paddingVertical: SPACING.sm, borderRadius: RADIUS.md },
   moreActiveChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: SPACING.sm, paddingVertical: 4, borderRadius: RADIUS.full, borderWidth: 1 },
   moreActiveChipText: { fontSize: FONT.xs, fontWeight: '700' },
   endedPrompt: { padding: SPACING.md, borderRadius: RADIUS.lg, borderWidth: 1.5, gap: SPACING.sm, width: '100%' },

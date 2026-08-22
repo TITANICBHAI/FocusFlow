@@ -1,6 +1,7 @@
 import React, { useCallback, useRef, useState } from 'react';
 import {
   Alert,
+  Platform,
   ScrollView,
   StyleSheet,
   Switch,
@@ -21,7 +22,9 @@ import { ActiveHeaderButton } from '@/components/ActiveHeaderButton';
 import { PinSetupModal } from '@/components/PinSetupModal';
 import { PinVerifyModal } from '@/components/PinVerifyModal';
 import { PinRotationModal } from '@/components/PinRotationModal';
+import { VpnConsentModal } from '@/components/VpnConsentModal';
 import { withScreenErrorBoundary } from '@/components/withScreenErrorBoundary';
+import { NetworkBlockModule } from '@/native-modules/NetworkBlockModule';
 import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -33,6 +36,7 @@ function DefenseScreen() {
   const { theme } = useTheme();
   const { state, updateSettings, setDailyAllowanceEntries } = useApp();
   const { settings } = state;
+  const activeBlock = state.focusSession?.isActive === true || isStandaloneActive(settings);
 
   const [dailyAllowanceVisible, setDailyAllowanceVisible] = useState(false);
   const [greyoutScheduleVisible, setGreyoutScheduleVisible] = useState(false);
@@ -43,6 +47,8 @@ function DefenseScreen() {
   >({ type: 'none' });
   const [showDefenseHint, setShowDefenseHint] = useState(false);
   const [alwaysOnPinRotationVisible, setAlwaysOnPinRotationVisible] = useState(false);
+  const [vpnConsentVisible, setVpnConsentVisible] = useState(false);
+  const vpnConsentResolveRef = useRef<((confirmed: boolean) => void) | null>(null);
   const pendingSetupAction = useRef<DefenseAction | null>(null);
 
   React.useEffect(() => {
@@ -105,6 +111,10 @@ function DefenseScreen() {
       | 'systemGuardEnabled'
       | 'blockYoutubeShortsEnabled'
       | 'blockInstagramReelsEnabled'
+      | 'vpnBlockEnabled'
+      | 'vpnSelfHealEnabled'
+      | 'launcherLockDuringStandalone'
+      | 'launcherBlockUninstall'
       | 'aversionDimmerEnabled'
       | 'aversionVibrateEnabled'
       | 'aversionSoundEnabled',
@@ -124,6 +134,55 @@ function DefenseScreen() {
     });
   };
 
+  const showVpnConsent = (): Promise<boolean> =>
+    new Promise((resolve) => {
+      vpnConsentResolveRef.current = resolve;
+      setVpnConsentVisible(true);
+    });
+
+  const handleVpnToggle = async (enabled: boolean) => {
+    if (!enabled && activeBlock) {
+      Alert.alert(
+        'VPN protection is locked',
+        'Network Protection cannot be turned off while a Focus session or Standalone block is running.',
+      );
+      return;
+    }
+    if (!enabled) {
+      requireDefensePin(
+        'Disable Network Protection',
+        'Enter your Defense Password to turn off VPN blocking.',
+        (defensePinHash) => void update({ vpnBlockEnabled: false }, defensePinHash ?? null),
+      );
+      return;
+    }
+
+    const consented = await showVpnConsent();
+    if (!consented) return;
+    if (Platform.OS === 'android') {
+      try {
+        const conflicting = await NetworkBlockModule.isAnotherVpnActive();
+        if (conflicting) {
+          const takeOver = await new Promise<boolean>((resolve) => {
+            Alert.alert(
+              'Another VPN is active',
+              'Android only allows one VPN at a time. FocusFlow will temporarily take over while your block runs. You will need to reconnect your other VPN afterwards.',
+              [
+                { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+                { text: 'Take over', onPress: () => resolve(true) },
+              ],
+            );
+          });
+          if (!takeOver) return;
+        }
+        if (!(await NetworkBlockModule.isVpnPermissionGranted())) {
+          await NetworkBlockModule.requestVpnPermission();
+        }
+      } catch {}
+    }
+    void update({ vpnBlockEnabled: true });
+  };
+
   if (!state.isDbReady) {
     return (
       <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
@@ -138,8 +197,6 @@ function DefenseScreen() {
   const alwaysOnCount = (settings.alwaysOnPackages ?? []).length;
   const allowanceCount = (settings.dailyAllowanceEntries ?? []).length;
   const alwaysOnEnabled = settings.alwaysOnEnforcementEnabled ?? false;
-  const activeBlock = state.focusSession?.isActive === true || isStandaloneActive(settings);
-
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
       <Header theme={theme} />
@@ -157,6 +214,14 @@ function DefenseScreen() {
           >
             <Ionicons name="close" size={19} color={theme.muted} />
           </TouchableOpacity>
+        </View>
+      )}
+      {activeBlock && (
+        <View style={[styles.activeNotice, { backgroundColor: COLORS.orange + '18', borderColor: COLORS.orange + '55' }]}>
+          <Ionicons name="lock-closed-outline" size={18} color={COLORS.orange} />
+          <Text style={[styles.activeNoticeText, { color: theme.text }]}>
+            Protection settings are locked while a {state.focusSession?.isActive ? 'Focus session' : 'Standalone block'} is running. Turn-offs will be available when it ends.
+          </Text>
         </View>
       )}
       <ScrollView
@@ -179,10 +244,10 @@ function DefenseScreen() {
                 if (enabled) {
                   void update({ alwaysOnEnforcementEnabled: true });
                 } else {
-                    if (isStandaloneActive(settings)) {
+                    if (activeBlock) {
                       Alert.alert(
-                        'Protection is active',
-                        'Always-On Enforcement cannot be turned off while a standalone block is active.',
+                        'Always-On Enforcement is locked',
+                        'Always-On Enforcement cannot be turned off while a Focus session or Standalone block is running.',
                       );
                       return;
                     }
@@ -245,11 +310,45 @@ function DefenseScreen() {
             }
             theme={theme}
           />
+          <SettingRow
+            label="Network Protection (VPN)"
+            description={
+              activeBlock && (settings.vpnBlockEnabled ?? false)
+                ? 'Locked on — Focus session or Standalone block is running'
+                : 'Cut internet access for selected apps through FocusFlow’s local VPN'
+            }
+            theme={theme}
+          >
+            <Switch
+              value={settings.vpnBlockEnabled ?? false}
+              onValueChange={(value) => void handleVpnToggle(value)}
+              disabled={activeBlock && (settings.vpnBlockEnabled ?? false)}
+              trackColor={{ false: theme.border, true: COLORS.primary + '88' }}
+              thumbColor={settings.vpnBlockEnabled ? COLORS.primary : theme.muted}
+            />
+          </SettingRow>
+          <SettingRow
+            label="VPN Self-Healing"
+            description={
+              activeBlock && (settings.vpnSelfHealEnabled ?? false)
+                ? 'Locked on — active block in progress'
+                : 'Restart the VPN if it disconnects during an active block'
+            }
+            theme={theme}
+          >
+            <Switch
+              value={settings.vpnSelfHealEnabled ?? false}
+              onValueChange={(value) => void update({ vpnSelfHealEnabled: value })}
+              disabled={!(settings.vpnBlockEnabled ?? false) || (activeBlock && (settings.vpnSelfHealEnabled ?? false))}
+              trackColor={{ false: theme.border, true: COLORS.primary + '88' }}
+              thumbColor={settings.vpnSelfHealEnabled ? COLORS.primary : theme.muted}
+            />
+          </SettingRow>
           <SettingButton
-            icon="globe-outline"
-            label="Network Protection"
-            description="Choose apps for local VPN blocking and manage VPN self-healing"
-            onPress={() => router.push('/block-defense?tab=network')}
+            icon="list-outline"
+            label="Manage VPN App List"
+            description="Choose which apps should have internet access blocked"
+            onPress={() => router.push('/vpn-block-list')}
             theme={theme}
           />
           <SettingButton
@@ -315,6 +414,87 @@ function DefenseScreen() {
             theme={theme}
           />
         </Section>
+
+        <Section title="Focus Session Behaviour" theme={theme}>
+          <SettingRow
+            label="Keep focus active for the full duration"
+            description={
+              settings.keepFocusActiveUntilTaskEnd
+                ? 'On — completing a task early keeps app-blocking running until the original end time'
+                : 'Off — completing a task immediately ends the focus session (default)'
+            }
+            theme={theme}
+          >
+            <Switch
+              value={settings.keepFocusActiveUntilTaskEnd ?? false}
+              onValueChange={(value) => void update({ keepFocusActiveUntilTaskEnd: value })}
+              trackColor={{ false: theme.border, true: COLORS.primary + '88' }}
+              thumbColor={settings.keepFocusActiveUntilTaskEnd ? COLORS.primary : theme.muted}
+            />
+          </SettingRow>
+        </Section>
+
+        <Section title="Home Launcher" theme={theme}>
+          <SettingRow
+            label="Lock launcher during standalone block"
+            description={
+              activeBlock && (settings.launcherLockDuringStandalone ?? true)
+                ? 'Locked on — active block in progress'
+                : 'Prevent switching away from FocusFlow Launcher during a Standalone block'
+            }
+            theme={theme}
+          >
+            <Switch
+              value={settings.launcherLockDuringStandalone ?? true}
+              onValueChange={(value) => {
+                if (!value && isStandaloneActive(settings)) {
+                  Alert.alert('Home Launcher is locked', 'This option cannot be turned off while a Standalone block is running.');
+                  return;
+                }
+                void update({ launcherLockDuringStandalone: value });
+              }}
+              disabled={isStandaloneActive(settings) && (settings.launcherLockDuringStandalone ?? true)}
+              trackColor={{ false: theme.border, true: COLORS.primary + '88' }}
+              thumbColor={settings.launcherLockDuringStandalone !== false ? COLORS.primary : theme.muted}
+            />
+          </SettingRow>
+          <SettingRow
+            label="Block uninstall from launcher long-press"
+            description={
+              activeBlock && (settings.launcherBlockUninstall ?? false)
+                ? 'Locked on — active block in progress'
+                : 'Hide Uninstall from the launcher long-press menu'
+            }
+            theme={theme}
+          >
+            <Switch
+              value={settings.launcherBlockUninstall ?? false}
+              onValueChange={(value) => {
+                if (!value && activeBlock) {
+                  Alert.alert('Uninstall protection is locked', 'This option cannot be turned off while a Focus session or Standalone block is running.');
+                  return;
+                }
+                void update({ launcherBlockUninstall: value });
+              }}
+              disabled={activeBlock && (settings.launcherBlockUninstall ?? false)}
+              trackColor={{ false: theme.border, true: COLORS.primary + '88' }}
+              thumbColor={settings.launcherBlockUninstall ? COLORS.primary : theme.muted}
+            />
+          </SettingRow>
+          <SettingButton
+            icon="home-outline"
+            label="Configure Home Launcher"
+            description="Choose pinned apps, hidden apps, wallpaper, and clock style"
+            onPress={() => {
+              if (isStandaloneActive(settings)) {
+                Alert.alert('Home Launcher is locked', 'Launcher settings are unavailable while a Standalone block is running.');
+                return;
+              }
+              router.push('/home-launcher');
+            }}
+            theme={theme}
+          />
+        </Section>
       </ScrollView>
 
       <DailyAllowanceModal
@@ -375,6 +555,19 @@ function DefenseScreen() {
         actionDescription="Always-On Enforcement has been paused. Set the password that will be required next time you change this setting."
         onComplete={() => setAlwaysOnPinRotationVisible(false)}
         onCancel={() => setAlwaysOnPinRotationVisible(false)}
+      />
+      <VpnConsentModal
+        visible={vpnConsentVisible}
+        onConfirm={() => {
+          setVpnConsentVisible(false);
+          vpnConsentResolveRef.current?.(true);
+          vpnConsentResolveRef.current = null;
+        }}
+        onCancel={() => {
+          setVpnConsentVisible(false);
+          vpnConsentResolveRef.current?.(false);
+          vpnConsentResolveRef.current = null;
+        }}
       />
     </SafeAreaView>
   );
@@ -512,6 +705,17 @@ const styles = StyleSheet.create({
     gap: SPACING.sm,
   },
   hintText: { flex: 1, fontSize: FONT.xs, lineHeight: 17 },
+  activeNotice: {
+    marginHorizontal: SPACING.md,
+    marginTop: SPACING.sm,
+    padding: SPACING.sm,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  activeNoticeText: { flex: 1, fontSize: FONT.xs, lineHeight: 17, fontWeight: '600' },
   header: {
     minHeight: 76,
     paddingHorizontal: SPACING.lg,
