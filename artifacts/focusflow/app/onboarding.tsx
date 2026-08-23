@@ -425,7 +425,7 @@ export default function OnboardingScreen() {
         </View>
 
         {/* Section label */}
-        <Text style={[styles.sectionLabel, { color: theme.muted }]}>CORE ACCESS — TAP A CARD TO SEE DETAILS</Text>
+        <Text style={[styles.sectionLabel, { color: theme.muted }]}>CORE ACCESS — TAP A CARD TO GIVE ACCESS</Text>
 
         {/* Core permission cards */}
         {corePerms.map((perm) => {
@@ -463,7 +463,13 @@ export default function OnboardingScreen() {
               )}
               <TouchableOpacity
                 style={styles.cardMain}
-                onPress={() => setExpandedId(isExpanded ? null : perm.id)}
+                onPress={() => {
+                  if (status !== 'granted') {
+                    void handleGrant(perm);
+                  } else {
+                    setExpandedId(isExpanded ? null : perm.id);
+                  }
+                }}
                 activeOpacity={0.75}
               >
                 <View style={[styles.iconWrap, { backgroundColor: statusColor(status, perm.requiredToContinue) + '22' }]}>
@@ -480,12 +486,39 @@ export default function OnboardingScreen() {
                   </Text>
                 </View>
 
-                <Ionicons
-                  name={isExpanded ? 'chevron-up' : 'chevron-down'}
-                  size={16}
-                  color={theme.muted}
-                />
+                <TouchableOpacity
+                  onPress={() => setExpandedId(isExpanded ? null : perm.id)}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${isExpanded ? 'Hide' : 'Show'} ${perm.title} details`}
+                >
+                  <Ionicons
+                    name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                    size={16}
+                    color={theme.muted}
+                  />
+                </TouchableOpacity>
               </TouchableOpacity>
+
+              {status !== 'granted' && !isExpanded && (
+                <View style={styles.collapsedAction}>
+                  <TouchableOpacity
+                    style={styles.grantBtn}
+                    onPress={() => handleGrant(perm)}
+                    disabled={isLoading}
+                    activeOpacity={0.85}
+                  >
+                    {isLoading ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <>
+                        <Ionicons name="checkmark-circle-outline" size={15} color="#fff" />
+                        <Text style={styles.grantBtnText}>Give access</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              )}
 
               {isExpanded && (
                 <View style={[styles.expandedSection, { backgroundColor: theme.surface, borderTopColor: theme.border }]}>
@@ -556,7 +589,7 @@ export default function OnboardingScreen() {
         </TouchableOpacity>
 
         {/* Optional permission cards */}
-        <Text style={[styles.sectionLabel, { color: theme.muted }]}>OPTIONAL SETUP</Text>
+        <Text style={[styles.sectionLabel, { color: theme.muted }]}>OPTIONAL SETUP — TAP A CARD TO GIVE ACCESS</Text>
         <Text style={[styles.optionalHint, { color: theme.muted }]}>
           These features are not required to use FocusFlow and can be configured later.
         </Text>
@@ -572,7 +605,13 @@ export default function OnboardingScreen() {
             >
               <TouchableOpacity
                 style={styles.cardMain}
-                onPress={() => setExpandedId(isExpanded ? null : perm.id)}
+                onPress={() => {
+                  if (status !== 'granted') {
+                    void handleGrant(perm);
+                  } else {
+                    setExpandedId(isExpanded ? null : perm.id);
+                  }
+                }}
                 activeOpacity={0.75}
               >
                 <View style={[styles.iconWrap, { backgroundColor: statusColor(status, perm.requiredToContinue) + '22' }]}>
@@ -592,11 +631,18 @@ export default function OnboardingScreen() {
                   </Text>
                 </View>
 
-                <Ionicons
-                  name={isExpanded ? 'chevron-up' : 'chevron-down'}
-                  size={16}
-                  color={theme.muted}
-                />
+                <TouchableOpacity
+                  onPress={() => setExpandedId(isExpanded ? null : perm.id)}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${isExpanded ? 'Hide' : 'Show'} ${perm.title} details`}
+                >
+                  <Ionicons
+                    name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                    size={16}
+                    color={theme.muted}
+                  />
+                </TouchableOpacity>
               </TouchableOpacity>
 
               {isExpanded && (

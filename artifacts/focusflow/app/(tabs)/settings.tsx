@@ -32,7 +32,6 @@ import ReportIssueModal from '@/components/ReportIssueModal';
 import { withScreenErrorBoundary } from '@/components/withScreenErrorBoundary';
 import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
 import DarkModeToggle from '@/components/DarkModeToggle';
-import { ActiveHeaderButton } from '@/components/ActiveHeaderButton';
 import { PinVerifyModal } from '@/components/PinVerifyModal';
 import { SessionPinModule } from '@/native-modules/SessionPinModule';
 
@@ -211,7 +210,6 @@ function SettingsScreen() {
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
       <View style={[styles.header, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
         <Text style={[styles.title, { color: theme.text }]}>Settings</Text>
-        <ActiveHeaderButton />
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { paddingBottom: 60 + insets.bottom + 20 }]}>
@@ -233,16 +231,6 @@ function SettingsScreen() {
                 : 'Name, occupation, daily goal and more'
             }
             onPress={() => router.push('/user-profile')}
-          />
-        </Section>
-
-        {/* ── Active ── */}
-        <Section title="Active">
-          <SettingButton
-            icon="pulse-outline"
-            label="Active Blocks"
-            description="See every focus session, standalone block, and recurring block running now"
-            onPress={() => router.push('/active')}
           />
         </Section>
 

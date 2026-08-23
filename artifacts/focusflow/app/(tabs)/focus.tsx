@@ -70,6 +70,7 @@ function FocusScreen() {
   );
   const awaitingDecision = task ? isAwaitingDecision(task) : false;
   const otherActiveCount = Math.max(0, activeTasks.filter((item) => item.id !== task?.id).length);
+  const splitMode = standaloneActive || isFocusing;
   const blockPresets = settings.blockPresets ?? [];
   const handlePomodoroBreakStart = useCallback((seconds: number) => {
     if (!task) return;
@@ -228,46 +229,68 @@ function FocusScreen() {
         </View>
       )}
       {!task && standaloneActive ? (
-        <ScrollView
-          contentContainerStyle={[styles.panelContent, { paddingBottom: 60 + insets.bottom + 20 }]}
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={[styles.standaloneIconWrap, { backgroundColor: COLORS.red + '15' }]}>
-            <Ionicons name="ban" size={42} color={COLORS.red} />
-          </View>
-          <Text style={[styles.panelTitle, { color: theme.text }]}>Apps Blocked</Text>
-          <Text style={[styles.panelSubtitle, { color: theme.muted }]}>
-            Standalone block is running. You can add more apps but cannot stop the block early.
-          </Text>
-          {settings.standaloneBlockUntil && (
-            <StandaloneCountdown
-              untilIso={settings.standaloneBlockUntil}
-              blockedCount={(settings.standaloneBlockPackages ?? []).length}
-            />
-          )}
-          <TouchableOpacity
-            style={[styles.outlineAction, { backgroundColor: theme.card, borderColor: COLORS.red + '44' }]}
-            onPress={() => setBlockModalVisible(true)}
-            activeOpacity={0.8}
+        <View style={styles.splitShell}>
+          <ScrollView
+            style={styles.splitTop}
+            contentContainerStyle={styles.splitPanelContent}
+            showsVerticalScrollIndicator={false}
           >
-            <Ionicons name="add-circle-outline" size={18} color={COLORS.red} />
-            <Text style={[styles.outlineActionText, { color: COLORS.red }]}>Add More Apps to Block</Text>
-          </TouchableOpacity>
-          <Text style={[styles.sectionLabel, { color: theme.muted }]}>ADD TIME</Text>
-          <View style={[styles.addTimeRow, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            {[30, 60, 120, 240].map((minutes) => (
-              <TouchableOpacity
-                key={minutes}
-                style={[styles.addTimeBtn, { backgroundColor: COLORS.primary + '14', borderColor: COLORS.primary + '44' }]}
-                onPress={() => { void handleAddTime(minutes); }}
-              >
-                <Text style={[styles.addTimeBtnText, { color: COLORS.primary }]}>
-                  +{minutes >= 60 ? `${minutes / 60}h` : `${minutes}m`}
-                </Text>
+            <View style={[styles.standaloneIconWrap, { backgroundColor: COLORS.red + '15' }]}>
+              <Ionicons name="ban" size={34} color={COLORS.red} />
+            </View>
+            <Text style={[styles.panelTitle, { color: theme.text }]}>Apps Blocked</Text>
+            <Text style={[styles.panelSubtitle, { color: theme.muted }]}>
+              Standalone block is running. You can add more apps but cannot stop the block early.
+            </Text>
+            {settings.standaloneBlockUntil && (
+              <StandaloneCountdown
+                untilIso={settings.standaloneBlockUntil}
+                blockedCount={(settings.standaloneBlockPackages ?? []).length}
+              />
+            )}
+            <TouchableOpacity
+              style={[styles.outlineAction, { backgroundColor: theme.card, borderColor: COLORS.red + '44' }]}
+              onPress={() => setBlockModalVisible(true)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="add-circle-outline" size={18} color={COLORS.red} />
+              <Text style={[styles.outlineActionText, { color: COLORS.red }]}>Add More Apps to Block</Text>
+            </TouchableOpacity>
+            <Text style={[styles.sectionLabel, { color: theme.muted }]}>ADD TIME</Text>
+            <View style={[styles.addTimeRow, { backgroundColor: theme.card, borderColor: theme.border }]}>
+              {[30, 60, 120, 240].map((minutes) => (
+                <TouchableOpacity
+                  key={minutes}
+                  style={[styles.addTimeBtn, { backgroundColor: COLORS.primary + '14', borderColor: COLORS.primary + '44' }]}
+                  onPress={() => { void handleAddTime(minutes); }}
+                >
+                  <Text style={[styles.addTimeBtnText, { color: COLORS.primary }]}>
+                    +{minutes >= 60 ? `${minutes / 60}h` : `${minutes}m`}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <QuickPresetStrip
+              presets={blockPresets}
+              theme={theme}
+              active={false}
+              onPress={(preset) => { void handleQuickBlock(preset, 1); }}
+            />
+          </ScrollView>
+          <View style={[styles.splitBottom, { borderTopColor: theme.border }]}>
+            <View style={styles.inactiveSessionPanel}>
+              <Ionicons name="timer-outline" size={30} color={COLORS.primary} />
+              <Text style={[styles.splitPanelTitle, { color: theme.text }]}>Focus Session</Text>
+              <Text style={[styles.splitPanelSubtitle, { color: theme.muted }]}>
+                Choose a task from Schedule to start a focused session.
+              </Text>
+              <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: COLORS.primary }]} onPress={() => router.push('/')} activeOpacity={0.85}>
+                <Ionicons name="calendar-outline" size={18} color="#fff" />
+                <Text style={styles.primaryBtnText}>Open Schedule</Text>
               </TouchableOpacity>
-            ))}
+            </View>
           </View>
-        </ScrollView>
+        </View>
       ) : !task ? (
         <ScrollView
           contentContainerStyle={[styles.panelContent, { paddingBottom: 60 + insets.bottom + 20 }]}
@@ -300,9 +323,86 @@ function FocusScreen() {
             </View>
             <Ionicons name="chevron-forward" size={16} color={theme.muted} />
           </TouchableOpacity>
+           <QuickPresetStrip
+             presets={blockPresets}
+             theme={theme}
+             active={false}
+             onPress={(preset) => { void handleQuickBlock(preset, 1); }}
+           />
         </ScrollView>
       ) : (
         <>
+          {splitMode && (
+            <View style={styles.splitTop}>
+              {standaloneActive && settings.standaloneBlockUntil ? (
+                <ScrollView
+                  contentContainerStyle={styles.splitPanelContent}
+                  showsVerticalScrollIndicator={false}
+                >
+                  <View style={styles.splitZoneHeader}>
+                    <View style={[styles.standaloneSplitIcon, { backgroundColor: COLORS.red + '15' }]}>
+                      <Ionicons name="ban" size={17} color={COLORS.red} />
+                    </View>
+                    <View style={styles.standaloneSplitCopy}>
+                      <Text style={[styles.standaloneSplitTitle, { color: theme.text }]}>Standalone Block</Text>
+                      <Text style={[styles.standaloneSplitDescription, { color: theme.muted }]}>App blocking active independently</Text>
+                    </View>
+                  </View>
+                  <StandaloneCountdown
+                    untilIso={settings.standaloneBlockUntil}
+                    blockedCount={(settings.standaloneBlockPackages ?? []).length}
+                  />
+                  <View style={styles.splitQuickActions}>
+                    <TouchableOpacity
+                      style={[styles.splitQuickButton, { backgroundColor: theme.card, borderColor: COLORS.red + '44' }]}
+                      onPress={() => setBlockModalVisible(true)}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="add-circle-outline" size={16} color={COLORS.red} />
+                      <Text style={[styles.splitQuickButtonText, { color: COLORS.red }]}>Add apps</Text>
+                    </TouchableOpacity>
+                    {[60, 120, 240, 480].map((minutes) => (
+                      <TouchableOpacity
+                        key={minutes}
+                        style={[styles.splitQuickButton, { backgroundColor: COLORS.primary + '14', borderColor: COLORS.primary + '44' }]}
+                        onPress={() => { void handleAddTime(minutes); }}
+                      >
+                        <Text style={[styles.splitQuickButtonText, { color: COLORS.primary }]}>
+                          +{minutes / 60}h
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <QuickPresetStrip
+                    presets={blockPresets}
+                    theme={theme}
+                    active
+                    onPress={(preset) => { void handleQuickBlock(preset, 1); }}
+                  />
+                </ScrollView>
+              ) : (
+                <View style={styles.inactiveStandalonePanel}>
+                  <Ionicons name="ban-outline" size={28} color={theme.muted} />
+                  <Text style={[styles.splitPanelTitle, { color: theme.text }]}>Standalone Block</Text>
+                  <Text style={[styles.splitPanelSubtitle, { color: theme.muted }]}>No standalone block running</Text>
+                  <TouchableOpacity
+                    style={[styles.splitQuickButton, { backgroundColor: theme.card, borderColor: theme.border }]}
+                    onPress={() => setBlockModalVisible(true)}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="add-circle-outline" size={16} color={COLORS.primary} />
+                    <Text style={[styles.splitQuickButtonText, { color: COLORS.primary }]}>Set up block</Text>
+                  </TouchableOpacity>
+                  <QuickPresetStrip
+                    presets={blockPresets}
+                    theme={theme}
+                    active={false}
+                    onPress={(preset) => { void handleQuickBlock(preset, 1); }}
+                  />
+                </View>
+              )}
+            </View>
+          )}
           {hasAccessibilityPermission === false && !isFocusing && (
             <TouchableOpacity
               style={styles.permissionBanner}
@@ -327,52 +427,11 @@ function FocusScreen() {
             </TouchableOpacity>
           )}
           <ScrollView
-            style={{ flex: 1 }}
-            contentContainerStyle={[styles.scrollContent, { paddingBottom: 60 + insets.bottom + 20 }]}
+            style={[{ flex: 1 }, splitMode && styles.splitBottom]}
+            contentContainerStyle={[styles.scrollContent, splitMode && styles.splitTaskContent, { paddingBottom: 60 + insets.bottom + 20 }]}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            {standaloneActive && settings.standaloneBlockUntil && (
-              <View style={[styles.standaloneSplitCard, { backgroundColor: theme.card, borderColor: COLORS.red + '44' }]}>
-                <View style={styles.standaloneSplitHeader}>
-                  <View style={[styles.standaloneSplitIcon, { backgroundColor: COLORS.red + '15' }]}>
-                    <Ionicons name="ban" size={17} color={COLORS.red} />
-                  </View>
-                  <View style={styles.standaloneSplitCopy}>
-                    <Text style={[styles.standaloneSplitTitle, { color: theme.text }]}>Standalone Block</Text>
-                    <Text style={[styles.standaloneSplitDescription, { color: theme.muted }]}>
-                      Active independently of this task
-                    </Text>
-                  </View>
-                </View>
-                <StandaloneCountdown
-                  untilIso={settings.standaloneBlockUntil}
-                  blockedCount={(settings.standaloneBlockPackages ?? []).length}
-                />
-                <TouchableOpacity
-                  style={[styles.outlineAction, styles.splitOutlineAction, { backgroundColor: theme.card, borderColor: COLORS.red + '44' }]}
-                  onPress={() => setBlockModalVisible(true)}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="add-circle-outline" size={17} color={COLORS.red} />
-                  <Text style={[styles.outlineActionText, { color: COLORS.red }]}>Add Apps / Quick Presets</Text>
-                </TouchableOpacity>
-                <Text style={[styles.sectionLabel, { color: theme.muted }]}>ADD TIME</Text>
-                <View style={[styles.addTimeRow, styles.splitAddTimeRow, { backgroundColor: theme.card, borderColor: theme.border }]}>
-                  {[30, 60, 120, 240].map((minutes) => (
-                    <TouchableOpacity
-                      key={minutes}
-                      style={[styles.addTimeBtn, styles.splitAddTimeBtn, { backgroundColor: COLORS.primary + '14', borderColor: COLORS.primary + '44' }]}
-                      onPress={() => { void handleAddTime(minutes); }}
-                    >
-                      <Text style={[styles.addTimeBtnText, { color: COLORS.primary }]}>
-                        +{minutes >= 60 ? `${minutes / 60}h` : `${minutes}m`}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-            )}
             <View style={styles.statusRow}>
               <View style={[styles.statusDot, { backgroundColor: isFocusing ? COLORS.green : COLORS.muted }]} />
               <Text style={[styles.statusText, { color: theme.textSecondary }]}>
@@ -615,6 +674,51 @@ function SecondaryBtn({ icon, label, color, onPress }: { icon: keyof typeof Ioni
   return <TouchableOpacity style={[styles.secondaryBtn, { borderColor: color + '44' }]} onPress={onPress}><Ionicons name={icon} size={18} color={color} /><Text style={[styles.secondaryBtnText, { color }]}>{label}</Text></TouchableOpacity>;
 }
 
+function QuickPresetStrip({
+  presets,
+  theme,
+  active,
+  onPress,
+}: {
+  presets: import('@/data/types').BlockPreset[];
+  theme: ReturnType<typeof useTheme>['theme'];
+  active: boolean;
+  onPress: (preset: import('@/data/types').BlockPreset) => void;
+}) {
+  return (
+    <View style={styles.quickPresetSection}>
+      <View style={styles.quickPresetHeader}>
+        <Text style={[styles.quickPresetLabel, { color: theme.muted }]}>QUICK PRESETS</Text>
+        {active && <Text style={[styles.quickPresetHint, { color: theme.muted }]}>adds apps +1h</Text>}
+      </View>
+      {presets.length > 0 ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickPresetRow}>
+          {presets.map((preset) => (
+            <TouchableOpacity
+              key={preset.id}
+              style={[styles.quickPresetButton, { backgroundColor: theme.card, borderColor: COLORS.red + '44' }]}
+              onPress={() => onPress(preset)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name={active ? 'add-circle-outline' : 'play-circle-outline'} size={15} color={COLORS.red} />
+              <View style={styles.quickPresetCopy}>
+                <Text style={[styles.quickPresetName, { color: theme.text }]} numberOfLines={1}>{preset.name}</Text>
+                <Text style={[styles.quickPresetCount, { color: theme.muted }]}>
+                  {preset.packages.length} app{preset.packages.length !== 1 ? 's' : ''} · {active ? 'add +1h' : 'starts for 1 hour'}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      ) : (
+        <Text style={[styles.quickPresetEmpty, { color: theme.muted }]}>
+          No saved presets yet. Tap {active ? 'Add apps' : 'Set up block'} to create one.
+        </Text>
+      )}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   activeHeaderAction: {
@@ -635,6 +739,62 @@ const styles = StyleSheet.create({
   },
   hintText: { flex: 1, fontSize: FONT.xs, lineHeight: 17 },
   panelContent: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: SPACING.xl, gap: SPACING.md },
+  splitShell: { flex: 1 },
+  splitTop: {
+    flex: 0.43,
+    minHeight: 190,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  splitBottom: { flex: 0.57 },
+  splitPanelContent: {
+    flexGrow: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+    gap: SPACING.sm,
+  },
+  splitTaskContent: { paddingBottom: 60 },
+  splitZoneHeader: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, width: '100%' },
+  inactiveStandalonePanel: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: SPACING.xs, padding: SPACING.lg },
+  inactiveSessionPanel: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: SPACING.sm, padding: SPACING.lg },
+  splitPanelTitle: { fontSize: FONT.lg, fontWeight: '800', textAlign: 'center' },
+  splitPanelSubtitle: { fontSize: FONT.xs, lineHeight: 17, textAlign: 'center' },
+  splitQuickActions: { flexDirection: 'row', width: '100%', gap: SPACING.xs },
+  splitQuickButton: {
+    flex: 1,
+    minHeight: 34,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: SPACING.xs,
+  },
+  splitQuickButtonText: { fontSize: FONT.xs, fontWeight: '700' },
+  quickPresetSection: { width: '100%', gap: SPACING.xs },
+  quickPresetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  quickPresetLabel: { fontSize: 10, fontWeight: '800', letterSpacing: 0.7 },
+  quickPresetHint: { fontSize: 10 },
+  quickPresetRow: { gap: SPACING.xs, paddingRight: SPACING.md },
+  quickPresetButton: {
+    minWidth: 148,
+    maxWidth: 180,
+    minHeight: 42,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+  },
+  quickPresetCopy: { flex: 1 },
+  quickPresetName: { fontSize: FONT.xs, fontWeight: '800' },
+  quickPresetCount: { fontSize: 10, marginTop: 2 },
+  quickPresetEmpty: { fontSize: 10, lineHeight: 15 },
   panelTitle: { fontSize: FONT.xl, fontWeight: '700', textAlign: 'center' },
   panelSubtitle: { fontSize: FONT.md, textAlign: 'center', lineHeight: 22 },
   standaloneIconWrap: { width: 90, height: 90, borderRadius: 45, alignItems: 'center', justifyContent: 'center' },

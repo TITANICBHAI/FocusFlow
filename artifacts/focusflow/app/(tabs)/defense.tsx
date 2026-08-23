@@ -30,6 +30,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type DefenseAction = (defensePinHash?: string) => void;
 const DEFENSE_HINT_DISMISSED_KEY = '@focusflow/defenseHintDismissed';
+const DEFENSE_HELP_DISMISSED_KEY = '@focusflow/defenseHelpDismissed';
 
 function DefenseScreen() {
   const insets = useSafeAreaInsets();
@@ -46,6 +47,7 @@ function DefenseScreen() {
     | { type: 'setup'; action: DefenseAction }
   >({ type: 'none' });
   const [showDefenseHint, setShowDefenseHint] = useState(false);
+  const [showDefenseHelp, setShowDefenseHelp] = useState(false);
   const [alwaysOnPinRotationVisible, setAlwaysOnPinRotationVisible] = useState(false);
   const [vpnConsentVisible, setVpnConsentVisible] = useState(false);
   const [protectionNotice, setProtectionNotice] = useState<string | null>(null);
@@ -56,6 +58,9 @@ function DefenseScreen() {
   React.useEffect(() => {
     void AsyncStorage.getItem(DEFENSE_HINT_DISMISSED_KEY).then((dismissed) => {
       if (!dismissed) setShowDefenseHint(true);
+    });
+    void AsyncStorage.getItem(DEFENSE_HELP_DISMISSED_KEY).then((dismissed) => {
+      if (!dismissed) setShowDefenseHelp(true);
     });
     return () => {
       if (protectionNoticeTimer.current) clearTimeout(protectionNoticeTimer.current);
@@ -227,6 +232,36 @@ function DefenseScreen() {
           </TouchableOpacity>
         </View>
       )}
+      {showDefenseHelp && (
+        <View style={[styles.helpBanner, { backgroundColor: COLORS.primary + '12', borderColor: COLORS.primary + '35' }]}>
+          <Ionicons name="help-circle-outline" size={20} color={COLORS.primary} />
+          <View style={styles.helpBannerCopy}>
+            <Text style={[styles.helpBannerTitle, { color: theme.text }]}>Not sure what to do?</Text>
+            <Text style={[styles.helpBannerText, { color: theme.muted }]}>
+              Start with Focus to schedule a task, or open How to Use for a quick walkthrough of blocking and protection.
+            </Text>
+            <TouchableOpacity
+              onPress={() => router.push('/how-to-use')}
+              style={styles.helpBannerAction}
+              activeOpacity={0.75}
+            >
+              <Text style={[styles.helpBannerActionText, { color: COLORS.primary }]}>Open How to Use</Text>
+              <Ionicons name="arrow-forward" size={14} color={COLORS.primary} />
+            </TouchableOpacity>
+          </View>
+          <TouchableOpacity
+            onPress={() => {
+              setShowDefenseHelp(false);
+              void AsyncStorage.setItem(DEFENSE_HELP_DISMISSED_KEY, '1');
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Dismiss Defense help"
+            hitSlop={8}
+          >
+            <Ionicons name="close" size={19} color={theme.muted} />
+          </TouchableOpacity>
+        </View>
+      )}
       {activeBlock && (
         <View style={[styles.activeNotice, { backgroundColor: COLORS.orange + '18', borderColor: COLORS.orange + '55' }]}>
           <Ionicons name="lock-closed-outline" size={18} color={COLORS.orange} />
@@ -305,53 +340,21 @@ function DefenseScreen() {
             onPress={() => router.push('/keyword-blocker')}
             theme={theme}
           />
+          {/* UI label only: this is the existing Greyout Block feature, renamed
+              to Scheduled Blocks. Keep greyoutSchedule and its modal unchanged. */}
           <SettingButton
             icon="time-outline"
-            label="Block Schedule"
-            description="Manage recurring time-window blocks"
+            label="Scheduled Blocks"
+            description="Manage recurring time-window blocks (formerly Greyout Block)"
             onPress={() =>
               requireDefensePin(
-                'Manage Block Schedules',
+                'Manage Scheduled Blocks',
                 'Enter your defense password to add, edit, or remove schedule batches.',
                 () => setGreyoutScheduleVisible(true),
               )
             }
             theme={theme}
           />
-          <SettingRow
-            label="Network Protection (VPN)"
-            description={
-              activeBlock && (settings.vpnBlockEnabled ?? false)
-                ? 'Locked on — Focus session or Standalone block is running'
-                : 'Cut internet access for selected apps through FocusFlow’s local VPN'
-            }
-            theme={theme}
-          >
-            <Switch
-              value={settings.vpnBlockEnabled ?? false}
-              onValueChange={(value) => void handleVpnToggle(value)}
-              disabled={activeBlock && (settings.vpnBlockEnabled ?? false)}
-              trackColor={{ false: theme.border, true: COLORS.primary + '88' }}
-              thumbColor={settings.vpnBlockEnabled ? COLORS.primary : theme.muted}
-            />
-          </SettingRow>
-          <SettingRow
-            label="VPN Self-Healing"
-            description={
-              activeBlock && (settings.vpnSelfHealEnabled ?? false)
-                ? 'Locked on — active block in progress'
-                : 'Restart the VPN if it disconnects during an active block'
-            }
-            theme={theme}
-          >
-            <Switch
-              value={settings.vpnSelfHealEnabled ?? false}
-              onValueChange={(value) => void update({ vpnSelfHealEnabled: value })}
-              disabled={!(settings.vpnBlockEnabled ?? false) || (activeBlock && (settings.vpnSelfHealEnabled ?? false))}
-              trackColor={{ false: theme.border, true: COLORS.primary + '88' }}
-              thumbColor={settings.vpnSelfHealEnabled ? COLORS.primary : theme.muted}
-            />
-          </SettingRow>
           <SettingButton
             icon="list-outline"
             label="Manage VPN App List"
@@ -438,6 +441,43 @@ function DefenseScreen() {
               onValueChange={(value) => void update({ keepFocusActiveUntilTaskEnd: value })}
               trackColor={{ false: theme.border, true: COLORS.primary + '88' }}
               thumbColor={settings.keepFocusActiveUntilTaskEnd ? COLORS.primary : theme.muted}
+            />
+          </SettingRow>
+        </Section>
+
+        <Section title="Network Protection" theme={theme}>
+          <SettingRow
+            label="Network Blocking (VPN)"
+            description={
+              activeBlock && (settings.vpnBlockEnabled ?? false)
+                ? 'Locked on — Focus session or Standalone block is running'
+                : 'Cut internet access for selected apps through FocusFlow’s local VPN'
+            }
+            theme={theme}
+          >
+            <Switch
+              value={settings.vpnBlockEnabled ?? false}
+              onValueChange={(value) => void handleVpnToggle(value)}
+              disabled={activeBlock && (settings.vpnBlockEnabled ?? false)}
+              trackColor={{ false: theme.border, true: COLORS.primary + '88' }}
+              thumbColor={settings.vpnBlockEnabled ? COLORS.primary : theme.muted}
+            />
+          </SettingRow>
+          <SettingRow
+            label="VPN Self-Healing"
+            description={
+              activeBlock && (settings.vpnSelfHealEnabled ?? false)
+                ? 'Locked on — active block in progress'
+                : 'Restart the VPN if it disconnects during an active block'
+            }
+            theme={theme}
+          >
+            <Switch
+              value={settings.vpnSelfHealEnabled ?? false}
+              onValueChange={(value) => void update({ vpnSelfHealEnabled: value })}
+              disabled={!(settings.vpnBlockEnabled ?? false) || (activeBlock && (settings.vpnSelfHealEnabled ?? false))}
+              trackColor={{ false: theme.border, true: COLORS.primary + '88' }}
+              thumbColor={settings.vpnSelfHealEnabled ? COLORS.primary : theme.muted}
             />
           </SettingRow>
         </Section>
@@ -723,6 +763,21 @@ const styles = StyleSheet.create({
     gap: SPACING.sm,
   },
   hintText: { flex: 1, fontSize: FONT.xs, lineHeight: 17 },
+  helpBanner: {
+    marginHorizontal: SPACING.md,
+    marginTop: SPACING.sm,
+    padding: SPACING.sm,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: SPACING.sm,
+  },
+  helpBannerCopy: { flex: 1, gap: 3 },
+  helpBannerTitle: { fontSize: FONT.sm, fontWeight: '800' },
+  helpBannerText: { fontSize: FONT.xs, lineHeight: 17 },
+  helpBannerAction: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs, alignSelf: 'flex-start', marginTop: 2 },
+  helpBannerActionText: { fontSize: FONT.xs, fontWeight: '800' },
   activeNotice: {
     marginHorizontal: SPACING.md,
     marginTop: SPACING.sm,

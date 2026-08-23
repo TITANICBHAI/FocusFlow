@@ -9,6 +9,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
+  Animated,
   ScrollView,
   StyleSheet,
   Text,
@@ -29,7 +30,7 @@ import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
 import { SessionPinModule } from '@/native-modules/SessionPinModule';
 import { InstalledAppsModule, type InstalledApp } from '@/native-modules/InstalledAppsModule';
 import { NetworkBlockModule, type NetworkBlockStatus } from '@/native-modules/NetworkBlockModule';
-import type { DailyAllowanceEntry } from '@/data/types';
+import type { DailyAllowanceEntry, RecurringBlockSchedule } from '@/data/types';
 
 type AllowanceUsage = {
   date?: string;
@@ -50,7 +51,9 @@ export default function ActiveScreen() {
   const [todayStats, setTodayStats] = useState({ completed: 0, total: 0, focusMinutes: 0, blocked: 0 });
   const [defPinVisible, setDefPinVisible] = useState(false);
   const [focusPinVisible, setFocusPinVisible] = useState(false);
+  const [clock, setClock] = useState(() => Date.now());
   const pendingDefAction = useRef<(() => void) | null>(null);
+  const livePulse = useRef(new Animated.Value(1)).current;
 
   const focusActive = state.focusSession?.isActive === true;
   const focusTask = state.focusSession
@@ -73,6 +76,11 @@ export default function ActiveScreen() {
       ...(settings.standaloneVpnPackages ?? []),
     ]),
     [alwaysOnVpnPackages, settings.standaloneVpnPackages],
+  );
+  const recurringSchedules = settings.recurringBlockSchedules ?? [];
+  const activeSchedules = useMemo(
+    () => recurringSchedules.filter((schedule) => isScheduleActive(schedule, clock)),
+    [clock, recurringSchedules],
   );
   const appNames = useMemo(
     () => new Map(apps.map((app) => [app.packageName, app.appName])),
@@ -144,6 +152,11 @@ export default function ActiveScreen() {
     return () => { mounted = false; };
   }, []);
 
+  useEffect(() => {
+    const timer = setInterval(() => setClock(Date.now()), 15_000);
+    return () => clearInterval(timer);
+  }, []);
+
   const withDefensePin = (action: () => void) => {
     SharedPrefsModule.getString('defense_pin_hash')
       .then((hash) => {
@@ -197,6 +210,21 @@ export default function ActiveScreen() {
   const nothingActive = !focusActive && !standaloneActive && !alwaysOnActive && allowanceEntries.length === 0 &&
     keywords.length === 0 && !vpnRunning;
 
+  useEffect(() => {
+    if (nothingActive) {
+      livePulse.setValue(1);
+      return;
+    }
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(livePulse, { toValue: 1.35, duration: 700, useNativeDriver: true }),
+        Animated.timing(livePulse, { toValue: 1, duration: 700, useNativeDriver: true }),
+      ]),
+    );
+    animation.start();
+    return () => animation.stop();
+  }, [livePulse, nothingActive]);
+
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
       <View style={[styles.header, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
@@ -207,7 +235,13 @@ export default function ActiveScreen() {
           <Text style={[styles.title, { color: theme.text }]}>Active</Text>
           <Text style={[styles.subtitle, { color: theme.muted }]}>Live status of your protections</Text>
         </View>
-        <View style={[styles.liveDot, { backgroundColor: nothingActive ? theme.muted : COLORS.green }]} />
+        <Animated.View
+          style={[
+            styles.liveDot,
+            { backgroundColor: nothingActive ? theme.muted : COLORS.green },
+            !nothingActive && { transform: [{ scale: livePulse }] },
+          ]}
+        />
       </View>
 
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 40 + insets.bottom }]} showsVerticalScrollIndicator={false}>
@@ -294,6 +328,48 @@ export default function ActiveScreen() {
           </TouchableOpacity>
         </StatusCard>
 
+        {/* UI label only: Scheduled Blocks is the existing Greyout Block
+            schedule feature; the underlying data and enforcement stay unchanged. */}
+        <StatusCard
+          icon="layers-outline"
+          color={activeSchedules.length > 0 ? COLORS.purple : theme.muted}
+          title="Scheduled Blocks"
+          status={
+            recurringSchedules.length === 0
+              ? 'Not configured'
+              : activeSchedules.length > 0
+                ? `${activeSchedules.length} active · ${recurringSchedules.length} configured`
+                : `${recurringSchedules.length} configured · none active`
+          }
+          theme={theme}
+          expandable={recurringSchedules.length > 0}
+          expanded={expanded === 'schedules'}
+          onToggle={() => setExpanded(expanded === 'schedules' ? null : 'schedules')}
+        >
+          {recurringSchedules.length === 0 ? (
+            <EmptyText text="No recurring scheduled blocks are configured." theme={theme} />
+          ) : expanded === 'schedules' ? (
+            recurringSchedules.map((schedule) => (
+              <ScheduleRow
+                key={schedule.id}
+                schedule={schedule}
+                active={activeSchedules.some((item) => item.id === schedule.id)}
+                theme={theme}
+              />
+            ))
+          ) : (
+            <Text style={[styles.preview, { color: theme.muted }]}>
+              {activeSchedules.length > 0
+                ? `${activeSchedules.map((schedule) => schedule.name).join(', ')} running now.`
+                : 'Tap to see configured days, times, and blocked app groups.'}
+            </Text>
+          )}
+          <TouchableOpacity style={[styles.action, { borderColor: theme.border }]} onPress={() => router.push('/(tabs)/defense')}>
+            <Ionicons name="settings-outline" size={16} color={COLORS.primary} />
+            <Text style={[styles.actionText, { color: COLORS.primary }]}>Manage scheduled blocks</Text>
+          </TouchableOpacity>
+        </StatusCard>
+
         <View style={[styles.today, { borderTopColor: theme.border }]}>
           <Text style={[styles.todayLabel, { color: theme.muted }]}>TODAY</Text>
           <Text style={[styles.todayText, { color: theme.text }]}>
@@ -340,12 +416,61 @@ function AllowanceRow({ entry, usage, appName, theme }: { entry: DailyAllowanceE
   return <View style={[styles.allowanceRow, { borderBottomColor: theme.border }]}><Text style={[styles.allowanceName, { color: theme.text }]}>{appName ?? shortPackageName(entry.packageName)}</Text><Text style={[styles.allowanceUsage, { color: used >= limit ? COLORS.red : theme.muted }]}>{used} / {limit} {unit} used · {reset}</Text></View>;
 }
 
+function ScheduleRow({
+  schedule,
+  active,
+  theme,
+}: {
+  schedule: RecurringBlockSchedule;
+  active: boolean;
+  theme: ReturnType<typeof useTheme>['theme'];
+}) {
+  return (
+    <View style={[styles.scheduleRow, { borderBottomColor: theme.border }]}>
+      <View style={[styles.scheduleStatus, { backgroundColor: active ? COLORS.purple : theme.border }]} />
+      <View style={styles.scheduleCopy}>
+        <Text style={[styles.scheduleName, { color: theme.text }]} numberOfLines={1}>{schedule.name}</Text>
+        <Text style={[styles.scheduleMeta, { color: theme.muted }]}>
+          {active ? 'Running now · ' : ''}{formatScheduleTime(schedule)} · {formatScheduleDays(schedule.days)} · {schedule.packages.length} app{schedule.packages.length === 1 ? '' : 's'}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
 function EmptyText({ text, theme }: { text: string; theme: ReturnType<typeof useTheme>['theme'] }) {
   return <Text style={[styles.empty, { color: theme.muted }]}>{text}</Text>;
 }
 
 function formatDateTime(date: Date): string {
   return `${dayjs(date).format('MMM D')} at ${dayjs(date).format('HH:mm')}`;
+}
+
+function isScheduleActive(schedule: RecurringBlockSchedule, timestamp: number): boolean {
+  if (!schedule.enabled) return false;
+  const date = new Date(timestamp);
+  const day = date.getDay() + 1;
+  if (!schedule.days.includes(day)) return false;
+  const currentMinutes = date.getHours() * 60 + date.getMinutes();
+  const start = schedule.startHour * 60 + schedule.startMin;
+  const end = schedule.endHour * 60 + schedule.endMin;
+  return start <= end
+    ? currentMinutes >= start && currentMinutes < end
+    : currentMinutes >= start || currentMinutes < end;
+}
+
+function formatScheduleTime(schedule: RecurringBlockSchedule): string {
+  const format = (hour: number, minute: number) => {
+    const suffix = hour >= 12 ? 'PM' : 'AM';
+    const displayHour = hour % 12 || 12;
+    return `${displayHour}:${minute.toString().padStart(2, '0')} ${suffix}`;
+  };
+  return `${format(schedule.startHour, schedule.startMin)}–${format(schedule.endHour, schedule.endMin)}`;
+}
+
+function formatScheduleDays(days: number[]): string {
+  const labels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  return days.map((day) => labels[day - 1] ?? '?').join(', ');
 }
 
 function intervalResetLabel(entry: DailyAllowanceEntry, usage?: AllowanceUsage): string {
@@ -393,6 +518,11 @@ const styles = StyleSheet.create({
   allowanceRow: { paddingVertical: SPACING.sm, borderBottomWidth: StyleSheet.hairlineWidth },
   allowanceName: { fontSize: FONT.sm, fontWeight: '700' },
   allowanceUsage: { fontSize: FONT.xs, marginTop: 3 },
+  scheduleRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, paddingVertical: SPACING.sm, borderBottomWidth: StyleSheet.hairlineWidth },
+  scheduleStatus: { width: 8, height: 8, borderRadius: 4 },
+  scheduleCopy: { flex: 1 },
+  scheduleName: { fontSize: FONT.sm, fontWeight: '700' },
+  scheduleMeta: { fontSize: FONT.xs, lineHeight: 17, marginTop: 2 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.xs, paddingVertical: SPACING.xs },
   chip: { borderRadius: RADIUS.sm, paddingHorizontal: SPACING.sm, paddingVertical: 5 },
   chipText: { fontSize: FONT.xs, fontWeight: '600' },
