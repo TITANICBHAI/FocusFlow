@@ -29,6 +29,7 @@ import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.TextView
 import com.tbtechs.focusflow.modules.BlockOverlayModule
 import com.tbtechs.focusflow.modules.FocusDayBridgeModule
@@ -460,6 +461,25 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     private var wOverlayXRevealed = false
     private var wOverlayRevealScheduled = false
     private var wOverlayRevealRunnable: Runnable? = null
+    private var wOverlayCountdownContainer: LinearLayout? = null
+    private var wOverlayCountdownLabel: TextView? = null
+    private var wOverlayCountdownProgress: ProgressBar? = null
+    private var wOverlayCountdownRunnable: Runnable? = null
+    private var wOverlayCountdownTotalMs = 0L
+    private var wOverlayCountdownStartedAt = 0L
+
+    private val windowOverlayCountdownTick = object : Runnable {
+        override fun run() {
+            if (wOverlayView == null || wOverlayXRevealed || wOverlayCountdownTotalMs <= 0L) return
+            val remaining = (wOverlayCountdownTotalMs -
+                (android.os.SystemClock.uptimeMillis() - wOverlayCountdownStartedAt))
+                .coerceAtLeast(0L)
+            updateWindowOverlayCountdown(remaining)
+            if (remaining > 0L) {
+                handler.postDelayed(this, 100L)
+            }
+        }
+    }
 
     // Handler for retry re-checks AND timed-allowance expiry — runs on main thread
     private val handler = Handler(Looper.getMainLooper())
@@ -2698,6 +2718,42 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply { bottomMargin = dp(48) }
         })
+        val countdownLabel = TextView(this).apply {
+            textSize = 12f
+            setTextColor(Color.parseColor("#AAAACC"))
+            gravity = Gravity.CENTER
+            letterSpacing = 0.04f
+        }
+        val countdownProgress = ProgressBar(
+            this, null, android.R.attr.progressBarStyleHorizontal
+        ).apply {
+            max = 1000
+            progress = 1000
+            isIndeterminate = false
+            progressTintList = android.content.res.ColorStateList.valueOf(
+                Color.parseColor("#7567D9")
+            )
+            progressBackgroundTintList = android.content.res.ColorStateList.valueOf(
+                Color.parseColor("#332E5A")
+            )
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(4)
+            ).apply { topMargin = dp(8) }
+        }
+        val countdownContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            visibility = android.view.View.GONE
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = dp(28) }
+            addView(countdownLabel)
+            addView(countdownProgress)
+        }
+        wOverlayCountdownContainer = countdownContainer
+        wOverlayCountdownLabel = countdownLabel
+        wOverlayCountdownProgress = countdownProgress
+        col.addView(countdownContainer)
         col.addView(TextView(this).apply {            // sub-label
             text = "Stay focused. You\u2019ve got this."
             textSize = 13f; setTextColor(Color.parseColor("#55556A")); gravity = Gravity.CENTER
@@ -2805,6 +2861,14 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         wOverlayView = null
         wOverlayXBtn = null
         wOverlayNavRow = null
+        handler.removeCallbacks(windowOverlayCountdownTick)
+        wOverlayCountdownRunnable?.let { handler.removeCallbacks(it) }
+        wOverlayCountdownRunnable = null
+        wOverlayCountdownContainer = null
+        wOverlayCountdownLabel = null
+        wOverlayCountdownProgress = null
+        wOverlayCountdownTotalMs = 0L
+        wOverlayCountdownStartedAt = 0L
         wOverlayXRevealed = false
         wOverlayRevealScheduled = false
         wOverlayRevealRunnable?.let { handler.removeCallbacks(it) }
@@ -2833,13 +2897,24 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         if (wOverlayXRevealed || wOverlayRevealScheduled) return
         wOverlayRevealScheduled = true
         AversiveActionsManager.stopAll(this)
+        val delayMs = overlayActionDelayMs()
+        wOverlayCountdownTotalMs = delayMs
+        wOverlayCountdownStartedAt = android.os.SystemClock.uptimeMillis()
+        wOverlayCountdownContainer?.visibility = android.view.View.VISIBLE
+        updateWindowOverlayCountdown(delayMs)
+        wOverlayCountdownRunnable = windowOverlayCountdownTick
+        handler.post(windowOverlayCountdownTick)
         val revealRunnable = Runnable {
             wOverlayRevealScheduled = false
             wOverlayRevealRunnable = null
             if (wOverlayView == null || wOverlayXRevealed ||
                 !prefs.getBoolean(BlockOverlayActivity.PREF_OVERLAY_X_READY, false)
-            ) return@Runnable
+            ) {
+                cancelWindowOverlayCountdown()
+                return@Runnable
+            }
             wOverlayXRevealed = true
+            cancelWindowOverlayCountdown()
             AversiveActionsManager.stopAll(this)
             // ✕ close button
             wOverlayXBtn?.let { btn ->
@@ -2861,7 +2936,29 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             }
         }
         wOverlayRevealRunnable = revealRunnable
-        handler.postDelayed(revealRunnable, overlayActionDelayMs())
+        handler.postDelayed(revealRunnable, delayMs)
+    }
+
+    private fun cancelWindowOverlayCountdown() {
+        handler.removeCallbacks(windowOverlayCountdownTick)
+        wOverlayCountdownRunnable?.let { handler.removeCallbacks(it) }
+        wOverlayCountdownRunnable = null
+        wOverlayCountdownContainer?.visibility = android.view.View.GONE
+        wOverlayCountdownTotalMs = 0L
+        wOverlayCountdownStartedAt = 0L
+    }
+
+    private fun updateWindowOverlayCountdown(remainingMs: Long) {
+        val label = wOverlayCountdownLabel ?: return
+        val progress = wOverlayCountdownProgress ?: return
+        val remainingSeconds = ((remainingMs + 999L) / 1000L).coerceAtLeast(0L)
+        label.text = "Back, Home, and close available in ${remainingSeconds}s"
+        val fraction = if (wOverlayCountdownTotalMs > 0L) {
+            (remainingMs.toDouble() / wOverlayCountdownTotalMs.toDouble()).coerceIn(0.0, 1.0)
+        } else {
+            0.0
+        }
+        progress.progress = (fraction * progress.max).toInt()
     }
 
     /** Picks a quote for the overlay (fixed → custom pool → defaults). */
