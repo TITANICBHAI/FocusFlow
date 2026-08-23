@@ -18,6 +18,7 @@ import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.TextView
 import com.tbtechs.focusflow.MainActivity
 import org.json.JSONArray
@@ -112,6 +113,27 @@ class BlockOverlayActivity : Activity() {
     // ✕ button — hidden until AccessibilityService confirms user is at home
     private lateinit var xButton: TextView
     private var xButtonRevealed = false
+    private lateinit var countdownContainer: LinearLayout
+    private lateinit var countdownLabel: TextView
+    private lateinit var countdownProgress: ProgressBar
+    private var countdownTotalMs = 0L
+    private var countdownStartedAt = 0L
+
+    /**
+     * Visual-only countdown for the escape delay. It deliberately has no
+     * connection to the x-button's clickability or reveal gate.
+     */
+    private val countdownRunnable = object : Runnable {
+        override fun run() {
+            if (isFinishing || isDestroyed || xButtonRevealed || countdownTotalMs <= 0L) return
+            val remaining = (countdownTotalMs - (android.os.SystemClock.uptimeMillis() - countdownStartedAt))
+                .coerceAtLeast(0L)
+            updateCountdown(remaining)
+            if (remaining > 0L) {
+                handler.postDelayed(this, 100L)
+            }
+        }
+    }
 
     private val pollRunnable = object : Runnable {
         override fun run() {
@@ -380,6 +402,7 @@ class BlockOverlayActivity : Activity() {
             col.addView(buildReasonLabel())
         }
         col.addView(buildQuoteView())
+        col.addView(buildCountdownView())
         col.addView(buildSubLabel())
         root.addView(col)
 
@@ -454,6 +477,44 @@ class BlockOverlayActivity : Activity() {
         ).apply { bottomMargin = dp(48) }
     }
 
+    private fun buildCountdownView(): LinearLayout {
+        countdownLabel = TextView(this).apply {
+            textSize = 12f
+            setTextColor(Color.parseColor("#AAAACC"))
+            gravity = Gravity.CENTER
+            letterSpacing = 0.04f
+        }
+
+        countdownProgress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+            max = 1000
+            progress = 1000
+            isIndeterminate = false
+            progressTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#7567D9"))
+            progressBackgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#332E5A"))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(4)
+            ).apply {
+                topMargin = dp(8)
+            }
+        }
+
+        countdownContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            visibility = View.GONE
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = dp(28)
+            }
+            addView(countdownLabel)
+            addView(countdownProgress)
+        }
+        return countdownContainer
+    }
+
     private fun buildSubLabel(): TextView = TextView(this).apply {
         text = "Stay focused. You\u2019ve got this."
         textSize = 13f
@@ -517,12 +578,17 @@ class BlockOverlayActivity : Activity() {
     private fun scheduleXButtonReveal() {
         if (revealScheduled || xButtonRevealed) return
         revealScheduled = true
+        countdownTotalMs = actionDelayMs()
+        countdownStartedAt = android.os.SystemClock.uptimeMillis()
+        countdownContainer.visibility = View.VISIBLE
+        updateCountdown(countdownTotalMs)
+        handler.post(countdownRunnable)
         handler.postDelayed({
             revealScheduled = false
             if (!isFinishing && !isDestroyed && prefs.getBoolean(PREF_OVERLAY_X_READY, false)) {
                 revealXButton()
             }
-        }, actionDelayMs())
+        }, countdownTotalMs)
     }
 
     // ─── X button reveal (runs after home confirmed and the escape delay) ─────
@@ -530,6 +596,8 @@ class BlockOverlayActivity : Activity() {
     private fun revealXButton() {
         if (xButtonRevealed) return
         xButtonRevealed = true
+        handler.removeCallbacks(countdownRunnable)
+        countdownContainer.visibility = View.GONE
         prefs.edit().putBoolean(PREF_OVERLAY_X_READY, false).apply()
         xButton.isClickable = true
         xButton.isFocusable = true
@@ -602,6 +670,18 @@ class BlockOverlayActivity : Activity() {
         } else DEFAULT_QUOTES
 
         return pool.random()
+    }
+
+    private fun updateCountdown(remainingMs: Long) {
+        if (!::countdownLabel.isInitialized || !::countdownProgress.isInitialized) return
+        val remainingSeconds = ((remainingMs + 999L) / 1000L).coerceAtLeast(0L)
+        countdownLabel.text = "Close button available in ${remainingSeconds}s"
+        val fraction = if (countdownTotalMs > 0L) {
+            (remainingMs.toDouble() / countdownTotalMs.toDouble()).coerceIn(0.0, 1.0)
+        } else {
+            0.0
+        }
+        countdownProgress.progress = (fraction * countdownProgress.max).toInt()
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────────────

@@ -262,14 +262,6 @@ function DefenseScreen() {
           </TouchableOpacity>
         </View>
       )}
-      {activeBlock && (
-        <View style={[styles.activeNotice, { backgroundColor: COLORS.orange + '18', borderColor: COLORS.orange + '55' }]}>
-          <Ionicons name="lock-closed-outline" size={18} color={COLORS.orange} />
-          <Text style={[styles.activeNoticeText, { color: theme.text }]}>
-            Protection settings are locked while a {state.focusSession?.isActive ? 'Focus session' : 'Standalone block'} is running. Turn-offs will be available when it ends.
-          </Text>
-        </View>
-      )}
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={[styles.content, { paddingBottom: 70 + insets.bottom }]}
@@ -381,7 +373,6 @@ function DefenseScreen() {
             description="Block power menu, notification shade, and sensitive Settings pages"
             value={settings.systemGuardEnabled ?? false}
             onValueChange={(value) => toggleProtectedSetting('systemGuardEnabled', value, 'System Guard')}
-            disabled={activeBlock && (settings.systemGuardEnabled ?? false)}
             theme={theme}
           />
           <ProtectedToggle
@@ -389,7 +380,6 @@ function DefenseScreen() {
             description="Redirect away from the Shorts player"
             value={settings.blockYoutubeShortsEnabled ?? false}
             onValueChange={(value) => toggleProtectedSetting('blockYoutubeShortsEnabled', value, 'YouTube Shorts protection')}
-            disabled={activeBlock && (settings.blockYoutubeShortsEnabled ?? false)}
             theme={theme}
           />
           <ProtectedToggle
@@ -397,7 +387,6 @@ function DefenseScreen() {
             description="Redirect away from the Reels viewer"
             value={settings.blockInstagramReelsEnabled ?? false}
             onValueChange={(value) => toggleProtectedSetting('blockInstagramReelsEnabled', value, 'Instagram Reels protection')}
-            disabled={activeBlock && (settings.blockInstagramReelsEnabled ?? false)}
             theme={theme}
           />
         </Section>
@@ -448,34 +437,25 @@ function DefenseScreen() {
         <Section title="Network Protection" theme={theme}>
           <SettingRow
             label="Network Blocking (VPN)"
-            description={
-              activeBlock && (settings.vpnBlockEnabled ?? false)
-                ? 'Locked on — Focus session or Standalone block is running'
-                : 'Cut internet access for selected apps through FocusFlow’s local VPN'
-            }
+            description="Cut internet access for selected apps through FocusFlow’s local VPN"
             theme={theme}
           >
             <Switch
               value={settings.vpnBlockEnabled ?? false}
               onValueChange={(value) => void handleVpnToggle(value)}
-              disabled={activeBlock && (settings.vpnBlockEnabled ?? false)}
               trackColor={{ false: theme.border, true: COLORS.primary + '88' }}
               thumbColor={settings.vpnBlockEnabled ? COLORS.primary : theme.muted}
             />
           </SettingRow>
           <SettingRow
             label="VPN Self-Healing"
-            description={
-              activeBlock && (settings.vpnSelfHealEnabled ?? false)
-                ? 'Locked on — active block in progress'
-                : 'Restart the VPN if it disconnects during an active block'
-            }
+            description="Restart the VPN if it disconnects during an active block"
             theme={theme}
           >
             <Switch
               value={settings.vpnSelfHealEnabled ?? false}
-              onValueChange={(value) => void update({ vpnSelfHealEnabled: value })}
-              disabled={!(settings.vpnBlockEnabled ?? false) || (activeBlock && (settings.vpnSelfHealEnabled ?? false))}
+              onValueChange={(value) => toggleProtectedSetting('vpnSelfHealEnabled', value, 'VPN Self-Healing')}
+              disabled={!(settings.vpnBlockEnabled ?? false)}
               trackColor={{ false: theme.border, true: COLORS.primary + '88' }}
               thumbColor={settings.vpnSelfHealEnabled ? COLORS.primary : theme.muted}
             />
@@ -485,11 +465,7 @@ function DefenseScreen() {
         <Section title="Home Launcher" theme={theme}>
           <SettingRow
             label="Lock launcher during standalone block"
-            description={
-              activeBlock && (settings.launcherLockDuringStandalone ?? true)
-                ? 'Locked on — active block in progress'
-                : 'Prevent switching away from FocusFlow Launcher during a Standalone block'
-            }
+            description="Prevent switching away from FocusFlow Launcher during a Standalone block"
             theme={theme}
           >
             <Switch
@@ -501,18 +477,13 @@ function DefenseScreen() {
                 }
                 void update({ launcherLockDuringStandalone: value });
               }}
-              disabled={isStandaloneActive(settings) && (settings.launcherLockDuringStandalone ?? true)}
               trackColor={{ false: theme.border, true: COLORS.primary + '88' }}
               thumbColor={settings.launcherLockDuringStandalone !== false ? COLORS.primary : theme.muted}
             />
           </SettingRow>
           <SettingRow
             label="Block uninstall from launcher long-press"
-            description={
-              activeBlock && (settings.launcherBlockUninstall ?? false)
-                ? 'Locked on — active block in progress'
-                : 'Hide Uninstall from the launcher long-press menu'
-            }
+            description="Hide Uninstall from the launcher long-press menu"
             theme={theme}
           >
             <Switch
@@ -524,7 +495,6 @@ function DefenseScreen() {
                 }
                 void update({ launcherBlockUninstall: value });
               }}
-              disabled={activeBlock && (settings.launcherBlockUninstall ?? false)}
               trackColor={{ false: theme.border, true: COLORS.primary + '88' }}
               thumbColor={settings.launcherBlockUninstall ? COLORS.primary : theme.muted}
             />
@@ -709,7 +679,7 @@ function ProtectedToggle({
   theme: ReturnType<typeof useTheme>['theme'];
 }) {
   return (
-    <SettingRow label={label} description={disabled ? 'Locked while active protection is running' : description} theme={theme}>
+    <SettingRow label={label} description={description} theme={theme}>
       <Switch
         value={value}
         onValueChange={onValueChange}
@@ -778,17 +748,6 @@ const styles = StyleSheet.create({
   helpBannerText: { fontSize: FONT.xs, lineHeight: 17 },
   helpBannerAction: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs, alignSelf: 'flex-start', marginTop: 2 },
   helpBannerActionText: { fontSize: FONT.xs, fontWeight: '800' },
-  activeNotice: {
-    marginHorizontal: SPACING.md,
-    marginTop: SPACING.sm,
-    padding: SPACING.sm,
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-  },
-  activeNoticeText: { flex: 1, fontSize: FONT.xs, lineHeight: 17, fontWeight: '600' },
   protectionNotice: {
     position: 'absolute',
     left: SPACING.md,

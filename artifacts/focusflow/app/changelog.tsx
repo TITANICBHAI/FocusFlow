@@ -54,6 +54,32 @@ const CHANGELOG: Entry[] = [
           'Bug reports, feedback, and reviews now keep the user’s written message directly in the email body for review before sending',
         ],
       },
+      {
+        heading: 'Onboarding Simplification',
+        icon: 'git-branch-outline',
+        items: [
+          'Removed the separate Standard and Iron Mode onboarding paths so new users follow one focused setup flow',
+          'Removed the layered Iron Mode activation counter, transition states, and mode-specific permission setup from first-run onboarding',
+          'Existing blocking, VPN, Device Admin, and Defense Password protections remain available from their dedicated settings',
+        ],
+      },
+    ],
+  },
+  {
+    version: '1.0.8',
+    date: 'August 2026',
+    sections: [
+      {
+        heading: 'New Two-Mode Onboarding',
+        icon: 'git-branch-outline',
+        items: [
+          'Introduced separate Standard and Iron Mode onboarding paths so new users can choose between essential blocking and stronger system-level protection',
+          'Standard Mode keeps first-run setup focused on the essential access required for app blocking',
+          'Iron Mode adds layered setup for VPN network restriction, Device Admin resistance, and Defense Password protection',
+          'Added a live protection-layer counter and honest permission-based activation feedback',
+          'Added subtle checkmark and activation-state transitions with reduced-motion support',
+        ],
+      },
     ],
   },
   {
