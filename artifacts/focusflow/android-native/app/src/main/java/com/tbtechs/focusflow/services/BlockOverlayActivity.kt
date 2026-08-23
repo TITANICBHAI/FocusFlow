@@ -60,7 +60,9 @@ class BlockOverlayActivity : Activity() {
 
         /** Written by AccessibilityService after HOME press is confirmed. */
         const val PREF_OVERLAY_X_READY = "overlay_x_ready"
+        const val PREF_OVERLAY_ESCAPE_ATTEMPTS = "overlay_escape_attempts"
         private const val X_POLL_INTERVAL_MS = 300L
+        private const val INITIAL_ACTION_DELAY_MS = 10_000L
 
         /**
          * Specific FocusFlow activity class name suffixes that are allowed to be in
@@ -105,6 +107,7 @@ class BlockOverlayActivity : Activity() {
     private var blockedName: String = ""
     private var blockReason: String = ""
     private var intentionalFinish = false
+    private var revealScheduled = false
 
     // ✕ button — hidden until AccessibilityService confirms user is at home
     private lateinit var xButton: TextView
@@ -114,7 +117,7 @@ class BlockOverlayActivity : Activity() {
         override fun run() {
             if (isFinishing || isDestroyed || xButtonRevealed) return
             if (prefs.getBoolean(PREF_OVERLAY_X_READY, false)) {
-                revealXButton()
+                scheduleXButtonReveal()
             } else {
                 handler.postDelayed(this, X_POLL_INTERVAL_MS)
             }
@@ -491,7 +494,38 @@ class BlockOverlayActivity : Activity() {
         setOnClickListener { dismissOverlay() }
     }
 
-    // ─── X button reveal (runs after home confirmed) ──────────────────────────
+    // ─── Escape-action delay ──────────────────────────────────────────────────
+
+    private fun actionDelayMs(): Long {
+        val attempt = prefs.getInt(PREF_OVERLAY_ESCAPE_ATTEMPTS, 0)
+        return when (attempt) {
+            0 -> INITIAL_ACTION_DELAY_MS
+            1 -> 15_000L
+            2 -> 20_000L
+            3 -> 30_000L
+            4 -> 40_000L
+            5 -> 50_000L
+            else -> 60_000L
+        }
+    }
+
+    private fun recordEscapeAttempt() {
+        val next = (prefs.getInt(PREF_OVERLAY_ESCAPE_ATTEMPTS, 0) + 1).coerceAtMost(6)
+        prefs.edit().putInt(PREF_OVERLAY_ESCAPE_ATTEMPTS, next).apply()
+    }
+
+    private fun scheduleXButtonReveal() {
+        if (revealScheduled || xButtonRevealed) return
+        revealScheduled = true
+        handler.postDelayed({
+            revealScheduled = false
+            if (!isFinishing && !isDestroyed && prefs.getBoolean(PREF_OVERLAY_X_READY, false)) {
+                revealXButton()
+            }
+        }, actionDelayMs())
+    }
+
+    // ─── X button reveal (runs after home confirmed and the escape delay) ─────
 
     private fun revealXButton() {
         if (xButtonRevealed) return
@@ -510,6 +544,7 @@ class BlockOverlayActivity : Activity() {
 
     private fun dismissOverlay() {
         intentionalFinish = true
+        recordEscapeAttempt()
         AversiveActionsManager.stopAll(applicationContext)
         prefs.edit()
             .putBoolean(PREF_OVERLAY_X_READY, false)
@@ -530,6 +565,7 @@ class BlockOverlayActivity : Activity() {
      */
     private fun launchFocusFlow() {
         intentionalFinish = true
+        recordEscapeAttempt()
         AversiveActionsManager.stopAll(applicationContext)
         prefs.edit()
             .putBoolean(PREF_OVERLAY_X_READY, false)

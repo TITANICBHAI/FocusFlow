@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { withScreenErrorBoundary } from '@/components/withScreenErrorBoundary';
 import {
   View,
@@ -21,7 +21,6 @@ import { formatTime, isAwaitingDecision } from '@/services/taskService';
 import { dbLogFocusOverride } from '@/data/database';
 import { UsageStatsModule } from '@/native-modules/UsageStatsModule';
 import { StandaloneBlockModal } from '@/components/StandaloneBlockModal';
-import { ActiveHeaderButton } from '@/components/ActiveHeaderButton';
 import ExtendModal from '@/components/ExtendModal';
 import { PinRotationModal } from '@/components/PinRotationModal';
 import { PinVerifyModal } from '@/components/PinVerifyModal';
@@ -59,7 +58,6 @@ function FocusScreen() {
   const [pendingStartTaskId, setPendingStartTaskId] = useState<string | null>(null);
   const [focusStopPinVisible, setFocusStopPinVisible] = useState(false);
   const [showDefenseHint, setShowDefenseHint] = useState(false);
-  const [activeTab, setActiveTab] = useState<'task' | 'block'>('task');
   const pendingStartTaskTimer = task?.startTime ?? '';
   const pendingEndTaskTimer = task?.endTime ?? '';
   const taskTimer = useTaskTimer(pendingStartTaskTimer, pendingEndTaskTimer);
@@ -72,19 +70,11 @@ function FocusScreen() {
   const awaitingDecision = task ? isAwaitingDecision(task) : false;
   const otherActiveCount = Math.max(0, activeTasks.filter((item) => item.id !== task?.id).length);
   const blockPresets = settings.blockPresets ?? [];
-  const handlePomodoroBreakStart = useCallback((seconds: number) => {
-    if (!task) return;
-    // Pause the task clock for the break by moving its end forward by the
-    // exact break duration. This preserves the remaining focus time even
-    // when the user is not using the phone during the break.
-    void extendTaskTime(task.id, Math.ceil(seconds / 60));
-  }, [extendTaskTime, task?.id]);
   const pomodoro = usePomodoro(
     isFocusing && (settings.pomodoroEnabled ?? false),
     state.focusSession?.startedAt ?? null,
     settings.pomodoroDuration ?? 25,
     settings.pomodoroBreak ?? 5,
-    handlePomodoroBreakStart,
   );
 
   useEffect(() => {
@@ -92,10 +82,6 @@ function FocusScreen() {
       if (!dismissed) setShowDefenseHint(true);
     });
   }, []);
-
-  useEffect(() => {
-    if (!task) setActiveTab('task');
-  }, [!!task]);
 
   const dismissDefenseHint = () => {
     setShowDefenseHint(false);
@@ -211,58 +197,8 @@ function FocusScreen() {
     />
   );
 
-  const standalonePanel = standaloneActive && settings.standaloneBlockUntil ? (
-    <ScrollView
-      contentContainerStyle={[styles.panelContent, { paddingBottom: 60 + insets.bottom + 20 }]}
-      showsVerticalScrollIndicator={false}
-    >
-      <View style={[styles.standaloneIconWrap, { backgroundColor: COLORS.red + '15' }]}>
-        <Ionicons name="ban" size={42} color={COLORS.red} />
-      </View>
-      <Text style={[styles.panelTitle, { color: theme.text }]}>Apps Blocked</Text>
-      <Text style={[styles.panelSubtitle, { color: theme.muted }]}>
-        Standalone block is running. You can add more apps or extend the time, but cannot stop the block early.
-      </Text>
-      <StandaloneCountdown
-        untilIso={settings.standaloneBlockUntil}
-        blockedCount={(settings.standaloneBlockPackages ?? []).length}
-      />
-      <Text style={[styles.sectionLabel, { color: theme.muted }]}>ADD TIME</Text>
-      <View style={[styles.addTimeRow, { backgroundColor: theme.card, borderColor: theme.border }]}>
-        {[30, 60, 120, 240].map((minutes) => (
-          <TouchableOpacity
-            key={minutes}
-            style={[styles.addTimeBtn, { backgroundColor: COLORS.primary + '14', borderColor: COLORS.primary + '44' }]}
-            onPress={() => { void handleAddTime(minutes); }}
-          >
-            <Text style={[styles.addTimeBtnText, { color: COLORS.primary }]}>
-              +{minutes >= 60 ? `${minutes / 60}h` : `${minutes}m`}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-      <QuickPresetStrip
-        presets={blockPresets}
-        theme={theme}
-        active
-        onPress={(preset) => { void handleQuickBlock(preset, 1); }}
-      />
-      <TouchableOpacity
-        style={[styles.outlineAction, { backgroundColor: theme.card, borderColor: COLORS.red + '44' }]}
-        onPress={() => setBlockModalVisible(true)}
-        activeOpacity={0.8}
-      >
-        <Ionicons name="ban" size={18} color={COLORS.red} />
-        <Text style={[styles.outlineActionText, { color: COLORS.red }]}>Add More Apps to Block</Text>
-      </TouchableOpacity>
-    </ScrollView>
-  ) : null;
-
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: task ? task.color + '18' : theme.background }]}>
-      <View style={styles.activeHeaderAction}>
-        <ActiveHeaderButton />
-      </View>
       {showDefenseHint && (
         <View style={[styles.hintBanner, { backgroundColor: COLORS.primary + '12', borderColor: COLORS.primary + '35' }]}>
           <Ionicons name="shield-checkmark-outline" size={20} color={COLORS.primary} />
@@ -279,31 +215,47 @@ function FocusScreen() {
           </TouchableOpacity>
         </View>
       )}
-      {hasAccessibilityPermission === false && !isFocusing && (
-        <TouchableOpacity
-          style={styles.permissionBanner}
-          onPress={async () => {
-            try {
-              if (Platform.OS === 'android') await UsageStatsModule.openAccessibilitySettings();
-              else await Linking.openSettings();
-            } catch {
-              await Linking.openSettings().catch(() => {});
-            }
-          }}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="warning-outline" size={18} color={COLORS.orange} />
-          <View style={styles.permissionBannerText}>
-            <Text style={styles.permissionBannerTitle}>Accessibility permission needed</Text>
-            <Text style={styles.permissionBannerDesc}>
-              Focus Mode can't block apps without Accessibility access. Tap to open Settings.
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={16} color={COLORS.orange} />
-        </TouchableOpacity>
-      )}
       {!task && standaloneActive ? (
-        standalonePanel
+        <ScrollView
+          contentContainerStyle={[styles.panelContent, { paddingBottom: 60 + insets.bottom + 20 }]}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={[styles.standaloneIconWrap, { backgroundColor: COLORS.red + '15' }]}>
+            <Ionicons name="ban" size={42} color={COLORS.red} />
+          </View>
+          <Text style={[styles.panelTitle, { color: theme.text }]}>Apps Blocked</Text>
+          <Text style={[styles.panelSubtitle, { color: theme.muted }]}>
+            Standalone block is running. You can add more apps but cannot stop the block early.
+          </Text>
+          {settings.standaloneBlockUntil && (
+            <StandaloneCountdown
+              untilIso={settings.standaloneBlockUntil}
+              blockedCount={(settings.standaloneBlockPackages ?? []).length}
+            />
+          )}
+          <TouchableOpacity
+            style={[styles.outlineAction, { backgroundColor: theme.card, borderColor: COLORS.red + '44' }]}
+            onPress={() => setBlockModalVisible(true)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="add-circle-outline" size={18} color={COLORS.red} />
+            <Text style={[styles.outlineActionText, { color: COLORS.red }]}>Add More Apps to Block</Text>
+          </TouchableOpacity>
+          <Text style={[styles.sectionLabel, { color: theme.muted }]}>ADD TIME</Text>
+          <View style={[styles.addTimeRow, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            {[30, 60, 120, 240].map((minutes) => (
+              <TouchableOpacity
+                key={minutes}
+                style={[styles.addTimeBtn, { backgroundColor: COLORS.primary + '14', borderColor: COLORS.primary + '44' }]}
+                onPress={() => { void handleAddTime(minutes); }}
+              >
+                <Text style={[styles.addTimeBtnText, { color: COLORS.primary }]}>
+                  +{minutes >= 60 ? `${minutes / 60}h` : `${minutes}m`}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </ScrollView>
       ) : !task ? (
         <ScrollView
           contentContainerStyle={[styles.panelContent, { paddingBottom: 60 + insets.bottom + 20 }]}
@@ -336,34 +288,31 @@ function FocusScreen() {
             </View>
             <Ionicons name="chevron-forward" size={16} color={theme.muted} />
           </TouchableOpacity>
-           <QuickPresetStrip
-             presets={blockPresets}
-             theme={theme}
-             active={false}
-             onPress={(preset) => { void handleQuickBlock(preset, 1); }}
-           />
         </ScrollView>
-      ) : standaloneActive && activeTab === 'block' ? (
-        <>
-          {settings.standaloneBlockUntil && (
-            <FocusTabSwitcher
-              activeTab={activeTab}
-              onSwitch={setActiveTab}
-              blockUntilIso={settings.standaloneBlockUntil}
-              theme={theme}
-            />
-          )}
-          {standalonePanel}
-        </>
       ) : (
         <>
-          {standaloneActive && settings.standaloneBlockUntil && (
-            <FocusTabSwitcher
-              activeTab={activeTab}
-              onSwitch={setActiveTab}
-              blockUntilIso={settings.standaloneBlockUntil}
-              theme={theme}
-            />
+          {hasAccessibilityPermission === false && !isFocusing && (
+            <TouchableOpacity
+              style={styles.permissionBanner}
+              onPress={async () => {
+                try {
+                  if (Platform.OS === 'android') await UsageStatsModule.openAccessibilitySettings();
+                  else await Linking.openSettings();
+                } catch {
+                  await Linking.openSettings().catch(() => {});
+                }
+              }}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="warning-outline" size={18} color={COLORS.orange} />
+              <View style={styles.permissionBannerText}>
+                <Text style={styles.permissionBannerTitle}>Accessibility permission needed</Text>
+                <Text style={styles.permissionBannerDesc}>
+                  Focus Mode can't block apps without Accessibility access. Tap to open Settings.
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={COLORS.orange} />
+            </TouchableOpacity>
           )}
           <ScrollView
             style={{ flex: 1 }}
@@ -378,7 +327,7 @@ function FocusScreen() {
                   ? (settings.pomodoroEnabled ?? false)
                     ? `Focus Mode Active · ${pomodoro.isBreakActive ? '☕ Break · apps unlocked' : pomodoro.phase === 'work' ? '🎯 Work' : '☕ Break available'}`
                     : 'Focus Mode Active'
-                  : taskTimer.isOverdue ? 'Task ended — choose next action' : 'Task scheduled'}
+                  : 'Task In Progress'}
               </Text>
             </View>
             <View style={[styles.taskPanel, { backgroundColor: theme.card, borderColor: task.color + '66' }]}>
@@ -488,20 +437,6 @@ function FocusScreen() {
                 ])} />
                 <SecondaryBtn icon="alarm-outline" label="Extend" color={COLORS.orange} onPress={() => setShowExtendModal(true)} />
               </View>
-              {!standaloneActive && (
-                <TouchableOpacity
-                  style={[styles.taskBlockAction, { backgroundColor: theme.card, borderColor: COLORS.red + '44' }]}
-                  onPress={() => setBlockModalVisible(true)}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="ban-outline" size={17} color={COLORS.red} />
-                  <View style={styles.taskBlockActionCopy}>
-                    <Text style={[styles.taskBlockActionTitle, { color: theme.text }]}>Block apps while I work</Text>
-                    <Text style={[styles.taskBlockActionDesc, { color: theme.muted }]}>Run a standalone block alongside this task</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={16} color={COLORS.red} />
-                </TouchableOpacity>
-              )}
               {isFocusing && (
                 <TouchableOpacity style={styles.emergencyBtn} onPress={() => Alert.alert('🚨 Emergency Override', 'This will stop focus mode and be logged. Only use in a genuine emergency.', [
                   { text: 'Cancel', style: 'cancel' },
@@ -514,18 +449,6 @@ function FocusScreen() {
                   <Text style={styles.emergencyBtnText}>Emergency Override</Text>
                 </TouchableOpacity>
               )}
-              {standaloneActive && (
-                <TouchableOpacity
-                  style={[styles.standaloneChip, { marginTop: SPACING.sm }]}
-                  onPress={() => setActiveTab('block')}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="ban" size={12} color={COLORS.red} />
-                  <Text style={styles.standaloneChipText}>
-                    Block running · {(settings.standaloneBlockPackages ?? []).length} apps · tap to manage
-                  </Text>
-                </TouchableOpacity>
-              )}
             </View>
             {isFocusing && (
               <View style={styles.allowedRow}>
@@ -534,6 +457,13 @@ function FocusScreen() {
               </View>
             )}
           </ScrollView>
+          {standaloneActive && settings.standaloneBlockUntil && (
+            <TouchableOpacity style={styles.standaloneChip} onPress={() => setBlockModalVisible(true)}>
+              <Ionicons name="ban" size={13} color={COLORS.red} />
+              <Text style={styles.standaloneChipText}>+{(settings.standaloneBlockPackages ?? []).length} extra apps blocked</Text>
+              <Ionicons name="add-outline" size={13} color={COLORS.red} />
+            </TouchableOpacity>
+          )}
         </>
       )}
       {blockModal}
@@ -639,113 +569,8 @@ function SecondaryBtn({ icon, label, color, onPress }: { icon: keyof typeof Ioni
   return <TouchableOpacity style={[styles.secondaryBtn, { borderColor: color + '44' }]} onPress={onPress}><Ionicons name={icon} size={18} color={color} /><Text style={[styles.secondaryBtnText, { color }]}>{label}</Text></TouchableOpacity>;
 }
 
-function FocusTabSwitcher({
-  activeTab,
-  onSwitch,
-  blockUntilIso,
-  theme,
-}: {
-  activeTab: 'task' | 'block';
-  onSwitch: (tab: 'task' | 'block') => void;
-  blockUntilIso: string;
-  theme: ReturnType<typeof useTheme>['theme'];
-}) {
-  const [remaining, setRemaining] = useState(0);
-
-  useEffect(() => {
-    const tick = () => setRemaining(Math.max(0, new Date(blockUntilIso).getTime() - Date.now()));
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [blockUntilIso]);
-
-  const hrs = Math.floor(remaining / 3600000);
-  const mins = Math.floor((remaining % 3600000) / 60000);
-  const secs = Math.floor((remaining % 60000) / 1000);
-  const blockLabel = hrs > 0 ? `${hrs}h ${mins}m left` : `${mins}:${secs.toString().padStart(2, '0')} left`;
-
-  return (
-    <View style={[switcherStyles.container, { borderColor: theme.border }]}>
-      <TouchableOpacity
-        style={[switcherStyles.tab, activeTab === 'task' && switcherStyles.tabActive]}
-        onPress={() => onSwitch('task')}
-        activeOpacity={0.75}
-      >
-        <Ionicons name="shield-checkmark-outline" size={15} color={activeTab === 'task' ? COLORS.primary : theme.muted} />
-        <Text style={[switcherStyles.tabText, activeTab === 'task' ? switcherStyles.tabTextActive : { color: theme.muted }]}>
-          Focus Task
-        </Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={[switcherStyles.tab, activeTab === 'block' && switcherStyles.tabActiveBlock]}
-        onPress={() => onSwitch('block')}
-        activeOpacity={0.75}
-      >
-        <Ionicons name="ban" size={15} color={activeTab === 'block' ? COLORS.red : theme.muted} />
-        <Text style={[switcherStyles.tabText, activeTab === 'block' ? switcherStyles.tabTextBlock : { color: theme.muted }]}>
-          Block Active
-        </Text>
-        <View style={[switcherStyles.pill, { backgroundColor: COLORS.red + '20' }]}>
-          <Text style={[switcherStyles.pillText, { color: COLORS.red }]}>{blockLabel}</Text>
-        </View>
-      </TouchableOpacity>
-    </View>
-  );
-}
-
-function QuickPresetStrip({
-  presets,
-  theme,
-  active,
-  onPress,
-}: {
-  presets: import('@/data/types').BlockPreset[];
-  theme: ReturnType<typeof useTheme>['theme'];
-  active: boolean;
-  onPress: (preset: import('@/data/types').BlockPreset) => void;
-}) {
-  return (
-    <View style={styles.quickPresetSection}>
-      <View style={styles.quickPresetHeader}>
-        <Text style={[styles.quickPresetLabel, { color: theme.muted }]}>QUICK PRESETS</Text>
-        {active && <Text style={[styles.quickPresetHint, { color: theme.muted }]}>adds apps +1h</Text>}
-      </View>
-      {presets.length > 0 ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickPresetRow}>
-          {presets.map((preset) => (
-            <TouchableOpacity
-              key={preset.id}
-              style={[styles.quickPresetButton, { backgroundColor: theme.card, borderColor: COLORS.red + '44' }]}
-              onPress={() => onPress(preset)}
-              activeOpacity={0.8}
-            >
-              <Ionicons name={active ? 'add-circle-outline' : 'play-circle-outline'} size={15} color={COLORS.red} />
-              <View style={styles.quickPresetCopy}>
-                <Text style={[styles.quickPresetName, { color: theme.text }]} numberOfLines={1}>{preset.name}</Text>
-                <Text style={[styles.quickPresetCount, { color: theme.muted }]}>
-                  {preset.packages.length} app{preset.packages.length !== 1 ? 's' : ''} · {active ? 'add +1h' : 'starts for 1 hour'}
-                </Text>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      ) : (
-        <Text style={[styles.quickPresetEmpty, { color: theme.muted }]}>
-          No saved presets yet. Tap {active ? 'Add apps' : 'Set up block'} to create one.
-        </Text>
-      )}
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  activeHeaderAction: {
-    position: 'absolute',
-    top: SPACING.sm,
-    right: SPACING.lg,
-    zIndex: 10,
-  },
   hintBanner: {
     marginHorizontal: SPACING.md,
     marginTop: SPACING.sm,
@@ -758,27 +583,6 @@ const styles = StyleSheet.create({
   },
   hintText: { flex: 1, fontSize: FONT.xs, lineHeight: 17 },
   panelContent: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: SPACING.xl, gap: SPACING.md },
-  quickPresetSection: { width: '100%', gap: SPACING.xs },
-  quickPresetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  quickPresetLabel: { fontSize: 10, fontWeight: '800', letterSpacing: 0.7 },
-  quickPresetHint: { fontSize: 10 },
-  quickPresetRow: { gap: SPACING.xs, paddingRight: SPACING.md },
-  quickPresetButton: {
-    minWidth: 148,
-    maxWidth: 180,
-    minHeight: 42,
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: SPACING.xs,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.xs,
-  },
-  quickPresetCopy: { flex: 1 },
-  quickPresetName: { fontSize: FONT.xs, fontWeight: '800' },
-  quickPresetCount: { fontSize: 10, marginTop: 2 },
-  quickPresetEmpty: { fontSize: 10, lineHeight: 15 },
   panelTitle: { fontSize: FONT.xl, fontWeight: '700', textAlign: 'center' },
   panelSubtitle: { fontSize: FONT.md, textAlign: 'center', lineHeight: 22 },
   standaloneIconWrap: { width: 90, height: 90, borderRadius: 45, alignItems: 'center', justifyContent: 'center' },
@@ -815,10 +619,6 @@ const styles = StyleSheet.create({
   secondaryActions: { flexDirection: 'row', gap: SPACING.sm },
   secondaryBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACING.xs, paddingVertical: SPACING.sm, borderRadius: RADIUS.md, borderWidth: 1.5 },
   secondaryBtnText: { fontSize: FONT.sm, fontWeight: '600' },
-  taskBlockAction: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, borderRadius: RADIUS.lg, padding: SPACING.md, borderWidth: 1, width: '100%' },
-  taskBlockActionCopy: { flex: 1 },
-  taskBlockActionTitle: { fontSize: FONT.sm, fontWeight: '700' },
-  taskBlockActionDesc: { fontSize: FONT.xs, marginTop: 2 },
   allowedRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACING.lg, paddingBottom: SPACING.lg },
   allowedLabel: { fontSize: FONT.xs, fontWeight: '600' },
   allowedApps: { fontSize: FONT.xs },
@@ -833,34 +633,6 @@ const styles = StyleSheet.create({
   endedPromptTitle: { fontSize: FONT.md, fontWeight: '800' },
   endedPromptDesc: { fontSize: FONT.xs, lineHeight: 16 },
   endedPromptRow: { flexDirection: 'row', gap: SPACING.xs },
-});
-
-const switcherStyles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    marginHorizontal: SPACING.lg,
-    marginTop: SPACING.sm,
-    marginBottom: SPACING.xs,
-    borderRadius: RADIUS.lg,
-    borderWidth: 1,
-    overflow: 'hidden',
-  },
-  tab: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: SPACING.xs,
-    paddingVertical: SPACING.sm,
-    paddingHorizontal: SPACING.xs,
-  },
-  tabActive: { backgroundColor: COLORS.primary + '18' },
-  tabActiveBlock: { backgroundColor: COLORS.red + '12' },
-  tabText: { fontSize: FONT.sm, fontWeight: '700' },
-  tabTextActive: { color: COLORS.primary },
-  tabTextBlock: { color: COLORS.red },
-  pill: { borderRadius: RADIUS.full, paddingHorizontal: 6, paddingVertical: 2 },
-  pillText: { fontSize: 10, fontWeight: '700' },
 });
 
 const countdownStyles = StyleSheet.create({

@@ -143,6 +143,8 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         /** Notification channel used to launch the block overlay via full-screen intent. */
         private const val BLOCK_ALERT_CHANNEL  = "focusday_block_alert"
         private const val BLOCK_ALERT_NOTIF_ID = 9001
+        private const val INITIAL_OVERLAY_ACTION_DELAY_MS = 10_000L
+        private const val PREF_OVERLAY_ESCAPE_ATTEMPTS = "overlay_escape_attempts"
 
         /**
          * BLOCKABLE_AFTER_WARNING (formerly ALWAYS_ALLOWED).
@@ -456,6 +458,8 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     private var wOverlayXBtn: TextView? = null
     private var wOverlayNavRow: LinearLayout? = null
     private var wOverlayXRevealed = false
+    private var wOverlayRevealScheduled = false
+    private var wOverlayRevealRunnable: Runnable? = null
 
     // Handler for retry re-checks AND timed-allowance expiry — runs on main thread
     private val handler = Handler(Looper.getMainLooper())
@@ -2735,6 +2739,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             }
 
         navRow.addView(navBtn("\u21A9  Back") {
+             recordOverlayEscapeAttempt()
             prefs.edit()
                 .putBoolean(BlockOverlayActivity.PREF_OVERLAY_X_READY, false)
                 .putBoolean("block_cooldown_reset", true)
@@ -2743,6 +2748,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             performGlobalAction(GLOBAL_ACTION_BACK)
         })
         navRow.addView(navBtn("\u2302  Home") {
+             recordOverlayEscapeAttempt()
             prefs.edit()
                 .putBoolean(BlockOverlayActivity.PREF_OVERLAY_X_READY, false)
                 .putBoolean("block_cooldown_reset", true)
@@ -2800,14 +2806,41 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         wOverlayXBtn = null
         wOverlayNavRow = null
         wOverlayXRevealed = false
+        wOverlayRevealScheduled = false
+        wOverlayRevealRunnable?.let { handler.removeCallbacks(it) }
+        wOverlayRevealRunnable = null
     }
 
-    /** Fades in the ✕ button and the Back/Home nav row so the user can dismiss. */
+    private fun overlayActionDelayMs(): Long {
+        return when (prefs.getInt(PREF_OVERLAY_ESCAPE_ATTEMPTS, 0)) {
+            0 -> INITIAL_OVERLAY_ACTION_DELAY_MS
+            1 -> 15_000L
+            2 -> 20_000L
+            3 -> 30_000L
+            4 -> 40_000L
+            5 -> 50_000L
+            else -> 60_000L
+        }
+    }
+
+    private fun recordOverlayEscapeAttempt() {
+        val next = (prefs.getInt(PREF_OVERLAY_ESCAPE_ATTEMPTS, 0) + 1).coerceAtMost(6)
+        prefs.edit().putInt(PREF_OVERLAY_ESCAPE_ATTEMPTS, next).apply()
+    }
+
+    /** Fades in the ✕ button and the Back/Home nav row after the escape delay. */
     private fun revealWindowXButton() {
-        if (wOverlayXRevealed) return
-        wOverlayXRevealed = true
+        if (wOverlayXRevealed || wOverlayRevealScheduled) return
+        wOverlayRevealScheduled = true
         AversiveActionsManager.stopAll(this)
-        handler.post {
+        val revealRunnable = Runnable {
+            wOverlayRevealScheduled = false
+            wOverlayRevealRunnable = null
+            if (wOverlayView == null || wOverlayXRevealed ||
+                !prefs.getBoolean(BlockOverlayActivity.PREF_OVERLAY_X_READY, false)
+            ) return@Runnable
+            wOverlayXRevealed = true
+            AversiveActionsManager.stopAll(this)
             // ✕ close button
             wOverlayXBtn?.let { btn ->
                 btn.isClickable = true
@@ -2827,6 +2860,8 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                 }
             }
         }
+        wOverlayRevealRunnable = revealRunnable
+        handler.postDelayed(revealRunnable, overlayActionDelayMs())
     }
 
     /** Picks a quote for the overlay (fixed → custom pool → defaults). */
@@ -3078,9 +3113,9 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     /**
      * Kicks the user out of [blockedPackage] using both BACK and HOME.
      *
-     * BACK first — collapses any in-app dialog or deeplink navigation so the
-     * blocked app is fully dismissed from the task stack.
-     * HOME 150 ms later — forces the launcher to the foreground, which also
+     * BACK at 30 ms — gives the blocked app a best-effort chance to collapse
+     * any in-app dialog or deeplink navigation before leaving it.
+     * HOME at 90 ms — forces the launcher to the foreground, which also
      * triggers the overlay X-button / Back+Home nav row reveal signal.
      *
      * Installer packages (Play Store, MIUI installer, etc.) only get BACK
@@ -3091,9 +3126,8 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         if (INSTALLER_PACKAGES.any { blockedPackage.equals(it, ignoreCase = true) }) {
             performGlobalAction(GLOBAL_ACTION_BACK)
         } else {
-            performGlobalAction(GLOBAL_ACTION_BACK)
-            handler.postDelayed({ performGlobalAction(GLOBAL_ACTION_HOME) }, 80L)
-            handler.postDelayed({ performGlobalAction(GLOBAL_ACTION_BACK) }, 100L)
+            handler.postDelayed({ performGlobalAction(GLOBAL_ACTION_BACK) }, 30L)
+            handler.postDelayed({ performGlobalAction(GLOBAL_ACTION_HOME) }, 90L)
         }
     }
 

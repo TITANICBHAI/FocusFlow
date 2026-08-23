@@ -128,8 +128,10 @@ Use `[blocked]` only when work cannot proceed; explain the blocker and do not ti
   - Evidence: `artifacts/focusflow/app/(tabs)/focus.tsx` — `useTaskTimer` is called once before the render branches with empty-string inputs when no task exists.
 - [x] **P4.7** Replace the multiple-return structure with one return containing the accessibility banner, standalone block panel, and task session panel.
   - Evidence: `artifacts/focusflow/app/(tabs)/focus.tsx` — `FocusScreen` has one return containing the ready/standalone panels, accessibility banner, and task session panel.
+  - Evidence: `artifacts/focusflow/app/(tabs)/focus.tsx` — the former split layout is replaced by mutually exclusive idle, standalone, task, and task/block tab states.
 - [x] **P4.8** Preserve standalone countdown, Pomodoro strip, secondary buttons, task actions, and all required modals.
   - Evidence: `artifacts/focusflow/app/(tabs)/focus.tsx` — `StandaloneCountdown`, `PomodoroStrip`, `SecondaryBtn`, task actions, standalone block, extend, rotation, and focus PIN modals remain wired.
+  - Evidence: `artifacts/focusflow/app/(tabs)/focus.tsx` — task actions include a direct “Block apps while I work” entry point, so standalone setup is reachable without navigating to Defense.
 - [x] **P4.9** Add the new panel, progress, task-title, and task-time styles without removing still-used styles.
   - Evidence: `artifacts/focusflow/app/(tabs)/focus.tsx` — `taskPanel`, `timerPanel`, `progressTrack`, `progressFill`, `taskTitle`, and `taskTime` styles support the new layout.
 - [x] **P4.10** Confirm `focus.tsx` has exactly one component return and no conditional hook calls.

@@ -116,6 +116,8 @@ If the companion and primary sources disagree, stop and validate against the cur
   - Evidence: `artifacts/focusflow/app/(tabs)/focus.tsx` — timer hook is called before render branching and `FocusScreen` has one return.
 - [x] **C4.5** Add the accessibility banner, standalone block panel, task session panel, progress UI, and required actions/modals.
   - Evidence: `artifacts/focusflow/app/(tabs)/focus.tsx` — all requested panels, progress bar, actions, and standalone/extend/PIN modals are wired.
+  - Evidence: `artifacts/focusflow/app/(tabs)/focus.tsx` — standalone/task coexistence uses a full-screen tab switcher instead of the obsolete split layout.
+  - Evidence: `artifacts/focusflow/app/(tabs)/focus.tsx` — task actions expose standalone block setup directly, avoiding a required Defense-tab detour.
 - [x] **C4.6** Preserve `StandaloneCountdown`, `PomodoroStrip`, and `SecondaryBtn`.
   - Evidence: `artifacts/focusflow/app/(tabs)/focus.tsx` — all three components remain defined and rendered.
 - [x] **C4.7** Add requested styles without removing styles still used by subcomponents.
