@@ -6,6 +6,7 @@ vi.mock('react-native', () => ({
 
 vi.mock('@/data/database', () => ({
   dbGetAllTasks: vi.fn(async () => []),
+  dbGetActiveFocusSession: vi.fn(async () => null),
 }));
 
 vi.mock('@/native-modules/NativeFilePickerModule', () => ({
@@ -19,6 +20,7 @@ import {
   BACKUP_ENVELOPE_KIND,
   buildBackupJson,
   parseBackupJson,
+  restoreFromJson,
 } from '@/services/backupService';
 import type { AppSettings } from '@/data/types';
 
@@ -141,5 +143,32 @@ describe('backupService contracts', () => {
         expect.objectContaining({ id: 'keyword-blocker', configured: true, itemCount: 1 }),
       ]),
     );
+  });
+
+  it('refuses replacement restore during an active focus session', async () => {
+    const result = await restoreFromJson(JSON.stringify({
+      kind: BACKUP_ENVELOPE_KIND,
+      settings: {},
+      tasks: [],
+    }), {
+      updateSettings: vi.fn(),
+      addTask: vi.fn(),
+      scheduleTasks: vi.fn(),
+      deleteTask: vi.fn(),
+      refreshTasks: vi.fn(),
+      replaceTasks: true,
+      currentTasks: [],
+      currentSettings: settings,
+      currentFocusSession: {
+        taskId: 'active-task',
+        startedAt: '2026-08-24T12:00:00.000Z',
+        isActive: true,
+        allowedPackages: [],
+      },
+    });
+
+    expect(result).toEqual({
+      error: expect.stringContaining('Cannot replace tasks while a Focus Session is running'),
+    });
   });
 });

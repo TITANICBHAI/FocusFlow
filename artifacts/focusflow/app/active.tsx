@@ -44,7 +44,7 @@ export default function ActiveScreen() {
   const { theme } = useTheme();
   const { state, stopFocusMode, setStandaloneBlockAndAllowance } = useApp();
   const { settings } = state;
-  const [expanded, setExpanded] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<string | null>('allowance');
   const [apps, setApps] = useState<InstalledApp[]>([]);
   const [allowanceUsage, setAllowanceUsage] = useState<Record<string, AllowanceUsage>>({});
   const [vpnStatus, setVpnStatus] = useState<NetworkBlockStatus | null>(null);
@@ -136,7 +136,7 @@ export default function ActiveScreen() {
         })();
       };
       refresh();
-      const timer = setInterval(refresh, 15_000);
+      const timer = setInterval(refresh, 5_000);
       return () => {
         mounted = false;
         clearInterval(timer);
@@ -153,7 +153,7 @@ export default function ActiveScreen() {
   }, []);
 
   useEffect(() => {
-    const timer = setInterval(() => setClock(Date.now()), 15_000);
+    const timer = setInterval(() => setClock(Date.now()), 1_000);
     return () => clearInterval(timer);
   }, []);
 
@@ -301,7 +301,7 @@ export default function ActiveScreen() {
           ) : expanded === 'allowance' ? (
             allowanceEntries.map((entry) => <AllowanceRow key={entry.packageName} entry={entry} usage={allowanceUsage[entry.packageName]} appName={appNames.get(entry.packageName)} theme={theme} />)
           ) : (
-            <Text style={[styles.preview, { color: theme.muted }]}>Tap to see usage, remaining allowance, and reset times.</Text>
+            <AllowanceSummary entries={allowanceEntries} usage={allowanceUsage} clock={clock} theme={theme} />
           )}
           <TouchableOpacity style={[styles.action, { borderColor: theme.border }]} onPress={() => router.push('/(tabs)/defense')}>
             <Ionicons name="settings-outline" size={16} color={COLORS.primary} />
@@ -409,11 +409,22 @@ function PackageList({ packages, appNames, theme }: { packages: string[]; appNam
 }
 
 function AllowanceRow({ entry, usage, appName, theme }: { entry: DailyAllowanceEntry; usage?: AllowanceUsage; appName?: string; theme: ReturnType<typeof useTheme>['theme'] }) {
-  const used = entry.mode === 'count' ? (usage?.count ?? 0) : Math.round((usage?.usedMs ?? 0) / 60_000);
+  const used = entry.mode === 'count' ? (usage?.count ?? 0) : Math.floor((usage?.usedMs ?? 0) / 60_000);
   const limit = entry.mode === 'count' ? entry.countPerDay : entry.mode === 'time_budget' ? entry.budgetMinutes : entry.intervalMinutes;
   const unit = entry.mode === 'count' ? 'opens' : 'min';
-  const reset = entry.mode === 'interval' ? intervalResetLabel(entry, usage) : 'Resets at midnight';
-  return <View style={[styles.allowanceRow, { borderBottomColor: theme.border }]}><Text style={[styles.allowanceName, { color: theme.text }]}>{appName ?? shortPackageName(entry.packageName)}</Text><Text style={[styles.allowanceUsage, { color: used >= limit ? COLORS.red : theme.muted }]}>{used} / {limit} {unit} used · {reset}</Text></View>;
+  const remaining = Math.max(0, limit - used);
+  const reset = resetLabel(entry, usage);
+  return <View style={[styles.allowanceRow, { borderBottomColor: theme.border }]}><Text style={[styles.allowanceName, { color: theme.text }]}>{appName ?? shortPackageName(entry.packageName)}</Text><Text style={[styles.allowanceUsage, { color: remaining === 0 ? COLORS.red : theme.muted }]}>{remaining} {unit} remaining · {used} / {limit} used · {reset}</Text></View>;
+}
+
+function AllowanceSummary({ entries, usage, clock, theme }: { entries: DailyAllowanceEntry[]; usage: Record<string, AllowanceUsage>; clock: number; theme: ReturnType<typeof useTheme>['theme'] }) {
+  const first = entries[0];
+  const firstUsage = usage[first.packageName];
+  const used = first.mode === 'count' ? (firstUsage?.count ?? 0) : Math.floor((firstUsage?.usedMs ?? 0) / 60_000);
+  const limit = first.mode === 'count' ? first.countPerDay : first.mode === 'time_budget' ? first.budgetMinutes : first.intervalMinutes;
+  const remaining = Math.max(0, limit - used);
+  void clock;
+  return <Text style={[styles.preview, { color: theme.muted }]}>{entries.length === 1 ? `${remaining} ${first.mode === 'count' ? 'opens' : 'minutes'} remaining · ${resetLabel(first, firstUsage)}` : `${entries.length} apps tracked · tap to see remaining allowances and reset times.`}</Text>;
 }
 
 function ScheduleRow({
@@ -473,10 +484,16 @@ function formatScheduleDays(days: number[]): string {
   return days.map((day) => labels[day - 1] ?? '?').join(', ');
 }
 
-function intervalResetLabel(entry: DailyAllowanceEntry, usage?: AllowanceUsage): string {
+function resetLabel(entry: DailyAllowanceEntry, usage?: AllowanceUsage): string {
+  if (entry.mode !== 'interval') {
+    return `Resets ${dayjs().add(1, 'day').startOf('day').format('MMM D at 00:00')}`;
+  }
   if (!usage?.windowStartMs) return 'New window available';
-  const remaining = Math.max(0, Math.round((usage.windowStartMs + entry.intervalHours * 3_600_000 - Date.now()) / 60_000));
-  return remaining > 0 ? `Resets in ${remaining}m` : 'New window available';
+  const resetAt = usage.windowStartMs + entry.intervalHours * 3_600_000;
+  const remainingMs = resetAt - Date.now();
+  if (remainingMs <= 0) return 'New window available';
+  const minutes = Math.ceil(remainingMs / 60_000);
+  return `Resets in ${minutes}m (${dayjs(resetAt).format('HH:mm')})`;
 }
 
 function shortPackageName(pkg: string): string {

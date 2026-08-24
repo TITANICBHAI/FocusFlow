@@ -12,13 +12,11 @@ This status was checked against the current TypeScript and Kotlin implementation
 on 2026-08-24. A recommendation is not marked complete merely because it is
 described in a comment, plan, or test stub.
 
-## 1 — Precise Budget-Expiry Trigger `[ ]`
+## 1 — Precise Budget-Expiry Trigger `[x]`
 
-The native ForegroundTaskService currently synchronizes allowance state on a
-periodic schedule. Consider scheduling a precise callback for the exact remaining
-time after each `usedMs` update, then re-checking the foreground package when it
-fires. This would remove the possible polling delay without changing the
-architecture.
+The native ForegroundTaskService schedules a callback for the known remaining
+time of the current foreground time-budget app, re-checks the foreground package,
+marks the allowance exhausted, and wakes the fallback blocker immediately.
 
 ## 2 — Friction Screen on Block Overlay `[x]`
 
@@ -33,12 +31,11 @@ FocusFlow instead supports configured daily allowances and temporary blocking
 sessions, which are different controls. Adding a timed unlock would be a product
 decision and is intentionally outside the current enforcement scope.
 
-## 4 — Unified Permission Health Checker `[ ]`
+## 4 — Unified Permission Health Checker `[N/A]`
 
-Permission state is still gathered in multiple UI paths. A shared health result
-could expose consistent healthy/degraded/broken state and a single `canEnforce`
-decision. Package-name matching is more resilient than matching a service class
-name.
+This is not needed for the current scope. Existing onboarding and settings paths
+already provide the required permission checks, so a new shared status layer would
+add structure without solving a current user-visible problem.
 
 ## 5 — NFC Focus Trigger `[N/A]`
 
@@ -47,29 +44,24 @@ FocusFlow scope. The existing `focusflow://` deep-link handling is used for app
 navigation, not NFC-based session toggling. This remains optional and is not
 needed for enforcement correctness.
 
-## 6 — Clean Up `daily_allowance_used` on Config Change `[ ]`
+## 6 — Clean Up `daily_allowance_used` on Config Change `[N/A]`
 
-Remove usage entries for packages no longer present in the allowance configuration
-when the native allowance sync runs, preventing unbounded SharedPreferences JSON
-growth.
+Not needed now. The stored usage object is small and bounded by the configured
+allowance list in normal use; this cleanup can remain deferred unless usage data
+growth is observed.
 
-## 7 — Fix Default Settings Discrepancy `[~]`
+## 7 — Fix Default Settings Discrepancy `[x]`
 
-Review the differing defaults for `autoCopyToAlwaysOn`,
-`keepFocusActiveUntilTaskEnd`, and `vpnSelfHealEnabled` between `AppContext` and
-the database. Choose one canonical source and add a regression test before
-changing values. The discrepancy is confirmed in live code: the React defaults
-are `true` for all three, while the database defaults currently use `false` for
-`autoCopyToAlwaysOn` and `keepFocusActiveUntilTaskEnd` and do not define the same
-`vpnSelfHealEnabled` default in that defaults object. No value was changed during
-this status review.
+The app now uses one canonical defaults object for both React startup and the
+database fallback. Automatic Always-On copying and VPN self-healing default to
+off; keeping focus active until the scheduled task end defaults to on. Existing
+saved settings still override these defaults.
 
-## 8 — Guard Backup Restore During an Active Focus Session `[ ]`
+## 8 — Guard Backup Restore During an Active Focus Session `[x]`
 
-Prevent a replacing backup import from deleting the task referenced by an active
-focus session. Either stop the session first or reject the import with a clear
-message. Live code still allows `replaceTasks` to call `deleteTask` for every
-existing task; there is no active-session check in the restore path.
+Replacement restore is rejected before settings or tasks are changed when either
+the in-memory session snapshot or the database reports an active focus session.
+The user receives a clear message telling them to stop the session first.
 
 ## 9 — Validate SHA-256 Fallback Vectors `[x]`
 

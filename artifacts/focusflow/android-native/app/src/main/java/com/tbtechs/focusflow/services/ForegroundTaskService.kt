@@ -211,6 +211,7 @@ class ForegroundTaskService : Service() {
     private lateinit var blockPrefs: SharedPreferences
     private var fallbackLastBlockedPkg: String? = null
     private var fallbackLastBlockedAtMs: Long   = 0L
+    private var allowanceExpiryRunnable: Runnable? = null
 
     private val handler = Handler(Looper.getMainLooper())
 
@@ -323,6 +324,8 @@ class ForegroundTaskService : Service() {
             org.json.JSONObject()
         }
 
+        var foregroundBudgetExpiry: Pair<String, Long>? = null
+        val foregroundPkg = getFallbackForegroundPackage()
         for ((pkg, budgetMs) in timeBudgetPkgs) {
             // AccessibilityService owns the live session while this signal is
             // fresh. Its checkpoint is already an absolute accumulated total;
@@ -336,11 +339,14 @@ class ForegroundTaskService : Service() {
 
             val actualMs = (statsMap[pkg]?.totalTimeInForeground ?: 0L)
                 .coerceAtMost(budgetMs)
-            if (actualMs <= 0L) continue
 
             val pkgUsed    = allUsed.optJSONObject(pkg) ?: org.json.JSONObject()
             val storedDate = pkgUsed.optString("date", "")
             val storedMs   = if (storedDate == today) pkgUsed.optLong("usedMs", 0L) else 0L
+            val effectiveMs = maxOf(actualMs, storedMs)
+            if (pkg.equals(foregroundPkg, ignoreCase = true) && effectiveMs < budgetMs) {
+                foregroundBudgetExpiry = pkg to (now + budgetMs - effectiveMs)
+            }
 
             // Only raise — never lower — so an event-based write that is more recent
             // than the last 60-second snapshot is never clobbered.
@@ -365,6 +371,40 @@ class ForegroundTaskService : Service() {
                 )
                 .apply()
         }
+        foregroundBudgetExpiry?.let { (pkg, expiryMs) ->
+            scheduleAllowanceExpiry(pkg, expiryMs, timeBudgetPkgs[pkg] ?: return@let)
+        } ?: run {
+            allowanceExpiryRunnable?.let { handler.removeCallbacks(it) }
+            allowanceExpiryRunnable = null
+        }
+    }
+
+    /**
+     * UsageStats is refreshed periodically, but a foreground app should not wait
+     * for the next minute-long refresh once its already-known budget is due.
+     * The callback only promotes the allowance to exhausted after re-checking
+     * that the same app is still foreground, then wakes the normal blocker.
+     */
+    private fun scheduleAllowanceExpiry(pkg: String, expiryMs: Long, budgetMs: Long) {
+        allowanceExpiryRunnable?.let { handler.removeCallbacks(it) }
+        val delayMs = (expiryMs - System.currentTimeMillis()).coerceAtLeast(0L)
+        val runnable = Runnable {
+            allowanceExpiryRunnable = null
+            if (!pkg.equals(getFallbackForegroundPackage(), ignoreCase = true)) return@Runnable
+            val usedJson = blockPrefs.getString("daily_allowance_used", "{}") ?: "{}"
+            val allUsed = try { org.json.JSONObject(usedJson) } catch (_: Exception) { return@Runnable }
+            val used = allUsed.optJSONObject(pkg) ?: org.json.JSONObject()
+            used.put("mode", "time_budget")
+            used.put("date", java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).apply {
+                timeZone = java.util.TimeZone.getDefault()
+            }.format(java.util.Date()))
+            used.put("usedMs", budgetMs)
+            allUsed.put(pkg, used)
+            blockPrefs.edit().putString("daily_allowance_used", allUsed.toString()).apply()
+            handler.post(fallbackPollRunnable)
+        }
+        allowanceExpiryRunnable = runnable
+        handler.postDelayed(runnable, delayMs)
     }
 
     private fun hasFreshActiveAllowanceSession(pkg: String, nowMs: Long): Boolean {
@@ -682,6 +722,7 @@ class ForegroundTaskService : Service() {
         handler.removeCallbacks(fallbackPollRunnable)
         handler.removeCallbacks(vpnHealthRunnable)
         handler.removeCallbacks(allowanceSyncRunnable)
+        allowanceExpiryRunnable?.let { handler.removeCallbacks(it) }
         WakeLockManager.release()
         super.onDestroy()
     }

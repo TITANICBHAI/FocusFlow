@@ -22,9 +22,9 @@
  */
 
 import { Platform } from 'react-native';
-import { dbGetAllTasks } from '@/data/database';
+import { dbGetActiveFocusSession, dbGetAllTasks } from '@/data/database';
 import { NativeFilePickerModule } from '@/native-modules/NativeFilePickerModule';
-import type { AppSettings, Task } from '@/data/types';
+import type { AppSettings, FocusSession, Task } from '@/data/types';
 
 // ─── Envelope ────────────────────────────────────────────────────────────────
 
@@ -343,6 +343,8 @@ export interface RestoreCallbacks {
   replaceTasks: boolean;
   currentTasks: Task[];
   currentSettings: AppSettings;
+  /** Optional in-memory session snapshot; the database is also checked. */
+  currentFocusSession?: FocusSession | null;
 }
 
 export async function pickAndImportBackup(
@@ -379,6 +381,15 @@ export async function restoreFromJson(
   const parsed = parseBackupJson(text);
   if (!parsed.ok) return { error: parsed.error };
   const env = parsed.envelope;
+
+  if (cb.replaceTasks) {
+    const databaseSession = await dbGetActiveFocusSession();
+    if (cb.currentFocusSession?.isActive || databaseSession?.isActive) {
+      return {
+        error: 'Cannot replace tasks while a Focus Session is running. Stop the current session, then try importing the backup again.',
+      };
+    }
+  }
 
   const summary: ImportSummary = {
     settings: false,

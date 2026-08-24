@@ -2129,8 +2129,14 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             set(java.util.Calendar.SECOND, 0)
             set(java.util.Calendar.MILLISECOND, 0)
         }
+        val midnightMs = calendar.timeInMillis
+        // Include a short pre-midnight probe so a package that was already
+        // foreground across midnight is not mistaken for a new open at 00:00.
+        // Events before midnight establish continuity but never count toward
+        // today's allowance.
+        val queryStart = (midnightMs - COUNT_RECONCILIATION_PRE_MIDNIGHT_PROBE_MS).coerceAtLeast(0L)
         val events = try {
-            usageManager.queryEvents(calendar.timeInMillis, System.currentTimeMillis())
+            usageManager.queryEvents(queryStart, System.currentTimeMillis())
         } catch (_: Exception) {
             return
         }
@@ -2148,7 +2154,9 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             events.getNextEvent(event)
             if (event.eventType != foregroundEventType) continue
             val eventPkg = event.packageName ?: continue
-            if (eventPkg != lastForegroundPackage && countPackages.any {
+            if (eventPkg != lastForegroundPackage &&
+                event.timeStamp >= midnightMs &&
+                countPackages.any {
                     it.equals(eventPkg, ignoreCase = true)
                 }) {
                 val matchingPkg = countPackages.first {

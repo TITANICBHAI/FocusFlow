@@ -1,7 +1,8 @@
 import * as SQLite from 'expo-sqlite';
-import { Appearance, Platform } from 'react-native';
+import { Platform } from 'react-native';
 import type { Task, AppSettings, FocusSession, DailyAllowanceEntry } from './types';
 import { logger } from '@/services/startupLogger';
+import { DEFAULT_SETTINGS } from './defaultSettings';
 
 let db: SQLite.SQLiteDatabase | null = null;
 const PRIMARY_DB_NAME = 'focusday.db';
@@ -36,56 +37,6 @@ let _writeTail: Promise<void> = Promise.resolve();
  * handle is invalidated by the OS.
  */
 let _dbUnrecoverable = false;
-
-const DEFAULT_SETTINGS: AppSettings = {
-  darkMode: Appearance.getColorScheme() === 'dark',
-  defaultDuration: 60,
-  defaultReminderOffsets: [-10, -5, 0],
-  focusModeEnabled: true,
-  allowedInFocus: [],
-  allowedAppPresets: [],
-  blockPresets: [],
-  pomodoroEnabled: false,
-  pomodoroDuration: 25,
-  pomodoroBreak: 5,
-  notificationsEnabled: true,
-  privacyAccepted: false,
-  protectionMode: 'standard',
-  standaloneBlockPackages: [],
-  standaloneBlockUntil: null,
-  alwaysOnPackages: [],
-  autoCopyToAlwaysOn: false,
-  dailyAllowanceEntries: [],
-  onboardingComplete: false,
-  blockedWords: [],
-  aversionDimmerEnabled: false,
-  aversionVibrateEnabled: false,
-  aversionSoundEnabled: false,
-  weeklyReportEnabled: false,
-  greyoutSchedule: [],
-  systemGuardEnabled: false,
-  blockInstallActionsEnabled: false,
-  blockYoutubeShortsEnabled: false,
-  blockInstagramReelsEnabled: false,
-  keepFocusActiveUntilTaskEnd: false,
-  recurringBlockSchedules: [],
-  beginnerMode: true,
-  tipsCardDismissed: false,
-  alwaysOnEnforcementEnabled: false,
-  lastShownStreakMilestone: 0,
-  vpnBlockEnabled: false,
-  standaloneVpnPackages: [],
-  launcherEnabled: false,
-  launcherHiddenPackages: [],
-  launcherPinnedPackages: [],
-  launcherDockPackages: [],
-  launcherWallpaperUri: null,
-  launcherClockStyle: 'digital',
-  launcherBlockUninstall: false,
-  launcherLockDuringStandalone: true,
-  overlayWallpaper: '',
-  overlayQuotes: [],
-};
 
 /**
  * Counts getDb() IIFEs currently in flight (i.e. actively trying to open the

@@ -434,6 +434,7 @@ function FileImportHost() {
                   replaceTasks: false,
                   currentTasks: state.tasks,
                   currentSettings: state.settings,
+                  currentFocusSession: state.focusSession,
                 });
                 if ('error' in result) {
                   Alert.alert('Import failed', result.error);

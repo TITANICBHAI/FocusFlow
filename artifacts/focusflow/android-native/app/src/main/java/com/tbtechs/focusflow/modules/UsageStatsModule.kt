@@ -115,7 +115,9 @@ class UsageStatsModule(private val reactContext: ReactApplicationContext) :
             val foregroundMs = mutableMapOf<String, Long>()   // clipped foreground duration
             val launchCounts = mutableMapOf<String, Int>()
             val lastUsedAt   = mutableMapOf<String, Long>()
+            val lastCountedLaunchAt = mutableMapOf<String, Long>()
             var lastFgPkg: String? = null
+            val launchDebounceMs = 30_000L
 
             // Query 6h before `start` so sessions already in progress at the boundary
             // (e.g. an app open at midnight) are captured. The maxOf(fgStart, start)
@@ -139,8 +141,12 @@ class UsageStatsModule(private val reactContext: ReactApplicationContext) :
                         if (!fgStartMs.containsKey(pkg)) {
                             fgStartMs[pkg] = event.timeStamp  // may be before `start`
                             // Only count as a launch if the foreground event is inside the window
-                            if (pkg != lastFgPkg && event.timeStamp >= start) {
+                            if (pkg != lastFgPkg &&
+                                event.timeStamp >= start &&
+                                event.timeStamp - (lastCountedLaunchAt[pkg] ?: Long.MIN_VALUE) >= launchDebounceMs
+                            ) {
                                 launchCounts[pkg] = (launchCounts[pkg] ?: 0) + 1
+                                lastCountedLaunchAt[pkg] = event.timeStamp
                             }
                             lastFgPkg = pkg
                         }
