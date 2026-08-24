@@ -12,3 +12,5 @@
 - [System-control enforcement gate](system-control-enforcement-gate.md) — installer and system-control interception must require the explicit Protect system controls toggle.
 - [Task deletion and focus cleanup](task-deletion-focus-cleanup.md) — clearing tasks must end active focus sessions before deleting their task rows, without changing block settings.
 - [FocusFlow test planning](focusflow-test-planning.md) — keep test layers and durable native sources inside the FocusFlow artifact; validate local, CI, device, then relevant CodeQL evidence.
+- [FocusFlow test-plan review](test-plan-review.md) — test fallback preconditions and cross-service timing, not only mocked blocked outcomes.
+- [FocusFlow additional recommendations](additional-recommendations.md) — optional backlog is status-tracked in the FocusFlow artifact; distinguish existing behavior from new ideas.

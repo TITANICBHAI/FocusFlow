@@ -1,5 +1,56 @@
 # FocusFlow Feature Test Plan
 
+## Implementation Progress
+
+Legend: `[x]` implemented and present in this checkout · `[ ]` not yet implemented
+or not yet evidenced · `[~]` partially covered or environment-dependent.
+
+### Test infrastructure and current evidence
+
+- [x] Vitest runner and FocusFlow test command
+- [x] JavaScript unit tests for scheduler, tasks, PIN crypto, PIN reuse, backup, and setup persistence
+- [x] JavaScript service orchestration tests for focus start/stop
+- [x] React↔Kotlin SharedPreferences serialization contract tests
+- [x] React↔native event contract tests
+- [~] Full TypeScript typecheck (known pre-existing application errors are documented in `TEST_SETUP.md`)
+- [ ] Kotlin JVM/policy test source and command
+- [ ] Android/Robolectric test source and command
+- [ ] Instrumented/emulator/device test source and command
+- [ ] Grouped CI validation workflow for FocusFlow test layers
+- [x] Reproducible test inventory with command, layer, proof, result, and limitations
+
+### Delivery milestones
+
+- [x] Milestone 1 — fast, pure coverage (scheduler, task lifecycle, PIN, backup, persistence, diagnostics, and notification coverage present)
+- [~] Milestone 2 — service orchestration (focus start/stop, notifications, backup, and diagnostics covered; settings sync remains)
+- [ ] Milestone 3 — persistence
+- [ ] Milestone 4 — Kotlin policy
+- [ ] Milestone 5 — Android lifecycle and device behavior
+- [~] Milestone 6 — cross-layer proof and reliability (boundary suites exist; reconciliation, restart, stress, and device evidence remain)
+
+### Review-derived gap tracking
+
+These items were added after reviewing the plan against the current implementation.
+`[x]` means covered by durable tests, `[~]` means partly covered or only covered
+on one side of a boundary, and `[ ]` means still pending.
+
+- [ ] Fallback poller remains scheduled for always-on-only and allowance-only modes instead of exiting early
+- [ ] UsageStats fallback uses the latest `queryEvents` package rather than a misleading `queryUsageStats` result
+- [ ] Fallback foreground detection and allowance expiry are covered with distinguishing inputs
+- [ ] Session duration remains correct across duplicate same-package resume events, including launch count
+- [ ] Screen-off pause and ForegroundTaskService sync cannot double-charge or incorrectly exhaust allowance
+- [ ] Repeated overrun delivery cannot double-extend a task during the notification replacement race
+- [ ] Overnight greyout windows carry the configured weekday into the next morning
+- [ ] Medium-priority conflict behavior is documented as either intended or a known failing contract
+- [~] SharedPreferences contracts cover JS serialization and native event shapes; Kotlin producer/consumer fixtures remain
+- [ ] Raise-only `daily_allowance_used` behavior is tested against a lower UsageStats value
+- [ ] Backup replacement is guarded while a focus session is active
+- [~] Bulk scheduling is capped at the notification capacity; 48-hour horizon and native alarm capacity remain
+- [x] SHA-256 fallback is verified against known-answer vectors without Web Crypto
+- [ ] Always-on plus allowance precedence is tested
+- [ ] Manually owned always-on packages are not removed by automatic standalone cleanup
+- [ ] Standalone VPN handoff has no protection gap
+
 ## Purpose
 
 This document is the implementation guide for adding tests to FocusFlow.

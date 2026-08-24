@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   COMMON_WEAK_PASSWORDS,
   generateRandomPassword,
@@ -29,5 +29,20 @@ describe('pinCrypto', () => {
 
     expect(generated).toHaveLength(32);
     expect(generated).not.toMatch(/[0OlI1]/);
+  });
+
+  describe('pure-JavaScript SHA-256 fallback', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it.each([
+      ['', 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'],
+      ['abc', 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad'],
+    ])('matches the NIST vector for %j when Web Crypto is unavailable', async (input, expected) => {
+      vi.stubGlobal('crypto', {});
+
+      await expect(hashPassword(input)).resolves.toBe(expected);
+    });
   });
 });

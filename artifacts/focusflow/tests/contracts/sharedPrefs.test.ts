@@ -96,7 +96,7 @@ describe('SharedPrefs JS↔Kotlin serialization contract', () => {
 
   it('returns safe defaults when optional native methods are unavailable or reject', async () => {
     nativePrefs.getFocusBreakUntilMs.mockRejectedValue(new Error('bridge unavailable'));
-    delete (nativePrefs as Partial<typeof nativePrefs>).getActiveTask;
+    delete (nativePrefs as Record<string, unknown>).getActiveTask;
 
     await expect(SharedPrefsModule.getFocusBreakUntilMs()).resolves.toBe(0);
     await expect(SharedPrefsModule.setFocusActive(false)).resolves.toBeUndefined();
