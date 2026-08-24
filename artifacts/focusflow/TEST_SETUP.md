@@ -39,7 +39,7 @@ here.
 ## Verification status
 
 - Vitest is linked and the FocusFlow test command runs normally.
-- `pnpm --filter @workspace/focusflow test` passes 13 test files and 65 tests.
+- `pnpm --filter @workspace/focusflow test` passes 13 test files and 69 tests.
 - TypeScript tests cover task lifecycle, scheduler behavior, password utilities,
   backup validation, persistence mirroring, focus orchestration, native event
   contracts, SharedPreferences contracts, diagnostic sanitization/email-draft
@@ -47,7 +47,8 @@ here.
   handlers, blocked-app native process-flow contracts (broadcast, overlay,
   BACK/HOME dismissal, retry guards, and overlay Back navigation), and
   pure-JavaScript SHA-256 fallback vectors, including large-batch notification
-  capacity.
+  capacity, plus scheduler regressions for user-resolution conflicts, earlier-task
+  preservation, zero/negative overruns, and non-early completion.
 - The full FocusFlow typecheck currently reports unrelated existing errors in
   `app/changelog.tsx`, `app/onboarding.tsx`, `app/permissions.tsx`, and
   `src/context/AppContext.tsx`; those are not caused by the test setup.

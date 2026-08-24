@@ -40,6 +40,26 @@ describe('schedulerEngine', () => {
     });
   });
 
+  it('leaves same- and higher-priority conflicts for explicit user resolution', () => {
+    const incoming = typedTask('new', '2026-08-24T10:00:00.000Z', '2026-08-24T11:00:00.000Z', 'medium');
+    const same = typedTask('same', '2026-08-24T10:15:00.000Z', '2026-08-24T11:15:00.000Z', 'medium');
+    const higher = typedTask('higher', '2026-08-24T10:30:00.000Z', '2026-08-24T11:30:00.000Z', 'critical');
+
+    const result = insertTaskSafe(incoming, [same, higher]);
+
+    expect(result.task).toBe(incoming);
+    expect(result.shifted).toEqual([]);
+  });
+
+  it('does not shift tasks that finished before an inserted task', () => {
+    const incoming = typedTask('new', '2026-08-24T10:00:00.000Z', '2026-08-24T11:00:00.000Z', 'high');
+    const earlier = typedTask('earlier', '2026-08-24T08:00:00.000Z', '2026-08-24T09:00:00.000Z', 'low');
+
+    const result = insertTaskSafe(incoming, [earlier]);
+
+    expect(result.shifted).toEqual([]);
+  });
+
   it('protects critical tasks and shifts high-priority tasks after an overrun', () => {
     vi.setSystemTime(new Date('2026-08-24T08:00:00.000Z'));
     const overrun = typedTask('overrun', '2026-08-24T09:00:00.000Z', '2026-08-24T10:00:00.000Z', 'high');
@@ -56,6 +76,19 @@ describe('schedulerEngine', () => {
     });
   });
 
+  it('does not change the schedule for zero or negative overruns', () => {
+    const overrun = typedTask('overrun', '2026-08-24T09:00:00.000Z', '2026-08-24T10:00:00.000Z', 'high');
+    const next = typedTask('next', '2026-08-24T10:00:00.000Z', '2026-08-24T11:00:00.000Z', 'low');
+
+    for (const minutes of [0, -5]) {
+      const result = rebalanceAfterOverrun(overrun, minutes, [overrun, next]);
+      expect(result.updatedSchedule).toEqual([next]);
+      expect(result.shifted).toEqual([]);
+      expect(result.skipped).toEqual([]);
+      expect(result.needsUserConfirm).toEqual([]);
+    }
+  });
+
   it('compresses only later unresolved tasks after an early completion', () => {
     vi.setSystemTime(new Date('2026-08-24T12:00:00.000Z'));
     const completed = task('completed', '2026-08-24T09:00:00.000Z', '2026-08-24T10:00:00.000Z');
@@ -69,6 +102,15 @@ describe('schedulerEngine', () => {
     expect(result[1].startTime).toBe('2026-08-24T10:40:00.000Z');
     expect(result[1].endTime).toBe('2026-08-24T11:40:00.000Z');
     expect(result[2]).toBe(skipped);
+  });
+
+  it('leaves the schedule unchanged when completion was not early', () => {
+    const completed = task('completed', '2026-08-24T09:00:00.000Z', '2026-08-24T10:00:00.000Z');
+    const later = task('later', '2026-08-24T11:00:00.000Z', '2026-08-24T12:00:00.000Z');
+    const schedule = [completed, later];
+
+    expect(compressSchedule(completed, '2026-08-24T10:00:00.000Z', schedule)).toBe(schedule);
+    expect(compressSchedule(completed, '2026-08-24T10:30:00.000Z', schedule)).toBe(schedule);
   });
 
   it('reports overlaps and gaps using chronological order', () => {

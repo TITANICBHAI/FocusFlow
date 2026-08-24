@@ -41,7 +41,7 @@ on one side of a boundary, and `[ ]` means still pending.
 - [ ] Screen-off pause and ForegroundTaskService sync cannot double-charge or incorrectly exhaust allowance
 - [ ] Repeated overrun delivery cannot double-extend a task during the notification replacement race
 - [ ] Overnight greyout windows carry the configured weekday into the next morning
-- [ ] Medium-priority conflict behavior is documented as either intended or a known failing contract
+- [x] Medium-priority conflict behavior is documented as either intended or a known failing contract
 - [~] SharedPreferences contracts cover JS serialization and native event shapes; Kotlin producer/consumer fixtures remain
 - [ ] Raise-only `daily_allowance_used` behavior is tested against a lower UsageStats value
 - [ ] Backup replacement is guarded while a focus session is active
