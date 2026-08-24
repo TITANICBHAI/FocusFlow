@@ -10,6 +10,7 @@ import React, {
 import { Alert, AppState as RNAppState, type AppStateStatus } from 'react-native';
 import type { Task, AppSettings, FocusSession, DailyAllowanceEntry, RecurringBlockSchedule, GreyoutWindow } from '@/data/types';
 import { DEFAULT_SETTINGS } from '@/data/defaultSettings';
+import { invalidateAllowanceUsageCache } from '@/services/allowanceUsageCache';
 import {
   dbGetTasksForDate,
   dbGetAllTasks,
@@ -1693,6 +1694,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try { await dbSaveSettings(newSettings); } catch (e) { void logger.warn('AppContext', `setDailyAllowanceEntries: dbSaveSettings non-fatal: ${String(e)}`); }
     dispatch({ type: 'SET_SETTINGS', payload: newSettings });
     await SharedPrefsModule.setDailyAllowanceConfig(entries);
+    invalidateAllowanceUsageCache();
     // Enable always-on enforcement whenever allowance entries are configured.
     // Must use alwaysOnPackages (the 24/7 block list), NOT standaloneBlockPackages
     // (the timed-session list), so that saving daily allowance entries does not

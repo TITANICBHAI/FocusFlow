@@ -281,6 +281,39 @@ export const SharedPrefsModule = {
   },
 
   /**
+   * Reads a long numeric value from SharedPreferences by key.
+   * Returns zero when the key is absent or the native module is unavailable.
+   */
+  async getLong(key: string): Promise<number> {
+    if (!hasSharedPrefsMethod('getLong')) return 0;
+    const result = await callNative('getLong', () => SharedPrefs.getLong(key) as Promise<number>);
+    return Number(result ?? 0) || 0;
+  },
+
+  async getAllowanceSnapshot(): Promise<{
+    usageJson: string | null;
+    activeSessionPackage: string | null;
+    activeSessionEndMs: number;
+  }> {
+    if (!hasSharedPrefsMethod('getAllowanceSnapshot')) {
+      return { usageJson: null, activeSessionPackage: null, activeSessionEndMs: 0 };
+    }
+    const result = await callNative(
+      'getAllowanceSnapshot',
+      () => SharedPrefs.getAllowanceSnapshot() as Promise<{
+        usageJson: string | null;
+        activeSessionPackage: string | null;
+        activeSessionEndMs: number;
+      }>,
+    );
+    return {
+      usageJson: result?.usageJson ?? null,
+      activeSessionPackage: result?.activeSessionPackage ?? null,
+      activeSessionEndMs: Number(result?.activeSessionEndMs ?? 0) || 0,
+    };
+  },
+
+  /**
    * Returns true when the installed APK was built debuggable (debug variant).
    * Falls back to JS `__DEV__` when the native bridge is unavailable (Expo Go,
    * iOS, web). Use this to gate developer-only UI like the Diagnostics screen

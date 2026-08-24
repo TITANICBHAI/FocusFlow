@@ -30,6 +30,7 @@ import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
 import { SessionPinModule } from '@/native-modules/SessionPinModule';
 import { InstalledAppsModule, type InstalledApp } from '@/native-modules/InstalledAppsModule';
 import { NetworkBlockModule, type NetworkBlockStatus } from '@/native-modules/NetworkBlockModule';
+import { getAllowanceUsageSnapshot } from '@/services/allowanceUsageCache';
 import type { DailyAllowanceEntry, RecurringBlockSchedule } from '@/data/types';
 
 type AllowanceUsage = {
@@ -47,6 +48,8 @@ export default function ActiveScreen() {
   const [expanded, setExpanded] = useState<string | null>('allowance');
   const [apps, setApps] = useState<InstalledApp[]>([]);
   const [allowanceUsage, setAllowanceUsage] = useState<Record<string, AllowanceUsage>>({});
+  const [activeSessionPackage, setActiveSessionPackage] = useState<string | null>(null);
+  const [activeSessionEndMs, setActiveSessionEndMs] = useState(0);
   const [vpnStatus, setVpnStatus] = useState<NetworkBlockStatus | null>(null);
   const [todayStats, setTodayStats] = useState({ completed: 0, total: 0, focusMinutes: 0, blocked: 0 });
   const [defPinVisible, setDefPinVisible] = useState(false);
@@ -87,32 +90,26 @@ export default function ActiveScreen() {
     [apps],
   );
 
-  const refreshLiveData = useCallback(async () => {
-    const [rawUsage, status] = await Promise.all([
-      SharedPrefsModule.getString('daily_allowance_used').catch(() => null),
+  const refreshLiveData = useCallback(async (force = false) => {
+    const [allowanceSnapshot, status] = await Promise.all([
+      getAllowanceUsageSnapshot(force).catch(() => ({
+        usage: {},
+        activeSessionPackage: null,
+        activeSessionEndMs: 0,
+      })),
       NetworkBlockModule.getNetworkBlockStatus().catch(() => null),
     ]);
-    if (rawUsage) {
-      try {
-        const parsed = JSON.parse(rawUsage) as Record<string, AllowanceUsage>;
-        const today = dayjs().format('YYYY-MM-DD');
-        setAllowanceUsage(Object.fromEntries(
-          Object.entries(parsed).map(([pkg, value]) => [pkg, value.date === today ? value : {}]),
-        ));
-      } catch {
-        setAllowanceUsage({});
-      }
-    } else {
-      setAllowanceUsage({});
-    }
+    setAllowanceUsage(allowanceSnapshot.usage);
+    setActiveSessionPackage(allowanceSnapshot.activeSessionPackage);
+    setActiveSessionEndMs(allowanceSnapshot.activeSessionEndMs);
     setVpnStatus(status);
   }, []);
 
   useFocusEffect(
     useCallback(() => {
       let mounted = true;
-      const refresh = () => {
-        void refreshLiveData();
+      const refresh = (force = false) => {
+        void refreshLiveData(force);
         void (async () => {
           try {
             const [rows, focusMinutes, blocked] = await Promise.all([
@@ -135,7 +132,7 @@ export default function ActiveScreen() {
           }
         })();
       };
-      refresh();
+      refresh(true);
       const timer = setInterval(refresh, 5_000);
       return () => {
         mounted = false;
@@ -299,9 +296,9 @@ export default function ActiveScreen() {
           {allowanceEntries.length === 0 ? (
             <EmptyText text="No per-app daily limits are configured." theme={theme} />
           ) : expanded === 'allowance' ? (
-            allowanceEntries.map((entry) => <AllowanceRow key={entry.packageName} entry={entry} usage={allowanceUsage[entry.packageName]} appName={appNames.get(entry.packageName)} theme={theme} />)
+          allowanceEntries.map((entry) => <AllowanceRow key={entry.packageName} entry={entry} usage={allowanceUsage[entry.packageName]} appName={appNames.get(entry.packageName)} activeSessionEndMs={entry.packageName === activeSessionPackage ? activeSessionEndMs : 0} clock={clock} theme={theme} />)
           ) : (
-            <AllowanceSummary entries={allowanceEntries} usage={allowanceUsage} clock={clock} theme={theme} />
+            <AllowanceSummary entries={allowanceEntries} usage={allowanceUsage} activeSessionPackage={activeSessionPackage} activeSessionEndMs={activeSessionEndMs} clock={clock} theme={theme} />
           )}
           <TouchableOpacity style={[styles.action, { borderColor: theme.border }]} onPress={() => router.push('/(tabs)/defense')}>
             <Ionicons name="settings-outline" size={16} color={COLORS.primary} />
@@ -408,23 +405,29 @@ function PackageList({ packages, appNames, theme }: { packages: string[]; appNam
   return <View style={[styles.packageList, { backgroundColor: theme.surface }]}>{packages.map((pkg) => <Text key={pkg} style={[styles.packageName, { color: theme.text }]}>{appNames.get(pkg) ?? shortPackageName(pkg)}</Text>)}</View>;
 }
 
-function AllowanceRow({ entry, usage, appName, theme }: { entry: DailyAllowanceEntry; usage?: AllowanceUsage; appName?: string; theme: ReturnType<typeof useTheme>['theme'] }) {
+function AllowanceRow({ entry, usage, appName, activeSessionEndMs, clock, theme }: { entry: DailyAllowanceEntry; usage?: AllowanceUsage; appName?: string; activeSessionEndMs?: number; clock: number; theme: ReturnType<typeof useTheme>['theme'] }) {
   const used = entry.mode === 'count' ? (usage?.count ?? 0) : Math.floor((usage?.usedMs ?? 0) / 60_000);
   const limit = entry.mode === 'count' ? entry.countPerDay : entry.mode === 'time_budget' ? entry.budgetMinutes : entry.intervalMinutes;
-  const unit = entry.mode === 'count' ? 'opens' : 'min';
   const remaining = Math.max(0, limit - used);
   const reset = resetLabel(entry, usage);
-  return <View style={[styles.allowanceRow, { borderBottomColor: theme.border }]}><Text style={[styles.allowanceName, { color: theme.text }]}>{appName ?? shortPackageName(entry.packageName)}</Text><Text style={[styles.allowanceUsage, { color: remaining === 0 ? COLORS.red : theme.muted }]}>{remaining} {unit} remaining · {used} / {limit} used · {reset}</Text></View>;
+  const remainingLabel = formatAllowanceRemaining(entry, usage, remaining);
+  const liveSession = activeSessionEndMs && activeSessionEndMs > clock
+    ? `Live session: ${formatDuration(activeSessionEndMs - clock)} remaining`
+    : null;
+  return <View style={[styles.allowanceRow, { borderBottomColor: theme.border }]}><Text style={[styles.allowanceName, { color: theme.text }]}>{appName ?? shortPackageName(entry.packageName)}</Text><Text style={[styles.allowanceUsage, { color: remaining === 0 ? COLORS.red : theme.muted }]}>{remainingLabel} remaining · {used} / {limit} used · {reset}</Text>{liveSession && <Text style={[styles.allowanceUsage, { color: COLORS.green }]}>{liveSession}</Text>}</View>;
 }
 
-function AllowanceSummary({ entries, usage, clock, theme }: { entries: DailyAllowanceEntry[]; usage: Record<string, AllowanceUsage>; clock: number; theme: ReturnType<typeof useTheme>['theme'] }) {
+function AllowanceSummary({ entries, usage, activeSessionPackage, activeSessionEndMs, clock, theme }: { entries: DailyAllowanceEntry[]; usage: Record<string, AllowanceUsage>; activeSessionPackage: string | null; activeSessionEndMs: number; clock: number; theme: ReturnType<typeof useTheme>['theme'] }) {
   const first = entries[0];
   const firstUsage = usage[first.packageName];
   const used = first.mode === 'count' ? (firstUsage?.count ?? 0) : Math.floor((firstUsage?.usedMs ?? 0) / 60_000);
   const limit = first.mode === 'count' ? first.countPerDay : first.mode === 'time_budget' ? first.budgetMinutes : first.intervalMinutes;
   const remaining = Math.max(0, limit - used);
-  void clock;
-  return <Text style={[styles.preview, { color: theme.muted }]}>{entries.length === 1 ? `${remaining} ${first.mode === 'count' ? 'opens' : 'minutes'} remaining · ${resetLabel(first, firstUsage)}` : `${entries.length} apps tracked · tap to see remaining allowances and reset times.`}</Text>;
+  const remainingLabel = formatAllowanceRemaining(first, firstUsage, remaining);
+  const liveSession = activeSessionPackage && activeSessionPackage === first.packageName && activeSessionEndMs > clock
+    ? ` · Live session: ${formatDuration(activeSessionEndMs - clock)}`
+    : '';
+  return <Text style={[styles.preview, { color: theme.muted }]}>{entries.length === 1 ? `${remainingLabel} remaining · ${resetLabel(first, firstUsage)}${liveSession}` : `${entries.length} apps tracked${liveSession} · tap to see remaining allowances and reset times.`}</Text>;
 }
 
 function ScheduleRow({
@@ -460,11 +463,13 @@ function formatDateTime(date: Date): string {
 function isScheduleActive(schedule: RecurringBlockSchedule, timestamp: number): boolean {
   if (!schedule.enabled) return false;
   const date = new Date(timestamp);
-  const day = date.getDay() + 1;
-  if (!schedule.days.includes(day)) return false;
   const currentMinutes = date.getHours() * 60 + date.getMinutes();
   const start = schedule.startHour * 60 + schedule.startMin;
   const end = schedule.endHour * 60 + schedule.endMin;
+  const overnightAfterMidnight = start > end && currentMinutes < end;
+  const day = date.getDay() + 1;
+  const scheduleDay = overnightAfterMidnight ? (day === 1 ? 7 : day - 1) : day;
+  if (!schedule.days.includes(scheduleDay)) return false;
   return start <= end
     ? currentMinutes >= start && currentMinutes < end
     : currentMinutes >= start || currentMinutes < end;
@@ -494,6 +499,25 @@ function resetLabel(entry: DailyAllowanceEntry, usage?: AllowanceUsage): string 
   if (remainingMs <= 0) return 'New window available';
   const minutes = Math.ceil(remainingMs / 60_000);
   return `Resets in ${minutes}m (${dayjs(resetAt).format('HH:mm')})`;
+}
+
+function formatDuration(durationMs: number): string {
+  const totalSeconds = Math.ceil(Math.max(0, durationMs) / 1_000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (minutes === 0) return `${seconds}s`;
+  return seconds === 0 ? `${minutes}m` : `${minutes}m ${seconds}s`;
+}
+
+function formatAllowanceRemaining(entry: DailyAllowanceEntry, usage: AllowanceUsage | undefined, fallbackMinutes: number): string {
+  if (entry.mode === 'count') return `${fallbackMinutes} opens`;
+  const allowanceMs = entry.mode === 'time_budget'
+    ? (entry.budgetMinutes ?? 30) * 60_000
+    : (entry.intervalMinutes ?? 5) * 60_000;
+  const remainingMs = Math.max(0, allowanceMs - (usage?.usedMs ?? 0));
+  return remainingMs < 5 * 60_000
+    ? formatDuration(remainingMs)
+    : `${Math.ceil(remainingMs / 60_000)} min`;
 }
 
 function shortPackageName(pkg: string): string {

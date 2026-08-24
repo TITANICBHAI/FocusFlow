@@ -143,7 +143,11 @@ class UsageStatsModule(private val reactContext: ReactApplicationContext) :
                             // Only count as a launch if the foreground event is inside the window
                             if (pkg != lastFgPkg &&
                                 event.timeStamp >= start &&
-                                event.timeStamp - (lastCountedLaunchAt[pkg] ?: Long.MIN_VALUE) >= launchDebounceMs
+                                // Keep the first launch exempt from the debounce window.
+                                // Subtracting Long.MIN_VALUE can overflow and suppress the
+                                // first launch on the device.
+                                (lastCountedLaunchAt[pkg] == null ||
+                                    event.timeStamp - lastCountedLaunchAt.getValue(pkg) >= launchDebounceMs)
                             ) {
                                 launchCounts[pkg] = (launchCounts[pkg] ?: 0) + 1
                                 lastCountedLaunchAt[pkg] = event.timeStamp

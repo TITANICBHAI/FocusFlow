@@ -104,6 +104,11 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         const val PREF_ACTIVE_SESSION_END_MS = "active_session_end_ms"
         const val PREF_USAGE_STATS_SYNC = "daily_allowance_usage_stats_sync"
         const val ACTIVE_SESSION_CHECKPOINT_INTERVAL_MS = 15_000L
+        // UsageEvents around a local-day boundary can be delivered with a small
+        // delay. Include this probe so reconciliation can see an app that was
+        // already foreground immediately before midnight and avoid counting the
+        // continued session as today's launch.
+        const val COUNT_RECONCILIATION_PRE_MIDNIGHT_PROBE_MS = 30_000L
         // ForegroundTaskService syncs every 60 s. Two missed sync windows are
         // enough to distinguish a dead/paused AccessibilityService from normal
         // scheduling jitter without deferring UsageStats recovery forever.
