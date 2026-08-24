@@ -1346,16 +1346,24 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             val saActive     = prefs.getBoolean(PREF_SA_ACTIVE, false)
             val alwaysBlock  = prefs.getBoolean(PREF_ALWAYS_BLOCK, false)
             if (!focusActive && !saActive && !alwaysBlock) return@postDelayed
-            // Guard: only act if the blocked package is still in the foreground.
-            // Without this check, retries would press Home even after the user has
-            // already navigated to a legitimate allowed app, causing false kicks.
-            if (lastSeenPkg != pkg) return@postDelayed
             val isBlocked = isPackageBlocked(pkg, focusActive, saActive, alwaysBlock)
             val allowanceExhausted = run {
                 val entry = findAllowanceEntry(pkg)
                 entry != null && !isAllowanceAvailable(pkg, entry)
             }
-            if (isBlocked || allowanceExhausted) {
+            // Guard: only act if enforcement is still active and the blocked
+            // package still owns the foreground window. Without this check,
+            // retries could kick an allowed app after a process switch.
+            if (BlockedAppDismissalPolicy.shouldRetry(
+                    pkg,
+                    lastSeenPkg,
+                    focusActive,
+                    saActive,
+                    alwaysBlock,
+                    isBlocked,
+                    allowanceExhausted,
+                )
+            ) {
                 // Re-raise the overlay in case it was dismissed or never rendered,
                 // then kick the app out again.
                 launchBlockOverlay(pkg)
@@ -3321,11 +3329,16 @@ class AppBlockerAccessibilityService : AccessibilityService() {
      * without cancelling, leaving a stale install in the background.
      */
     private fun dismissPackage(blockedPackage: String) {
-        if (INSTALLER_PACKAGES.any { blockedPackage.equals(it, ignoreCase = true) }) {
-            performGlobalAction(GLOBAL_ACTION_BACK)
-        } else {
-            handler.postDelayed({ performGlobalAction(GLOBAL_ACTION_BACK) }, 30L)
-            handler.postDelayed({ performGlobalAction(GLOBAL_ACTION_HOME) }, 90L)
+        for (dismissal in BlockedAppDismissalPolicy.actionsFor(blockedPackage, INSTALLER_PACKAGES)) {
+            val action = when (dismissal.action) {
+                BlockedAppDismissalPolicy.GlobalAction.BACK -> GLOBAL_ACTION_BACK
+                BlockedAppDismissalPolicy.GlobalAction.HOME -> GLOBAL_ACTION_HOME
+            }
+            if (dismissal.delayMs == 0L) {
+                performGlobalAction(action)
+            } else {
+                handler.postDelayed({ performGlobalAction(action) }, dismissal.delayMs)
+            }
         }
     }
 

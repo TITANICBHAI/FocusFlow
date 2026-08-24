@@ -9,11 +9,11 @@ or not yet evidenced · `[~]` partially covered or environment-dependent.
 
 - [x] Vitest runner and FocusFlow test command
 - [x] JavaScript unit tests for scheduler, tasks, PIN crypto, PIN reuse, backup, and setup persistence
-- [x] JavaScript service orchestration tests for focus start/stop
+- [x] JavaScript service orchestration tests for focus start/stop and headless background tasks
 - [x] React↔Kotlin SharedPreferences serialization contract tests
 - [x] React↔native event contract tests
 - [~] Full TypeScript typecheck (known pre-existing application errors are documented in `TEST_SETUP.md`)
-- [ ] Kotlin JVM/policy test source and command
+- [~] Kotlin JVM/policy test source is present and wired for generated projects; local command is unavailable without Android/Gradle tooling
 - [ ] Android/Robolectric test source and command
 - [ ] Instrumented/emulator/device test source and command
 - [ ] Grouped CI validation workflow for FocusFlow test layers

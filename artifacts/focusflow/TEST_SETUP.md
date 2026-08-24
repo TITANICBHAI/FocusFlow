@@ -39,12 +39,15 @@ here.
 ## Verification status
 
 - Vitest is linked and the FocusFlow test command runs normally.
-- `pnpm --filter @workspace/focusflow test` passes 11 test files and 54 tests.
+- `pnpm --filter @workspace/focusflow test` passes 13 test files and 65 tests.
 - TypeScript tests cover task lifecycle, scheduler behavior, password utilities,
   backup validation, persistence mirroring, focus orchestration, native event
   contracts, SharedPreferences contracts, diagnostic sanitization/email-draft
-  behavior, notification scheduling/cancellation, and pure-JavaScript SHA-256
-  fallback vectors, including large-batch notification capacity.
+  behavior, notification scheduling/cancellation, headless background task
+  handlers, blocked-app native process-flow contracts (broadcast, overlay,
+  BACK/HOME dismissal, retry guards, and overlay Back navigation), and
+  pure-JavaScript SHA-256 fallback vectors, including large-batch notification
+  capacity.
 - The full FocusFlow typecheck currently reports unrelated existing errors in
   `app/changelog.tsx`, `app/onboarding.tsx`, `app/permissions.tsx`, and
   `src/context/AppContext.tsx`; those are not caused by the test setup.
@@ -53,7 +56,7 @@ here.
 
 | Command | Layer | Proves | Result / limitation |
 | --- | --- | --- | --- |
-| `pnpm --filter @workspace/focusflow test` | JavaScript unit, service, and boundary contracts | Deterministic task/scheduler/PIN/backup/persistence behavior; focus lifecycle; native payload serialization and event parsing; diagnostic and notification contracts | Passing locally; does not prove Kotlin enforcement, Android lifecycle, overlays, VPN, launcher, or OEM behavior |
+| `pnpm --filter @workspace/focusflow test` | JavaScript unit, service, and boundary contracts | Deterministic task/scheduler/PIN/backup/persistence behavior; focus lifecycle; headless overrun, fetch, and notification action handling; blocked-app native source contracts for broadcast, overlay, BACK/HOME dismissal, retry process guards, and overlay Back navigation; native payload serialization and event parsing; diagnostic and notification contracts | Passing locally; source-contract checks do not prove actual Android window/task/process behavior, overlays, VPN, launcher, or OEM behavior |
 | `pnpm --filter @workspace/focusflow typecheck` | TypeScript static validation | Type correctness for application and test sources | Currently blocked by six pre-existing application errors in the four files listed above; no test-source errors remain |
-| Android Gradle/JVM tests | Kotlin policy | Accessibility policy, allowance, UsageStats, and native parsing | Not yet available; no generated `android/` project or native test source set is present |
+| Android Gradle/JVM tests | Kotlin policy | Accessibility policy, allowance, UsageStats, and native parsing | Kotlin JVM policy source is present under `android-native/app/src/test` and is copied into generated Android projects; execution is unavailable here because no generated `android/` project, Gradle, Kotlin compiler, or Android SDK is present |
 | Android instrumented/device tests | Android lifecycle/device | Overlay, AccessibilityService, notifications, VPN, launcher, permissions, and OEM-specific behavior | Not yet available; requires an Android-capable build/emulator/device environment |

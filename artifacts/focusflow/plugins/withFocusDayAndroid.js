@@ -666,6 +666,11 @@ function withFocusDayKotlin(config) {
       const kotlinDest = path.join(destRoot, 'java', pkg);
       copyDirSync(kotlinSrc, kotlinDest);
 
+      // ── Copy durable JVM test sources ─────────────────────────────────────
+      const testSrc  = path.join(projectRoot, 'android-native', 'app', 'src', 'test');
+      const testDest = path.join(platformRoot, 'app', 'src', 'test');
+      copyDirSync(testSrc, testDest);
+
       // ── Copy resource files (XML configs) ────────────────────────────────
       const resSrc  = path.join(srcRoot, 'res');
       const resDest = path.join(destRoot, 'res');
