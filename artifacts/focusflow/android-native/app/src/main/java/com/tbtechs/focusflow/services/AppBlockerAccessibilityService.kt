@@ -8,9 +8,11 @@ import android.app.NotificationManager
 import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Context
+import android.content.BroadcastReceiver
 import android.app.PendingIntent
 import android.app.WallpaperManager
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.SharedPreferences
 import android.graphics.BitmapFactory
 import android.graphics.Color
@@ -511,6 +513,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     private var currentTimedOpenAtMs: Long = 0L
     private var currentTimedSessionEndMs: Long = 0L
     private var timedExpireRunnable: Runnable? = null
+    private var screenStateReceiver: BroadcastReceiver? = null
     private val allowanceCheckpointRunnable: Runnable = object : Runnable {
         override fun run() {
             checkpointActiveTimedSession()
@@ -530,10 +533,86 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         // UsageEvents is used only as a conservative recovery source. Live
         // AccessibilityService events remain the immediate enforcement authority.
         reconcileCountAllowances()
+        registerScreenStateReceiver()
 
         // Start the VPN self-heal health check loop. The first check fires after
         // 10 s so we don't run anything during the cold-start window.
         vpnHealthHandler.postDelayed(vpnHealthRunnable, 10_000L)
+    }
+
+    private fun registerScreenStateReceiver() {
+        screenStateReceiver?.let {
+            try { unregisterReceiver(it) } catch (_: Exception) { }
+        }
+
+        screenStateReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                val pkg = currentTimedPkg ?: return
+                val entry = findAllowanceEntry(pkg) ?: return
+                if (entry.mode != "time_budget" && entry.mode != "interval") return
+
+                when (intent.action) {
+                    Intent.ACTION_SCREEN_OFF -> {
+                        if (currentTimedOpenAtMs <= 0L) return
+                        accumulateTimedUsage(pkg, entry, currentTimedOpenAtMs)
+                        currentTimedOpenAtMs = 0L
+                        timedExpireRunnable?.let { handler.removeCallbacks(it) }
+                        timedExpireRunnable = null
+                        handler.removeCallbacks(allowanceCheckpointRunnable)
+                    }
+
+                    Intent.ACTION_USER_PRESENT -> {
+                        // Ignore duplicate unlock broadcasts unless the session
+                        // is actually paused.
+                        if (currentTimedOpenAtMs > 0L) return
+
+                        val now = System.currentTimeMillis()
+                        if (!isAllowanceAvailable(pkg, entry)) {
+                            clearActiveSessionSignal()
+                            currentTimedPkg = null
+                            currentTimedOpenAtMs = 0L
+                            currentTimedSessionEndMs = 0L
+                            performGlobalAction(GLOBAL_ACTION_HOME)
+                            return
+                        }
+
+                        val pkgUsed = loadUsedObject().optJSONObject(pkg)
+                        val usedMs = pkgUsed?.optLong("usedMs", 0L) ?: 0L
+                        val remainingMs = when (entry.mode) {
+                            "time_budget" -> (entry.budgetMs - usedMs).coerceAtLeast(0L)
+                            "interval" -> (entry.intervalMs - usedMs).coerceAtLeast(0L)
+                            else -> 0L
+                        }
+                        if (remainingMs <= 0L) {
+                            clearActiveSessionSignal()
+                            currentTimedPkg = null
+                            currentTimedOpenAtMs = 0L
+                            currentTimedSessionEndMs = 0L
+                            performGlobalAction(GLOBAL_ACTION_HOME)
+                            return
+                        }
+
+                        currentTimedOpenAtMs = now
+                        currentTimedSessionEndMs = now + remainingMs
+                        persistActiveSessionSignal(pkg, now, currentTimedSessionEndMs)
+                        startAllowanceCheckpointLoop()
+                        scheduleTimedExpiry(pkg, currentTimedSessionEndMs)
+                    }
+                }
+            }
+        }.also {
+            registerReceiver(it, IntentFilter().apply {
+                addAction(Intent.ACTION_SCREEN_OFF)
+                addAction(Intent.ACTION_USER_PRESENT)
+            })
+        }
+    }
+
+    private fun unregisterScreenStateReceiver() {
+        screenStateReceiver?.let {
+            try { unregisterReceiver(it) } catch (_: Exception) { }
+        }
+        screenStateReceiver = null
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -670,6 +749,12 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             // user is not silently returned to a blank launcher with no context.
             postHomeScreenReminder()
         }
+
+        // Some OEM home-screen transitions are reported under a framework/SystemUI
+        // package instead of the launcher's package. These packages have no
+        // launchable app entry and are Android infrastructure, not user apps.
+        // Do not let the Focus Mode allow-list block the device home surface.
+        if (isNonLaunchableSystemPackage(pkg)) return
 
         // ── NEVER_BLOCK packages ──────────────────────────────────────────────
         // Phone dialers (all OEM variants) and WhatsApp are unconditionally
@@ -1155,9 +1240,15 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         currentTimedPkg = null
         currentTimedOpenAtMs = 0L
         currentTimedSessionEndMs = 0L
+        unregisterScreenStateReceiver()
         lastBlockedPkg = null
         dismissWindowOverlay()
         vpnHealthHandler.removeCallbacks(vpnHealthRunnable)
+    }
+
+    override fun onDestroy() {
+        unregisterScreenStateReceiver()
+        super.onDestroy()
     }
 
     // ─── VPN self-heal ────────────────────────────────────────────────────────
@@ -2403,6 +2494,16 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     }
 
     // ─── Block determination ──────────────────────────────────────────────────
+
+    private fun isNonLaunchableSystemPackage(pkg: String): Boolean {
+        return try {
+            val appInfo = packageManager.getApplicationInfo(pkg, 0)
+            val isSystemPackage = (appInfo.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0
+            isSystemPackage && packageManager.getLaunchIntentForPackage(pkg) == null
+        } catch (_: Exception) {
+            false
+        }
+    }
 
     private fun isPackageBlocked(
         pkg: String,
@@ -4068,10 +4169,21 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                 }
                 if (!matchesPkg) continue
                 val days = entry.optJSONArray("days") ?: continue
-                val dayMatch = (0 until days.length()).any { days.optInt(it) == currentDay }
-                if (!dayMatch) continue
                 val startMins = entry.optInt("startHour") * 60 + entry.optInt("startMin")
                 val endMins   = entry.optInt("endHour")   * 60 + entry.optInt("endMin")
+                val overnight = startMins > endMins
+                val afterMidnight = overnight && currentMinutes < endMins
+                val dayForWindow = if (afterMidnight) {
+                    if (currentDay == java.util.Calendar.SUNDAY) {
+                        java.util.Calendar.SATURDAY
+                    } else {
+                        currentDay - 1
+                    }
+                } else {
+                    currentDay
+                }
+                val dayMatch = (0 until days.length()).any { days.optInt(it) == dayForWindow }
+                if (!dayMatch) continue
                 val inWindow = if (startMins <= endMins) {
                     currentMinutes in startMins until endMins   // normal: 09:00–18:00
                 } else {

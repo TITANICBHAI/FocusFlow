@@ -1,0 +1,138 @@
+Sure. No code, just plain English.
+
+---
+
+## The Big Picture First
+
+Your app has two enforcement systems running in parallel. Think of them as two guards:
+
+**Guard 1 — Accessibility Service** (the main guard). Sits on the device and watches every app that comes to the screen. When it sees a blocked app, it kicks it away. It also tracks how long someone has been using an app for the allowance system. This guard is smart, fast, and handles everything.
+
+**Guard 2 — ForegroundTaskService** (the backup guard). Runs in the background all the time. When Guard 1 is alive, Guard 2 mostly does nothing — it just steps aside. But when Guard 1 gets killed (Samsung, Xiaomi, Huawei, and most OEM phones routinely kill it to save battery), Guard 2 is supposed to take over.
+
+The entire problem with daily allowance boiling down to this: **Guard 2 was never fully trained to do Guard 1's job.** Guard 2 knows how to block apps during a focus session, during a standalone block, and during scheduled time windows. But nobody told it about daily allowances or always-on blocks. So the moment Guard 1 dies, those two systems stop working completely — silently, with no warning to the user.
+
+The UsageStats fixes are about Guard 2 also using the wrong detection method to even find out which app is on screen, making it effectively blind on top of being undertrained.
+
+---
+
+## Group 1 — The Fallback Guard (Guard 2) Fixes
+
+These are the most important. Everything here is about fixing Guard 2 when Guard 1 is dead.
+
+### Fix 1A — Guard 2 is looking at the wrong app
+
+When Guard 2 tries to figure out what app the user is currently using, it asks Android a question. The problem is it's asking the wrong question.
+
+It currently asks: *"Which app has been used most recently today?"*
+That gives you the last app the person used at ANY point today, not what's actually on screen right now. So at 5pm, Android might say "Gmail" because the person used Gmail at 9am — even though they're currently looking at Instagram.
+
+The fix makes it ask the right question: *"What appeared on screen in the last 5 seconds?"* That always gives the correct answer.
+
+This fix is the foundation. Everything else Guard 2 does depends on knowing the right app. If it doesn't know which app is on screen, it can't block anything correctly.
+
+### Fix 1B — Guard 2 shuts itself off too early
+
+Guard 2 has a shortcut: if it sees that focus mode is off, the standalone timer block is off, and there are no scheduled time windows, it stops looking entirely and goes idle. It figures there's nothing to enforce.
+
+But this shortcut doesn't check for two things: always-on block and daily allowance. So if you have Instagram set to "only 3 opens per day" but no active focus session or timer — the moment Guard 1 dies, Guard 2 shuts itself off immediately and Instagram gets unlimited access. Same with always-on blocks — if you have YouTube in the permanent block list but no active focus session, Guard 2 ignores it completely.
+
+The fix adds those two checks to the shortcut so Guard 2 stays alert when allowances or always-on blocks exist, not just when a session is running.
+
+### Fix 1C — Guard 2 doesn't enforce always-on blocks or daily allowances even when it stays awake
+
+Even in cases where Guard 2 doesn't take the shortcut and stays active, when it checks whether to block an app, it only knows three rules: focus mode, standalone timer, and scheduled windows. Always-on blocks and all three allowance modes (count, time budget, interval) are simply absent from its rulebook.
+
+The fix adds the full rulebook. When Guard 2 checks an app, it now also reads the current allowance state (which Guard 1 writes to a shared storage area) and checks whether that app's daily budget or open count is exhausted. It also checks whether the app is in the permanent always-on block list. This is all read-only — Guard 2 doesn't try to do any accounting itself, it just reads what Guard 1 last wrote and enforces based on that.
+
+---
+
+## Group 2 — The Screen-Off Problem
+
+### Fix 2 — Your time budget keeps running when the phone screen is off
+
+When you have Instagram set to a 30-minute daily budget and you open Instagram at 8pm:
+
+Guard 1 starts a timer: you have 30 minutes, and your session expires at 8:30pm. It also sets up a background countdown that fires at exactly 8:30pm to close Instagram.
+
+Now, at 8:05pm your screen turns off — you put the phone down face-down, or the auto-lock kicks in but takes a moment. On most phones, the lock screen appears almost instantly and Guard 1 detects the switch (lock screen is a different "app" coming to the foreground), so it correctly pauses the timer. But on some Samsung devices with Smart Lock, or tablets with long lock delays, the screen can stay off for minutes before the lock screen appears. During that gap, the countdown is still running. The 15-second checkpoint keeps ticking. If you left it alone for 25 minutes, all 25 minutes got charged to your 30-minute Instagram budget even though you weren't using the app.
+
+The fix makes Guard 1 listen for the screen turning off. The moment the screen goes off, it freezes the timer immediately — no more accumulation. When the user comes back and unlocks the phone, it resumes the timer with however many minutes are left. If the budget already ran out while the screen was off (because some time had already been charged before the screen went off), it blocks Instagram right when the phone is unlocked.
+
+---
+
+## Group 3 — The Stats Screen Fixes (UsageStatsModule)
+
+These don't affect blocking. They fix the data shown on the Stats screen when you look at how long you used each app.
+
+### Fix 3A — Samsung users see less usage time than they actually used
+
+On Samsung phones, when you navigate between different sections inside an app — say going from Instagram's home feed to your profile page and back — Samsung fires a notification to Guard 1 saying "Instagram came to the foreground again." This is just Samsung's way of reporting internal navigation, not a real new app open.
+
+The problem: every time this fires, the tracking code resets Instagram's session start time to that moment. So if you opened Instagram at 9:00 and navigated around until 9:30, but at 9:15 you switched from feed to profile (an internal Samsung event), the session is reset to 9:15. When you finally leave Instagram, only 15 minutes get recorded instead of 30.
+
+The fix: when that Samsung notification arrives for an app that's already being tracked, ignore it. Keep the original session start time. Don't reset.
+
+### Fix 3B — System apps appear in your usage stats
+
+Currently the Stats screen can show things like the Android system interface, your keyboard, the device launcher, and other system services as if they were apps you used. You never consciously "used" these — they just briefly appeared while you were doing other things.
+
+The fix removes any app that doesn't have an icon you can tap to open it. If there's no way for a user to intentionally launch an app, it has no business appearing in your usage stats.
+
+On top of that, the fix also removes any "app" that was only on screen for less than half a second. Things like the keyboard suggestion bar, the volume slider, and notification overlays briefly flash as foreground events but they're noise. Anything under 500 milliseconds gets dropped.
+
+### Fix 3C — The stats query looks too far back in time
+
+When building the usage stats for a day, the code currently searches through the previous 24 hours of events before the day starts, looking for sessions that began before midnight. This is more than necessary — no realistic app session lasts 24 hours. It just makes the query slower than it needs to be, which matters when the Stats screen is loading a full week's worth of data (seven of these queries running in sequence).
+
+The fix reduces it to 6 hours, which is more than enough to catch anything legitimate while making the queries meaningfully faster on devices with a lot of events logged.
+
+### Fix 3D — The "what's on screen" function in the module (currently dead code)
+
+There's a function in your module that's supposed to tell the JavaScript side of the app which app is currently on screen. It has the same wrong-question bug as Fix 1A — it asks "which app was used most recently today" instead of "what's on screen right now." Nothing in your app currently calls this function, but it's sitting there ready to give wrong answers if someone wires it up. Fix it now before it causes problems later.
+
+---
+
+## Group 4 — Overnight Schedule Bug
+
+### Fix 4 — Block schedules that cross midnight never activate
+
+If you set a block schedule for "every night, 10pm to 6am," the system internally stores this as "start at hour 22, end at hour 6." The check it does is: is the current time between hour 22 and hour 6? But mathematically, hour 22 is greater than hour 6, so no time is ever "between" them — the check always fails. A schedule from 10pm to 11pm works fine (22 to 23), but the moment it crosses midnight it's broken.
+
+Interestingly, Guard 2's fallback version of this check already handles it correctly. The fix is to bring Guard 1's check in line with Guard 2's version. The logic needs to say: "if the end time is earlier in the day than the start time, this is an overnight window — check whether we're either after the start OR before the end."
+
+---
+
+## The Complete UsageStats Usage Map in Plain English
+
+After all these fixes, here is every place the app uses the UsageStats permission and what each one does:
+
+**Detection — what's on screen right now:**
+Used in two places. Guard 1 uses its own accessibility events (doesn't need UsageStats for this). Guard 2 uses UsageStats with the fixed query to detect the foreground app when Guard 1 is dead. This is the fallback.
+
+**Time tracking backup:**
+Guard 2 reads the phone's built-in usage totals every 60 seconds and writes them to shared storage. This is specifically for the "time budget" allowance mode. When Guard 1 restarts after being killed, it reads this value so it knows how much time has already been used — it doesn't start from zero.
+
+**Count reconciliation:**
+When Guard 1 restarts after being killed, it reads the event history for today and counts how many times each app was genuinely opened. This catches any opens that happened while Guard 1 was dead. Guard 1 then updates the count in shared storage, taking whichever count is higher (the one it tracked before being killed, or the one from the event history).
+
+**Stats display:**
+Your Stats screen uses UsageStats to build the "app usage today/yesterday/this week" breakdown that shows in the usage insights section. This is display-only and doesn't affect blocking.
+
+**Fallback enforcement read:**
+Guard 2 now reads the allowance state that Guard 1 writes — it checks whether any app's budget is exhausted. Guard 2 never writes to this state, it only reads it. Guard 1 owns all the accounting.
+
+**Permission checking:**
+Used to verify whether the user has granted the Usage Access permission, which gates all of the above. Already correct, nothing changes here.
+
+---
+
+## What the Plan Doesn't Touch
+
+The accounting logic inside Guard 1 — how it measures time, how it handles midnight, how it writes and reads the shared state, how it coordinates with Guard 2 to avoid double-counting — all of that is well-built and stays exactly as it is. The checkpoint system, the two-minute handoff signal, the raise-only writes from Guard 2, the sync marker that tells Guard 1 where Guard 2 left off — all correct, all untouched.
+
+The Group 1 fixes make Guard 2 smarter about enforcement. They don't ask Guard 2 to do any accounting — it just reads the results of Guard 1's accounting and enforces based on them. The architecture stays the same.
+
+Confidence: 0.97
+
+Caveats: The screen-off fix (Group 2) behaves slightly differently on devices where the lock screen appears instantly on screen-off — on those devices, the accessibility package-change event already handles the pause naturally, so the broadcast receiver is a belt-and-suspenders addition rather than a critical fix. It matters most on delayed-lock setups.

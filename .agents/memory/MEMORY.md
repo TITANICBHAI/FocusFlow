@@ -5,8 +5,8 @@
 - [Imported audit verification](imported-audit-verification.md) — uploaded codebase audits may describe fixes already present; validate each finding against the current checkout before editing.
 - [Android SQLite write serialization](android-sqlite-write-serialization.md) — single-flight database opening does not prevent concurrent Expo SQLite writes from contending.
 - [Android prebuild native patches](android-prebuild-native-patches.md) — release-critical Gradle changes must be mirrored in the Expo config plugin, not only install.sh.
-- [React UI plan traceability](react-ui-plan-traceability.md) — FocusFlow UI work must map to the checked, evidence-backed plan and final verification gate.
-- [React UI plan companion](react-ui-plan-traceability.md) — the second imported UI plan is related but noisier; validate it against the primary plan before implementation.
+- [FocusFlow implementation plan](focusflow-implementation-plan.md) — use the final Kotlin-focused plan as the authoritative execution order for UsageStats and fallback enforcement work.
+- [FocusFlow plain-English guide](focusflow-plain-english-guide.md) — use the companion explanation to understand the two-guard architecture and rationale behind the implementation plan.
 - [Dependency installation timing](dependency-installation-timing.md) — read the applicable plan and do requested code edits before installing dependencies; install when the user asks or verification requires it.
 - [Workspace package firewall](workspace-package-firewall.md) — filtered frozen installs can still fail on the shared shell-quote tarball before workspace-local node_modules is linked.
 - [System-control enforcement gate](system-control-enforcement-gate.md) — installer and system-control interception must require the explicit Protect system controls toggle.
