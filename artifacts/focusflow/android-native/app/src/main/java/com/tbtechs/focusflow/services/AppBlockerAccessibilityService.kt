@@ -23,6 +23,7 @@ import android.net.VpnService
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.content.pm.PackageManager
 import android.provider.Settings
 import android.view.Gravity
 import android.view.WindowManager
@@ -511,6 +512,8 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     // Content-changed events fire on every layout pass — throttled per package.
     private val lastContentScanMs = mutableMapOf<String, Long>()
     private var foregroundWatchdogRunnable: Runnable? = null
+    private var cachedHomePackages: Set<String> = emptySet()
+    private var homePackagesCachedAtMs: Long = 0L
 
     // ── Timed allowance tracking (time_budget / interval modes) ──────────────
     // Tracks the app currently open under a time-limited allowance so we can
@@ -583,6 +586,11 @@ class AppBlockerAccessibilityService : AccessibilityService() {
 
         val pkg = latestPkg
         if (pkg == packageName) return
+        if (isHomePackage(pkg)) {
+            lastBlockedPkg = null
+            lastBlockedAtMs = 0L
+            return
+        }
         if (NEVER_BLOCK.any { pkg.equals(it, ignoreCase = true) }) return
         if (BLOCKABLE_AFTER_WARNING.any { pkg.equals(it, ignoreCase = true) }) return
 
@@ -641,6 +649,35 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         }
         foregroundWatchdogRunnable = runnable
         handler.postDelayed(runnable, 1_500L)
+    }
+
+    /**
+     * Returns whether [pkg] is one of the device's HOME handlers.
+     *
+     * The static NEVER_BLOCK list covers common OEM launchers, but custom
+     * launchers and less common OEM packages are not knowable in advance.
+     * Querying HOME handlers keeps the user from being trapped when the
+     * launcher is not in that list. Results are cached briefly because this
+     * method is reached from both accessibility events and the watchdog.
+     */
+    private fun isHomePackage(pkg: String): Boolean {
+        val now = System.currentTimeMillis()
+        if (now - homePackagesCachedAtMs > 10_000L) {
+            cachedHomePackages = try {
+                val homeIntent = Intent(Intent.ACTION_MAIN).apply {
+                    addCategory(Intent.CATEGORY_HOME)
+                    addCategory(Intent.CATEGORY_DEFAULT)
+                }
+                packageManager.queryIntentActivities(
+                    homeIntent,
+                    PackageManager.MATCH_DEFAULT_ONLY,
+                ).mapNotNull { it.activityInfo?.packageName }.toSet()
+            } catch (_: Exception) {
+                emptySet()
+            }
+            homePackagesCachedAtMs = now
+        }
+        return cachedHomePackages.any { it.equals(pkg, ignoreCase = true) }
     }
 
     private fun registerScreenStateReceiver() {
@@ -865,7 +902,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         // override this. This check runs before BLOCKABLE_AFTER_WARNING so
         // that even if a user somehow adds one of these packages to a block
         // list, the block is silently ignored.
-        if (NEVER_BLOCK.any { pkg.equals(it, ignoreCase = true) }) {
+        if (NEVER_BLOCK.any { pkg.equals(it, ignoreCase = true) } || isHomePackage(pkg)) {
             // Visiting a safe/home package means the user has left the blocked
             // app, so the next open must not inherit its de-duplication window.
             lastBlockedPkg = null

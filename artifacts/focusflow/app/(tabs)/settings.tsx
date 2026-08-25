@@ -427,7 +427,7 @@ function SettingsScreen() {
         </Section>
 
         <View style={styles.footer}>
-          <Text style={[styles.footerText, { color: theme.muted }]}>FocusFlow v1.0.9 (build 10)</Text>
+          <Text style={[styles.footerText, { color: theme.muted }]}>FocusFlow v1.1.0 (build 11)</Text>
           <Text style={[styles.footerText, { color: theme.muted }]}>All data stored locally on device</Text>
         </View>
       </ScrollView>

@@ -14,6 +14,31 @@ type Entry = {
 
 const CHANGELOG: Entry[] = [
   {
+    version: '1.1.0',
+    date: 'August 2026',
+    sections: [
+      {
+        heading: 'More Reliable App Blocking',
+        icon: 'shield-checkmark-outline',
+        items: [
+          'Added a foreground-app watchdog that checks UsageStats every 1.5 seconds so blocked apps are caught even when Android does not emit a window-change event after returning from recent apps',
+          'The watchdog safely handles OEMs that deny UsageStats foreground events and leaves the AccessibilityService event path in control when Usage Access is unavailable',
+          'Fixed a cooldown issue where pressing the physical Home button could let the same blocked app reopen silently for up to two seconds',
+          'Added dynamic HOME-handler detection so custom and less common OEM launchers are protected even when they are not in FocusFlow’s built-in launcher list',
+          'Reset Shorts and Reels content-scan throttling after a recent-app return so the next available content event is checked immediately',
+        ],
+      },
+      {
+        heading: 'FocusFlow Safety',
+        icon: 'lock-closed-outline',
+        items: [
+          'FocusFlow’s own Focus, Stats, Settings, and onboarding screens remain exempt from app blocking while protection is active',
+          'Timed allowance tracking and retry foreground guards remain unchanged while the new watchdog provides an additional enforcement path',
+        ],
+      },
+    ],
+  },
+  {
     version: '1.0.9',
     date: 'August 2026',
     sections: [
