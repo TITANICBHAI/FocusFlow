@@ -20,8 +20,10 @@ object BlockedAppDismissalPolicy {
             listOf(DismissalAction(GlobalAction.BACK, 0L))
         } else {
             listOf(
+                DismissalAction(GlobalAction.BACK, 0L),
                 DismissalAction(GlobalAction.BACK, 30L),
-                DismissalAction(GlobalAction.HOME, 90L),
+                DismissalAction(GlobalAction.HOME, 80L),
+                DismissalAction(GlobalAction.BACK, 100L),
             )
         }
     }

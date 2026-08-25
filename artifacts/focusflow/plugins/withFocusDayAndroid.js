@@ -14,11 +14,10 @@
  *  10. Declares LauncherActivity with HOME + DEFAULT intent-filter
  *  11. Declares NetworkBlockerVpnService with BIND_VPN_SERVICE permission
  *  12. Declares VpnWatchdogReceiver for VPN self-healing
- *  13. Declares BlockOverlayActivity for full-screen app blocking
- *  14. Declares TemptationReportReceiver for weekly reports
- *  15. Adds <queries> block for Android 11+ package visibility
- *  16. Registers FocusDayPackage via withMainApplication (reliable for RN 0.76+)
- *  17. Copies all Kotlin source files from android-native/ into the project
+ *  13. Declares TemptationReportReceiver for weekly reports
+ *  14. Adds <queries> block for Android 11+ package visibility
+ *  15. Registers FocusDayPackage via withMainApplication (reliable for RN 0.76+)
+ *  16. Copies all Kotlin source files from android-native/ into the project
  *
  * Applied automatically during `npx expo prebuild --platform android`.
  * No manual XML or Kotlin editing required.
@@ -383,29 +382,6 @@ function withFocusDayManifest(config) {
             { $: { 'android:scheme': 'package' } },
           ],
         }],
-      });
-    }
-
-    // ── BlockOverlayActivity ───────────────────────────────────────────────────
-    // Full-screen fallback overlay used when the preferred WindowManager overlay
-    // path is unavailable. It is launched by an explicit PendingIntent and must
-    // remain private to the app.
-    const blockOverlayExists = (app.activity || []).some(
-      (a) => a.$['android:name'] === 'com.tbtechs.focusflow.services.BlockOverlayActivity'
-    );
-    if (!blockOverlayExists) {
-      if (!app.activity) app.activity = [];
-      app.activity.push({
-        $: {
-          'android:name':               'com.tbtechs.focusflow.services.BlockOverlayActivity',
-          'android:excludeFromRecents': 'true',
-          'android:showWhenLocked':     'true',
-          'android:turnScreenOn':       'true',
-          'android:noHistory':          'false',
-          'android:launchMode':         'singleTask',
-          'android:theme':              '@android:style/Theme.NoTitleBar.Fullscreen',
-          'android:exported':            'false',
-        },
       });
     }
 

@@ -17,11 +17,19 @@ class BlockedAppDismissalPolicyTest {
             listOf(
                 BlockedAppDismissalPolicy.DismissalAction(
                     BlockedAppDismissalPolicy.GlobalAction.BACK,
+                    0L,
+                ),
+                BlockedAppDismissalPolicy.DismissalAction(
+                    BlockedAppDismissalPolicy.GlobalAction.BACK,
                     30L,
                 ),
                 BlockedAppDismissalPolicy.DismissalAction(
                     BlockedAppDismissalPolicy.GlobalAction.HOME,
-                    90L,
+                    80L,
+                ),
+                BlockedAppDismissalPolicy.DismissalAction(
+                    BlockedAppDismissalPolicy.GlobalAction.BACK,
+                    100L,
                 ),
             ),
             BlockedAppDismissalPolicy.actionsFor("com.example.distraction", installers),

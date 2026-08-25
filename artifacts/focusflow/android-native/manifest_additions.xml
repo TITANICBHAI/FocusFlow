@@ -121,29 +121,6 @@
     </receiver>
 
     <!--
-      BlockOverlayActivity — full-screen blocking overlay launched by
-      AppBlockerAccessibilityService when a blocked app is detected.
-
-      Key attributes:
-        excludeFromRecents    — hides from the app switcher / recent apps list
-        showWhenLocked        — renders over the lock screen (API 27+)
-        turnScreenOn          — wakes the display when launched (API 27+)
-        noHistory             — does not remain in the back stack after finish()
-        launchMode singleTask — a second launch re-uses the existing instance
-                                and calls onNewIntent() instead of creating a
-                                duplicate, preventing overlay stacking.
-    -->
-    <activity
-        android:name="...services.BlockOverlayActivity"
-        android:excludeFromRecents="true"
-        android:showWhenLocked="true"
-        android:turnScreenOn="true"
-        android:noHistory="false"
-        android:launchMode="singleTask"
-        android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
-        android:exported="false" />
-
-    <!--
       TaskAlarmActivity — full-screen alarm launched by ForegroundTaskService
       via setFullScreenIntent the moment a task hits its end time.
         showWhenLocked + turnScreenOn — wakes the device and shows over lockscreen

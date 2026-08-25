@@ -20,7 +20,7 @@ function simulateDismissal(): { state: ProcessState; actions: Action[] } {
   // asserted against the Kotlin source below; this model makes the contract
   // explicit and easy to reason about without claiming to be Android runtime
   // behavior.
-  const actions: Action[] = ['BACK', 'HOME'];
+  const actions: Action[] = ['BACK', 'BACK', 'HOME', 'BACK'];
   return { state: 'home', actions };
 }
 
@@ -38,7 +38,7 @@ describe('blocked-app system interaction contract', () => {
     expect(accessibilityService).toContain('putExtra(FocusDayBridgeModule.EXTRA_BLOCKED_PKG, blockedPackage)');
   });
 
-  it('uses BACK first, then HOME for a normal blocked app and preserves installer safety', () => {
+  it('uses BACK, BACK, HOME, BACK for a normal blocked app and preserves installer safety', () => {
     const dismissStart = accessibilityService.indexOf('private fun dismissPackage(blockedPackage: String)');
     const dismissEnd = accessibilityService.indexOf('\n    }', dismissStart);
     const dismissSource = accessibilityService.slice(dismissStart, dismissEnd);
@@ -50,12 +50,14 @@ describe('blocked-app system interaction contract', () => {
     expect(dismissSource).toContain('BlockedAppDismissalPolicy.actionsFor(blockedPackage, INSTALLER_PACKAGES)');
     expect(dismissSource).toContain('GlobalAction.BACK');
     expect(dismissSource).toContain('GlobalAction.HOME');
+    expect(policy).toContain('GlobalAction.BACK, 0L');
     expect(policy).toContain('GlobalAction.BACK, 30L');
-    expect(policy).toContain('GlobalAction.HOME, 90L');
+    expect(policy).toContain('GlobalAction.HOME, 80L');
+    expect(policy).toContain('GlobalAction.BACK, 100L');
     expect(policy).toContain('equals(blockedPackage, ignoreCase = true)');
 
     const simulated = simulateDismissal();
-    expect(simulated.actions).toEqual(['BACK', 'HOME']);
+    expect(simulated.actions).toEqual(['BACK', 'BACK', 'HOME', 'BACK']);
     expect(simulated.state).toBe('home');
   });
 
@@ -136,7 +138,7 @@ describe('blocked-app system interaction contract', () => {
     expect(inactiveTimestampReset).toBeGreaterThan(inactiveReset);
   });
 
-  it('makes the overlay Back button effective without ending enforcement', () => {
+  it('swallows fallback activity Back without ending enforcement', () => {
     const backStart = overlayActivity.indexOf('override fun onBackPressed()');
     const backEnd = overlayActivity.indexOf('\n    }', backStart);
     const backSource = overlayActivity.slice(backStart, backEnd);
@@ -144,7 +146,8 @@ describe('blocked-app system interaction contract', () => {
     const launchEnd = overlayActivity.indexOf('\n    }', launchStart);
     const launchSource = overlayActivity.slice(launchStart, launchEnd);
 
-    expect(backSource).toContain('launchFocusFlow()');
+    expect(backSource).not.toContain('launchFocusFlow()');
+    expect(backSource).toContain('Intentionally swallow Back');
     expect(launchSource).toContain('startActivity(focusFlowIntent)');
     expect(launchSource).toContain('finish()');
     expect(launchSource).toContain('putBoolean("block_cooldown_reset", true)');
