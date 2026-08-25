@@ -510,6 +510,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     private var textDebounceRunnable: Runnable? = null
     // Content-changed events fire on every layout pass — throttled per package.
     private val lastContentScanMs = mutableMapOf<String, Long>()
+    private var foregroundWatchdogRunnable: Runnable? = null
 
     // ── Timed allowance tracking (time_budget / interval modes) ──────────────
     // Tracks the app currently open under a time-limited allowance so we can
@@ -543,6 +544,103 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         // Start the VPN self-heal health check loop. The first check fires after
         // 10 s so we don't run anything during the cold-start window.
         vpnHealthHandler.postDelayed(vpnHealthRunnable, 10_000L)
+        startForegroundWatchdog()
+    }
+
+    /**
+     * Polls for the foreground package via UsageStats and enforces blocking
+     * when Android does not emit a window-state event, such as when an
+     * existing Activity returns through the recent-apps screen.
+     */
+    private fun checkForegroundNow() {
+        val now = System.currentTimeMillis()
+        val latestPkg = try {
+            val usm = getSystemService(UsageStatsManager::class.java) ?: return
+            val events = usm.queryEvents(now - 3_000L, now)
+            val event = UsageEvents.Event()
+            var foregroundPkg: String? = null
+            val foregroundEventType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                UsageEvents.Event.ACTIVITY_RESUMED
+            } else {
+                UsageEvents.Event.MOVE_TO_FOREGROUND
+            }
+
+            while (events.hasNextEvent()) {
+                events.getNextEvent(event)
+                if (event.eventType == foregroundEventType) {
+                    foregroundPkg = event.packageName
+                }
+            }
+            foregroundPkg
+        } catch (_: SecurityException) {
+            // Some OEMs deny UsageEvents foreground data despite the app having
+            // Usage Access, so leave event-driven AccessibilityService blocking
+            // as the authority and retry on the next watchdog tick.
+            return
+        } catch (_: Exception) {
+            return
+        } ?: return
+
+        val pkg = latestPkg
+        if (pkg == packageName) return
+        if (NEVER_BLOCK.any { pkg.equals(it, ignoreCase = true) }) return
+        if (BLOCKABLE_AFTER_WARNING.any { pkg.equals(it, ignoreCase = true) }) return
+
+        val focusActive = prefs.getBoolean(PREF_FOCUS_ON, false).let { on ->
+            if (!on) false
+            else prefs.getLong("task_end_ms", 0L).let { end -> end <= 0L || now < end }
+        }
+        val saActive = prefs.getBoolean(PREF_SA_ACTIVE, false).let { on ->
+            if (!on) false
+            else prefs.getLong(PREF_SA_UNTIL, 0L).let { until -> until <= 0L || now < until }
+        }
+        val alwaysBlockActive = prefs.getBoolean(PREF_ALWAYS_BLOCK, false)
+        if (!focusActive && !saActive && !alwaysBlockActive) return
+
+        val blocked = isPackageBlocked(pkg, focusActive, saActive, alwaysBlockActive)
+        if (blocked) {
+            val samePackage = pkg == lastBlockedPkg
+            val cooldownExpired = (now - lastBlockedAtMs) > 2_000L
+            if (!samePackage || cooldownExpired) {
+                lastBlockedPkg = pkg
+                lastBlockedAtMs = now
+                handleBlockedApp(
+                    pkg,
+                    explicitBlockReason(pkg, focusActive, saActive, alwaysBlockActive),
+                )
+                scheduleRetryCheck(pkg, 1, focusActive, saActive, alwaysBlockActive)
+            }
+        } else {
+            // The watchdog cannot inspect the live AccessibilityNodeInfo tree
+            // and cannot force Android to emit a content event. If the user
+            // returns to a Shorts/Reels page via recents and sits completely
+            // still, no proactive re-scan is possible under this API. Reset
+            // the throttle so the next content event gets a fresh scan.
+            val blockYoutubeShorts = prefs.getBoolean(PREF_BLOCK_YT_SHORTS, false)
+            val blockInstagramReels = prefs.getBoolean(PREF_BLOCK_IG_REELS, false)
+            if (blockYoutubeShorts && pkg == "com.google.android.youtube") {
+                lastContentScanMs.remove(pkg)
+            }
+            if (blockInstagramReels && pkg == "com.instagram.android") {
+                lastContentScanMs.remove(pkg)
+            }
+        }
+    }
+
+    private fun startForegroundWatchdog() {
+        foregroundWatchdogRunnable?.let { handler.removeCallbacks(it) }
+        val runnable = object : Runnable {
+            override fun run() {
+                try {
+                    checkForegroundNow()
+                } catch (_: Exception) {
+                    // UsageStats may be unavailable while the service is reconnecting.
+                }
+                handler.postDelayed(this, 1_500L)
+            }
+        }
+        foregroundWatchdogRunnable = runnable
+        handler.postDelayed(runnable, 1_500L)
     }
 
     private fun registerScreenStateReceiver() {
@@ -768,6 +866,10 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         // that even if a user somehow adds one of these packages to a block
         // list, the block is silently ignored.
         if (NEVER_BLOCK.any { pkg.equals(it, ignoreCase = true) }) {
+            // Visiting a safe/home package means the user has left the blocked
+            // app, so the next open must not inherit its de-duplication window.
+            lastBlockedPkg = null
+            lastBlockedAtMs = 0L
             return
         }
 
@@ -1247,6 +1349,8 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         currentTimedSessionEndMs = 0L
         unregisterScreenStateReceiver()
         lastBlockedPkg = null
+        foregroundWatchdogRunnable?.let { handler.removeCallbacks(it) }
+        foregroundWatchdogRunnable = null
         dismissWindowOverlay()
         vpnHealthHandler.removeCallbacks(vpnHealthRunnable)
     }
