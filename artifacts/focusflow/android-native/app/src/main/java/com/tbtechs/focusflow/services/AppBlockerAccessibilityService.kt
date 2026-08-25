@@ -613,7 +613,24 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             else prefs.getLong(PREF_SA_UNTIL, 0L).let { until -> until <= 0L || now < until }
         }
         val alwaysBlockActive = prefs.getBoolean(PREF_ALWAYS_BLOCK, false)
-        if (!focusActive && !saActive && !alwaysBlockActive) return
+        if (isInGreyoutWindow(pkg)) {
+            val samePackage = pkg == lastBlockedPkg
+            val cooldownExpired = (now - lastBlockedAtMs) > 2_000L
+            if (!samePackage || cooldownExpired) {
+                lastBlockedPkg = pkg
+                lastBlockedAtMs = now
+                handleBlockedApp(pkg, "Blocked by your active block schedule")
+                scheduleGreyoutRetryCheck(pkg, 1)
+            }
+            return
+        }
+
+        if (!focusActive && !saActive && !alwaysBlockActive) {
+            // Do not carry a previous block's cooldown into a later session.
+            lastBlockedPkg = null
+            lastBlockedAtMs = 0L
+            return
+        }
 
         val blocked = isPackageBlocked(pkg, focusActive, saActive, alwaysBlockActive)
         if (blocked) {
@@ -628,20 +645,39 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                 )
                 scheduleRetryCheck(pkg, 1, focusActive, saActive, alwaysBlockActive)
             }
+            return
+        }
+
+        // The normal accessibility path checks allowance exhaustion after the
+        // explicit block decision. Keep the watchdog aligned so a missed window
+        // event cannot bypass a persisted count/time/interval allowance limit.
+        val allowanceEntry = findAllowanceEntry(pkg)
+        if (allowanceEntry != null && !isAllowanceAvailable(pkg, allowanceEntry)) {
+            val samePackage = pkg == lastBlockedPkg
+            val cooldownExpired = (now - lastBlockedAtMs) > 2_000L
+            if (!samePackage || cooldownExpired) {
+                lastBlockedPkg = pkg
+                lastBlockedAtMs = now
+                handleBlockedApp(pkg, allowanceExhaustedReason(pkg, allowanceEntry))
+                scheduleRetryCheck(pkg, 1, focusActive, saActive, alwaysBlockActive)
+            }
         } else {
-            // The watchdog cannot inspect the live AccessibilityNodeInfo tree
-            // and cannot force Android to emit a content event. If the user
-            // returns to a Shorts/Reels page via recents and sits completely
-            // still, no proactive re-scan is possible under this API. Reset
-            // the throttle so the next content event gets a fresh scan.
-            val blockYoutubeShorts = prefs.getBoolean(PREF_BLOCK_YT_SHORTS, false)
-            val blockInstagramReels = prefs.getBoolean(PREF_BLOCK_IG_REELS, false)
-            if (blockYoutubeShorts && pkg == "com.google.android.youtube") {
-                lastContentScanMs.remove(pkg)
-            }
-            if (blockInstagramReels && pkg == "com.instagram.android") {
-                lastContentScanMs.remove(pkg)
-            }
+            lastBlockedPkg = null
+            lastBlockedAtMs = 0L
+        }
+
+        // The watchdog cannot inspect the live AccessibilityNodeInfo tree
+        // and cannot force Android to emit a content event. If the user
+        // returns to a Shorts/Reels page via recents and sits completely
+        // still, no proactive re-scan is possible under this API. Reset
+        // the throttle so the next content event gets a fresh scan.
+        val blockYoutubeShorts = prefs.getBoolean(PREF_BLOCK_YT_SHORTS, false)
+        val blockInstagramReels = prefs.getBoolean(PREF_BLOCK_IG_REELS, false)
+        if (blockYoutubeShorts && pkg == "com.google.android.youtube") {
+            lastContentScanMs.remove(pkg)
+        }
+        if (blockInstagramReels && pkg == "com.instagram.android") {
+            lastContentScanMs.remove(pkg)
         }
     }
 

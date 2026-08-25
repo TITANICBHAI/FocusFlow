@@ -104,6 +104,36 @@ describe('blocked-app system interaction contract', () => {
     );
     expect(neverBlockReset).toBeGreaterThan(neverBlockBranch);
     expect(neverBlockTimestampReset).toBeGreaterThan(neverBlockReset);
+
+    const greyoutCheck = watchdogSource.indexOf('if (isInGreyoutWindow(pkg))');
+    const inactiveGate = watchdogSource.indexOf(
+      'if (!focusActive && !saActive && !alwaysBlockActive)',
+    );
+    const explicitCheck = watchdogSource.indexOf(
+      'val blocked = isPackageBlocked(pkg, focusActive, saActive, alwaysBlockActive)',
+    );
+    const allowanceCheck = watchdogSource.indexOf(
+      'val allowanceEntry = findAllowanceEntry(pkg)',
+    );
+    expect(greyoutCheck).toBeGreaterThanOrEqual(0);
+    expect(greyoutCheck).toBeLessThan(inactiveGate);
+    expect(inactiveGate).toBeLessThan(explicitCheck);
+    expect(explicitCheck).toBeLessThan(allowanceCheck);
+    expect(watchdogSource).toContain('handleBlockedApp(pkg, "Blocked by your active block schedule")');
+    expect(watchdogSource).toContain(
+      'handleBlockedApp(pkg, allowanceExhaustedReason(pkg, allowanceEntry))',
+    );
+
+    const inactiveReset = watchdogSource.indexOf(
+      'lastBlockedPkg = null',
+      inactiveGate,
+    );
+    const inactiveTimestampReset = watchdogSource.indexOf(
+      'lastBlockedAtMs = 0L',
+      inactiveGate,
+    );
+    expect(inactiveReset).toBeGreaterThan(inactiveGate);
+    expect(inactiveTimestampReset).toBeGreaterThan(inactiveReset);
   });
 
   it('makes the overlay Back button effective without ending enforcement', () => {
