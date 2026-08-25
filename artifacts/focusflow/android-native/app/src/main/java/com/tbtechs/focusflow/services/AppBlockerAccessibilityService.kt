@@ -2565,6 +2565,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                 val remainingMs = (entry.intervalMs - prevUsedMs).coerceAtLeast(0L)
                 sessionEndMs = now + remainingMs
                 pkgUsed.put("mode", "interval")
+                pkgUsed.put("date", todayDateString())
                 pkgUsed.put("windowStartMs", effectiveWindowStart)
                 pkgUsed.put("usedMs", prevUsedMs) // updated when session ends
             }
