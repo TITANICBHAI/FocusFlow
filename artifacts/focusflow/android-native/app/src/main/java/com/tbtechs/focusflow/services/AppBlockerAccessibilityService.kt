@@ -585,13 +585,23 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         } ?: return
 
         val pkg = latestPkg
+        // Keep retry guards in sync even when UsageStats is the only foreground
+        // signal available (for example, returning to an existing Activity from
+        // the recent-apps screen).
+        lastSeenPkg = pkg
         if (pkg == packageName) return
         if (isHomePackage(pkg)) {
             lastBlockedPkg = null
             lastBlockedAtMs = 0L
             return
         }
-        if (NEVER_BLOCK.any { pkg.equals(it, ignoreCase = true) }) return
+        if (NEVER_BLOCK.any { pkg.equals(it, ignoreCase = true) }) {
+            // Match the normal accessibility-event path: entering a safe package
+            // means the previous blocked package's cooldown must not carry over.
+            lastBlockedPkg = null
+            lastBlockedAtMs = 0L
+            return
+        }
         if (BLOCKABLE_AFTER_WARNING.any { pkg.equals(it, ignoreCase = true) }) return
 
         val focusActive = prefs.getBoolean(PREF_FOCUS_ON, false).let { on ->

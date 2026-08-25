@@ -76,6 +76,36 @@ describe('blocked-app system interaction contract', () => {
     expect(policy).toContain('return isBlocked || allowanceExhausted');
   });
 
+  it('keeps watchdog foreground and cooldown state aligned with accessibility events', () => {
+    const watchdogStart = accessibilityService.indexOf('private fun checkForegroundNow()');
+    const watchdogEnd = accessibilityService.indexOf(
+      '\n    private fun startForegroundWatchdog()',
+      watchdogStart,
+    );
+    const watchdogSource = accessibilityService.slice(watchdogStart, watchdogEnd);
+
+    const packageAssignment = watchdogSource.indexOf('lastSeenPkg = pkg');
+    expect(packageAssignment).toBeGreaterThanOrEqual(0);
+    expect(packageAssignment).toBeLessThan(
+      watchdogSource.indexOf('if (pkg == packageName) return'),
+    );
+
+    const neverBlockBranch = watchdogSource.indexOf(
+      'if (NEVER_BLOCK.any { pkg.equals(it, ignoreCase = true) }) {',
+    );
+    expect(neverBlockBranch).toBeGreaterThanOrEqual(0);
+    const neverBlockReset = watchdogSource.indexOf(
+      'lastBlockedPkg = null',
+      neverBlockBranch,
+    );
+    const neverBlockTimestampReset = watchdogSource.indexOf(
+      'lastBlockedAtMs = 0L',
+      neverBlockBranch,
+    );
+    expect(neverBlockReset).toBeGreaterThan(neverBlockBranch);
+    expect(neverBlockTimestampReset).toBeGreaterThan(neverBlockReset);
+  });
+
   it('makes the overlay Back button effective without ending enforcement', () => {
     const backStart = overlayActivity.indexOf('override fun onBackPressed()');
     const backEnd = overlayActivity.indexOf('\n    }', backStart);
