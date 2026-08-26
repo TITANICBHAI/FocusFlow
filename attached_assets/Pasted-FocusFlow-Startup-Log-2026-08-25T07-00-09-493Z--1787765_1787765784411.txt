@@ -1,0 +1,51 @@
+FocusFlow Startup Log — 2026-08-25T07:00:09.493Z
+────────────────────────────────────────────────────────────
+2026-08-25T06:48:08.328Z [INFO] [RootLayout] bootstrap() start
+2026-08-25T06:48:08.433Z [INFO] [startupLogger] [COLD_START boot-mt8azoq9] First session since install or last log clear
+2026-08-25T06:48:08.439Z [INFO] [AppContext] [STARTUP_BEGIN] init() called
+2026-08-25T06:48:08.494Z [INFO] [AppContext] Setting up notification channels
+2026-08-25T06:48:08.872Z [INFO] [AppContext] Notification channels ready
+2026-08-25T06:48:08.872Z [INFO] [AppContext] Requesting notification permissions
+2026-08-25T06:48:08.892Z [INFO] [AppContext] Notification permission: granted
+2026-08-25T06:48:08.901Z [INFO] [AppContext] Exact alarm permission: granted
+2026-08-25T06:48:08.901Z [INFO] [AppContext] Starting idle foreground service
+2026-08-25T06:48:08.985Z [DEBUG] [database] getDb: opening (in-flight: 1, API: 31)
+2026-08-25T06:48:08.969Z [INFO] [AppContext] Idle foreground service started
+2026-08-25T06:48:08.969Z [INFO] [AppContext] Loading settings from DB (timeout=8000ms)
+2026-08-25T06:48:09.074Z [INFO] [RootLayout] bootstrap() setup complete
+2026-08-25T06:48:09.085Z [INFO] [RootLayout] Battery optimization exemption requested
+2026-08-25T06:48:09.085Z [INFO] [RootLayout] bootstrap() done
+2026-08-25T06:48:09.233Z [DEBUG] [database] getDb: primary opened OK in 248ms
+2026-08-25T06:48:09.249Z [INFO] [AppContext] Settings loaded from DB
+2026-08-25T06:48:09.265Z [INFO] [database] [DB_DIAG] API=31 Android=12 samsung SM-M315F SQLite=3.50.3
+2026-08-25T06:48:09.324Z [INFO] [AppContext] Dispatching SET_SETTINGS + SET_DB_READY
+2026-08-25T06:48:09.453Z [INFO] [AppContext] Syncing standalone block
+2026-08-25T06:48:09.519Z [INFO] [AppContext] Standalone block synced
+2026-08-25T06:48:09.519Z [INFO] [AppContext] Syncing daily allowance
+2026-08-25T06:48:09.711Z [INFO] [AppContext] Daily allowance synced
+2026-08-25T06:48:09.711Z [INFO] [AppContext] Syncing always-on block
+2026-08-25T06:48:09.846Z [INFO] [AppContext] Always-on block synced
+2026-08-25T06:48:09.846Z [INFO] [AppContext] Syncing blocked words
+2026-08-25T06:48:09.892Z [INFO] [AppContext] Blocked words synced
+2026-08-25T06:48:09.892Z [INFO] [AppContext] Syncing aversions
+2026-08-25T06:48:09.908Z [INFO] [AppContext] Aversions synced
+2026-08-25T06:48:09.908Z [INFO] [AppContext] Syncing greyout schedule + recurring block schedules
+2026-08-25T06:48:09.915Z [INFO] [AppContext] Greyout schedule synced
+2026-08-25T06:48:09.915Z [INFO] [AppContext] Syncing system guard
+2026-08-25T06:48:10.020Z [INFO] [AppContext] System guard synced
+2026-08-25T06:48:10.020Z [INFO] [AppContext] Refreshing tasks
+2026-08-25T06:48:10.124Z [INFO] [AppContext] Tasks refreshed
+2026-08-25T06:48:10.125Z [INFO] [AppContext] Checking for overdue tasks
+2026-08-25T06:48:10.165Z [INFO] [AppContext] Checking for active focus session
+2026-08-25T06:48:10.186Z [INFO] [AppContext] [STARTUP_COMPLETE] init() finished successfully
+2026-08-25T06:48:10.212Z [INFO] [AppContext] SET_LOADING: false dispatched
+2026-08-25T06:48:16.593Z [INFO] [AppContext] WAL checkpoint triggered on app background
+2026-08-25T06:48:23.973Z [DEBUG] [AppContext] [FOREGROUND_RESUME] DB handle healthy — refreshing without reset
+2026-08-25T06:50:06.754Z [INFO] [AppContext] WAL checkpoint triggered on app background
+2026-08-25T06:50:24.479Z [DEBUG] [AppContext] [FOREGROUND_RESUME] DB handle healthy — refreshing without reset
+2026-08-25T06:51:30.508Z [INFO] [AppContext] WAL checkpoint triggered on app background
+2026-08-25T06:52:13.131Z [DEBUG] [AppContext] [FOREGROUND_RESUME] DB handle healthy — refreshing without reset
+2026-08-25T06:52:21.508Z [INFO] [AppContext] WAL checkpoint triggered on app background
+2026-08-25T06:52:23.987Z [INFO] [RootLayout] bootstrap() start
+2026-08-25T06:52:24.045Z [INFO] [startupLogger] [WARM_RESUME boot-mt8azoq9] AppContext re-initialised within the same process
+2026-08-25T06:52:24.049Z [INFO] [AppContext] [ST
