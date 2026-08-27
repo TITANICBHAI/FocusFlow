@@ -4,6 +4,37 @@
 **Scope:** Android FocusFlow app (`artifacts/focusflow`)  
 **Last reviewed:** 2026-08-27
 
+## Implementation tracker
+
+**Legend:** ✅ complete or confirmed in the current codebase · ❌ open, not
+implemented, or awaiting a product decision.
+
+### Current baseline
+
+- ✅ Explicit per-app VPN targets already block foreground and background traffic.
+- ✅ Focus foreground enforcement remains separate from VPN network enforcement.
+- ✅ The supporting code review is stored beside this primary plan.
+- ❌ Opt-in focus-to-VPN mirroring is not implemented.
+- ❌ Native ownership and process-death recovery are not implemented.
+
+### Delivery phases
+
+- ❌ **Phase 0 — Confirm product scope:** resolve the open decisions in Section 13.
+- ❌ **Phase 1 — Native policy contract:** define the durable versioned desired state.
+- ❌ **Phase 2 — Native coordinator and VPN lifecycle:** centralize target calculation and serialized reconfiguration.
+- ❌ **Phase 3 — Recovery:** cover process death, boot, unlock, package changes, permission loss, and VPN conflicts.
+- ❌ **Phase 4 — React Native and UI:** add the opt-in setting, persistence, status, and explanatory states.
+- ❌ **Phase 5 — Verification:** complete contract, Kotlin, device, lifecycle, and network evidence.
+
+### Known implementation gaps
+
+- ❌ Boot watchdog rearm for an always-on-only VPN configuration.
+- ❌ Consolidation of competing writes to `net_block_packages`.
+- ❌ Package-install updates to the effective VPN target set.
+- ❌ Versioned native desired-state record with generation and reason metadata.
+- ❌ Native policy coordinator for explicit, standalone, scheduled, and optional focus-derived targets.
+- ❌ Recurring schedule VPN enforcement, if included in the approved scope.
+
 ## 1. Executive summary
 
 FocusFlow already uses an Android `VpnService` as a per-app null-routing VPN. A
