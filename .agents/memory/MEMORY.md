@@ -14,4 +14,5 @@
 - [FocusFlow test planning](focusflow-test-planning.md) — keep test layers and durable native sources inside the FocusFlow artifact; validate local, CI, device, then relevant CodeQL evidence.
 - [FocusFlow test-plan review](test-plan-review.md) — test fallback preconditions and cross-service timing, not only mocked blocked outcomes.
 - [FocusFlow additional recommendations](additional-recommendations.md) — optional backlog is status-tracked in the FocusFlow artifact; distinguish existing behavior from new ideas.
-- [FocusFlow persistence reliability](focusflow-persistence-plan.md) — staged native Room migration fixes false-empty startup failures while preserving bounded today-only task reads.
+- [FocusFlow persistence migration](focusflow-persistence-plan.md) — immediate order is startup safety, SQLite stabilization, settings normalization, atomic native snapshots, then gated Room migration.
+- [VPN enforcement independence](vpn-enforcement-independence.md) — per-app VPN blocks all traffic for target UIDs; focus-derived background blocking must be an opt-in native policy.

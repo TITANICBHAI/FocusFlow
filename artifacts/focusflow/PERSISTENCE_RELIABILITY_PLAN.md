@@ -9,6 +9,7 @@
 - **UI strategy:** keep the existing Expo/React Native UI during the first migration; do not combine this work with a full Compose UI rewrite
 - **Database direction:** move canonical Android data ownership from the JavaScript Expo SQLite layer to a native Room-backed repository, in stages
 - **Current implementation status:** planning only; no migration implementation is authorized by this document
+- **Role:** supporting long-term Room/repository reference; use `PERSISTENCE_MIGRATION_PLAN.md` as the immediate execution guide through Phase 4
 
 This document is authoritative for the FocusFlow persistence migration. `FINAL_PLAN.md` remains authoritative for the already-scoped UsageStats, fallback-enforcement, screen-off allowance, and overnight-greyout work. `KOTLIN_MIGRATION.md` describes a possible complete React Native-to-Compose rewrite, but that full UI rewrite is explicitly outside the first persistence migration.
 
