@@ -13,3 +13,4 @@
 - [VPN validation boundary](vpn-validation-boundary.md) — source contracts can run here, but real Kotlin/Gradle/device verification requires a generated Android project and toolchain.
 - [Receiver recovery dispatch](vpn-receiver-recovery-dispatch.md) — boot and watchdog VPN recovery must dispatch before a BroadcastReceiver returns, not only through a delayed handler.
 - [Android backup privacy](android-backup-privacy.md) — keep Android automatic backup disabled; user data moves only through explicit FocusFlow export/import.
+- [Accessibility restricted recovery](accessibility-restricted-recovery.md) — keep the retry UI after restricted settings unlock until Accessibility is actually granted.
