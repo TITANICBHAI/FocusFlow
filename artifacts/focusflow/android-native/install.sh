@@ -146,6 +146,24 @@ else
   echo "   ✓ xmlns:tools already present"
 fi
 
+# ── Android automatic backup — intentionally disabled ─────────────────────────
+# FocusFlow uses an explicit, user-controlled .focusflow export/import flow.
+# Never set android:allowBackup to true: it can copy private app state to
+# cloud/device backups outside the user's explicit export.
+if grep -q 'android:allowBackup="true"' "$MANIFEST"; then
+  sedi 's|android:allowBackup="true"|android:allowBackup="false"|g' "$MANIFEST"
+  echo "   ✓ android:allowBackup changed to false"
+elif ! grep -q 'android:allowBackup=' "$MANIFEST"; then
+  if grep -q '<application ' "$MANIFEST"; then
+    sedi 's|<application |<application android:allowBackup="false" |' "$MANIFEST"
+  else
+    sedi 's|<application>|<application android:allowBackup="false">|' "$MANIFEST"
+  fi
+  echo "   ✓ android:allowBackup=false added"
+else
+  echo "   ✓ android:allowBackup already false"
+fi
+
 # ── Permissions ──────────────────────────────────────────────────────────────
 
 patch_permission() {
