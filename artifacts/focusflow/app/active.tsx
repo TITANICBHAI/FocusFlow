@@ -59,6 +59,12 @@ function ActiveScreen() {
   const [clock, setClock] = useState(() => Date.now());
   const pendingDefAction = useRef<(() => void) | null>(null);
   const livePulse = useRef(new Animated.Value(1)).current;
+  const tasksRef = useRef(state.tasks);
+  const refreshInFlight = useRef(false);
+
+  useEffect(() => {
+    tasksRef.current = state.tasks;
+  }, [state.tasks]);
 
   const focusActive = state.focusSession?.isActive === true;
   const focusTask = state.focusSession
@@ -111,18 +117,25 @@ function ActiveScreen() {
     useCallback(() => {
       let mounted = true;
       const refresh = (force = false) => {
-        void refreshLiveData(force);
+        if (!state.isDbReady || state.isDbUnrecoverable) return;
+        if (refreshInFlight.current) return;
+        refreshInFlight.current = true;
         void (async () => {
           try {
-            const [rows, focusMinutes, blocked] = await Promise.all([
-              dbGetRecentDayCompletions(1),
-              dbGetTodayFocusMinutes(),
-              dbGetTodayOverrideCount(),
+            const [, [rows, focusMinutes, blocked]] = await Promise.all([
+              refreshLiveData(force),
+              Promise.all([
+                dbGetRecentDayCompletions(1),
+                dbGetTodayFocusMinutes(),
+                dbGetTodayOverrideCount(),
+              ]),
             ]);
             if (!mounted) return;
             const todayKey = dayjs().format('YYYY-MM-DD');
             const today = rows.find((row) => row.date === todayKey);
-            const total = state.tasks.filter((task) => dayjs(task.startTime).format('YYYY-MM-DD') === todayKey).length;
+            const total = tasksRef.current.filter(
+              (task) => dayjs(task.startTime).format('YYYY-MM-DD') === todayKey,
+            ).length;
             setTodayStats({
               completed: today?.completed ?? 0,
               total: today?.total ?? total,
@@ -131,6 +144,8 @@ function ActiveScreen() {
             });
           } catch {
             if (mounted) setTodayStats({ completed: 0, total: 0, focusMinutes: 0, blocked: 0 });
+          } finally {
+            refreshInFlight.current = false;
           }
         })();
       };
@@ -140,7 +155,7 @@ function ActiveScreen() {
         mounted = false;
         clearInterval(timer);
       };
-    }, [refreshLiveData, state.tasks]),
+    }, [refreshLiveData, state.isDbReady, state.isDbUnrecoverable]),
   );
 
   // Defer the heavy getInstalledApps() call until after the navigation
@@ -211,6 +226,20 @@ function ActiveScreen() {
   const alwaysOnActive = (settings.alwaysOnEnforcementEnabled ?? false) && alwaysOnPackages.length > 0;
   const vpnConfigured = vpnPackages.length > 0 || settings.vpnBlockEnabled === true;
   const vpnRunning = vpnStatus?.running === true;
+  const vpnRecoveryPending = vpnStatus?.state === 'running' && !vpnStatus.running;
+  const vpnNeedsAttention =
+    vpnStatus === null ||
+    vpnRecoveryPending ||
+    vpnStatus.failedPackages.length > 0 ||
+    ['permission_missing', 'another_vpn_active', 'package_registration_failed', 'startup_failed'].includes(
+      vpnStatus.state,
+    );
+  const vpnStatusLabel = vpnRecoveryPending
+    ? 'Recovery pending'
+    : formatVpnStatus(vpnStatus?.state, vpnConfigured);
+  const vpnStatusDetail = vpnStatus?.error
+    ? `${vpnStatusLabel} · ${vpnStatus.error}`
+    : vpnStatusLabel;
   const nothingActive = !focusActive && !standaloneActive && !alwaysOnActive && allowanceEntries.length === 0 &&
     keywords.length === 0 && !vpnRunning;
 
@@ -322,9 +351,34 @@ function ActiveScreen() {
           </TouchableOpacity>
         </StatusCard>
 
-        <StatusCard icon="shield-checkmark-outline" color={vpnRunning ? COLORS.green : theme.muted} title="VPN Blocking" status={vpnRunning ? 'Active' : 'Not active'} theme={theme} expandable={vpnPackages.length > 0} expanded={expanded === 'vpn'} onToggle={() => setExpanded(expanded === 'vpn' ? null : 'vpn')}>
-          <DetailRow label="Status" value={vpnRunning ? (vpnStatus?.error ? `Running · ${vpnStatus.error}` : vpnStatus.failedPackages.length > 0 ? `Running · ${vpnStatus.failedPackages.length} app${vpnStatus.failedPackages.length === 1 ? '' : 's'} failed` : 'Running normally') : vpnConfigured ? (vpnStatus?.state === 'permission_missing' ? 'Permission required' : 'Configured but stopped') : 'No VPN apps configured'} theme={theme} />
+        <StatusCard icon="shield-checkmark-outline" color={vpnRunning && !vpnNeedsAttention ? COLORS.green : vpnNeedsAttention ? COLORS.red : theme.muted} title="VPN Blocking" status={vpnRunning && !vpnNeedsAttention ? 'Active' : vpnStatusLabel} theme={theme} expandable={vpnPackages.length > 0} expanded={expanded === 'vpn'} onToggle={() => setExpanded(expanded === 'vpn' ? null : 'vpn')}>
+          <DetailRow label="Status" value={vpnStatusDetail} theme={theme} />
           {vpnPackages.length > 0 && <DetailRow label="Apps" value={`${vpnPackages.length} app${vpnPackages.length === 1 ? '' : 's'} selected`} theme={theme} />}
+          {vpnStatus?.failedPackages.length ? (
+            <DetailRow
+              label="Unavailable"
+              value={`${vpnStatus.failedPackages.length} selected app${vpnStatus.failedPackages.length === 1 ? '' : 's'} could not be registered`}
+              theme={theme}
+            />
+          ) : null}
+          {settings.vpnBlockEnabled && (
+            <DetailRow
+              label="Self-healing"
+              value={settings.vpnSelfHealEnabled ? 'Enabled' : 'Disabled — manual recovery only'}
+              theme={theme}
+            />
+          )}
+          {vpnStatus && (vpnStatus.policyGeneration ?? 0) > 0 && (
+            <DetailRow
+              label="Policy sync"
+              value={
+                vpnStatus.appliedPolicyGeneration === vpnStatus.policyGeneration
+                  ? `Generation ${vpnStatus.policyGeneration} applied`
+                  : `Desired ${vpnStatus.policyGeneration} · applied ${vpnStatus.appliedPolicyGeneration ?? 0}`
+              }
+              theme={theme}
+            />
+          )}
           {expanded === 'vpn' && <PackageList packages={vpnPackages} appNames={appNames} theme={theme} />}
           <TouchableOpacity style={[styles.action, { borderColor: theme.border }]} onPress={() => router.push('/vpn-block-list')}>
             <Ionicons name="settings-outline" size={16} color={COLORS.primary} />
@@ -556,6 +610,29 @@ function shortPackageName(pkg: string): string {
   const parts = pkg.split('.');
   const last = parts[parts.length - 1] === 'android' ? parts[parts.length - 2] : parts[parts.length - 1];
   return last ? last.charAt(0).toUpperCase() + last.slice(1) : pkg;
+}
+
+function formatVpnStatus(state: string | undefined, configured: boolean): string {
+  switch (state) {
+    case 'starting':
+      return 'Starting';
+    case 'running':
+      return 'Running normally';
+    case 'permission_missing':
+      return 'Permission required';
+    case 'another_vpn_active':
+      return 'Another VPN is active';
+    case 'package_registration_failed':
+      return 'Some apps could not be registered';
+    case 'startup_failed':
+      return 'Startup failed';
+    case 'disabled':
+      return 'Disabled';
+    case 'stopped':
+      return configured ? 'Configured but stopped' : 'No VPN apps configured';
+    default:
+      return configured ? 'VPN status unavailable' : 'No VPN apps configured';
+  }
 }
 
 function unique(values: string[]): string[] {

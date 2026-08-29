@@ -6,33 +6,95 @@
 
 ## Implementation tracker
 
-**Legend:** ✅ complete or confirmed in the current codebase · ❌ open, not
-implemented, or awaiting a product decision.
+**Legend:** ✅ complete or confirmed in the current codebase · 🚧 in progress ·
+❌ open, not implemented, or awaiting a product decision.
 
 ### Current baseline
 
 - ✅ Explicit per-app VPN targets already block foreground and background traffic.
 - ✅ Focus foreground enforcement remains separate from VPN network enforcement.
 - ✅ The supporting code review is stored beside this primary plan.
-- ❌ Opt-in focus-to-VPN mirroring is not implemented.
-- ❌ Native ownership and process-death recovery are not implemented.
+- ✅ Opt-in focus-to-VPN mirroring setting and basic native target derivation are implemented.
+- ✅ Settings synchronization preserves the active task's native focus allow-list
+  while VPN mirroring settings change.
+- ✅ Native focus-mirror recovery ignores expired focus sessions, and disabling
+  self-healing cancels its existing watchdog alarm immediately.
+- ✅ Native startup and watchdog recovery distinguish another active VPN from
+  missing FocusFlow consent without treating the conflict as a permission loss.
+- ✅ Active diagnostics identify process-death recovery pending state and show
+  desired versus applied policy generations.
+- ✅ Recovery dispatch from boot, unlock, watchdog, and service recreation is
+  immediate; receiver paths do not depend on a delayed callback after delivery.
+- ✅ A competing VPN cancels the watchdog until a deliberate retry, and native
+  service-start rejection is persisted as a visible startup failure.
+- ✅ Ordinary standalone overlay packages remain separate from the timed
+  standalone VPN package source.
+- ✅ Unchanged healthy VPN service state skips native reconfiguration while
+  desired policy metadata continues to persist.
+- 🚧 Native policy calculation and dispatch now have a dedicated coordinator;
+  full lifecycle ownership and process-death recovery are not implemented.
 
 ### Delivery phases
 
 - ❌ **Phase 0 — Confirm product scope:** resolve the open decisions in Section 13.
-- ❌ **Phase 1 — Native policy contract:** define the durable versioned desired state.
-- ❌ **Phase 2 — Native coordinator and VPN lifecycle:** centralize target calculation and serialized reconfiguration.
-- ❌ **Phase 3 — Recovery:** cover process death, boot, unlock, package changes, permission loss, and VPN conflicts.
-- ❌ **Phase 4 — React Native and UI:** add the opt-in setting, persistence, status, and explanatory states.
+- ✅ **Phase 1 — Native policy contract:** versioned desired state, source reasons,
+  validation failures, and stale-generation behavior are implemented for
+  explicit, timed standalone VPN, and opt-in focus-mirror sources. Schedule and
+  allowance mirroring remain deferred decisions.
+- 🚧 **Phase 2 — Native coordinator and VPN lifecycle:** target calculation,
+  durable policy persistence, debounced serialized reconfiguration, and native
+  recovery dispatch are centralized; full lifecycle ownership remains open.
+- 🚧 **Phase 3 — Recovery:** boot, package changes, permission-loss signaling,
+  conflict classification, and coordinator-based recovery dispatch are
+  implemented; full process-death, unlock, and device verification remain open.
+- 🚧 **Phase 4 — React Native and UI:** the opt-in setting, default, persistence,
+  bridge, and basic status are implemented; complete explanatory and diagnostic
+  states remain open.
 - ❌ **Phase 5 — Verification:** complete contract, Kotlin, device, lifecycle, and network evidence.
 
 ### Known implementation gaps
 
-- ❌ Boot watchdog rearm for an always-on-only VPN configuration.
-- ❌ Consolidation of competing writes to `net_block_packages`.
-- ❌ Package-install updates to the effective VPN target set.
-- ❌ Versioned native desired-state record with generation and reason metadata.
-- ❌ Native policy coordinator for explicit, standalone, scheduled, and optional focus-derived targets.
+- ✅ Boot watchdog rearm for an always-on-only VPN configuration.
+- ✅ Consolidation of competing writes to `net_block_packages`.
+- ✅ Package-install updates to the effective VPN target set.
+- ✅ Versioned native desired-state record with generation and reason metadata.
+- ✅ Installed-package validation and unavailable-package failure metadata.
+- ✅ Package inputs are trimmed and safety exclusions are compared
+  case-insensitively before VPN registration.
+- ✅ Durable manifest installation wires user-unlock and app-replacement
+  broadcasts to the native recovery receiver.
+- ✅ The native installer adds those broadcasts both on first install and when
+  rerun against an existing manifest.
+- ✅ Recovery restart inputs recalculate from persisted policy sources instead of
+  trusting the previous `net_block_packages` snapshot.
+- ✅ Older queued VPN start/stop commands are rejected by policy generation.
+- ✅ VPN recovery gates no longer use ordinary always-on overlay state as a
+  substitute for VPN policy.
+- ✅ Native bridge, service recreation, watchdog, revoke, Accessibility health,
+  foreground health, and focus teardown paths delegate VPN dispatch to the
+  coordinator.
+- ✅ Removed two native Kotlin integration errors that prevented the VPN bridge
+  and Accessibility health path from compiling.
+- ✅ Recovery gates honor persisted focus expiry timestamps and remove stale
+  watchdog alarms when self-healing is disabled.
+- ✅ Unexpected VPN service destruction preserves self-healing recovery when
+  durable VPN policy still requires protection, while intentional stops remain
+  canceled.
+- ✅ Native recovery classifies another active VPN separately from missing
+  consent and avoids posting a misleading permission-loss state for conflicts.
+- ✅ Receiver-driven recovery dispatches immediately, boot/unlock requests native
+  reconciliation, and conflict polling stops until an explicit retry.
+- ✅ Enabling VPN self-healing immediately reconciles an existing durable policy
+  instead of waiting for a future watchdog tick.
+- ✅ Active VPN diagnostics expose recovery-pending state and desired/applied
+  policy generations.
+- ✅ Native coordinator covers explicit, timed standalone VPN, and optional
+  focus-derived targets without routing ordinary standalone overlay packages;
+  full lifecycle ownership and schedule sources remain open.
+- ✅ Expo prebuild and the durable native installer register package add,
+  removal, and fully-removed broadcasts for VPN policy recalculation.
+- 🚧 Full package-removal behavior remains unverified until a generated Android
+  build is exercised.
 - ❌ Recurring schedule VPN enforcement, if included in the approved scope.
 
 ## 1. Executive summary
@@ -105,6 +167,20 @@ The VPN service also reads focus, standalone, and always-on state when it is
 restarted. A watchdog alarm can restart the service when self-healing is
 enabled.
 
+The explicit always-on VPN package list is an independent network-enforcement
+source. It must remain effective without an active focus session, standalone
+block, or ordinary always-on overlay policy. The recovery gates now use the
+explicit/standalone VPN policy rather than the ordinary overlay flag, while the
+remaining coordinator work must keep the separate preference sources aligned.
+
+The current native layer keeps the explicit package list separate from the
+effective list and persists a versioned desired-policy snapshot with a
+generation, timestamp, target packages, and per-package source reasons.
+`VpnPolicyCoordinator` now owns this calculation, persistence, serialized
+dispatch, and short native debounce for the supported sources. Recovery commands
+carry the generation, and the VPN service rejects older queued start or stop
+commands. Full lifecycle ownership remains open.
+
 ### 2.3 Existing React Native sources of VPN packages
 
 The current React layer primarily merges:
@@ -133,9 +209,12 @@ visible package is blocked by:
 - recurring greyout rules.
 
 When a package is blocked, it can start the VPN, show the overlay, dismiss the
-blocked app, and apply deterrents. However, the current Accessibility-triggered
-path does not generally rebuild the VPN target set to include every package
-that is disallowed by the active focus policy.
+blocked app, and apply deterrents. Focus, allow-list, standalone, and package
+installation state changes now notify native policy recalculation. When focus
+mirroring is enabled, that recalculation derives the VPN targets from the
+persisted focus allow-list. The Accessibility-triggered path still does not own
+the complete policy coordinator, so lifecycle and source synchronization remain
+open work.
 
 ### 2.5 Current behavior matrix
 
@@ -203,6 +282,11 @@ Network access            = explicit + effective VPN policy
 
 An explicit VPN selection takes priority for network access even if the package
 is allowed by the current focus session.
+
+Explicit VPN protection is persistent and independent from the ordinary
+always-on overlay policy. Disabling or ending overlay enforcement must not
+remove an explicitly selected VPN target, and an explicit VPN-only
+configuration must be able to start, remain monitored, and recover on its own.
 
 Example:
 
@@ -392,7 +476,11 @@ for a later retry.
 
 ## 6. Recovery and lifecycle
 
-The effective policy must not depend on the React process remaining alive.
+The effective policy must not depend on the React process remaining alive. The
+current implementation has a native coordinator, effective-target
+recalculation, serialized and debounced dispatch, a durable desired-policy
+snapshot, generation checks, and watchdog hooks. It does not yet have the full
+lifecycle coordinator described below.
 
 Recalculation or restoration should occur after:
 
@@ -742,8 +830,10 @@ Generated Android output alone is not a durable implementation location.
 3. **Recurring schedules:** Include schedule VPN enforcement now or defer it?
 4. **Daily allowances:** Should an exhausted allowance automatically become a
    VPN target, or remain an Accessibility-only rule?
-5. **Always-on semantics:** Should the existing VPN-only always-on list continue
-   independently even when ordinary always-on overlay enforcement is disabled?
+5. **Always-on semantics:** The existing VPN-only always-on list is independent
+   from ordinary always-on overlay enforcement and must continue to operate
+   when overlay enforcement is disabled. Confirm whether any product behavior
+   should intentionally override this separation.
 6. **Global mode:** Keep it available only as a separate explicit feature and
    never use it for focus mirroring?
 7. **Recovery preference:** Should self-healing remain user-controlled, or

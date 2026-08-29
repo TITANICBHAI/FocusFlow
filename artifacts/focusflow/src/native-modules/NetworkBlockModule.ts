@@ -35,6 +35,9 @@ export interface NetworkBlockStatus {
   running: boolean;
   error: string | null;
   failedPackages: string[];
+  desiredPolicy?: string | null;
+  policyGeneration?: number;
+  appliedPolicyGeneration?: number;
 }
 
 export type NetworkBlockStartState =
@@ -186,6 +189,9 @@ export const NetworkBlockModule = {
     enabled: boolean;
     vpn: boolean;
     packages: string[];
+    /** Timed standalone VPN selections; ordinary overlay packages stay separate. */
+    standalonePackages?: string[];
+    focusMirrorEnabled?: boolean;
     defensePinHash?: string | null;
   }): Promise<void> {
     const native = requireNetworkBlock();
@@ -197,6 +203,10 @@ export const NetworkBlockModule = {
       enabled: settings.enabled,
       vpn: settings.vpn,
       packages: JSON.stringify(Array.from(new Set(settings.packages))),
+      standalonePackages: JSON.stringify(
+        Array.from(new Set(settings.standalonePackages ?? [])),
+      ),
+      focusMirrorEnabled: settings.focusMirrorEnabled ?? false,
       ...(settings.defensePinHash ? { defensePinHash: settings.defensePinHash } : {}),
     }));
   },
@@ -215,6 +225,9 @@ export const NetworkBlockModule = {
       running?: boolean;
       error?: string | null;
       failedPackages?: string | string[];
+      desiredPolicy?: string | null;
+      policyGeneration?: number;
+      appliedPolicyGeneration?: number;
     };
     let failedPackages: string[] = [];
     if (Array.isArray(parsed.failedPackages)) {
@@ -230,6 +243,14 @@ export const NetworkBlockModule = {
       running: Boolean(parsed.running),
       error: parsed.error ?? null,
       failedPackages,
+      desiredPolicy:
+        typeof parsed.desiredPolicy === 'string' ? parsed.desiredPolicy : null,
+      policyGeneration:
+        typeof parsed.policyGeneration === 'number' ? parsed.policyGeneration : 0,
+      appliedPolicyGeneration:
+        typeof parsed.appliedPolicyGeneration === 'number'
+          ? parsed.appliedPolicyGeneration
+          : 0,
     };
   },
 

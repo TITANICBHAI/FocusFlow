@@ -1480,8 +1480,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                 untilMs <= 0L || now < untilMs
             }
         }
-        val alwaysOn = prefs.getBoolean(PREF_ALWAYS_BLOCK, false)
-        if (!focusActive && !saActive && !alwaysOn &&
+        if (!focusActive && !saActive &&
             !NetworkBlockerVpnService.hasPersistentVpnConfiguration(prefs)
         ) return
 
@@ -1493,26 +1492,17 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             return
         }
 
-        val pkgs   = prefs.getString("net_block_packages", "[]") ?: "[]"
-        val global = prefs.getBoolean("net_block_global", false)
-        val mode   = if (global) NetworkBlockerVpnService.MODE_GLOBAL
-                     else        NetworkBlockerVpnService.MODE_PER_APP
         try {
-            val intent = Intent(this, NetworkBlockerVpnService::class.java).apply {
-                action = NetworkBlockerVpnService.ACTION_START
-                putExtra(NetworkBlockerVpnService.EXTRA_PACKAGES, pkgs)
-                putExtra(NetworkBlockerVpnService.EXTRA_MODE,     mode)
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(intent)
-            } else {
-                startService(intent)
-            }
-            } catch (e: Exception) {
-                prefs.edit()
-                    .putString("vpn_status", NetworkBlockerVpnService.STATUS_STARTUP_FAILED)
-                    .putString("vpn_error", e.message ?: "AccessibilityService could not start VPN service")
-                    .apply()
+            // Health recovery is a policy sync, not a second VPN command
+            // pipeline. The coordinator recalculates and dispatches the
+            // current generation after this permission check.
+            VpnPolicyCoordinator.requestRecoverySync(this)
+        } catch (e: Exception) {
+            prefs.edit()
+                .putString("vpn_status", NetworkBlockerVpnService.STATUS_STARTUP_FAILED)
+                .putString("vpn_error", e.message ?: "AccessibilityService could not start VPN service")
+                .apply()
+            return
             }
     }
 
@@ -2837,17 +2827,19 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         if (!prefs.getBoolean("net_block_vpn", true)) return false
         if (NetworkBlockerVpnService.isRunning) return true   // already active
 
-        // net_block_packages is the single canonical list. If it is empty,
-        // protect the app that triggered the event; otherwise protect the
-        // complete configured set so later blocked apps are not omitted.
-        val canonicalJson = prefs.getString("net_block_packages", "[]") ?: "[]"
+        // Recalculate from persisted policy sources. If the effective set is
+        // empty in PER_APP mode, there is no network policy to activate. Do
+        // not silently turn a foreground event into a new one-app policy.
+        val canonicalJson = NetworkBlockerVpnService.effectivePackagesJson(this, prefs)
         val canonicalPackages = try {
             val arr = org.json.JSONArray(canonicalJson)
             (0 until arr.length()).map { arr.optString(it) }.filter { it.isNotBlank() }
         } catch (_: Exception) {
             emptyList()
         }
-        if (canonicalPackages.isNotEmpty() && blockedPackage !in canonicalPackages) return false
+        val global = prefs.getBoolean("net_block_global", false)
+        if (!global && canonicalPackages.isEmpty()) return false
+        if (!global && blockedPackage !in canonicalPackages) return false
 
         // VPN permission check — prepare() returns null if permission is already held
         try {
@@ -2855,26 +2847,10 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             if (permissionIntent != null) return false  // not yet granted — skip, don't crash
         } catch (_: Exception) { return false }
 
-        val global = prefs.getBoolean("net_block_global", false)
-        val mode   = if (global) NetworkBlockerVpnService.MODE_GLOBAL
-                     else        NetworkBlockerVpnService.MODE_PER_APP
-        val pkgs   = if (canonicalPackages.isNotEmpty()) {
-            org.json.JSONArray(canonicalPackages).toString()
-        } else {
-            JSONArray().apply { put(blockedPackage) }.toString()
-        }
-
         try {
-            val intent = Intent(this, NetworkBlockerVpnService::class.java).apply {
-                action = NetworkBlockerVpnService.ACTION_START
-                putExtra(NetworkBlockerVpnService.EXTRA_PACKAGES, pkgs)
-                putExtra(NetworkBlockerVpnService.EXTRA_MODE, mode)
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(intent)
-            } else {
-                startService(intent)
-            }
+            // The coordinator owns the effective target set and serializes
+            // this activation with all other VPN lifecycle commands.
+            VpnPolicyCoordinator.requestSync(this)
             return true
             } catch (e: Exception) {
                 prefs.edit()

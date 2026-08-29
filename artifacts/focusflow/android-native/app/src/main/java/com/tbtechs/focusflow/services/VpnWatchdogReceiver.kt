@@ -6,7 +6,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.net.VpnService
-import android.os.Build
 import android.os.SystemClock
 
 /**
@@ -40,10 +39,10 @@ import android.os.SystemClock
  *   • net_block_self_heal must be true   (user opted in to auto-restart)
  *   • net_block_enabled must be true     (VPN blocking is on)
  *   • net_block_vpn must be true         (VPN mechanism is selected)
- *   • A focus or standalone session must still be active
+ *   • A focus/standalone session or persistent VPN configuration must remain active
  *   • VPN permission must still be held  (VpnService.prepare() == null)
  *
- * If no active session is found the alarm cancels itself to avoid firing forever.
+ * If no active policy is found the alarm cancels itself to avoid firing forever.
  */
 class VpnWatchdogReceiver : BroadcastReceiver() {
 
@@ -104,9 +103,15 @@ class VpnWatchdogReceiver : BroadcastReceiver() {
 
         // ── Gate checks — bail early if we should not be restarting ────────────
 
-        if (!prefs.getBoolean("net_block_enabled",  false)) return
-        if (!prefs.getBoolean("net_block_vpn",      true)) return
-        if (!prefs.getBoolean("net_block_self_heal", false)) return
+        if (!prefs.getBoolean("net_block_enabled", false) ||
+            !prefs.getBoolean("net_block_vpn", true) ||
+            !prefs.getBoolean("net_block_self_heal", false)
+        ) {
+            // A user turning off the gate must not leave the old repeating
+            // alarm behind until its next delivery.
+            cancel(context)
+            return
+        }
 
         // ── Session validity ────────────────────────────────────────────────────
 
@@ -126,9 +131,7 @@ class VpnWatchdogReceiver : BroadcastReceiver() {
                 untilMs <= 0L || now < untilMs
             }
         }
-        val alwaysOn = prefs.getBoolean("always_block_active", false)
-
-        if (!focusActive && !saActive && !alwaysOn &&
+        if (!focusActive && !saActive &&
             !NetworkBlockerVpnService.hasPersistentVpnConfiguration(prefs)
         ) {
             // Session has ended — cancel the alarm so it stops firing
@@ -146,30 +149,45 @@ class VpnWatchdogReceiver : BroadcastReceiver() {
 
         try {
             if (VpnService.prepare(context) != null) {
-                prefs.edit().putBoolean("vpn_permission_lost", true).apply()
-                VpnRecoveryNotifier.postPermissionRequired(context)
+                val anotherVpn = NetworkBlockerVpnService.isAnotherVpnActive(context)
+                prefs.edit()
+                    .putBoolean("vpn_permission_lost", !anotherVpn)
+                    .putString(
+                        "vpn_status",
+                        if (anotherVpn) NetworkBlockerVpnService.STATUS_ANOTHER_VPN
+                        else NetworkBlockerVpnService.STATUS_PERMISSION_MISSING,
+                    )
+                    .putString(
+                        "vpn_error",
+                        if (anotherVpn) "Another VPN is currently active"
+                        else "VPN permission is not granted",
+                    )
+                    .apply()
+                if (anotherVpn) {
+                    // A competing VPN owns the single system VPN slot. Stop
+                    // polling until the user deliberately retries after
+                    // releasing that VPN.
+                    cancel(context)
+                } else {
+                    VpnRecoveryNotifier.postPermissionRequired(context)
+                }
                 return
             }
         } catch (_: Exception) { return }
 
         // ── Restart the VPN tunnel ──────────────────────────────────────────────
 
-        val pkgs   = prefs.getString("net_block_packages", "[]") ?: "[]"
+        val pkgs   = NetworkBlockerVpnService.effectivePackagesJson(context, prefs)
         val global = prefs.getBoolean("net_block_global", false)
-        val mode   = if (global) NetworkBlockerVpnService.MODE_GLOBAL
-                     else        NetworkBlockerVpnService.MODE_PER_APP
+        if (!global && pkgs == "[]") {
+            cancel(context)
+            return
+        }
 
         try {
-            val vpnIntent = Intent(context, NetworkBlockerVpnService::class.java).apply {
-                action = NetworkBlockerVpnService.ACTION_START
-                putExtra(NetworkBlockerVpnService.EXTRA_PACKAGES, pkgs)
-                putExtra(NetworkBlockerVpnService.EXTRA_MODE, mode)
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(vpnIntent)
-            } else {
-                context.startService(vpnIntent)
-            }
+            // Recovery must use the coordinator's durable-source calculation
+            // and serialized, generation-bearing dispatch.
+            VpnPolicyCoordinator.requestRecoverySync(context)
         } catch (e: Exception) {
             prefs.edit()
                 .putString("vpn_status", NetworkBlockerVpnService.STATUS_STARTUP_FAILED)
