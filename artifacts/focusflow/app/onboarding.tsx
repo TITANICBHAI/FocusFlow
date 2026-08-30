@@ -558,8 +558,8 @@ export default function OnboardingScreen() {
           );
         })}
 
-        {/* Restricted-settings recovery — only shown after the user attempted
-            Accessibility and Android confirmed the restriction is active. */}
+        {/* Accessibility recovery — only shown after the user attempted
+            Accessibility and returned without granting it. */}
         {statuses['accessibility'] !== 'granted' && (
           <View style={{ marginHorizontal: SPACING.lg, marginBottom: SPACING.md }}>
             <AccessibilityRestrictedRecovery
