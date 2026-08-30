@@ -446,7 +446,7 @@ class ForegroundTaskService : Service() {
                     .apply()
             }
         }
-        foregroundBudgetExpiry?.let { (pkg, expiryMs) ->
+        foregroundAllowanceExpiry?.let { (pkg, expiryMs) ->
             scheduleAllowanceExpiry(pkg, expiryMs, timeBudgetPkgs[pkg] ?: return@let)
         } ?: run {
             allowanceExpiryRunnable?.let { handler.removeCallbacks(it) }
