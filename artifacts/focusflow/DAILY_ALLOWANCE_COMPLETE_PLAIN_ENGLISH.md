@@ -168,59 +168,57 @@ These aren't breaking anything today but will under specific conditions or at sc
 
 ---
 
-## PRACTICE 1 — Interval mode loses elapsed time when the service restarts
+## PRACTICE 1 — Interval mode has limited recovery when the service restarts
 
 Time budget has a backup: a separate service uses Android's built-in usage tracker to independently verify how long each app was used. If the main service dies, the backup catches up and still enforces correctly.
 
-Interval mode has no equivalent. Android's usage tracker only reports total time — it doesn't know about per-window time. So if the main service is killed during an interval session and stays dead for more than 2 minutes, that session's elapsed time is permanently lost. You get free time that shouldn't count. There's no easy fix — it's a platform limitation.
+Interval mode now has a best-effort backup for the currently stored rolling window. Android's usage tracker still cannot identify which rolling window a historical total belongs to, so exact recovery across an expired window remains a platform limitation. FocusFlow preserves the window metadata and reconciles UsageStats only while that window is active.
 
 ---
 
-## PRACTICE 2 — Two services write to the same usage file without coordination
+## PRACTICE 2 — Usage writes need one shared handoff
 
-The main service saves your usage every 15 seconds. The backup service also writes every 60 seconds. Both do: read the file, change a number, write the file back. If both read at the same moment and both write, one write silently overwrites the other.
-
-The damage is contained — neither service ever writes a number lower than what was already there — but the race is real. Under load, a checkpoint can be silently lost.
+The main service saves your usage every 15 seconds. The backup service also writes every 60 seconds. Both do: read the file, change a number, write the file back. These updates now use one shared in-process lock, so the services cannot read and overwrite the same snapshot at the same time. UsageStats reconciliation remains raise-only as a second safeguard.
 
 ---
 
-## PRACTICE 3 — Progress is saved in two separate steps, not one
+## PRACTICE 3 — Progress and its heartbeat must move together
 
-When FocusFlow saves your usage progress, it first saves the usage amount, then separately saves the timestamp of that save. If the phone dies between those two saves, the next restart sees an old timestamp, thinks the session expired more than 2 minutes ago, and abandons session recovery. Your usage total is correct but the active session tracking stops until you re-open the app.
-
----
-
-## PRACTICE 4 — The settings screen refreshes every 5 seconds but data only updates every 10
-
-The allowance settings screen has a timer that fires every 5 seconds to show you live usage. But the underlying data cache only refreshes every 10 seconds. So every other timer tick does nothing — it just returns the already-displayed data. The screen isn't updating as frequently as it appears to be.
-
-Not user-visible under normal use. Matters if you're watching the counter tick down in real time and wondering why it's jumping in 10-second intervals instead of 5.
+When FocusFlow checkpoints a timed allowance, it now saves the usage amount and the timestamp of that save in the same SharedPreferences update. The handoff marker moves with that checkpoint too, so a restart cannot observe new usage paired with an old heartbeat and incorrectly abandon recovery.
 
 ---
 
-## PRACTICE 5 — Switching mode in the settings modal quietly preserves old config values
+## PRACTICE 4 — The settings screen refreshes on the same cadence as its data cache
+
+The allowance settings screen now refreshes every 10 seconds, matching the underlying data cache. Each refresh can therefore produce a fresh native usage read instead of alternating between a real refresh and an already-cached result.
+
+This keeps the displayed cadence honest without forcing extra native reads.
+
+---
+
+## PRACTICE 5 — Switching mode intentionally preserves old config values
 
 When you change YouTube from Time Budget to Count mode in the settings screen, it saves both the new Count settings and the old Time Budget minutes — silently in memory. If you switch back to Time Budget, your old minutes value is restored.
 
-This is actually good UX — non-destructive mode switching. But it's completely accidental. Nobody designed this intentionally. If the code is ever cleaned up without knowing this behaviour exists, it will break what users have come to expect.
+This is intentional non-destructive mode switching. The modal documents the behavior so a future cleanup does not accidentally erase values users expect to recover when they switch back.
 
 ---
 
 ## PRACTICE 6 — Always-on blocking with an empty block list silently becomes allowance-only enforcement
 
-If you enable "always-on blocking" but don't add any apps to the always-on block list, only the daily allowance is enforced. All other apps are unrestricted. This is technically correct but completely non-obvious from the UI — the user sees "blocking is on" with no indication that only allowance limits are active.
+If you enable "always-on blocking" but don't add any apps to the always-on block list, only the daily allowance is enforced. All other apps are unrestricted. The Defense screen now calls this out directly: no apps are blocked 24/7 until the always-on list is populated.
 
 ---
 
 ## PRACTICE 7 — The backup service also marks YouTube exhausted without checking if the main service already handled it
 
-When the backup service's budget timer fires, it immediately writes "this app is exhausted" to storage and triggers enforcement. It doesn't first check whether the main service's checkpoint already owns the session. If both fire at nearly the same time, both write the same data — harmless outcome, but the guard that the 60-second sync loop uses is missing from the expiry runnable.
+When the backup service's budget timer fires, it first checks whether the main service has a fresh active allowance session. If so, the main service remains the owner of that live session; otherwise the backup can safely promote the stored usage to the limit.
 
 ---
 
-## PRACTICE 8 — Date formatting creates a new object on every call in two separate services
+## PRACTICE 8 — Date formatting is cached in both services
 
-Both the main accessibility service and the backup service format today's date (like "2026-08-28") by creating a brand new formatting object every single time the function is called. This happens many times per accessibility event — potentially dozens of times per second when apps are switching. Each object creation is small but unnecessary. A cached version that only recreates itself once a day would cost nothing and eliminate the repeated allocation.
+Both the main accessibility service and the backup service now reuse a date formatter when producing today's local date key (like "2026-08-28"). The formatter is also refreshed if the device timezone changes, so caching does not make the day boundary stale.
 
 ---
 
@@ -240,13 +238,13 @@ Both the main accessibility service and the backup service format today's date (
 9. Bug 9 — Wrong block message
 
 **Fix when you have time:**
-10. Practice 4 — Align refresh timer with cache TTL
-11. Practice 7 — Add session ownership check to expiry runnable
-12. Practice 8 — Cache the date formatter in both services
+10. Practice 4 — Align refresh timer with cache TTL (done)
+11. Practice 7 — Add session ownership check to expiry runnable (done)
+12. Practice 8 — Cache the date formatter in both services (done)
 13. Practice 3 — Write checkpoint and timestamp atomically
 
 **Document and accept (no clean fix):**
-14. Practice 1 — Interval mode has no backup recovery path
-15. Practice 2 — Read-modify-write race between services
-16. Practice 5 — Accidental non-destructive mode switching (document as intentional)
-17. Practice 6 — Always-on + empty list = allowance-only (add UI hint)
+14. Practice 1 — Interval mode has limited recovery (platform limitation)
+15. Practice 2 — Read-modify-write race between services (shared lock added)
+16. Practice 5 — Non-destructive mode switching (documented as intentional)
+17. Practice 6 — Always-on + empty list = allowance-only (UI hint added)

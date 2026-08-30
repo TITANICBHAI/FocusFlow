@@ -28,14 +28,14 @@ Keep the file/line reference with every status change so each result remains tra
 
 #### Practice and maintenance concerns
 
-- [ ] **2.1** Interval mode has no `ForegroundTaskService` UsageStats backup — `ForegroundTaskService.kt:263-275`
-- [ ] **2.2** The two services use an uncoordinated read-modify-write for usage — `AppBlockerAccessibilityService.kt:2585`, `ForegroundTaskService.kt:356`
-- [ ] **2.3** Usage progress and checkpoint timestamp are written in separate operations — `AppBlockerAccessibilityService.kt:2430-2439`
-- [ ] **2.4** `todayDateString()` repeatedly allocates `SimpleDateFormat` objects — `AppBlockerAccessibilityService.kt:2681`, `ForegroundTaskService.kt:299`, `398`, `1240`
-- [ ] **2.5** Deferred enforcement actions do not re-check enforcement state at fire time — `AppBlockerAccessibilityService.kt:1376-1384`
-- [ ] **2.6** Always-on blocking with an empty list silently becomes allowance-only enforcement — `AppBlockerAccessibilityService.kt:1328`, `1362`
-- [ ] **2.7** The modal refresh timer is shorter than the usage-cache TTL — `DailyAllowanceModal.tsx:usageTimer`
-- [ ] **2.8** Switching allowance modes preserves old values accidentally — `DailyAllowanceModal.tsx:updateEntry`
+- [x] **2.1** Interval mode has no `ForegroundTaskService` UsageStats backup — `ForegroundTaskService.kt:272-289, 370-396` — rolling-window UsageStats reconciliation added; source-verified
+- [x] **2.2** The two services use an uncoordinated read-modify-write for usage — `AppBlockerAccessibilityService.kt:2456`, `ForegroundTaskService.kt:336, 468`, `SharedPrefsModule.kt:629` — shared in-process lock now covers service sync, expiry promotion, and manual resets; source-verified
+- [x] **2.3** Usage progress and checkpoint timestamp are written in separate operations — `AppBlockerAccessibilityService.kt:2538-2577` — timed checkpoint now persists usage, heartbeat, and handoff marker in one editor; source-verified
+- [x] **2.4** `todayDateString()` repeatedly allocates `SimpleDateFormat` objects — `AppBlockerAccessibilityService.kt`, `ForegroundTaskService.kt` — formatter instances are cached per service and refreshed if the device timezone changes; source-verified
+- [x] **2.5** Deferred enforcement actions do not re-check enforcement state at fire time — `AppBlockerAccessibilityService.kt` — delayed launcher, power-menu, and app-dismissal actions now re-check the current toggle/session state; source-verified
+- [x] **2.6** Always-on blocking with an empty list silently becomes allowance-only enforcement — `AppBlockerAccessibilityService.kt`, `block-defense.tsx` — the Defense screen now explains that no apps are blocked 24/7 until the list is populated; source-verified
+- [x] **2.7** The modal refresh timer is shorter than the usage-cache TTL — `DailyAllowanceModal.tsx:usageTimer` — refresh cadence now matches the 10-second cache TTL; source-verified
+- [x] **2.8** Switching allowance modes preserves old values accidentally — `DailyAllowanceModal.tsx:updateEntry` — non-destructive preservation is now documented as intentional; source-verified
 - [x] **2.9** `scheduleAllowanceExpiry` does not check for a fresh active allowance session — `ForegroundTaskService.kt:392-406` — expiry callback now respects the active-session heartbeat; source-verified
 - [x] **2.10** `focusMirrorVpnEnabled` is missing from backup — `backupService.ts` — backup export/import already preserves this setting; source-verified
 
@@ -314,152 +314,101 @@ When `focusActive=true`, `allowedList` is empty, and the allowance is exhausted,
 
 ## 2. PRACTICES CONCERNS
 
-### 2.1 `interval` mode has no ForegroundTaskService UsageStats backup
+### 2.1 `interval` mode has limited ForegroundTaskService UsageStats recovery
 **File:** `ForegroundTaskService.kt:263-275`
 
-`allowanceSyncRunnable` only processes `time_budget` entries:
-```kotlin
-if (obj.optString("mode", "count") == "time_budget") {
-    timeBudgetPkgs[pkg] = budgetMs
-}
-```
-
-`time_budget` has a double safety net: AccessibilityService checkpoints every 15 seconds + ForegroundTaskService UsageStats reconciliation every 60 seconds. If the AccessibilityService is killed, ForegroundTaskService independently reads OS foreground time and updates `usedMs`.
-
-`interval` has no equivalent. If the AccessibilityService is killed and its 2-minute TTL lapses, elapsed time since the last checkpoint is unrecoverable. OS UsageStats reports total foreground time, not per-window time, so a direct equivalent isn't possible. Mitigation: shorten the checkpoint interval for interval-mode sessions, or raise the restore TTL above 2 minutes.
+`time_budget` and `interval` entries both receive a UsageStats reconciliation in
+`ForegroundTaskService`, alongside the AccessibilityService checkpoints. For
+interval mode, reconciliation is limited to the currently stored rolling
+window. Android UsageStats reports aggregate foreground time and cannot identify
+which historical rolling window owns that time, so exact recovery after an
+expired window remains a platform limitation.
 
 ---
 
-### 2.2 Read-modify-write on `daily_allowance_used` is uncoordinated
+### 2.2 Read-modify-write on `daily_allowance_used` needs coordination
 **Files:** `AppBlockerAccessibilityService.kt:2585, 2626`, `ForegroundTaskService.kt:356`
 
-Both services use the same pattern:
+Both services use the same read-modify-write pattern:
 ```kotlin
 val allUsed = loadUsedObject()
 // modify
 prefs.edit().putString(PREF_DAILY_ALLOWANCE_USED, allUsed.toString()).apply()
 ```
 
-This read-modify-write is not atomic. If ForegroundTaskService reads between the AccessibilityService's read and its write, the FS write silently clobbers the checkpoint. Damage is contained (FTS never lowers `usedMs`, only raises it) but the race is real.
+The shared `ALLOWANCE_USAGE_LOCK` now surrounds allowance reads, writes, handoff
+markers, UsageStats reconciliation, expiry promotion, and manual resets. This
+prevents the two in-process services from reading the same snapshot and
+overwriting each other's update. UsageStats writes remain raise-only as an
+additional safeguard.
 
 ---
 
-### 2.3 Two separate `.apply()` calls in `checkpointActiveTimedSession`
+### 2.3 Progress and checkpoint heartbeat must move together
 **File:** `AppBlockerAccessibilityService.kt:2430-2439`
 
-```kotlin
-accumulateTimedUsage(...)           // write 1: daily_allowance_used
-prefs.edit()
-    .putLong(PREF_ACTIVE_SESSION_LAST_CHECKPOINT_MS, now)
-    .apply()                        // write 2: checkpoint timestamp
-```
-
-If the process dies between write 1 and write 2, `PREF_ACTIVE_SESSION_LAST_CHECKPOINT_MS` is stale. On `restoreAllowanceSession`, `checkpointAgeMs` may exceed `ACTIVE_SESSION_SIGNAL_TTL_MS` (2 minutes), causing `signalFresh = false`. Session signal is cleaned up even though usage is current. Active session tracking stops until the user re-opens the app.
-
-**Fix:** inline `accumulateTimedUsage` into the same `edit()` block as the checkpoint timestamp write, making both atomic.
+`checkpointActiveTimedSession` now persists usage, the checkpoint heartbeat, and
+the handoff marker through one locked update. A restart therefore cannot observe
+new usage paired with an old heartbeat and incorrectly abandon recovery.
 
 ---
 
-### 2.4 `todayDateString()` creates a new `SimpleDateFormat` on every call
+### 2.4 `todayDateString()` should not recreate its formatter on every call
 **Files:** `AppBlockerAccessibilityService.kt:2681`, `ForegroundTaskService.kt:299, 398, 1240`
 
-```kotlin
-private fun todayDateString(): String =
-    java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).apply {
-        timeZone = java.util.TimeZone.getDefault()
-    }.format(java.util.Date())
-```
-
-Called from `isAllowanceAvailable`, `recordAllowanceOpen`, `accumulateTimedUsage`, `allowanceExhaustedReason`, and ForegroundTaskService sync — many times per event. `SimpleDateFormat` construction is non-trivial. The same pattern appears in three locations in ForegroundTaskService.
-
-**Fix:** cache with a 60-second TTL:
-```kotlin
-private var cachedDateKey: String = ""
-private var cachedDateKeyMs: Long = 0L
-
-private fun todayDateString(): String {
-    val now = System.currentTimeMillis()
-    if (now - cachedDateKeyMs < 60_000L && cachedDateKey.isNotEmpty()) return cachedDateKey
-    cachedDateKey = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-        .apply { timeZone = TimeZone.getDefault() }
-        .format(Date())
-    cachedDateKeyMs = now
-    return cachedDateKey
-}
-```
+The allowance code calls the local date helper from multiple paths per accessibility event and UsageStats sync. Both services now keep one formatter instance and synchronize access to it. The cached formatter timezone is refreshed if the device timezone changes, so the local date boundary remains correct without repeatedly constructing `SimpleDateFormat`.
 
 ---
 
 ### 2.5 `timedExpireRunnable` and deferred enforcement actions don't re-check enforcement state at fire time
 **File:** `AppBlockerAccessibilityService.kt:1376-1384`
 
-Enforcement state is verified at schedule time (correct). Deferred runnables fire later with no re-check. Any deferred enforcement action — HOME, overlay, retry — should validate enforcement state at fire time, not just at schedule time. Bug 1.5's fix addresses the symptom. The practice is to apply this pattern to all deferred enforcement actions going forward.
+Enforcement state is verified at schedule time, but handler callbacks run later. The delayed launcher lock, power-menu dismissal, and blocked-app dismissal paths now re-check the relevant toggle, session, package, or allowance state immediately before acting. Existing retry callbacks already perform their own foreground and policy checks.
 
 ---
 
 ### 2.6 `alwaysBlockActive` + empty always-on list = allowance-only enforcement (non-obvious)
 **File:** `AppBlockerAccessibilityService.kt:1328, 1362`
 
-When `alwaysBlockActive=true` but `alwaysOnPackages` is empty, `isPackageBlocked` returns false for all apps. Allowance checks run. Apps without an allowance entry are unrestricted. Apps with an allowance entry are enforced by quota. Valid design but not communicated in the UI.
+When `alwaysBlockActive=true` but `alwaysOnPackages` is empty, `isPackageBlocked` returns false for all apps. Allowance checks run. Apps without an allowance entry are unrestricted. Apps with an allowance entry are enforced by quota. This remains the intended behavior, and the Block Defense screen now explains the empty-list state and directs the user to populate the always-on list.
 
 ---
 
-### 2.7 Modal usage refresh timer interval is shorter than cache TTL
+### 2.7 Modal usage refresh timer should match the cache TTL
 **File:** `DailyAllowanceModal.tsx:usageTimer`
 
-```typescript
-const usageTimer = setInterval(() => { void refreshUsage(); }, 5_000);
-```
-
-`refreshUsage` calls `getAllowanceUsageSnapshot(force = false)`. Cache TTL is 10 seconds. Every alternate timer tick returns cached data. Effective native refresh rate is once every 10 seconds, not 5. Either align the timer to 10+ seconds or call with `force = true` in the timer callback.
+`refreshUsage` calls `getAllowanceUsageSnapshot(force = false)` and the cache TTL is 10 seconds. The modal timer is now also 10 seconds, so each scheduled refresh is aligned with the cache's freshness window rather than producing an unnecessary cached-only tick.
 
 ---
 
-### 2.8 Mode switch in modal preserves previous mode values silently
+### 2.8 Mode switch in modal preserves previous mode values intentionally
 **File:** `DailyAllowanceModal.tsx:updateEntry`
 
-```typescript
-const updateEntry = (pkg, patch) =>
-  setEntriesMap(prev => {
-    const next = new Map(prev);
-    const existing = next.get(pkg) ?? makeDefaultEntry(pkg);
-    next.set(pkg, { ...existing, ...patch });
-    return next;
-  });
-```
-
-Switching from `time_budget` to `count` keeps `budgetMinutes` in the entry object. Switching back restores it. This is good UX (non-destructive mode switching) but entirely accidental. If the code is ever cleaned up without knowing this, user expectations will break. Should be made explicit and documented as intentional.
+Switching from `time_budget` to `count` keeps `budgetMinutes` in the entry object. Switching back restores it. This is intentional non-destructive mode switching, and the update path now documents that preserving the inactive mode's values is part of the user-facing behavior.
 
 ---
 
-### 2.9 `scheduleAllowanceExpiry` runnable doesn't check `hasFreshActiveAllowanceSession`
+### 2.9 `scheduleAllowanceExpiry` runnable must check `hasFreshActiveAllowanceSession`
 **File:** `ForegroundTaskService.kt:392-406`
 
-The 60-second sync loop at line 333 correctly guards with `hasFreshActiveAllowanceSession(pkg, now)` before updating `usedMs`. The `allowanceExpiryRunnable` body does not:
+The 60-second sync loop and the `allowanceExpiryRunnable` both guard with
+`hasFreshActiveAllowanceSession(pkg, now)` before promoting stored usage:
 
-```kotlin
-val runnable = Runnable {
-    allowanceExpiryRunnable = null
-    if (!pkg.equals(getFallbackForegroundPackage(), ignoreCase = true)) return@Runnable
-    // ← no hasFreshActiveAllowanceSession check
-    val used = allUsed.optJSONObject(pkg) ?: org.json.JSONObject()
-    used.put("usedMs", budgetMs)   // writes unconditionally
-    ...
-}
-```
-
-If AccessibilityService has a fresh session signal when the expiry fires, both services write to `daily_allowance_used` simultaneously. Both write `budgetMs` so the outcome is correct, but the write bypasses the session ownership guard.
-
-**Fix:**
 ```kotlin
 val runnable = Runnable {
     allowanceExpiryRunnable = null
     if (!pkg.equals(getFallbackForegroundPackage(), ignoreCase = true)) return@Runnable
     val now2 = System.currentTimeMillis()
     if (hasFreshActiveAllowanceSession(pkg, now2)) return@Runnable
+    val used = allUsed.optJSONObject(pkg) ?: org.json.JSONObject()
+    used.put("usedMs", budgetMs)   // writes unconditionally
     ...
 }
 ```
+
+If AccessibilityService has a fresh session signal when the expiry fires, the
+fallback callback exits and leaves the live session as the owner. Otherwise it
+promotes the usage under the shared allowance lock.
 
 ---
 

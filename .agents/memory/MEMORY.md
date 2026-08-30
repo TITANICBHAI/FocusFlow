@@ -15,3 +15,5 @@
 - [Android backup privacy](android-backup-privacy.md) — keep Android automatic backup disabled; user data moves only through explicit FocusFlow export/import.
 - [Accessibility restricted recovery](accessibility-restricted-recovery.md) — keep the retry UI after restricted settings unlock until Accessibility is actually granted.
 - [Daily Allowance review bundle](daily-allowance-review-bundle.md) — read the paired plain-English helper and source-pinned technical checklist before allowance work.
+- [Deferred enforcement fire-time checks](deferred-enforcement-fire-time.md) — handler callbacks must re-check the policy that scheduled them before navigation or dismissal actions.
+- [Agent navigation feedback](agent-navigation-feedback.md) — FocusFlow navigation reliability feedback and its artifact-local implementation tracker.

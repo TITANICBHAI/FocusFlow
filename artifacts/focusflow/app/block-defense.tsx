@@ -649,6 +649,15 @@ export default function BlockDefenseScreen() {
               onValueChange={handleAlwaysOnEnforcementToggle}
               theme={theme}
             />
+            {(settings.alwaysOnEnforcementEnabled ?? false) && (settings.alwaysOnPackages ?? []).length === 0 && (
+              <View style={[styles.emptyAlwaysOnHint, { backgroundColor: COLORS.orange + '12', borderTopColor: theme.border }]}>
+                <Ionicons name="information-circle-outline" size={16} color={COLORS.orange} />
+                <Text style={[styles.emptyAlwaysOnHintText, { color: theme.textSecondary }]}>
+                  No apps are in the always-on list, so no apps are blocked 24/7. Only daily allowance limits
+                  {allowanceEntryCount > 0 ? ' (if configured)' : ''} are active right now.
+                </Text>
+              </View>
+            )}
             <SwitchRow
               label="Auto-copy from standalone block"
               description="When you add apps to a standalone block, they are automatically added to this always-on list too — so they stay blocked after the timer ends"
@@ -1144,6 +1153,19 @@ const styles = StyleSheet.create({
   },
   switchLabel: { fontSize: FONT.sm, fontWeight: '600' },
   switchDesc: { fontSize: FONT.xs, lineHeight: 16, marginTop: 1 },
+  emptyAlwaysOnHint: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  emptyAlwaysOnHintText: {
+    flex: 1,
+    fontSize: FONT.xs,
+    lineHeight: 17,
+  },
 
   cardButton: {
     flexDirection: 'row',

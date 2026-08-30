@@ -518,6 +518,11 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     private var foregroundWatchdogRunnable: Runnable? = null
     private var cachedHomePackages: Set<String> = emptySet()
     private var homePackagesCachedAtMs: Long = 0L
+    private val todayDateFormatter = java.text.SimpleDateFormat(
+        "yyyy-MM-dd",
+        java.util.Locale.US,
+    )
+    private var todayDateFormatterTimeZoneId = java.util.TimeZone.getDefault().id
 
     // ── Timed allowance tracking (time_budget / interval modes) ──────────────
     // Tracks the app currently open under a time-limited allowance so we can
@@ -987,7 +992,13 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         // unexpected.
         if (focusActive) {
             if (isRecentsScreen(pkg, cls, ev)) {
-                handler.post { performGlobalAction(GLOBAL_ACTION_HOME) }
+                handler.post {
+                    val stillFocused = prefs.getBoolean(PREF_FOCUS_ON, false)
+                    val endMs = prefs.getLong("task_end_ms", 0L)
+                    if (stillFocused && (endMs <= 0L || System.currentTimeMillis() <= endMs)) {
+                        performGlobalAction(GLOBAL_ACTION_HOME)
+                    }
+                }
                 return
             }
         }
@@ -1329,7 +1340,13 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                 // can't change the default home app while a block session is running.
                 val launcherLockEnabled = prefs.getBoolean(PREF_LAUNCHER_LOCK_DURING_SA, true)
                 if (launcherLockEnabled && saActive && isHomeAppChooserPage(ev)) {
-                    handler.post { performGlobalAction(GLOBAL_ACTION_HOME) }
+                    handler.post {
+                        if (prefs.getBoolean(PREF_LAUNCHER_LOCK_DURING_SA, true) &&
+                            isStandaloneBlockActiveNow()
+                        ) {
+                            performGlobalAction(GLOBAL_ACTION_HOME)
+                        }
+                    }
                     return
                 }
             }
@@ -2362,14 +2379,16 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             }
         }
 
-        prefs.edit()
-            .remove("timed_session_pkg")
-            .remove("timed_session_open_at_ms")
-            .remove(PREF_ACTIVE_SESSION_PKG)
-            .remove(PREF_ACTIVE_SESSION_OPEN_AT_MS)
-            .remove(PREF_ACTIVE_SESSION_LAST_CHECKPOINT_MS)
-            .remove(PREF_ACTIVE_SESSION_END_MS)
-            .apply()
+        synchronized(ALLOWANCE_USAGE_LOCK) {
+            prefs.edit()
+                .remove("timed_session_pkg")
+                .remove("timed_session_open_at_ms")
+                .remove(PREF_ACTIVE_SESSION_PKG)
+                .remove(PREF_ACTIVE_SESSION_OPEN_AT_MS)
+                .remove(PREF_ACTIVE_SESSION_LAST_CHECKPOINT_MS)
+                .remove(PREF_ACTIVE_SESSION_END_MS)
+                .apply()
+        }
     }
 
     /**
@@ -2475,31 +2494,35 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     }
 
     private fun persistActiveSessionSignal(pkg: String, openAtMs: Long, sessionEndMs: Long) {
-        // A new foreground session must not inherit a UsageStats handoff marker
-        // from an earlier session of the same package.
-        val syncJson = loadUsageStatsSyncObject().apply { remove(pkg) }
-        prefs.edit()
-            .putString(PREF_ACTIVE_SESSION_PKG, pkg)
-            .putLong(PREF_ACTIVE_SESSION_OPEN_AT_MS, openAtMs)
-            .putLong(PREF_ACTIVE_SESSION_LAST_CHECKPOINT_MS, openAtMs)
-            .putLong(PREF_ACTIVE_SESSION_END_MS, sessionEndMs)
-            .putString(PREF_USAGE_STATS_SYNC, syncJson.toString())
-            .apply()
+        synchronized(ALLOWANCE_USAGE_LOCK) {
+            // A new foreground session must not inherit a UsageStats handoff marker
+            // from an earlier session of the same package.
+            val syncJson = loadUsageStatsSyncObject().apply { remove(pkg) }
+            prefs.edit()
+                .putString(PREF_ACTIVE_SESSION_PKG, pkg)
+                .putLong(PREF_ACTIVE_SESSION_OPEN_AT_MS, openAtMs)
+                .putLong(PREF_ACTIVE_SESSION_LAST_CHECKPOINT_MS, openAtMs)
+                .putLong(PREF_ACTIVE_SESSION_END_MS, sessionEndMs)
+                .putString(PREF_USAGE_STATS_SYNC, syncJson.toString())
+                .apply()
+        }
     }
 
     private fun clearActiveSessionSignal() {
-        handler.removeCallbacks(allowanceCheckpointRunnable)
-        val activePkg = prefs.getString(PREF_ACTIVE_SESSION_PKG, null)
-        val syncJson = loadUsageStatsSyncObject().apply {
-            if (activePkg != null) remove(activePkg)
+        synchronized(ALLOWANCE_USAGE_LOCK) {
+            handler.removeCallbacks(allowanceCheckpointRunnable)
+            val activePkg = prefs.getString(PREF_ACTIVE_SESSION_PKG, null)
+            val syncJson = loadUsageStatsSyncObject().apply {
+                if (activePkg != null) remove(activePkg)
+            }
+            prefs.edit()
+                .remove(PREF_ACTIVE_SESSION_PKG)
+                .remove(PREF_ACTIVE_SESSION_OPEN_AT_MS)
+                .remove(PREF_ACTIVE_SESSION_LAST_CHECKPOINT_MS)
+                .remove(PREF_ACTIVE_SESSION_END_MS)
+                .putString(PREF_USAGE_STATS_SYNC, syncJson.toString())
+                .apply()
         }
-        prefs.edit()
-            .remove(PREF_ACTIVE_SESSION_PKG)
-            .remove(PREF_ACTIVE_SESSION_OPEN_AT_MS)
-            .remove(PREF_ACTIVE_SESSION_LAST_CHECKPOINT_MS)
-            .remove(PREF_ACTIVE_SESSION_END_MS)
-            .putString(PREF_USAGE_STATS_SYNC, syncJson.toString())
-            .apply()
     }
 
     /**
@@ -2849,10 +2872,21 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     }
 
     /** ISO-8601 date string for today in the device's local timezone (e.g. "2025-01-09"). */
-    private fun todayDateString(): String =
-        java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).apply {
-            timeZone = java.util.TimeZone.getDefault()
-        }.format(java.util.Date())
+    private fun todayDateString(): String = synchronized(todayDateFormatter) {
+        val timeZone = java.util.TimeZone.getDefault()
+        if (timeZone.id != todayDateFormatterTimeZoneId) {
+            todayDateFormatter.timeZone = timeZone
+            todayDateFormatterTimeZoneId = timeZone.id
+        }
+        todayDateFormatter.format(java.util.Date())
+    }
+
+    /** Re-check standalone expiry before a delayed launcher action fires. */
+    private fun isStandaloneBlockActiveNow(): Boolean {
+        if (!prefs.getBoolean(PREF_SA_ACTIVE, false)) return false
+        val untilMs = prefs.getLong(PREF_SA_UNTIL, 0L)
+        return untilMs <= 0L || System.currentTimeMillis() <= untilMs
+    }
 
     /**
      * Returns epoch ms for the start of today (midnight) in the device's local timezone.
@@ -2972,7 +3006,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         // 4. Close the blocked app: BACK → HOME (150 ms) → BACK (160 ms).
         //    These key presses act on the blocked app itself and do not affect the
         //    overlay, which is a system window that stays on top regardless.
-        dismissPackage(blockedPackage)
+        dismissPackage(blockedPackage, blockReason)
 
         // 5. Aversive deterrents — screen dim, vibration, alert sound (each gated
         //    by its own toggle; no-op if all are disabled).
@@ -3680,28 +3714,64 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         } catch (_: Exception) { }
     }
 
+    private fun shouldContinueDeferredDismissal(
+        blockedPackage: String,
+        blockReason: String?,
+    ): Boolean {
+        if (lastSeenPkg != null && !blockedPackage.equals(lastSeenPkg, ignoreCase = true)) {
+            return false
+        }
+        return when {
+            blockReason?.startsWith("System Protection") == true ->
+                prefs.getBoolean(PREF_SYSTEM_GUARD_ENABLED, false)
+            blockReason?.startsWith("Install and uninstall protection") == true ->
+                prefs.getBoolean(PREF_BLOCK_INSTALL_ACTIONS, false)
+            blockReason?.startsWith("YouTube Shorts") == true ->
+                prefs.getBoolean(PREF_BLOCK_YT_SHORTS, false)
+            blockReason?.startsWith("Instagram Reels") == true ->
+                prefs.getBoolean(PREF_BLOCK_IG_REELS, false)
+            blockReason?.startsWith("Blocked keyword") == true ->
+                getBlockedWords().isNotEmpty()
+            else -> {
+                val focusActive = prefs.getBoolean(PREF_FOCUS_ON, false)
+                val saActive = isStandaloneBlockActiveNow()
+                val alwaysBlockActive = prefs.getBoolean(PREF_ALWAYS_BLOCK, false)
+                val sessionActive = focusActive || saActive || alwaysBlockActive
+                val allowanceExhausted = findAllowanceEntry(blockedPackage)?.let {
+                    !isAllowanceAvailable(blockedPackage, it)
+                } == true
+                (sessionActive &&
+                    (isPackageBlocked(blockedPackage, focusActive, saActive, alwaysBlockActive) ||
+                        allowanceExhausted)) ||
+                    isInGreyoutWindow(blockedPackage)
+            }
+        }
+    }
+
     /**
      * Kicks the user out of [blockedPackage] using both BACK and HOME.
      *
-     * BACK at 30 ms — gives the blocked app a best-effort chance to collapse
-     * any in-app dialog or deeplink navigation before leaving it.
-     * HOME at 90 ms — forces the launcher to the foreground, which also
-     * triggers the overlay X-button / Back+Home nav row reveal signal.
-     *
+     * Delayed actions re-check the current enforcement state before firing,
+     * so an expired or edited block cannot cause a later unrelated navigation.
      * Installer packages (Play Store, MIUI installer, etc.) only get BACK
-     * because sending HOME during an install confirmation hides the dialog
-     * without cancelling, leaving a stale install in the background.
+     * because HOME can hide an install confirmation without cancelling it.
      */
-    private fun dismissPackage(blockedPackage: String) {
+    private fun dismissPackage(blockedPackage: String, blockReason: String? = null) {
         for (dismissal in BlockedAppDismissalPolicy.actionsFor(blockedPackage, INSTALLER_PACKAGES)) {
             val action = when (dismissal.action) {
                 BlockedAppDismissalPolicy.GlobalAction.BACK -> GLOBAL_ACTION_BACK
                 BlockedAppDismissalPolicy.GlobalAction.HOME -> GLOBAL_ACTION_HOME
             }
             if (dismissal.delayMs == 0L) {
-                performGlobalAction(action)
+                if (shouldContinueDeferredDismissal(blockedPackage, blockReason)) {
+                    performGlobalAction(action)
+                }
             } else {
-                handler.postDelayed({ performGlobalAction(action) }, dismissal.delayMs)
+                handler.postDelayed({
+                    if (shouldContinueDeferredDismissal(blockedPackage, blockReason)) {
+                        performGlobalAction(action)
+                    }
+                }, dismissal.delayMs)
             }
         }
     }
@@ -3800,8 +3870,16 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         // Dismiss immediately (no artificial delay for the first BACK)
         closeSystemDialogsBroadcast()
         performGlobalAction(GLOBAL_ACTION_BACK)
-        handler.postDelayed({ performGlobalAction(GLOBAL_ACTION_HOME) }, 100L)
-        handler.postDelayed({ performGlobalAction(GLOBAL_ACTION_BACK) }, 220L)
+        handler.postDelayed({
+            if (prefs.getBoolean(PREF_SYSTEM_GUARD_ENABLED, false)) {
+                performGlobalAction(GLOBAL_ACTION_HOME)
+            }
+        }, 100L)
+        handler.postDelayed({
+            if (prefs.getBoolean(PREF_SYSTEM_GUARD_ENABLED, false)) {
+                performGlobalAction(GLOBAL_ACTION_BACK)
+            }
+        }, 220L)
 
         // Schedule retries to catch slow / stubborn power menus
         schedulePowerMenuRetry(1)
@@ -3821,7 +3899,9 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     private fun schedulePowerMenuRetry(attempt: Int) {
         if (attempt > 3) return
         handler.postDelayed({
-            val sysGuard = prefs.getBoolean(PREF_SYSTEM_GUARD_ENABLED, true)
+            // The toggle may have changed while this retry waited on the
+            // handler queue, so never trust the value from event time.
+            val sysGuard = prefs.getBoolean(PREF_SYSTEM_GUARD_ENABLED, false)
             if (!sysGuard) return@postDelayed
 
             // Only retry for true system-level power packages, not the launcher
@@ -3892,7 +3972,11 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             if (isPowerSystemPkg) {
                 closeSystemDialogsBroadcast()
                 performGlobalAction(GLOBAL_ACTION_BACK)
-                handler.postDelayed({ performGlobalAction(GLOBAL_ACTION_HOME) }, 100L)
+                handler.postDelayed({
+                    if (prefs.getBoolean(PREF_SYSTEM_GUARD_ENABLED, false)) {
+                        performGlobalAction(GLOBAL_ACTION_HOME)
+                    }
+                }, 100L)
                 schedulePowerMenuRetry(attempt + 1)
             }
         }, 200L * attempt)
