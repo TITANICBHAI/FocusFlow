@@ -1026,6 +1026,10 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     lineHeight: 17,
   },
+  collapsedAction: {
+    paddingHorizontal: SPACING.md,
+    paddingBottom: SPACING.md,
+  },
   grantBtn: {
     flexDirection: 'row',
     alignItems: 'center',

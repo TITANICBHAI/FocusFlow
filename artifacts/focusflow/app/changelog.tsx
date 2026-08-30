@@ -330,6 +330,8 @@ const CHANGELOG: Entry[] = [
     date: 'April 2026',
     sections: [
       {
+        heading: 'Backup and Import',
+        icon: 'cloud-download-outline',
         items: [
           'Two paths in one screen: pick an exported file (JSON / CSV / plain text) OR paste / type the app names yourself for blockers like Stay Focused that don\'t expose an export — names are fuzzy-matched against your installed apps so capitalisation and small typos still resolve',
           'Stay Focused is featured first because it has no public export — paste path is the recommended route for it',
