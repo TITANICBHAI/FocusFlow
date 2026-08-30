@@ -104,7 +104,11 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         const val PREF_ACTIVE_SESSION_LAST_CHECKPOINT_MS = "active_session_last_checkpoint_ms"
         const val PREF_ACTIVE_SESSION_END_MS = "active_session_end_ms"
         const val PREF_USAGE_STATS_SYNC = "daily_allowance_usage_stats_sync"
+        const val ACTION_ALLOWANCE_CONFIG_CHANGED =
+            "com.tbtechs.focusflow.ACTION_ALLOWANCE_CONFIG_CHANGED"
+        val ALLOWANCE_USAGE_LOCK = Any()
         const val ACTIVE_SESSION_CHECKPOINT_INTERVAL_MS = 15_000L
+        const val FOREGROUND_RECOVERY_LOOKBACK_MS = 60_000L
         // UsageEvents around a local-day boundary can be delivered with a small
         // delay. Include this probe so reconciliation can see an app that was
         // already foreground immediately before midnight and avoid counting the
@@ -543,6 +547,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         // AccessibilityService events remain the immediate enforcement authority.
         reconcileCountAllowances()
         registerScreenStateReceiver()
+        recoverForegroundAllowanceSession()
 
         // Start the VPN self-heal health check loop. The first check fires after
         // 10 s so we don't run anything during the cold-start window.
@@ -555,11 +560,11 @@ class AppBlockerAccessibilityService : AccessibilityService() {
      * when Android does not emit a window-state event, such as when an
      * existing Activity returns through the recent-apps screen.
      */
-    private fun checkForegroundNow() {
+    private fun checkForegroundNow(lookbackMs: Long = 3_000L) {
         val now = System.currentTimeMillis()
         val latestPkg = try {
             val usm = getSystemService(UsageStatsManager::class.java) ?: return
-            val events = usm.queryEvents(now - 3_000L, now)
+            val events = usm.queryEvents(now - lookbackMs, now)
             val event = UsageEvents.Event()
             var foregroundPkg: String? = null
             val foregroundEventType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -681,6 +686,70 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         }
     }
 
+    /**
+     * Re-seeds timed allowance tracking after the service reconnects while an
+     * allowance app is already foreground. Accessibility does not emit a new
+     * window event in that situation, so the normal event path cannot start the
+     * timer by itself.
+     */
+    private fun recoverForegroundAllowanceSession() {
+        if (currentTimedPkg != null) return
+
+        val now = System.currentTimeMillis()
+        val latestPkg = try {
+            val usm = getSystemService(UsageStatsManager::class.java) ?: return
+            val events = usm.queryEvents(now - FOREGROUND_RECOVERY_LOOKBACK_MS, now)
+            val event = UsageEvents.Event()
+            val foregroundEventType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                UsageEvents.Event.ACTIVITY_RESUMED
+            } else {
+                UsageEvents.Event.MOVE_TO_FOREGROUND
+            }
+            var foregroundPkg: String? = null
+            while (events.hasNextEvent()) {
+                events.getNextEvent(event)
+                if (event.eventType == foregroundEventType) {
+                    foregroundPkg = event.packageName
+                }
+            }
+            foregroundPkg
+        } catch (_: Exception) {
+            null
+        } ?: return
+
+        if (latestPkg == packageName ||
+            NEVER_BLOCK.any { latestPkg.equals(it, ignoreCase = true) } ||
+            BLOCKABLE_AFTER_WARNING.any { latestPkg.equals(it, ignoreCase = true) }) {
+            return
+        }
+
+        val focusActive = prefs.getBoolean(PREF_FOCUS_ON, false).let { on ->
+            if (!on) false
+            else prefs.getLong("task_end_ms", 0L).let { end -> end <= 0L || now <= end }
+        }
+        val saActive = prefs.getBoolean(PREF_SA_ACTIVE, false).let { on ->
+            if (!on) false
+            else prefs.getLong(PREF_SA_UNTIL, 0L).let { until -> until <= 0L || now <= until }
+        }
+        val alwaysBlockActive = prefs.getBoolean(PREF_ALWAYS_BLOCK, false)
+        if (!focusActive && !saActive && !alwaysBlockActive) return
+        if (isPackageBlocked(latestPkg, focusActive, saActive, alwaysBlockActive)) return
+
+        val entry = findAllowanceEntry(latestPkg) ?: return
+        if (entry.mode != "time_budget" && entry.mode != "interval") return
+        if (!isAllowanceAvailable(latestPkg, entry)) return
+
+        val sessionEndMs = recordAllowanceOpen(latestPkg, entry)
+        currentTimedPkg = latestPkg
+        currentTimedOpenAtMs = now
+        currentTimedSessionEndMs = sessionEndMs
+        persistActiveSessionSignal(latestPkg, now, sessionEndMs)
+        startAllowanceCheckpointLoop()
+        if (sessionEndMs > 0L) {
+            scheduleTimedExpiry(latestPkg, sessionEndMs)
+        }
+    }
+
     private fun startForegroundWatchdog() {
         foregroundWatchdogRunnable?.let { handler.removeCallbacks(it) }
         val runnable = object : Runnable {
@@ -733,6 +802,10 @@ class AppBlockerAccessibilityService : AccessibilityService() {
 
         screenStateReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
+                if (intent.action == ACTION_ALLOWANCE_CONFIG_CHANGED) {
+                    stopTimedAllowanceTracking()
+                    return
+                }
                 val pkg = currentTimedPkg ?: return
                 val entry = findAllowanceEntry(pkg) ?: return
                 if (entry.mode != "time_budget" && entry.mode != "interval") return
@@ -763,10 +836,28 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                         }
 
                         val pkgUsed = loadUsedObject().optJSONObject(pkg)
-                        val usedMs = pkgUsed?.optLong("usedMs", 0L) ?: 0L
                         val remainingMs = when (entry.mode) {
-                            "time_budget" -> (entry.budgetMs - usedMs).coerceAtLeast(0L)
-                            "interval" -> (entry.intervalMs - usedMs).coerceAtLeast(0L)
+                            "time_budget" -> {
+                                val today = todayDateString()
+                                val usedDate = pkgUsed?.optString("date", "") ?: ""
+                                val usedMs = if (usedDate == today) {
+                                    pkgUsed?.optLong("usedMs", 0L) ?: 0L
+                                } else {
+                                    0L
+                                }
+                                (entry.budgetMs - usedMs).coerceAtLeast(0L)
+                            }
+                            "interval" -> {
+                                val windowStartMs = pkgUsed?.optLong("windowStartMs", 0L) ?: 0L
+                                val windowExpired = windowStartMs <= 0L ||
+                                    now > windowStartMs + entry.windowMs
+                                val usedMs = if (windowExpired) {
+                                    0L
+                                } else {
+                                    pkgUsed?.optLong("usedMs", 0L) ?: 0L
+                                }
+                                (entry.intervalMs - usedMs).coerceAtLeast(0L)
+                            }
                             else -> 0L
                         }
                         if (remainingMs <= 0L) {
@@ -790,6 +881,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             registerReceiver(it, IntentFilter().apply {
                 addAction(Intent.ACTION_SCREEN_OFF)
                 addAction(Intent.ACTION_USER_PRESENT)
+                addAction(ACTION_ALLOWANCE_CONFIG_CHANGED)
             })
         }
     }
@@ -821,7 +913,10 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         val now = System.currentTimeMillis()
 
         // ── Task-based focus state ────────────────────────────────────────────
-        var focusActive = prefs.getBoolean(PREF_FOCUS_ON, false)
+        val wasFocusActive = prefs.getBoolean(PREF_FOCUS_ON, false)
+        val wasSaActive = prefs.getBoolean(PREF_SA_ACTIVE, false)
+        val alwaysBlockActive = prefs.getBoolean(PREF_ALWAYS_BLOCK, false)
+        var focusActive = wasFocusActive
         if (focusActive) {
             val endMs = prefs.getLong("task_end_ms", 0L)
             if (endMs > 0L && now > endMs) {
@@ -840,12 +935,19 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                 saActive = false
             }
         }
+        if ((wasFocusActive || wasSaActive || alwaysBlockActive) &&
+            !focusActive && !saActive && !alwaysBlockActive
+        ) {
+            // A session can expire without a final foreground event. Stop the
+            // allowance timer/checkpoint loop here so its delayed expiry cannot
+            // kick the user home during an otherwise free period.
+            stopTimedAllowanceTracking()
+        }
         // ── Always-on enforcement (session-independent) ───────────────────────
         // When true, standalone block list + daily allowance are enforced even
         // without an active focus task or timed standalone block session.
         // Does NOT affect the UI lock — settings can be changed when no timed
         // session is running (focusActive == false && saActive == false).
-        val alwaysBlockActive = prefs.getBoolean(PREF_ALWAYS_BLOCK, false)
         val systemGuardEnabled = prefs.getBoolean(PREF_SYSTEM_GUARD_ENABLED, false)
         val blockInstallActions = prefs.getBoolean(PREF_BLOCK_INSTALL_ACTIONS, false)
         val blockYoutubeShorts  = prefs.getBoolean(PREF_BLOCK_YT_SHORTS, false)
@@ -2351,22 +2453,24 @@ class AppBlockerAccessibilityService : AccessibilityService() {
 
         if (observedCounts.isEmpty()) return
         val today = todayDateString()
-        val allUsed = loadUsedObject()
-        var changed = false
-        for ((pkg, observedCount) in observedCounts) {
-            val pkgUsed = allUsed.optJSONObject(pkg) ?: org.json.JSONObject()
-            val storedDate = pkgUsed.optString("date", "")
-            val storedCount = if (storedDate == today) pkgUsed.optInt("count", 0) else 0
-            if (observedCount > storedCount) {
-                pkgUsed.put("mode", "count")
-                pkgUsed.put("date", today)
-                pkgUsed.put("count", observedCount)
-                allUsed.put(pkg, pkgUsed)
-                changed = true
+        synchronized(ALLOWANCE_USAGE_LOCK) {
+            val allUsed = loadUsedObject()
+            var changed = false
+            for ((pkg, observedCount) in observedCounts) {
+                val pkgUsed = allUsed.optJSONObject(pkg) ?: org.json.JSONObject()
+                val storedDate = pkgUsed.optString("date", "")
+                val storedCount = if (storedDate == today) pkgUsed.optInt("count", 0) else 0
+                if (observedCount > storedCount) {
+                    pkgUsed.put("mode", "count")
+                    pkgUsed.put("date", today)
+                    pkgUsed.put("count", observedCount)
+                    allUsed.put(pkg, pkgUsed)
+                    changed = true
+                }
             }
-        }
-        if (changed) {
-            prefs.edit().putString(PREF_DAILY_ALLOWANCE_USED, allUsed.toString()).apply()
+            if (changed) {
+                prefs.edit().putString(PREF_DAILY_ALLOWANCE_USED, allUsed.toString()).apply()
+            }
         }
     }
 
@@ -2398,6 +2502,29 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             .apply()
     }
 
+    /**
+     * Stops in-memory timed allowance tracking when every enforcement session
+     * has ended. The final open segment is retained, but no delayed callback
+     * should navigate the user home after protection has ended.
+     */
+    private fun stopTimedAllowanceTracking() {
+        currentTimedPkg?.let { pkg ->
+            val entry = findAllowanceEntry(pkg)
+            if (entry != null &&
+                (entry.mode == "time_budget" || entry.mode == "interval") &&
+                currentTimedOpenAtMs > 0L
+            ) {
+                accumulateTimedUsage(pkg, entry, currentTimedOpenAtMs)
+            }
+        }
+        clearActiveSessionSignal()
+        timedExpireRunnable?.let { handler.removeCallbacks(it) }
+        timedExpireRunnable = null
+        currentTimedPkg = null
+        currentTimedOpenAtMs = 0L
+        currentTimedSessionEndMs = 0L
+    }
+
     private fun startAllowanceCheckpointLoop() {
         handler.removeCallbacks(allowanceCheckpointRunnable)
         handler.postDelayed(allowanceCheckpointRunnable, ACTIVE_SESSION_CHECKPOINT_INTERVAL_MS)
@@ -2413,7 +2540,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         val entry = findAllowanceEntry(pkg) ?: return
         val now = System.currentTimeMillis()
         if (entry.mode == "time_budget" || entry.mode == "interval") {
-            if (currentTimedOpenAtMs > 0L && now > currentTimedOpenAtMs) {
+            synchronized(ALLOWANCE_USAGE_LOCK) {
                 /*
                  * ForegroundTaskService may have written an absolute UsageStats
                  * total while this service heartbeat was stale. Resume from
@@ -2422,20 +2549,30 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                  */
                 val syncJson = loadUsageStatsSyncObject()
                 val syncedAtMs = syncJson.optLong(pkg, 0L)
-                if (syncedAtMs > currentTimedOpenAtMs) {
-                    currentTimedOpenAtMs = syncedAtMs
+                val handoffApplied = syncedAtMs > currentTimedOpenAtMs
+                val effectiveOpenAtMs = if (handoffApplied) {
                     syncJson.remove(pkg)
-                    prefs.edit()
-                        .putString(PREF_USAGE_STATS_SYNC, syncJson.toString())
-                        .apply()
+                    currentTimedOpenAtMs = syncedAtMs
+                    currentTimedOpenAtMs
+                } else {
+                    currentTimedOpenAtMs
                 }
-                accumulateTimedUsage(pkg, entry, currentTimedOpenAtMs)
+                accumulateTimedUsage(
+                    pkg = pkg,
+                    entry = entry,
+                    openedAtMs = effectiveOpenAtMs,
+                    checkpointAtMs = now,
+                    usageStatsSyncJson = if (handoffApplied) syncJson.toString() else null,
+                )
+            }
+        } else {
+            synchronized(ALLOWANCE_USAGE_LOCK) {
+                prefs.edit()
+                    .putLong(PREF_ACTIVE_SESSION_LAST_CHECKPOINT_MS, now)
+                    .apply()
             }
         }
         currentTimedOpenAtMs = now
-        prefs.edit()
-            .putLong(PREF_ACTIVE_SESSION_LAST_CHECKPOINT_MS, now)
-            .apply()
     }
 
     /**
@@ -2522,12 +2659,13 @@ class AppBlockerAccessibilityService : AccessibilityService() {
      * @return sessionEndMs — the epoch ms when this session expires (0 for count mode).
      */
     private fun recordAllowanceOpen(pkg: String, entry: AllowanceEntry): Long {
-        val now = System.currentTimeMillis()
-        val allUsed = loadUsedObject()
-        val pkgUsed = allUsed.optJSONObject(pkg) ?: org.json.JSONObject()
+        return synchronized(ALLOWANCE_USAGE_LOCK) {
+            val now = System.currentTimeMillis()
+            val allUsed = loadUsedObject()
+            val pkgUsed = allUsed.optJSONObject(pkg) ?: org.json.JSONObject()
 
-        val sessionEndMs: Long
-        when (entry.mode) {
+            val sessionEndMs: Long
+            when (entry.mode) {
             "count" -> {
                 val today = todayDateString()
                 val usedDate = pkgUsed.optString("date", "")
@@ -2560,11 +2698,12 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                 pkgUsed.put("usedMs", prevUsedMs) // updated when session ends
             }
             else -> sessionEndMs = 0L
-        }
+            }
 
-        allUsed.put(pkg, pkgUsed)
-        prefs.edit().putString(PREF_DAILY_ALLOWANCE_USED, allUsed.toString()).apply()
-        return sessionEndMs
+            allUsed.put(pkg, pkgUsed)
+            prefs.edit().putString(PREF_DAILY_ALLOWANCE_USED, allUsed.toString()).apply()
+            sessionEndMs
+        }
     }
 
     /**
@@ -2577,15 +2716,22 @@ class AppBlockerAccessibilityService : AccessibilityService() {
      *   • interval: caps accumulation at the window boundary so time used after a window
      *     expires mid-session is not charged to the new (not-yet-started) window.
      */
-    private fun accumulateTimedUsage(pkg: String, entry: AllowanceEntry, openedAtMs: Long) {
-        val now = System.currentTimeMillis()
-        val elapsed = (now - openedAtMs).coerceAtLeast(0L)
-        if (elapsed == 0L) return
+    private fun accumulateTimedUsage(
+        pkg: String,
+        entry: AllowanceEntry,
+        openedAtMs: Long,
+        checkpointAtMs: Long? = null,
+        usageStatsSyncJson: String? = null,
+    ) {
+        synchronized(ALLOWANCE_USAGE_LOCK) {
+            val now = System.currentTimeMillis()
+            val elapsed = (now - openedAtMs).coerceAtLeast(0L)
+            if (elapsed == 0L && checkpointAtMs == null && usageStatsSyncJson == null) return
 
-        val allUsed = loadUsedObject()
-        val pkgUsed = allUsed.optJSONObject(pkg) ?: org.json.JSONObject()
+            val allUsed = loadUsedObject()
+            val pkgUsed = allUsed.optJSONObject(pkg) ?: org.json.JSONObject()
 
-        when (entry.mode) {
+            when (entry.mode) {
             "time_budget" -> {
                 val today      = todayDateString()
                 val midnightMs = getMidnightMs()
@@ -2621,10 +2767,19 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                     pkgUsed.put("usedMs", (prevUsedMs + elapsed).coerceAtMost(entry.intervalMs))
                 }
             }
-        }
+            }
 
-        allUsed.put(pkg, pkgUsed)
-        prefs.edit().putString(PREF_DAILY_ALLOWANCE_USED, allUsed.toString()).apply()
+            val editor = prefs.edit()
+            if (elapsed > 0L) {
+                allUsed.put(pkg, pkgUsed)
+                editor.putString(PREF_DAILY_ALLOWANCE_USED, allUsed.toString())
+            }
+            checkpointAtMs?.let { editor.putLong(PREF_ACTIVE_SESSION_LAST_CHECKPOINT_MS, it) }
+            usageStatsSyncJson?.let {
+                editor.putString(PREF_USAGE_STATS_SYNC, it)
+            }
+            editor.apply()
+        }
     }
 
     /**
@@ -2636,31 +2791,51 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         val delayMs = sessionEndMs - System.currentTimeMillis()
         if (delayMs <= 0L) {
             // Already expired — dismiss immediately
+            var shouldGoHome = false
             if (currentTimedPkg == pkg) {
                 val entry = findAllowanceEntry(pkg)
                 if (entry != null) accumulateTimedUsage(pkg, entry, currentTimedOpenAtMs)
+                shouldGoHome = hasActiveEnforcementSession()
                 clearActiveSessionSignal()
                 currentTimedPkg = null
                 currentTimedOpenAtMs = 0L
                 currentTimedSessionEndMs = 0L
             }
-            performGlobalAction(GLOBAL_ACTION_HOME)
+            if (shouldGoHome) performGlobalAction(GLOBAL_ACTION_HOME)
             return
         }
         val runnable = Runnable {
             timedExpireRunnable = null
+            var shouldGoHome = false
             val entry = findAllowanceEntry(pkg)
             if (entry != null && currentTimedPkg == pkg) {
                 accumulateTimedUsage(pkg, entry, currentTimedOpenAtMs)
+                shouldGoHome = hasActiveEnforcementSession()
             }
-            clearActiveSessionSignal()
-            currentTimedPkg = null
-            currentTimedOpenAtMs = 0L
-            currentTimedSessionEndMs = 0L
-            performGlobalAction(GLOBAL_ACTION_HOME)
+            if (currentTimedPkg == pkg) {
+                clearActiveSessionSignal()
+                currentTimedPkg = null
+                currentTimedOpenAtMs = 0L
+                currentTimedSessionEndMs = 0L
+            }
+            if (shouldGoHome) performGlobalAction(GLOBAL_ACTION_HOME)
         }
         timedExpireRunnable = runnable
         handler.postDelayed(runnable, delayMs)
+    }
+
+    private fun hasActiveEnforcementSession(now: Long = System.currentTimeMillis()): Boolean {
+        val focusActive = prefs.getBoolean(PREF_FOCUS_ON, false).let { on ->
+            if (!on) false
+            else prefs.getLong("task_end_ms", 0L).let { end -> end <= 0L || now <= end }
+        }
+        val saActive = prefs.getBoolean(PREF_SA_ACTIVE, false).let { on ->
+            if (!on) false
+            else prefs.getLong(PREF_SA_UNTIL, 0L).let { until -> until <= 0L || now <= until }
+        }
+        return focusActive ||
+            saActive ||
+            prefs.getBoolean(PREF_ALWAYS_BLOCK, false)
     }
 
     private fun loadUsedObject(): org.json.JSONObject {
@@ -3379,6 +3554,18 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         val now   = System.currentTimeMillis()
         val parts = mutableListOf<String>()
         immediateReason?.trim()?.takeIf { it.isNotEmpty() }?.let { parts += it }
+
+        // Allowance exhaustion is the most specific explanation when an app is
+        // admitted by the focus allow-list but its quota has run out. Keep this
+        // ahead of the generic Focus Mode explanation so the overlay tells the
+        // user which limit caused the block.
+        if (pkg.isNotEmpty() && hasActiveEnforcementSession(now)) {
+            val allowanceEntry = findAllowanceEntry(pkg)
+            if (allowanceEntry != null && !isAllowanceAvailable(pkg, allowanceEntry)) {
+                val allowanceReason = allowanceExhaustedReason(pkg, allowanceEntry)
+                if (allowanceReason !in parts) parts += allowanceReason
+            }
+        }
 
         // 1. Focus mode (task-based session)
         val focusActive = prefs.getBoolean(PREF_FOCUS_ON, false)

@@ -14,6 +14,19 @@ type Entry = {
 
 const CHANGELOG: Entry[] = [
   {
+    version: '1.1.1',
+    date: 'August 2026',
+    sections: [
+      {
+        heading: 'Database Reliability',
+        icon: 'server-outline',
+        items: [
+          'Solved database errors that could interrupt app loading and prevent settings or task changes from being saved correctly',
+        ],
+      },
+    ],
+  },
+  {
     version: '1.1.0',
     date: 'August 2026',
     sections: [

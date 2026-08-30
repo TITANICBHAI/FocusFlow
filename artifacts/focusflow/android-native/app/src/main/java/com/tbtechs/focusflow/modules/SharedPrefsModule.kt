@@ -1,5 +1,6 @@
 package com.tbtechs.focusflow.modules
 
+import android.content.Intent
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
@@ -446,6 +447,11 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
         prefs().edit()
             .putString("daily_allowance_config", configJson)
             .apply()
+        reactContext.sendBroadcast(
+            Intent(AppBlockerAccessibilityService.ACTION_ALLOWANCE_CONFIG_CHANGED).apply {
+                `package` = reactContext.packageName
+            },
+        )
         promise.resolve(null)
     }
 
@@ -505,6 +511,7 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
         val current = prefs()
         promise.resolve(WritableNativeMap().apply {
             putString("usageJson", current.getString("daily_allowance_used", null))
+            putString("configJson", current.getString("daily_allowance_config", null))
             putString("activeSessionPackage", current.getString("active_session_pkg", null))
             putDouble("activeSessionEndMs", current.getLong("active_session_end_ms", 0L).toDouble())
         })
