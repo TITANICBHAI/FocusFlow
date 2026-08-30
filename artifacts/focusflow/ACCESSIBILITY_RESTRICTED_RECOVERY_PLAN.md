@@ -58,6 +58,10 @@ and its proactive `RestrictedSettingsBanner` remain unchanged.
   step and keep it visible until Accessibility is actually granted.
 - [x] “Skip Accessibility” dismisses this recovery helper and lets onboarding
   continue.
+- [x] Show a dismiss X on every recovery stage; it dismisses only the popup
+  recovery helper and does not mark Accessibility as granted or exit onboarding.
+- [x] Present recovery as a step-based modal popup over onboarding, with a
+  progress indicator and one focused stage at a time.
 
 ## Verification
 
@@ -68,6 +72,8 @@ and its proactive `RestrictedSettingsBanner` remain unchanged.
   untouched.
 - [x] Confirm Android/non-Android and pre-attempt render gates.
 - [x] Confirm the retry panel remains after App Info unlock.
+- [x] Confirm recovery can be dismissed from every stage without an async check
+  reopening the helper.
 - [x] Confirm no `allowBackup` changes are part of this accessibility work; the
   prior backup-security changes remain separate.
 - [ ] Run the FocusFlow workflow and inspect logs after implementation — blocked

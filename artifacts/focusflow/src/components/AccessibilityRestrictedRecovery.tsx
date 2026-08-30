@@ -3,13 +3,16 @@ import {
   ActivityIndicator,
   AppState,
   Linking,
+  Modal,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { UsageStatsModule } from "@/native-modules/UsageStatsModule";
 import { COLORS, FONT, RADIUS, SPACING } from "@/styles/theme";
 import { useTheme } from "@/hooks/useTheme";
@@ -54,6 +57,7 @@ export function AccessibilityRestrictedRecovery({
   const leftAppAfterAttemptRef = useRef(false);
   const accessibilityAttemptedRef = useRef(accessibilityAttempted);
   const pendingSettingsRef = useRef<PendingSettings>(null);
+  const dismissedRef = useRef(false);
 
   useEffect(() => {
     accessibilityAttemptedRef.current = accessibilityAttempted;
@@ -165,6 +169,7 @@ export function AccessibilityRestrictedRecovery({
     setStage("checking");
     try {
       const restricted = await checkRestrictedSettings();
+      if (dismissedRef.current) return;
       setStage(restricted ? "app-info" : "enable");
       setReturnedFromFallback(false);
     } finally {
@@ -177,17 +182,35 @@ export function AccessibilityRestrictedRecovery({
     setStage("checking");
     try {
       const granted = await UsageStatsModule.hasAccessibilityPermission();
+      if (dismissedRef.current) return;
       if (granted) {
         setCompleted(true);
         return;
       }
 
       const restricted = await checkRestrictedSettings();
+      if (dismissedRef.current) return;
       setStage(restricted ? "app-info" : "enable");
     } finally {
       setCheckingSettings(false);
     }
   }
+
+  const dismissRecovery = () => {
+    dismissedRef.current = true;
+    pendingSettingsRef.current = null;
+    setStage("skipped");
+  };
+
+  const stageNumber =
+    stage === "question"
+      ? 1
+      : stage === "greyed-entry"
+        ? 2
+        : stage === "app-info" || stage === "checking"
+          ? 3
+          : 4;
+  const progressPercent = stage === "checking" ? 82 : stageNumber * 25;
 
   const renderStep = (number: number, text: string, light = false) => (
     <View style={styles.stepRow} key={`${number}-${text}`}>
@@ -505,67 +528,186 @@ export function AccessibilityRestrictedRecovery({
   );
 
   return (
-    <View
-      style={[
-        styles.container,
-        {
-          backgroundColor: theme.card,
-          borderColor:
-            stage === "enable" ? COLORS.green + "66" : COLORS.primary + "55",
-        },
-      ]}
+    <Modal
+      visible
+      transparent
+      animationType="fade"
+      onRequestClose={dismissRecovery}
     >
-      <View style={styles.headerRow}>
-        <View style={styles.iconRing}>
-          <Ionicons
-            name={stage === "enable" ? "checkmark-circle" : "lock-closed"}
-            size={18}
-            color={stage === "enable" ? COLORS.green : COLORS.primary}
-          />
-        </View>
-        <View style={styles.headerText}>
-          <Text style={[styles.title, { color: theme.text }]}>
-            {stage === "question" && "One Accessibility step may be needed"}
-            {stage === "greyed-entry" && "Tap the greyed-out FocusFlow entry"}
-            {stage === "app-info" && "Allow restricted settings"}
-            {stage === "checking" && "Checking Android settings"}
-            {stage === "enable" && "Now enable Accessibility"}
-          </Text>
-          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-            {stage === "question" &&
-              "Some Android phones require this extra path before FocusFlow can be enabled."}
-            {stage === "greyed-entry" &&
-              "This helps Android reveal the restricted-access explanation."}
-            {stage === "app-info" &&
-              "Follow the Android App Info steps, then we will check the result."}
-            {stage === "checking" &&
-              "Please wait while FocusFlow verifies the permission state."}
-            {stage === "enable" &&
-              "Restricted settings are unlocked, but Accessibility is not enabled yet."}
-          </Text>
+      <View style={styles.modalBackdrop}>
+        <View
+          style={[
+            styles.modalCard,
+            {
+              backgroundColor: theme.card,
+              borderColor:
+                stage === "enable"
+                  ? COLORS.green + "66"
+                  : COLORS.primary + "55",
+            },
+          ]}
+          accessibilityViewIsModal
+        >
+          <SafeAreaView style={styles.modalSafe} edges={["top", "bottom"]}>
+            <ScrollView
+              contentContainerStyle={styles.modalScroll}
+              showsVerticalScrollIndicator={false}
+              bounces={false}
+            >
+              <View style={styles.progressHeader}>
+                <Text style={[styles.progressLabel, { color: COLORS.primary }]}>
+                  ACCESSIBILITY RECOVERY
+                </Text>
+                <Text style={[styles.progressCount, { color: theme.muted }]}>
+                  Step {stageNumber} of 4
+                </Text>
+              </View>
+              <View
+                style={[
+                  styles.progressTrack,
+                  { backgroundColor: theme.border },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.progressFill,
+                    {
+                      width: `${progressPercent}%`,
+                      backgroundColor:
+                        stage === "enable" ? COLORS.green : COLORS.primary,
+                    },
+                  ]}
+                />
+              </View>
+
+              <View style={styles.headerRow}>
+                <View
+                  style={[
+                    styles.iconRing,
+                    {
+                      backgroundColor:
+                        stage === "enable"
+                          ? COLORS.green + "18"
+                          : COLORS.primary + "18",
+                    },
+                  ]}
+                >
+                  <Ionicons
+                    name={
+                      stage === "enable" ? "checkmark-circle" : "lock-closed"
+                    }
+                    size={26}
+                    color={stage === "enable" ? COLORS.green : COLORS.primary}
+                  />
+                </View>
+                <View style={styles.headerText}>
+                  <Text style={[styles.title, { color: theme.text }]}>
+                    {stage === "question" &&
+                      "One Accessibility step may be needed"}
+                    {stage === "greyed-entry" &&
+                      "Tap the greyed-out FocusFlow entry"}
+                    {stage === "app-info" && "Allow restricted settings"}
+                    {stage === "checking" && "Checking Android settings"}
+                    {stage === "enable" && "Now enable Accessibility"}
+                  </Text>
+                  <Text
+                    style={[styles.subtitle, { color: theme.textSecondary }]}
+                  >
+                    {stage === "question" &&
+                      "Some Android phones require this extra path before FocusFlow can be enabled."}
+                    {stage === "greyed-entry" &&
+                      "This helps Android reveal the restricted-access explanation."}
+                    {stage === "app-info" &&
+                      "Follow the Android App Info steps, then we will check the result."}
+                    {stage === "checking" &&
+                      "Please wait while FocusFlow verifies the permission state."}
+                    {stage === "enable" &&
+                      "Restricted settings are unlocked, but Accessibility is not enabled yet."}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.dismissButton}
+                  onPress={dismissRecovery}
+                  hitSlop={8}
+                  activeOpacity={0.75}
+                  accessibilityRole="button"
+                  accessibilityLabel="Dismiss Accessibility recovery"
+                  testID="restricted-recovery-dismiss"
+                >
+                  <Ionicons name="close" size={22} color={theme.muted} />
+                </TouchableOpacity>
+              </View>
+
+              {stage === "question" && renderQuestion()}
+              {stage === "greyed-entry" && renderGreyedEntry()}
+              {stage === "app-info" && renderAppInfo()}
+              {stage === "checking" && (
+                <View style={styles.checkingBox}>
+                  <ActivityIndicator size="small" color={COLORS.primary} />
+                  <Text
+                    style={[styles.bodyText, { color: theme.textSecondary }]}
+                  >
+                    Checking restricted settings…
+                  </Text>
+                </View>
+              )}
+              {stage === "enable" && renderEnable()}
+            </ScrollView>
+          </SafeAreaView>
         </View>
       </View>
-
-      {stage === "question" && renderQuestion()}
-      {stage === "greyed-entry" && renderGreyedEntry()}
-      {stage === "app-info" && renderAppInfo()}
-      {stage === "checking" && (
-        <View style={styles.checkingBox}>
-          <ActivityIndicator size="small" color={COLORS.primary} />
-          <Text style={[styles.bodyText, { color: theme.textSecondary }]}>
-            Checking restricted settings…
-          </Text>
-        </View>
-      )}
-      {stage === "enable" && renderEnable()}
-    </View>
+    </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    borderRadius: RADIUS.lg,
+  modalBackdrop: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: SPACING.md,
+    backgroundColor: "rgba(15, 23, 42, 0.58)",
+  },
+  modalCard: {
+    width: "100%",
+    maxWidth: 520,
+    maxHeight: "92%",
+    borderRadius: RADIUS.xl,
     borderWidth: 1.5,
+    overflow: "hidden",
+  },
+  modalSafe: {
+    flexShrink: 1,
+  },
+  modalScroll: {
+    padding: SPACING.lg,
+    gap: SPACING.md,
+    paddingBottom: SPACING.xl,
+  },
+  progressHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  progressLabel: {
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 1.2,
+  },
+  progressCount: {
+    fontSize: FONT.xs,
+    fontWeight: "700",
+  },
+  progressTrack: {
+    height: 5,
+    borderRadius: 3,
+    overflow: "hidden",
+  },
+  progressFill: {
+    height: "100%",
+    borderRadius: 3,
+  },
+  container: {
     padding: SPACING.md,
     gap: SPACING.sm,
   },
@@ -575,10 +717,9 @@ const styles = StyleSheet.create({
     gap: SPACING.sm,
   },
   iconRing: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: COLORS.primary + "18",
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
@@ -586,6 +727,14 @@ const styles = StyleSheet.create({
   headerText: {
     flex: 1,
     gap: 3,
+  },
+  dismissButton: {
+    width: 28,
+    height: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: -4,
+    marginRight: -4,
   },
   title: {
     fontSize: FONT.sm,
