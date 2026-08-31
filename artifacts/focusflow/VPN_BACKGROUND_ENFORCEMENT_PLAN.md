@@ -18,6 +18,23 @@ checked-out code on 2026-08-31.
 and still needing a gate · `[ ]` open, deferred, or not found. A checked source
 item is not proof of Android device behavior.
 
+#### Progress update — 2026-08-31 implementation pass
+
+- [x] Coordinator conflict classification now runs before VPN-consent
+  classification, avoiding a false permission-loss state when another VPN owns
+  the system slot.
+- [x] VPN service revoke recovery now asks the coordinator to recalculate from
+  durable policy sources instead of replaying the legacy effective snapshot.
+- [x] The legacy React Native VPN start entry point now feeds coordinator
+  reconciliation instead of dispatching a parallel start command.
+- [x] Critical VPN settings and legacy start-policy inputs are committed before
+  coordinator reconciliation is requested.
+- [x] Added a JavaScript bridge contract suite for VPN settings serialization,
+  reconciliation, and persisted status diagnostics.
+- [~] Accessibility-triggered and remaining legacy recovery paths still require
+  full coordinator ownership; protected overlay behavior was intentionally not
+  modified.
+
 #### Baseline
 
 - [x] Explicit per-app VPN targets use the null-routing tunnel, independent of

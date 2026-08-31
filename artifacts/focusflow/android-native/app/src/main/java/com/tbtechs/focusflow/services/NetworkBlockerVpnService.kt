@@ -249,42 +249,36 @@ class NetworkBlockerVpnService : VpnService() {
 
         stopVpn()   // close the TUN fd first
 
-        // Signal to the JS layer that VPN permission was lost.
-        // This flag is read by NetworkBlockModule.isVpnPermissionGranted() and
-        // used to surface the re-grant prompt in the UI. The flag is cleared
-        // by startVpn() if a subsequent restart succeeds.
+        // Signal native health to the JS layer. A real consent loss sets
+        // vpn_permission_lost and posts the re-grant notification; a competing
+        // VPN gets its own conflict state and stops watchdog retry.
         val persistentVpn = hasPersistentVpnConfiguration(prefs)
+        val anotherVpnActive = VpnPolicyCoordinator.isAnotherVpnActive(this)
         if (focusOn || saOn || alwaysOn || persistentVpn) {
             prefs.edit()
-                .putBoolean("vpn_permission_lost", true)
+                .putBoolean("vpn_permission_lost", !anotherVpnActive)
                 .apply()
-            writeStatus(STATUS_PERMISSION_MISSING, "VPN permission was revoked or another VPN took over")
-            VpnRecoveryNotifier.postPermissionRequired(this)
+            if (anotherVpnActive) {
+                writeStatus(STATUS_ANOTHER_VPN, "Another VPN is active; FocusFlow will not replace it automatically")
+                VpnWatchdogReceiver.cancel(this)
+            } else {
+                writeStatus(STATUS_PERMISSION_MISSING, "VPN permission was revoked or another VPN took over")
+                VpnRecoveryNotifier.postPermissionRequired(this)
+            }
         }
 
-        if (selfHeal && (focusOn || saOn || alwaysOn || persistentVpn)) {
+        if (selfHeal && !anotherVpnActive && (focusOn || saOn || alwaysOn || persistentVpn)) {
             val ctx  = applicationContext
-            val pkgs = prefs.getString("net_block_packages", "[]") ?: "[]"
-            val mode = prefs.getString("net_block_mode", MODE_PER_APP) ?: MODE_PER_APP
             Handler(Looper.getMainLooper()).postDelayed({
                 try {
-                    val restartIntent = Intent(ctx, NetworkBlockerVpnService::class.java).apply {
-                        action = ACTION_START
-                        putExtra(EXTRA_PACKAGES, pkgs)
-                        putExtra(EXTRA_MODE,     mode)
-                        putExtra(
-                            EXTRA_POLICY_GENERATION,
-                            prefs.getLong("vpn_desired_generation", -1L),
-                        )
-                    }
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        ctx.startForegroundService(restartIntent)
-                    } else {
-                        ctx.startService(restartIntent)
-                    }
+                    // Recalculate from durable source ownership rather than
+                    // replaying the last compatibility snapshot. This also
+                    // lets the coordinator classify another active VPN before
+                    // attempting to restart.
+                    VpnPolicyCoordinator.reconcile(ctx)
                 } catch (_: Exception) {
                     // Session ended or another VPN took over — give up gracefully.
-                    // vpn_permission_lost stays true so the UI can show the re-grant prompt.
+                    // The persisted native status remains available to the UI.
                 }
             }, 3_000L)
         }

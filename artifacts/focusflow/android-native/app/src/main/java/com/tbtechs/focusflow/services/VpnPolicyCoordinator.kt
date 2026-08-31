@@ -160,6 +160,20 @@ object VpnPolicyCoordinator {
             return
         }
 
+        // Android uses the non-null prepare() result both when consent is
+        // missing and when another VPN currently owns the system slot. Check
+        // the observable conflict first so the UI never reports a competing
+        // VPN as a permission loss.
+        if (!NetworkBlockerVpnService.isRunning && isAnotherVpnActive(context)) {
+            prefs.edit()
+                .putString("vpn_status", NetworkBlockerVpnService.STATUS_ANOTHER_VPN)
+                .putString("vpn_error", "Another VPN is active; FocusFlow will not replace it automatically")
+                .putBoolean(PREF_RECOVERY_PENDING, true)
+                .apply()
+            VpnWatchdogReceiver.cancel(context)
+            return
+        }
+
         if (VpnService.prepare(context) != null) {
             prefs.edit()
                 .putBoolean("vpn_permission_lost", true)
@@ -168,16 +182,6 @@ object VpnPolicyCoordinator {
                 .putBoolean(PREF_RECOVERY_PENDING, true)
                 .apply()
             VpnRecoveryNotifier.postPermissionRequired(context)
-            return
-        }
-
-        if (!NetworkBlockerVpnService.isRunning && hasAnotherVpn(context)) {
-            prefs.edit()
-                .putString("vpn_status", NetworkBlockerVpnService.STATUS_ANOTHER_VPN)
-                .putString("vpn_error", "Another VPN is active; FocusFlow will not replace it automatically")
-                .putBoolean(PREF_RECOVERY_PENDING, true)
-                .apply()
-            VpnWatchdogReceiver.cancel(context)
             return
         }
 
@@ -257,7 +261,14 @@ object VpnPolicyCoordinator {
         return endMs <= 0L || System.currentTimeMillis() < endMs
     }
 
-    private fun hasAnotherVpn(context: Context): Boolean {
+    /**
+     * Returns whether another VPN currently owns the system VPN transport.
+     *
+     * This is intentionally separate from VpnService.prepare(): Android uses
+     * prepare() for both missing consent and an active competing VPN, while
+     * recovery diagnostics need to distinguish those states.
+     */
+    fun isAnotherVpnActive(context: Context): Boolean {
         if (NetworkBlockerVpnService.isRunning || Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
             return false
         }

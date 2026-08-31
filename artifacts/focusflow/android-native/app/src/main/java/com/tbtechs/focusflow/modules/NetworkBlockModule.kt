@@ -204,7 +204,10 @@ class NetworkBlockModule(private val reactContext: ReactApplicationContext) :
                 editor.putString("vpn_selected_packages", packagesJson)
                     .putString("net_block_packages", packagesJson)
             }
-            editor.apply()
+            if (!editor.commit()) {
+                promise.reject("PERSISTENCE_ERROR", "Could not persist VPN settings")
+                return
+            }
             VpnPolicyCoordinator.reconcile(reactContext)
             promise.resolve(null)
         } catch (e: Exception) {
@@ -267,11 +270,15 @@ class NetworkBlockModule(private val reactContext: ReactApplicationContext) :
             if (useVpn) {
                 // The service and every watchdog path read this canonical list.
                 // Persist it before dispatching the asynchronous service start.
-                prefs.edit()
+                val persisted = prefs.edit()
                     .putString("net_block_packages", packagesJson)
                     .putString("net_block_mode", if (global) NetworkBlockerVpnService.MODE_GLOBAL
                                                  else NetworkBlockerVpnService.MODE_PER_APP)
-                    .apply()
+                    .commit()
+                if (!persisted) {
+                    promise.reject("PERSISTENCE_ERROR", "Could not persist VPN package policy")
+                    return
+                }
             }
             if (useVpn && !NetworkBlockerVpnService.isRunning) {
                 val vpnPermission = VpnService.prepare(reactContext)
@@ -294,14 +301,10 @@ class NetworkBlockModule(private val reactContext: ReactApplicationContext) :
                     )
                     return
                 }
-                val mode = if (global) NetworkBlockerVpnService.MODE_GLOBAL
-                           else        NetworkBlockerVpnService.MODE_PER_APP
-                val intent = Intent(reactContext, NetworkBlockerVpnService::class.java).apply {
-                    action = NetworkBlockerVpnService.ACTION_START
-                    putExtra(NetworkBlockerVpnService.EXTRA_PACKAGES, packagesJson)
-                    putExtra(NetworkBlockerVpnService.EXTRA_MODE, mode)
-                }
-                startVpnService(intent)
+                // The coordinator owns the effective target set and generation
+                // ordering. Keep this legacy entry point as an input writer
+                // instead of dispatching a parallel start command.
+                VpnPolicyCoordinator.reconcile(reactContext)
             }
 
             // 2 — Direct WiFi disable (supplementary; works on Android 9-)
