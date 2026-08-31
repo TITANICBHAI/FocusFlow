@@ -229,6 +229,9 @@ class NetworkBlockModule(private val reactContext: ReactApplicationContext) :
                 put("running", NetworkBlockerVpnService.isRunning)
                 put("error", error ?: JSONObject.NULL)
                 put("failedPackages", failed)
+                put("desiredGeneration", prefs.getLong("vpn_desired_generation", 0L))
+                put("appliedGeneration", prefs.getLong("vpn_applied_generation", 0L))
+                put("recoveryPending", prefs.getBoolean("vpn_recovery_pending", false))
             }
             promise.resolve(obj.toString())
         } catch (e: Exception) {
@@ -478,6 +481,13 @@ class NetworkBlockModule(private val reactContext: ReactApplicationContext) :
     fun setVpnSelfHealEnabled(enabled: Boolean, promise: Promise) {
         try {
             prefs.edit().putBoolean("net_block_self_heal", enabled).apply()
+            if (enabled) {
+                // Reconcile immediately so an existing durable policy does not
+                // wait for the next watchdog tick before recovery is protected.
+                VpnPolicyCoordinator.reconcile(reactContext)
+            } else {
+                VpnWatchdogReceiver.cancel(reactContext)
+            }
             promise.resolve(null)
         } catch (e: Exception) {
             promise.reject("SELF_HEAL_ERROR", e.message, e)

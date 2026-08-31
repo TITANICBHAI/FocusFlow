@@ -67,6 +67,7 @@ class VpnWatchdogReceiver : BroadcastReceiver() {
             !prefs.getBoolean("net_block_vpn", true) ||
             !prefs.getBoolean("net_block_self_heal", false)
         ) {
+            cancel(context)
             return
         }
 
@@ -92,7 +93,10 @@ class VpnWatchdogReceiver : BroadcastReceiver() {
             return
         }
 
-        if (NetworkBlockerVpnService.isRunning) return
+        if (NetworkBlockerVpnService.isRunning &&
+            prefs.getLong("vpn_applied_generation", 0L) >=
+                prefs.getLong("vpn_desired_generation", 0L)
+        ) return
 
         // Recompute the effective policy before attempting recovery. This keeps
         // watchdog behavior aligned with explicit + Focus-derived targets.

@@ -228,6 +228,17 @@ export const SharedPrefsModule = {
   },
 
   /**
+   * Keeps persistent Always-On VPN selections separate from timed-session
+   * selections. Native reconciliation unions them only for the active policy.
+   */
+  async setVpnPolicySources(alwaysOnPackages: string[], sessionPackages: string[]): Promise<void> {
+    if (!hasSharedPrefsMethod('setVpnPolicySources')) return;
+    await callNative('setVpnPolicySources', () =>
+      SharedPrefs.setVpnPolicySources(JSON.stringify(alwaysOnPackages), JSON.stringify(sessionPackages)),
+    );
+  },
+
+  /**
    * Writes the list of packages that are hidden from FocusFlow's home launcher
    * app drawer. Only blocked packages should be hidden — enforced by UI, not native.
    */

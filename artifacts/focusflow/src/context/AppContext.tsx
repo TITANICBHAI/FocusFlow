@@ -729,6 +729,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         packages: mergedVpnPkgs,
         defensePinHash,
       });
+      await SharedPrefsModule.setVpnPolicySources(alwaysOnVpnPkgs, sessionVpnPkgs);
     } catch (e) {
       void logger.warn('AppContext', `vpn settings sync failed: ${String(e)}`);
     }
@@ -1830,11 +1831,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const active = packages.length > 0 && untilMs !== null && untilMs > Date.now();
     await SharedPrefsModule.setStandaloneBlock(active, packages, untilMs ?? 0, pinHash);
     await SharedPrefsModule.setDailyAllowanceConfig(allowanceEntries);
-    const mergedVpnPkgs = Array.from(new Set([
-      ...(newSettings.alwaysOnVpnPackages ?? []),
-      ...(newSettings.standaloneVpnPackages ?? []),
-    ]));
-    await SharedPrefsModule.setVpnSelectedPackages(mergedVpnPkgs).catch(() => {});
+    await SharedPrefsModule.setVpnPolicySources(
+      newSettings.alwaysOnVpnPackages ?? [],
+      newSettings.standaloneVpnPackages ?? [],
+    ).catch(() => {});
     void NetworkBlockModule.reconcileVpnPolicy().catch((e) =>
       void logger.warn('AppContext', `standalone VPN policy sync failed: ${String(e)}`),
     );

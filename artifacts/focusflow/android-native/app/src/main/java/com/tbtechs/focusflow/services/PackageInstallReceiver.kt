@@ -10,8 +10,8 @@ import org.json.JSONArray
 /**
  * PackageInstallReceiver
  *
- * Listens for ACTION_PACKAGE_ADDED broadcasts so a newly installed app can be
- * automatically handled during an active focus session.
+ * Listens for package add/remove broadcasts so the effective policy is
+ * recalculated whenever an installed target changes.
  *
  * Behaviour during an active session:
  *   1. Reads the current focus/standalone block state from SharedPreferences.
@@ -30,6 +30,8 @@ import org.json.JSONArray
  *
  * Declared in AndroidManifest.xml with:
  *   <action android:name="android.intent.action.PACKAGE_ADDED" />
+ *   <action android:name="android.intent.action.PACKAGE_REMOVED" />
+ *   <action android:name="android.intent.action.PACKAGE_FULLY_REMOVED" />
  *   <data android:scheme="package" />
  */
 class PackageInstallReceiver : BroadcastReceiver() {
@@ -43,7 +45,18 @@ class PackageInstallReceiver : BroadcastReceiver() {
     }
 
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action != Intent.ACTION_PACKAGE_ADDED) return
+        when (intent.action) {
+            Intent.ACTION_PACKAGE_REMOVED,
+            Intent.ACTION_PACKAGE_FULLY_REMOVED -> {
+                // PACKAGE_REMOVED also fires during replacement. The add
+                // broadcast will handle the replacement after installation.
+                if (intent.getBooleanExtra(Intent.EXTRA_REPLACING, false)) return
+                reconcileVpnIfConfigured(context)
+                return
+            }
+            Intent.ACTION_PACKAGE_ADDED -> Unit
+            else -> return
+        }
 
         val isReplacing = intent.getBooleanExtra(Intent.EXTRA_REPLACING, false)
         if (isReplacing) return
@@ -71,15 +84,18 @@ class PackageInstallReceiver : BroadcastReceiver() {
             } else false
         }
 
+        if (hasConfiguredVpnPolicy(prefs)) {
+            // Revalidate explicit targets as well as Focus-derived targets. A
+            // package that was unavailable during the previous reconciliation
+            // can become installable after this broadcast.
+            VpnPolicyCoordinator.reconcile(context)
+        }
+
         if (!focusActive && !saActive) return
 
         // Keep an opted-in Focus → VPN mirror current when a new launchable
         // package appears during the session. This only updates VPN-derived
         // targets; overlay and standalone package state remain unchanged.
-        if (focusActive && prefs.getBoolean("vpn_focus_mirror_enabled", false)) {
-            VpnPolicyCoordinator.reconcile(context)
-        }
-
         val editor = prefs.edit()
 
         flagNewInstall(newPkg, prefs, editor)
@@ -91,6 +107,33 @@ class PackageInstallReceiver : BroadcastReceiver() {
         editor.apply()
 
         AversiveActionsManager.onBlockedApp(context)
+    }
+
+    private fun reconcileVpnIfConfigured(context: Context) {
+        val prefs = context.getSharedPreferences(
+            AppBlockerAccessibilityService.PREFS_NAME,
+            Context.MODE_PRIVATE,
+        )
+        val explicit = prefs.getString("vpn_selected_packages", "[]") ?: "[]"
+        val canonical = prefs.getString("net_block_packages", "[]") ?: "[]"
+        val hasTargets = explicit != "[]" || canonical != "[]"
+        val hasVpnPolicy = prefs.getBoolean("net_block_enabled", false) &&
+            prefs.getBoolean("net_block_vpn", true) &&
+            (prefs.getBoolean("net_block_global", false) ||
+                hasTargets ||
+                prefs.getBoolean("vpn_focus_mirror_enabled", false))
+        if (hasVpnPolicy) VpnPolicyCoordinator.reconcile(context)
+    }
+
+    private fun hasConfiguredVpnPolicy(prefs: SharedPreferences): Boolean {
+        val explicit = prefs.getString("vpn_selected_packages", "[]") ?: "[]"
+        val canonical = prefs.getString("net_block_packages", "[]") ?: "[]"
+        return prefs.getBoolean("net_block_enabled", false) &&
+            prefs.getBoolean("net_block_vpn", true) &&
+            (prefs.getBoolean("net_block_global", false) ||
+                explicit != "[]" ||
+                canonical != "[]" ||
+                prefs.getBoolean("vpn_focus_mirror_enabled", false))
     }
 
     private fun flagNewInstall(

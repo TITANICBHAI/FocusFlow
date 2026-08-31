@@ -9,6 +9,8 @@ import com.facebook.react.bridge.WritableNativeMap
 import com.tbtechs.focusflow.services.AppBlockerAccessibilityService
 import com.tbtechs.focusflow.services.VpnPolicyCoordinator
 import com.tbtechs.focusflow.widget.FocusFlowWidget
+import org.json.JSONArray
+import java.util.Locale
 
 /**
  * SharedPrefsModule
@@ -445,6 +447,42 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
             .apply()
         VpnPolicyCoordinator.reconcile(reactContext)
         promise.resolve(null)
+    }
+
+    /**
+     * Persists VPN sources independently. The coordinator combines these into
+     * the effective target set while preserving the distinction between
+     * persistent Always-On selections and timed-session selections.
+     */
+    @ReactMethod
+    fun setVpnPolicySources(
+        alwaysOnPackagesJson: String,
+        sessionPackagesJson: String,
+        promise: Promise,
+    ) {
+        val merged = mergePackageJson(alwaysOnPackagesJson, sessionPackagesJson)
+        prefs().edit()
+            .putString("vpn_always_on_packages", alwaysOnPackagesJson)
+            .putString("vpn_session_packages", sessionPackagesJson)
+            .putString("vpn_selected_packages", merged)
+            .putString("net_block_packages", merged)
+            .apply()
+        VpnPolicyCoordinator.reconcile(reactContext)
+        promise.resolve(null)
+    }
+
+    private fun mergePackageJson(vararg jsonValues: String): String {
+        val packages = linkedSetOf<String>()
+        jsonValues.forEach { json ->
+            runCatching {
+                val array = JSONArray(json)
+                for (index in 0 until array.length()) {
+                    val packageName = array.optString(index).trim().lowercase(Locale.ROOT)
+                    if (packageName.isNotBlank()) packages.add(packageName)
+                }
+            }
+        }
+        return JSONArray(packages.toList().sorted()).toString()
     }
 
     /**

@@ -35,6 +35,9 @@ export interface NetworkBlockStatus {
   running: boolean;
   error: string | null;
   failedPackages: string[];
+  desiredGeneration: number;
+  appliedGeneration: number;
+  recoveryPending: boolean;
 }
 
 export type NetworkBlockStartState =
@@ -217,7 +220,15 @@ export const NetworkBlockModule = {
   async getNetworkBlockStatus(): Promise<NetworkBlockStatus> {
     const native = requireNetworkBlock();
     if (!native) {
-      return { state: 'disabled', running: false, error: null, failedPackages: [] };
+      return {
+        state: 'disabled',
+        running: false,
+        error: null,
+        failedPackages: [],
+        desiredGeneration: 0,
+        appliedGeneration: 0,
+        recoveryPending: false,
+      };
     }
     if (typeof native.getNetworkBlockStatus !== 'function') {
       throw new Error('FocusFlow native NetworkBlock.getNetworkBlockStatus is missing.');
@@ -228,6 +239,9 @@ export const NetworkBlockModule = {
       running?: boolean;
       error?: string | null;
       failedPackages?: string | string[];
+      desiredGeneration?: number;
+      appliedGeneration?: number;
+      recoveryPending?: boolean;
     };
     let failedPackages: string[] = [];
     if (Array.isArray(parsed.failedPackages)) {
@@ -243,6 +257,9 @@ export const NetworkBlockModule = {
       running: Boolean(parsed.running),
       error: parsed.error ?? null,
       failedPackages,
+      desiredGeneration: Number.isFinite(parsed.desiredGeneration) ? parsed.desiredGeneration! : 0,
+      appliedGeneration: Number.isFinite(parsed.appliedGeneration) ? parsed.appliedGeneration! : 0,
+      recoveryPending: Boolean(parsed.recoveryPending),
     };
   },
 

@@ -44,6 +44,15 @@ class BootReceiver : BroadcastReceiver() {
             AppBlockerAccessibilityService.PREFS_NAME, Context.MODE_PRIVATE
         )
 
+        // VPN-only persistence is independent from Focus and Standalone
+        // overlays. Rearm its watchdog across lifecycle boundaries without
+        // changing the existing overlay/Always-On startup behavior below.
+        if (prefs.getBoolean("net_block_self_heal", false) &&
+            NetworkBlockerVpnService.hasPersistentVpnConfiguration(prefs)
+        ) {
+            VpnWatchdogReceiver.schedule(context)
+        }
+
         // USER_UNLOCKED and package replacement are safe points to recompute
         // launchable Focus-derived VPN targets. The boot broadcast can arrive
         // before credential-protected storage is available.

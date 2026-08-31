@@ -324,6 +324,20 @@ function ActiveScreen() {
 
         <StatusCard icon="shield-checkmark-outline" color={vpnRunning ? COLORS.green : theme.muted} title="VPN Blocking" status={vpnRunning ? 'Active' : 'Not active'} theme={theme} expandable={vpnPackages.length > 0} expanded={expanded === 'vpn'} onToggle={() => setExpanded(expanded === 'vpn' ? null : 'vpn')}>
           <DetailRow label="Status" value={vpnRunning ? (vpnStatus?.error ? `Running · ${vpnStatus.error}` : vpnStatus.failedPackages.length > 0 ? `Running · ${vpnStatus.failedPackages.length} app${vpnStatus.failedPackages.length === 1 ? '' : 's'} failed` : 'Running normally') : vpnConfigured ? (vpnStatus?.state === 'permission_missing' ? 'Permission required' : 'Configured but stopped') : 'No VPN apps configured'} theme={theme} />
+           <DetailRow
+             label="Scope"
+             value="Network blocking and foreground overlays are independent"
+             theme={theme}
+           />
+           {vpnStatus && vpnStatus.desiredGeneration > 0 && (
+             <DetailRow
+               label="Policy"
+               value={vpnStatus.recoveryPending
+                 ? `Recovery pending · desired #${vpnStatus.desiredGeneration}`
+                 : `Applied #${vpnStatus.appliedGeneration} of #${vpnStatus.desiredGeneration}`}
+               theme={theme}
+             />
+           )}
           {vpnPackages.length > 0 && <DetailRow label="Apps" value={`${vpnPackages.length} app${vpnPackages.length === 1 ? '' : 's'} selected`} theme={theme} />}
           {expanded === 'vpn' && <PackageList packages={vpnPackages} appNames={appNames} theme={theme} />}
           <TouchableOpacity style={[styles.action, { borderColor: theme.border }]} onPress={() => router.push('/vpn-block-list')}>

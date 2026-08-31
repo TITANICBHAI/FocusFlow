@@ -19,6 +19,7 @@ class VpnPolicyCalculatorTest {
         active: Boolean = true,
         ready: Boolean = true,
         global: Boolean = false,
+        installedPackages: Collection<String>? = null,
     ) = VpnPolicyCalculator.calculate(
         explicitPackages = explicit,
         installedLaunchablePackages = installed,
@@ -28,6 +29,7 @@ class VpnPolicyCalculatorTest {
         allowedPackagesReady = ready,
         globalMode = global,
         focusFlowPackage = "com.tbtechs.focusflow",
+        installedPackages = installedPackages,
     )
 
     @Test
@@ -64,5 +66,21 @@ class VpnPolicyCalculatorTest {
             NetworkBlockerVpnService.MODE_PER_APP,
             calculate(global = false).mode,
         )
+    }
+
+    @Test
+    fun normalizesPackagesAndReportsUnavailableExplicitTargets() {
+        val result = calculate(
+            explicit = listOf(" com.example.allowed ", " com.example.missing ", " COM.ANDROID.DIALER "),
+            installedPackages = listOf("com.example.allowed", "com.tbtechs.focusflow"),
+        )
+
+        assertEquals(setOf("com.example.allowed", "com.example.blocked"), result.packages)
+        assertEquals(setOf("com.example.missing"), result.unavailablePackages)
+        assertEquals(
+            setOf("explicit_vpn"),
+            result.reasons["com.example.allowed"],
+        )
+        assertFalse(result.packages.contains("com.android.dialer"))
     }
 }

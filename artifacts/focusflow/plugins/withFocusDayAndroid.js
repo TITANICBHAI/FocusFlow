@@ -358,9 +358,9 @@ function withFocusDayManifest(config) {
     }
 
     // ── PackageInstallReceiver ────────────────────────────────────────────────
-    // Listens for ACTION_PACKAGE_ADDED so newly installed apps during a focus
-    // session are immediately flagged and — when standalone block is active —
-    // automatically added to the blocked list.
+    // Listens for package add/remove broadcasts so VPN targets are recalculated
+    // when an installed package changes. Add/remove replacement broadcasts are
+    // filtered by the native receiver.
     // android:exported="true" is required for system-broadcast receivers;
     // data scheme="package" restricts the receiver to package events only.
     const pkgInstallExists = (app.receiver || []).some(
@@ -377,12 +377,34 @@ function withFocusDayManifest(config) {
         'intent-filter': [{
           action: [
             { $: { 'android:name': 'android.intent.action.PACKAGE_ADDED' } },
+            { $: { 'android:name': 'android.intent.action.PACKAGE_REMOVED' } },
+            { $: { 'android:name': 'android.intent.action.PACKAGE_FULLY_REMOVED' } },
           ],
           data: [
             { $: { 'android:scheme': 'package' } },
           ],
         }],
       });
+    } else {
+      const pkgReceiver = app.receiver.find(
+        (r) => r.$['android:name'] === 'com.tbtechs.focusflow.services.PackageInstallReceiver'
+      );
+      const filter = pkgReceiver['intent-filter']?.[0];
+      if (filter) {
+        if (!filter.action) filter.action = [];
+        const actionNames = new Set(filter.action.map((a) => a.$['android:name']));
+        for (const action of [
+          'android.intent.action.PACKAGE_ADDED',
+          'android.intent.action.PACKAGE_REMOVED',
+          'android.intent.action.PACKAGE_FULLY_REMOVED',
+        ]) {
+          if (!actionNames.has(action)) filter.action.push({ $: { 'android:name': action } });
+        }
+        if (!filter.data) filter.data = [];
+        if (!filter.data.some((d) => d.$['android:scheme'] === 'package')) {
+          filter.data.push({ $: { 'android:scheme': 'package' } });
+        }
+      }
     }
 
     // ── TemptationReportReceiver ───────────────────────────────────────────────

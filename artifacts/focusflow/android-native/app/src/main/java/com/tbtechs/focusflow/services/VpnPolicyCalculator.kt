@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.services
 
+import java.util.Locale
+
 /**
  * Pure policy calculation for the optional Focus → VPN mirror.
  *
@@ -20,9 +22,15 @@ object VpnPolicyCalculator {
         "com.google.android.permissioncontroller",
     )
 
+    private val ALWAYS_EXCLUDED_NORMALIZED = ALWAYS_EXCLUDED.mapTo(mutableSetOf()) {
+        it.lowercase(Locale.ROOT)
+    }
+
     data class Result(
         val packages: Set<String>,
         val mode: String,
+        val reasons: Map<String, Set<String>>,
+        val unavailablePackages: Set<String>,
     )
 
     fun calculate(
@@ -34,26 +42,54 @@ object VpnPolicyCalculator {
         allowedPackagesReady: Boolean,
         globalMode: Boolean,
         focusFlowPackage: String,
+        installedPackages: Collection<String>? = null,
     ): Result {
-        val explicit = explicitPackages
+        val focusFlowPackageNormalized = normalize(focusFlowPackage)
+        val installed = installedPackages
+            ?.map { normalize(it) }
+            ?.toSet()
+        val explicitCandidates = explicitPackages
             .asSequence()
+            .map(::normalize)
             .filter { it.isNotBlank() }
+            .filterNot { isExcluded(it, focusFlowPackageNormalized) }
             .toSet()
-        val allowed = allowedPackages.toSet()
+        val unavailable = if (installed == null) {
+            emptySet()
+        } else {
+            explicitCandidates.filterNot { it in installed }.toSet()
+        }
+        val explicit = explicitCandidates
+            .filter { installed == null || it in installed }
+            .toSet()
+        val allowed = allowedPackages.mapTo(mutableSetOf(), ::normalize)
         val mirrored = if (focusMirrorEnabled && focusActive && allowedPackagesReady) {
             installedLaunchablePackages.asSequence()
+                .map(::normalize)
                 .filter { it.isNotBlank() }
                 .filter { it !in allowed }
-                .filter { it != focusFlowPackage && it !in ALWAYS_EXCLUDED }
+                .filterNot { isExcluded(it, focusFlowPackageNormalized) }
                 .toSet()
         } else {
             emptySet()
         }
 
+        val reasons = linkedMapOf<String, MutableSet<String>>()
+        explicit.forEach { reasons.getOrPut(it) { linkedSetOf() }.add("explicit_vpn") }
+        mirrored.forEach { reasons.getOrPut(it) { linkedSetOf() }.add("focus_blocked") }
+
         return Result(
             packages = explicit + mirrored,
             mode = if (globalMode) NetworkBlockerVpnService.MODE_GLOBAL
                    else NetworkBlockerVpnService.MODE_PER_APP,
+            reasons = reasons.mapValues { it.value.toSet() },
+            unavailablePackages = unavailable,
         )
     }
+
+    private fun normalize(packageName: String): String =
+        packageName.trim().lowercase(Locale.ROOT)
+
+    private fun isExcluded(packageName: String, focusFlowPackage: String): Boolean =
+        packageName == focusFlowPackage || packageName in ALWAYS_EXCLUDED_NORMALIZED
 }

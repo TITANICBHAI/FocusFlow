@@ -1,15 +1,114 @@
 # FocusFlow — VPN Background Network Enforcement Plan
 
-**Status:** Planning document only  
+**Status:** Code-reconciled execution tracker
 **Scope:** Android FocusFlow app (`artifacts/focusflow`)  
-**Last reviewed:** 2026-08-27
+**Last reconciled:** 2026-08-31
 
 ## Implementation tracker
 
 **Legend:**  complete or confirmed in the current codebase · 🚧 in progress ·
 ❌ open, not implemented, or awaiting a product decision.
 
-### Current baseline
+### Reconciled execution checklist (2026-08-31)
+
+Use this section as the current status source. It was reconciled against the
+checked-out code on 2026-08-31.
+
+**Legend:** `[x]` confirmed in source · `[~]` partially present or source-only
+and still needing a gate · `[ ]` open, deferred, or not found. A checked source
+item is not proof of Android device behavior.
+
+#### Baseline
+
+- [x] Explicit per-app VPN targets use the null-routing tunnel, independent of
+  which app is foreground.
+- [x] Foreground Accessibility enforcement and VPN network enforcement remain
+  separate policies.
+- [x] The opt-in focus-to-VPN mirror setting exists and defaults off.
+- [x] Focus mirroring derives blocked launchable packages from the native focus
+  allow-list when focus is active and the allow-list is ready.
+- [x] Explicit VPN selections survive focus teardown in the policy calculation.
+- [x] Ordinary standalone overlay packages remain separate from VPN selections.
+- [x] The healthy service skips rebuilding an unchanged package set and mode.
+- [~] Native recovery hooks exist, but full lifecycle ownership and device proof
+  are not complete.
+
+#### Native policy contract
+
+- [x] Add a durable versioned desired-policy record with generation and timestamp.
+- [x] Persist per-package source reasons in the desired-policy record.
+- [x] Persist service registration failures; add coordinator-level validation and
+  durable unavailable-package metadata.
+- [x] Keep safety exclusions in the calculator/service; normalize package inputs
+  and compare exclusions case-insensitively.
+- [x] Reject stale start/stop/reconfigure commands by policy generation.
+- [x] Keep the empty per-app target set from silently becoming a global block.
+- [x] Preserve IPv4 and IPv6 routes in the VPN service.
+
+#### Coordinator and lifecycle
+
+- [x] Calculate explicit plus optional focus-derived targets in native code.
+- [~] Keep explicit, timed-standalone-VPN, and focus-derived source ownership
+  distinct; primary settings persistence is now separated, but legacy callers
+  still use the compatibility package-list bridge.
+- [x] Serialize and debounce rapid policy updates in the coordinator.
+- [x] Reconfigure only when the active package set or mode changes.
+- [x] Preserve the existing null-routing VPN implementation.
+- [x] Restore from the durable desired-policy record after restart, with a
+  canonical-snapshot fallback for older installations.
+- [~] Reconcile boot and user unlock paths; the VPN-only watchdog is rearmed
+  from the boot receiver, but device delivery and timing evidence remain open.
+- [x] Recalculate after package add/remove broadcasts for both explicit and
+  focus-derived VPN targets.
+- [x] Handle package removal and fully-removed broadcasts.
+- [~] Keep recovery bounded when another VPN is active; preflight classifies the
+  conflict and source paths cancel watchdog retries, but device behavior remains
+  unverified.
+- [ ] Prove the standalone-to-persistent-always-on handoff without a gap.
+- [~] Preserve self-healing after unexpected service destruction while canceling
+  it for intentional stops; source handling is implemented, but device proof is
+  still open.
+- [x] Make enabling self-healing immediately reconcile an existing policy.
+
+#### React Native and UI
+
+- [x] Expose the focus-mirroring setting with an off default.
+- [x] Persist the setting through app settings/defaults and native SharedPrefs.
+- [x] Request/check VPN consent from a foreground UI path.
+- [x] Expose native status, permission loss, conflict, startup failure, and
+  partial package-registration failure to the React layer.
+- [x] Explain foreground-policy versus network-policy precedence and expose
+  generation/recovery diagnostics in the VPN status card.
+- [~] Await bridge calls before reporting settings synchronization complete; native
+  `SharedPreferences.apply()` is still asynchronous.
+- [x] Show desired/applied generations and recovery-pending state.
+
+#### Verification gates
+
+- [~] Kotlin policy calculator tests exist for opt-in behavior, exclusions,
+  explicit-target persistence, and per-app mode.
+- [~] JavaScript default/bridge tests exist, but a complete VPN contract suite was
+  not found.
+- [ ] Run the Android native compile/tests against a generated Expo build.
+- [ ] Run lifecycle/instrumentation tests for service death, boot, unlock,
+  permission revoke, conflicts, and concurrent commands.
+- [ ] Run real network tests for foreground/background traffic and IPv4/IPv6.
+- [ ] Run package install/removal, handoff, Doze, and OEM scenarios on devices.
+- [ ] Review only the relevant security findings before release.
+
+#### Product decisions
+
+- [ ] Confirm first-release scope for focus mirroring.
+- [ ] Confirm focus mirroring defaults off.
+- [ ] Decide whether recurring schedule VPN support is included.
+- [ ] Decide whether exhausted allowances become VPN targets.
+- [ ] Confirm independent VPN-only always-on semantics.
+- [ ] Confirm `GLOBAL` remains a separate explicit feature.
+- [ ] Confirm bounded, user-controlled self-healing behavior.
+- [ ] Complete the licensing/distribution review boundary if reference material
+  influences future implementation.
+
+### Original current baseline (historical summary; use the reconciled checklist above)
 
 -  Explicit per-app VPN targets already block foreground and background traffic.
 -  Focus foreground enforcement remains separate from VPN network enforcement.
@@ -34,7 +133,7 @@
 - 🚧 Native policy calculation and dispatch now have a dedicated coordinator;
   full lifecycle ownership and process-death recovery are not implemented.
 
-### Delivery phases
+### Original delivery phase summary (historical; use the reconciled checklist above)
 
 - ❌ **Phase 0 — Confirm product scope:** resolve the open decisions in Section 13.
 -  **Phase 1 — Native policy contract:** versioned desired state, source reasons,
@@ -52,7 +151,7 @@
   states remain open.
 - ❌ **Phase 5 — Verification:** complete contract, Kotlin, device, lifecycle, and network evidence.
 
-### Known implementation gaps
+### Original implementation-gap summary (historical; use the reconciled checklist above)
 
 -  Boot watchdog rearm for an always-on-only VPN configuration.
 -  Consolidation of competing writes to `net_block_packages`.

@@ -219,7 +219,7 @@ fi
 # never delivered (system only sends it with a package: URI).
 
 if ! grep -q "PackageInstallReceiver" "$MANIFEST"; then
-  sedi 's|</application>|        <receiver\n            android:name="com.tbtechs.focusflow.services.PackageInstallReceiver"\n            android:exported="true">\n            <intent-filter>\n                <action android:name="android.intent.action.PACKAGE_ADDED" />\n                <data android:scheme="package" />\n            </intent-filter>\n        </receiver>\n    </application>|' "$MANIFEST"
+  sedi 's|</application>|        <receiver\n            android:name="com.tbtechs.focusflow.services.PackageInstallReceiver"\n            android:exported="true">\n            <intent-filter>\n                <action android:name="android.intent.action.PACKAGE_ADDED" />\n                <action android:name="android.intent.action.PACKAGE_REMOVED" />\n                <action android:name="android.intent.action.PACKAGE_FULLY_REMOVED" />\n                <data android:scheme="package" />\n            </intent-filter>\n        </receiver>\n    </application>|' "$MANIFEST"
   echo "   ✓ PackageInstallReceiver registered"
 else
   echo "   ✓ PackageInstallReceiver already registered"
