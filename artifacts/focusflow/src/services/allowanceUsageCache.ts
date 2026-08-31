@@ -28,35 +28,8 @@ function localDateKey(date = new Date()): string {
   return `${year}-${month}-${day}`;
 }
 
-function parseIntervalWindowMs(raw: string | null): Record<string, number> {
+function parseUsage(raw: string | null, today: string): AllowanceUsageSnapshot['usage'] {
   if (!raw) return {};
-  try {
-    const parsed = JSON.parse(raw) as Array<{
-      packageName?: string;
-      mode?: string;
-      intervalHours?: number;
-    }>;
-    return Object.fromEntries(
-      parsed
-        .filter((entry) => entry.mode === 'interval' && entry.packageName)
-        .map((entry) => [
-          entry.packageName as string,
-          Math.max(0, Number(entry.intervalHours ?? 0)) * 60 * 60 * 1000,
-        ]),
-    );
-  } catch {
-    return {};
-  }
-}
-
-function parseUsage(
-  raw: string | null,
-  configRaw: string | null,
-  today: string,
-  now = Date.now(),
-): AllowanceUsageSnapshot['usage'] {
-  if (!raw) return {};
-  const intervalWindowMs = parseIntervalWindowMs(configRaw);
   try {
     const parsed = JSON.parse(raw) as Record<string, AllowanceUsageSnapshot['usage'][string]>;
     return Object.fromEntries(
@@ -64,11 +37,7 @@ function parseUsage(
         // Interval allowances use a rolling window that can cross midnight.
         // Their windowStartMs, not the calendar date, determines validity.
         if (value.mode === 'interval') {
-          const windowStartMs = value.windowStartMs ?? 0;
-          const windowMs = intervalWindowMs[pkg] ?? 0;
-          const windowExpired = windowStartMs <= 0 ||
-            (windowMs > 0 && now > windowStartMs + windowMs);
-          return [pkg, windowExpired ? {} : value];
+          return [pkg, value.windowStartMs ? value : {}];
         }
         return [pkg, value.date === today ? value : {}];
       }),
@@ -89,16 +58,11 @@ export async function getAllowanceUsageSnapshot(force = false): Promise<Allowanc
   if (!force && cached && cached.date === today && now - cached.fetchedAt < CACHE_TTL_MS) {
     return cached.value;
   }
-  if (!force && inFlight) return inFlight;
+  if (inFlight) return inFlight;
 
-  inFlight = SharedPrefsModule.getAllowanceSnapshot().then(({
-    usageJson,
-    configJson,
-    activeSessionPackage,
-    activeSessionEndMs,
-  }) => {
+  inFlight = SharedPrefsModule.getAllowanceSnapshot().then(({ usageJson, activeSessionPackage, activeSessionEndMs }) => {
     const value: AllowanceUsageSnapshot = {
-      usage: parseUsage(usageJson, configJson, today),
+      usage: parseUsage(usageJson, today),
       activeSessionPackage: activeSessionPackage || null,
       activeSessionEndMs: activeSessionEndMs || 0,
     };

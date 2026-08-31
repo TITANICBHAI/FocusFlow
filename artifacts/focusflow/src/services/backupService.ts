@@ -149,11 +149,7 @@ function getPortableSettings(settings: AppSettings): AppSettings {
   void vpnSelfHealEnabled;
   void pinProtectionEnabled;
 
-  return {
-    ...portable,
-    // This opt-in VPN policy is portable and must survive device migration.
-    focusMirrorVpnEnabled: settings.focusMirrorVpnEnabled ?? false,
-  } as AppSettings;
+  return portable as AppSettings;
 }
 
 function buildPresetSections(settings: AppSettings): BackupPresetSection[] {
@@ -405,13 +401,7 @@ export async function restoreFromJson(
   // ── Settings ─────────────────────────────────────────────────────────────
   // Merge so newer fields added in a future release keep their defaults.
   try {
-    const merged: AppSettings = {
-      ...cb.currentSettings,
-      ...env.settings,
-      focusMirrorVpnEnabled: env.settings.focusMirrorVpnEnabled ??
-        cb.currentSettings.focusMirrorVpnEnabled ??
-        false,
-    };
+    const merged: AppSettings = { ...cb.currentSettings, ...env.settings };
     await cb.updateSettings(merged);
     summary.settings = true;
   } catch (e) {

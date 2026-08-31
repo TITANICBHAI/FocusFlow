@@ -7,8 +7,6 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
-import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
 import android.net.VpnService
 import android.os.Build
 import android.os.Handler
@@ -72,7 +70,6 @@ class NetworkBlockerVpnService : VpnService() {
 
         const val EXTRA_PACKAGES = "net_block_pkgs"   // JSON array of packages to block
         const val EXTRA_MODE     = "net_block_mode"   // "per_app" | "global"
-        const val EXTRA_POLICY_GENERATION = "net_block_policy_generation"
 
         const val MODE_PER_APP = "per_app"
         const val MODE_GLOBAL  = "global"
@@ -83,8 +80,6 @@ class NetworkBlockerVpnService : VpnService() {
         private const val PREF_STATUS      = "vpn_status"
         private const val PREF_ERROR       = "vpn_error"
         private const val PREF_FAILED_PKGS = "vpn_failed_packages"
-        private const val PREF_POLICY_GENERATION = "net_block_policy_generation"
-        private const val PREF_APPLIED_GENERATION = "net_block_applied_generation"
 
         const val STATUS_DISABLED = "disabled"
         const val STATUS_STARTING = "starting"
@@ -95,43 +90,41 @@ class NetworkBlockerVpnService : VpnService() {
         const val STATUS_PACKAGE_FAILURE = "package_registration_failed"
         const val STATUS_STARTUP_FAILED = "startup_failed"
 
+        /**
+         * These packages are ALWAYS excluded from VPN routing so that
+         * emergency calls, SMS, and the Android OS itself remain reachable.
+         */
+        private val ALWAYS_EXCLUDED = listOf(
+            "android",
+            "com.android.phone",
+            "com.android.dialer",
+            "com.google.android.dialer",
+            "com.samsung.android.app.telephonyui",
+            "com.android.server.telecom",
+            "com.android.mms",
+            "com.android.messaging",
+            "com.google.android.apps.messaging"
+        )
+
         /** Checked by AccessibilityService before firing a duplicate start. */
         @Volatile var isRunning: Boolean = false
 
         /**
-         * Policy calculation and dispatch live in one native coordinator. These
-         * methods preserve the service API used by existing recovery callers.
+         * VPN-only selections are independent of overlay/session state. Keep a
+         * persisted configuration alive after process/service recreation even
+         * when no Focus or Standalone session is active.
          */
-        fun requestSync(context: Context) = VpnPolicyCoordinator.requestSync(context)
+        fun hasPersistentVpnConfiguration(prefs: SharedPreferences): Boolean {
+            if (!prefs.getBoolean("net_block_enabled", false) ||
+                !prefs.getBoolean("net_block_vpn", true)
+            ) return false
 
-        fun requestRecoverySync(context: Context) =
-            VpnPolicyCoordinator.requestRecoverySync(context)
+            if (prefs.getBoolean("net_block_global", false)) return true
 
-        fun hasPersistentVpnConfiguration(prefs: SharedPreferences): Boolean =
-            VpnPolicyCoordinator.hasPersistentVpnConfiguration(prefs)
-
-        fun effectivePackages(context: Context, prefs: SharedPreferences): List<String> =
-            VpnPolicyCoordinator.effectivePackages(context, prefs)
-
-        fun effectivePackagesJson(context: Context, prefs: SharedPreferences): String =
-            VpnPolicyCoordinator.effectivePackagesJson(context, prefs)
-
-        fun currentPolicyGeneration(prefs: SharedPreferences): Long =
-            VpnPolicyCoordinator.currentPolicyGeneration(prefs)
-
-        /**
-         * Returns true when Android reports a VPN transport that is not
-         * FocusFlow's own active tunnel. This is a diagnostic signal: callers
-         * must surface the conflict and avoid retry loops.
-         */
-        fun isAnotherVpnActive(context: Context): Boolean {
-            if (isRunning || Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return false
-            val connectivity =
-                context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
-                ?: return false
-            return connectivity.allNetworks.any { network ->
-                connectivity.getNetworkCapabilities(network)
-                    ?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true
+            return try {
+                JSONArray(prefs.getString("net_block_packages", "[]") ?: "[]").length() > 0
+            } catch (_: Exception) {
+                false
             }
         }
     }
@@ -139,7 +132,6 @@ class NetworkBlockerVpnService : VpnService() {
     private var vpnInterface: ParcelFileDescriptor? = null
     private var activePackagesJson: String? = null
     private var activeMode: String? = null
-    private var intentionalStopRequested = false
 
     private fun writeStatus(
         state: String,
@@ -164,8 +156,6 @@ class NetworkBlockerVpnService : VpnService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP -> {
-                if (isStalePolicyCommand(intent)) return START_STICKY
-                intentionalStopRequested = true
                 VpnRecoveryNotifier.clear(this)
                 stopVpn()
                 stopForeground(STOP_FOREGROUND_REMOVE)
@@ -173,22 +163,20 @@ class NetworkBlockerVpnService : VpnService() {
                 return START_NOT_STICKY
             }
             ACTION_START -> {
-                intentionalStopRequested = false
                 val packagesJson = intent.getStringExtra(EXTRA_PACKAGES) ?: "[]"
                 val mode         = intent.getStringExtra(EXTRA_MODE) ?: MODE_PER_APP
-                val generation = intent.getLongExtra(EXTRA_POLICY_GENERATION, 0L)
-                startVpn(packagesJson, mode, generation)
+                startVpn(packagesJson, mode)
             }
             else -> {
                 // Restarted by OS — restore from prefs
                 val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 val focusActive = prefs.getBoolean("focus_active", false)
                 val saActive    = prefs.getBoolean("standalone_block_active", false)
-                if (focusActive || saActive || hasPersistentVpnConfiguration(prefs)) {
-                    // Re-enter through the coordinator so restoration
-                    // recalculates every durable policy source and persists a
-                    // fresh generation before dispatching the command.
-                    VpnPolicyCoordinator.requestRecoverySync(this)
+                val alwaysOn    = prefs.getBoolean("always_block_active", false)
+                if (focusActive || saActive || alwaysOn || hasPersistentVpnConfiguration(prefs)) {
+                    val pkgs = prefs.getString("net_block_packages", "[]") ?: "[]"
+                    val mode = prefs.getString("net_block_mode", MODE_PER_APP) ?: MODE_PER_APP
+                    startVpn(pkgs, mode)
                 } else {
                     stopSelf()
                     return START_NOT_STICKY
@@ -230,63 +218,39 @@ class NetworkBlockerVpnService : VpnService() {
                 untilMs <= 0L || now < untilMs
             }
         }
+        val alwaysOn = prefs.getBoolean("always_block_active", false)
+
         stopVpn()   // close the TUN fd first
 
-        // Persist the revoke reason for the JS layer. A true permission-loss
-        // flag drives the re-grant prompt; an active competing VPN is surfaced
-        // as a conflict instead so recovery does not fight the other VPN.
-        // Both states are cleared when a subsequent restart succeeds.
+        // Signal to the JS layer that VPN permission was lost.
+        // This flag is read by NetworkBlockModule.isVpnPermissionGranted() and
+        // used to surface the re-grant prompt in the UI. The flag is cleared
+        // by startVpn() if a subsequent restart succeeds.
         val persistentVpn = hasPersistentVpnConfiguration(prefs)
-        if (focusOn || saOn || persistentVpn) {
-            val anotherVpn = isAnotherVpnActive(applicationContext)
+        if (focusOn || saOn || alwaysOn || persistentVpn) {
             prefs.edit()
-                .putBoolean("vpn_permission_lost", !anotherVpn)
-                .putString(
-                    PREF_STATUS,
-                    if (anotherVpn) STATUS_ANOTHER_VPN else STATUS_PERMISSION_MISSING,
-                )
-                .putString(
-                    PREF_ERROR,
-                    if (anotherVpn) "Another VPN is currently active"
-                    else "VPN permission was revoked",
-                )
+                .putBoolean("vpn_permission_lost", true)
                 .apply()
-            if (!anotherVpn) {
-                VpnRecoveryNotifier.postPermissionRequired(this)
-            }
+            writeStatus(STATUS_PERMISSION_MISSING, "VPN permission was revoked or another VPN took over")
+            VpnRecoveryNotifier.postPermissionRequired(this)
         }
 
-        if (selfHeal && (focusOn || saOn || persistentVpn)) {
+        if (selfHeal && (focusOn || saOn || alwaysOn || persistentVpn)) {
             val ctx  = applicationContext
+            val pkgs = prefs.getString("net_block_packages", "[]") ?: "[]"
+            val mode = prefs.getString("net_block_mode", MODE_PER_APP) ?: MODE_PER_APP
             Handler(Looper.getMainLooper()).postDelayed({
                 try {
-                    // Re-read every policy source after the teardown delay.
-                    // The policy may have changed, expired, or been cleared
-                    // while the old tunnel was being released.
-                    val currentPrefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                    if (!currentPrefs.getBoolean("net_block_self_heal", false)) {
-                        return@postDelayed
+                    val restartIntent = Intent(ctx, NetworkBlockerVpnService::class.java).apply {
+                        action = ACTION_START
+                        putExtra(EXTRA_PACKAGES, pkgs)
+                        putExtra(EXTRA_MODE,     mode)
                     }
-                    val currentNow = System.currentTimeMillis()
-                    val currentFocus = currentPrefs.getBoolean("focus_active", false) &&
-                        (currentPrefs.getLong("task_end_ms", 0L) <= 0L ||
-                            currentNow < currentPrefs.getLong("task_end_ms", 0L))
-                    val currentStandalone = currentPrefs.getBoolean("standalone_block_active", false) &&
-                        (currentPrefs.getLong("standalone_block_until_ms", 0L) <= 0L ||
-                            currentNow < currentPrefs.getLong("standalone_block_until_ms", 0L))
-                    val currentPersistent = hasPersistentVpnConfiguration(currentPrefs)
-                    if (!currentFocus && !currentStandalone &&
-                        !currentPersistent
-                    ) return@postDelayed
-                    if (VpnService.prepare(ctx) != null) return@postDelayed
-
-                    val pkgs = effectivePackagesJson(ctx, currentPrefs)
-                    val global = currentPrefs.getBoolean("net_block_global", false)
-                    if (!global && parseJsonArray(pkgs).isEmpty()) return@postDelayed
-                    // The coordinator re-reads the same durable sources again
-                    // and owns the generation-bearing dispatch. This avoids
-                    // racing a newer policy with a hand-built restart intent.
-                     VpnPolicyCoordinator.requestRecoverySync(ctx)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        ctx.startForegroundService(restartIntent)
+                    } else {
+                        ctx.startService(restartIntent)
+                    }
                 } catch (_: Exception) {
                     // Session ended or another VPN took over — give up gracefully.
                     // vpn_permission_lost stays true so the UI can show the re-grant prompt.
@@ -298,23 +262,11 @@ class NetworkBlockerVpnService : VpnService() {
     }
 
     override fun onDestroy() {
-        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val status = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .getString(PREF_STATUS, STATUS_STOPPED)
-        val shouldRearmRecovery = !intentionalStopRequested &&
-            prefs.getBoolean("net_block_enabled", false) &&
-            prefs.getBoolean("net_block_vpn", true) &&
-            prefs.getBoolean("net_block_self_heal", false) &&
-            hasPersistentVpnConfiguration(prefs)
         // Preserve a useful startup failure while the service shuts itself
         // down. Normal running/starting teardown is recorded as stopped.
         stopVpn(updateStatus = status == STATUS_RUNNING || status == STATUS_STARTING)
-        // stopVpn() cancels the watchdog because it is also used for intentional
-        // teardown. An unexpected service destruction must not remove the only
-        // native recovery path while durable policy still requires protection.
-        if (shouldRearmRecovery) {
-            VpnWatchdogReceiver.schedule(applicationContext)
-        }
         super.onDestroy()
     }
 
@@ -326,29 +278,12 @@ class NetworkBlockerVpnService : VpnService() {
      * In PER_APP mode: only [packagesJson] apps have their traffic routed into
      * the tunnel. All other apps use the device's normal network connections.
      *
-     * In GLOBAL mode: all apps go through the tunnel except
-     * [VpnPolicyCoordinator.ALWAYS_EXCLUDED]
+     * In GLOBAL mode: all apps go through the tunnel except [ALWAYS_EXCLUDED]
      * (emergency apps) and FocusFlow itself.
      */
-    private fun startVpn(packagesJson: String, mode: String, requestedGeneration: Long = 0L) {
-        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val currentGeneration = currentPolicyGeneration(prefs)
-        if (requestedGeneration > 0L && requestedGeneration < currentGeneration) {
-            // A delayed recovery or reordered service command must not apply a
-            // policy older than the latest persisted desired state.
-            return
-        }
-        val effectiveJson = if (mode == MODE_GLOBAL) packagesJson
-            else effectivePackagesJson(this, prefs)
-        if (mode != MODE_GLOBAL && parseJsonArray(effectiveJson).isEmpty()) {
-            stopVpn(updateStatus = true)
-            writeStatus(STATUS_STOPPED)
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
-            return
-        }
+    private fun startVpn(packagesJson: String, mode: String) {
         if (vpnInterface != null &&
-            activePackagesJson == effectiveJson &&
+            activePackagesJson == packagesJson &&
             activeMode == mode
         ) return   // already established with the same package set
         if (vpnInterface != null) {
@@ -357,19 +292,15 @@ class NetworkBlockerVpnService : VpnService() {
             stopVpn(updateStatus = false)
         }
 
+        val sp = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         writeStatus(STATUS_STARTING)
         try {
             // Close the race between the JS preflight and service startup.
             if (VpnService.prepare(this) != null) {
-                val anotherVpn = isAnotherVpnActive(this)
                 stopVpn(updateStatus = false)
-                prefs.edit().putBoolean("vpn_permission_lost", !anotherVpn).apply()
-                if (anotherVpn) {
-                    writeStatus(STATUS_ANOTHER_VPN, "Another VPN is currently active")
-                } else {
-                    writeStatus(STATUS_PERMISSION_MISSING, "VPN permission is not granted")
-                    VpnRecoveryNotifier.postPermissionRequired(this)
-                }
+                writeStatus(STATUS_PERMISSION_MISSING, "VPN permission is not granted")
+                sp.edit().putBoolean("vpn_permission_lost", true).apply()
+                VpnRecoveryNotifier.postPermissionRequired(this)
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
                 return
@@ -388,7 +319,7 @@ class NetworkBlockerVpnService : VpnService() {
                     builder.addRoute("0.0.0.0", 0)   // all IPv4
                     builder.addRoute("::", 0)         // all IPv6
                     // Exclude emergency and system packages from the VPN
-                    VpnPolicyCoordinator.ALWAYS_EXCLUDED.forEach { pkg ->
+                    ALWAYS_EXCLUDED.forEach { pkg ->
                         runCatching { builder.addDisallowedApplication(pkg) }
                     }
                     // Exclude FocusFlow itself so our own activity/service stays online
@@ -398,7 +329,7 @@ class NetworkBlockerVpnService : VpnService() {
                     // PER_APP: route ONLY the blocked app(s) through the VPN
                     // addAllowedApplication() means: ONLY those packages go through the VPN;
                     // all others bypass it completely.
-                    val packages = parseJsonArray(effectiveJson)
+                    val packages = parseJsonArray(packagesJson)
                     if (packages.isEmpty()) {
                         // No packages specified — abort rather than silently becoming a
                         // global block. Caller must provide at least one package for per-app mode.
@@ -444,18 +375,17 @@ class NetworkBlockerVpnService : VpnService() {
             isRunning = vpnInterface != null
 
             if (isRunning) {
-                activePackagesJson = effectiveJson
+                activePackagesJson = packagesJson
                 activeMode = mode
                 // Persist mode and packages so we can restore after an OS restart.
                 // Also clear the permission-lost flag — the tunnel is up again.
-                prefs.edit()
-                    .putString("net_block_packages",  effectiveJson)
+                sp.edit()
+                    .putString("net_block_packages",  packagesJson)
                     .putString("net_block_mode",       mode)
-                    .putLong(PREF_APPLIED_GENERATION, currentGeneration)
                     .putBoolean("vpn_permission_lost", false)
                     .apply()
                 VpnRecoveryNotifier.clear(this)
-                if (prefs.getString(PREF_STATUS, null) != STATUS_PACKAGE_FAILURE) {
+                if (sp.getString(PREF_STATUS, null) != STATUS_PACKAGE_FAILURE) {
                     writeStatus(STATUS_RUNNING)
                 }
                 // Schedule the AlarmManager watchdog so the VPN is restarted even if
@@ -465,15 +395,10 @@ class NetworkBlockerVpnService : VpnService() {
                 // builder.establish() returned null — this usually means VPN permission
                 // was revoked between the prepare() check and the actual establish() call
                 // (race with the user dismissing the system prompt, another VPN starting, etc.)
+                sp.edit().putBoolean("vpn_permission_lost", true).apply()
+                VpnRecoveryNotifier.postPermissionRequired(this)
                 stopVpn(updateStatus = false)
-                val anotherVpn = isAnotherVpnActive(this)
-                prefs.edit().putBoolean("vpn_permission_lost", !anotherVpn).apply()
-                if (anotherVpn) {
-                    writeStatus(STATUS_ANOTHER_VPN, "Another VPN is currently active")
-                } else {
-                    VpnRecoveryNotifier.postPermissionRequired(this)
-                    writeStatus(STATUS_STARTUP_FAILED, "Android did not establish the VPN interface")
-                }
+                writeStatus(STATUS_STARTUP_FAILED, "Android did not establish the VPN interface")
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
             }
@@ -485,12 +410,7 @@ class NetworkBlockerVpnService : VpnService() {
         } catch (e: Exception) {
             isRunning = false
             stopVpn(updateStatus = false)
-            if (isAnotherVpnActive(this)) {
-                prefs.edit().putBoolean("vpn_permission_lost", false).apply()
-                writeStatus(STATUS_ANOTHER_VPN, "Another VPN is currently active")
-            } else {
-                writeStatus(STATUS_STARTUP_FAILED, e.message ?: "VPN service failed to start")
-            }
+            writeStatus(STATUS_STARTUP_FAILED, e.message ?: "VPN service failed to start")
             Log.e("FocusFlowVPN", "VPN startup failed", e)
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
@@ -506,14 +426,6 @@ class NetworkBlockerVpnService : VpnService() {
         // Cancel the AlarmManager watchdog — session is intentionally ending
         VpnWatchdogReceiver.cancel(applicationContext)
         if (updateStatus) writeStatus(STATUS_STOPPED)
-    }
-
-    private fun isStalePolicyCommand(intent: Intent?): Boolean {
-        val requestedGeneration = intent?.getLongExtra(EXTRA_POLICY_GENERATION, 0L) ?: 0L
-        return requestedGeneration > 0L &&
-            requestedGeneration < currentPolicyGeneration(
-                getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE),
-            )
     }
 
     // ─── Notification ─────────────────────────────────────────────────────────

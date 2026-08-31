@@ -1,9 +1,9 @@
 import React, { useEffect, useRef } from 'react';
 import { Ionicons } from '@expo/vector-icons';
-import { ActivityIndicator, Animated, TouchableOpacity } from 'react-native';
+import { Animated, TouchableOpacity } from 'react-native';
+import { router } from 'expo-router';
 import { useTheme } from '@/hooks/useTheme';
 import { useApp } from '@/context/AppContext';
-import { useNavPress } from '@/hooks/useNavPress';
 
 /**
  * Shared entry point for the live Active dashboard.
@@ -13,7 +13,6 @@ import { useNavPress } from '@/hooks/useNavPress';
 export function ActiveHeaderButton() {
   const { theme } = useTheme();
   const { state } = useApp();
-  const { onPress, loading } = useNavPress('/active');
   const pulse = useRef(new Animated.Value(1)).current;
   const hasActiveProtection =
     state.focusSession?.isActive === true ||
@@ -28,7 +27,7 @@ export function ActiveHeaderButton() {
     (state.settings.vpnBlockEnabled ?? false);
 
   useEffect(() => {
-    if (!hasActiveProtection || loading) {
+    if (!hasActiveProtection) {
       pulse.setValue(1);
       return;
     }
@@ -40,28 +39,23 @@ export function ActiveHeaderButton() {
     );
     animation.start();
     return () => animation.stop();
-  }, [hasActiveProtection, loading, pulse]);
+  }, [hasActiveProtection, pulse]);
 
   return (
     <TouchableOpacity
-      onPress={onPress}
-      disabled={loading}
+      onPress={() => router.push('/active')}
       accessibilityRole="button"
       accessibilityLabel="Open Active blocks"
       hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
       style={{ padding: 4 }}
     >
-      {loading ? (
-        <ActivityIndicator size="small" color={hasActiveProtection ? '#2BAE66' : theme.text} />
-      ) : (
-        <Animated.View style={{ transform: [{ scale: pulse }] }}>
-          <Ionicons
-            name={hasActiveProtection ? 'pulse' : 'pulse-outline'}
-            size={22}
-            color={hasActiveProtection ? '#2BAE66' : theme.text}
-          />
-        </Animated.View>
-      )}
+      <Animated.View style={{ transform: [{ scale: pulse }] }}>
+        <Ionicons
+          name={hasActiveProtection ? 'pulse' : 'pulse-outline'}
+          size={22}
+          color={hasActiveProtection ? '#2BAE66' : theme.text}
+        />
+      </Animated.View>
     </TouchableOpacity>
   );
 }

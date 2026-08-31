@@ -146,24 +146,6 @@ else
   echo "   ✓ xmlns:tools already present"
 fi
 
-# ── Android automatic backup — intentionally disabled ─────────────────────────
-# FocusFlow uses an explicit, user-controlled .focusflow export/import flow.
-# Never set android:allowBackup to true: it can copy private app state to
-# cloud/device backups outside the user's explicit export.
-if grep -q 'android:allowBackup="true"' "$MANIFEST"; then
-  sedi 's|android:allowBackup="true"|android:allowBackup="false"|g' "$MANIFEST"
-  echo "   ✓ android:allowBackup changed to false"
-elif ! grep -q 'android:allowBackup=' "$MANIFEST"; then
-  if grep -q '<application ' "$MANIFEST"; then
-    sedi 's|<application |<application android:allowBackup="false" |' "$MANIFEST"
-  else
-    sedi 's|<application>|<application android:allowBackup="false">|' "$MANIFEST"
-  fi
-  echo "   ✓ android:allowBackup=false added"
-else
-  echo "   ✓ android:allowBackup already false"
-fi
-
 # ── Permissions ──────────────────────────────────────────────────────────────
 
 patch_permission() {
@@ -231,23 +213,15 @@ else
 fi
 
 # ── PackageInstallReceiver ────────────────────────────────────────────────────
-# Listens for package add/remove broadcasts so installed-package availability
-# changes are reflected in the effective VPN policy.
+# Listens for ACTION_PACKAGE_ADDED so newly installed apps are automatically
+# blocked during an active focus or standalone session.
 # <data android:scheme="package"> is mandatory — without it the broadcast is
 # never delivered (system only sends it with a package: URI).
 
 if ! grep -q "PackageInstallReceiver" "$MANIFEST"; then
-  sedi 's|</application>|        <receiver\n            android:name="com.tbtechs.focusflow.services.PackageInstallReceiver"\n            android:exported="true">\n            <intent-filter>\n                <action android:name="android.intent.action.PACKAGE_ADDED" />\n                <action android:name="android.intent.action.PACKAGE_REMOVED" />\n                <action android:name="android.intent.action.PACKAGE_FULLY_REMOVED" />\n                <data android:scheme="package" />\n            </intent-filter>\n        </receiver>\n    </application>|' "$MANIFEST"
+  sedi 's|</application>|        <receiver\n            android:name="com.tbtechs.focusflow.services.PackageInstallReceiver"\n            android:exported="true">\n            <intent-filter>\n                <action android:name="android.intent.action.PACKAGE_ADDED" />\n                <data android:scheme="package" />\n            </intent-filter>\n        </receiver>\n    </application>|' "$MANIFEST"
   echo "   ✓ PackageInstallReceiver registered"
 else
-  if ! grep -q 'android.intent.action.PACKAGE_REMOVED' "$MANIFEST"; then
-    sedi 's|<action android:name="android.intent.action.PACKAGE_ADDED" />|<action android:name="android.intent.action.PACKAGE_ADDED" />\n                <action android:name="android.intent.action.PACKAGE_REMOVED" />|' "$MANIFEST"
-    echo "   ✓ PACKAGE_REMOVED added to PackageInstallReceiver"
-  fi
-  if ! grep -q 'android.intent.action.PACKAGE_FULLY_REMOVED' "$MANIFEST"; then
-    sedi 's|<action android:name="android.intent.action.PACKAGE_REMOVED" />|<action android:name="android.intent.action.PACKAGE_REMOVED" />\n                <action android:name="android.intent.action.PACKAGE_FULLY_REMOVED" />|' "$MANIFEST"
-    echo "   ✓ PACKAGE_FULLY_REMOVED added to PackageInstallReceiver"
-  fi
   echo "   ✓ PackageInstallReceiver already registered"
 fi
 
@@ -276,18 +250,10 @@ fi
 # ── BootReceiver ─────────────────────────────────────────────────────────────
 
 if ! grep -q "BootReceiver" "$MANIFEST"; then
-  sedi 's|</application>|        <receiver\n            android:name="com.tbtechs.focusflow.services.BootReceiver"\n            android:enabled="true"\n            android:exported="true">\n            <intent-filter>\n                <action android:name="android.intent.action.BOOT_COMPLETED" />\n                <action android:name="android.intent.action.QUICKBOOT_POWERON" />\n                <action android:name="android.intent.action.USER_UNLOCKED" />\n                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />\n            </intent-filter>\n        </receiver>\n    </application>|' "$MANIFEST"
+  sedi 's|</application>|        <receiver\n            android:name="com.tbtechs.focusflow.services.BootReceiver"\n            android:enabled="true"\n            android:exported="true">\n            <intent-filter>\n                <action android:name="android.intent.action.BOOT_COMPLETED" />\n                <action android:name="android.intent.action.QUICKBOOT_POWERON" />\n            </intent-filter>\n        </receiver>\n    </application>|' "$MANIFEST"
   echo "   ✓ BootReceiver registered"
 else
   echo "   ✓ BootReceiver already registered"
-  if ! grep -q "android.intent.action.USER_UNLOCKED" "$MANIFEST"; then
-    sedi 's|<action android:name="android.intent.action.QUICKBOOT_POWERON" />|<action android:name="android.intent.action.QUICKBOOT_POWERON" />\n                <action android:name="android.intent.action.USER_UNLOCKED" />|' "$MANIFEST"
-    echo "   ✓ USER_UNLOCKED added to BootReceiver"
-  fi
-  if ! grep -q "android.intent.action.MY_PACKAGE_REPLACED" "$MANIFEST"; then
-    sedi 's|<action android:name="android.intent.action.USER_UNLOCKED" />|<action android:name="android.intent.action.USER_UNLOCKED" />\n                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />|' "$MANIFEST"
-    echo "   ✓ MY_PACKAGE_REPLACED added to BootReceiver"
-  fi
 fi
 
 # ── FocusFlowWidget ──────────────────────────────────────────────────────────

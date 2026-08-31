@@ -29,9 +29,7 @@ describe('blocked-app system interaction contract', () => {
     const blocked = accessibilityService.indexOf('sendBroadcast(broadcast)');
     const network = accessibilityService.indexOf('triggerNetworkBlock(blockedPackage)');
     const overlay = accessibilityService.indexOf('launchBlockOverlay(blockedPackage, fullReason)');
-    const dismissal = accessibilityService.indexOf(
-      'dismissPackage(blockedPackage, blockReason)',
-    );
+    const dismissal = accessibilityService.indexOf('dismissPackage(blockedPackage)');
 
     expect(blocked).toBeGreaterThanOrEqual(0);
     expect(network).toBeGreaterThan(blocked);
@@ -41,9 +39,7 @@ describe('blocked-app system interaction contract', () => {
   });
 
   it('uses BACK, BACK, HOME, BACK for a normal blocked app and preserves installer safety', () => {
-    const dismissStart = accessibilityService.indexOf(
-      'private fun dismissPackage(blockedPackage: String, blockReason: String? = null)',
-    );
+    const dismissStart = accessibilityService.indexOf('private fun dismissPackage(blockedPackage: String)');
     const dismissEnd = accessibilityService.indexOf('\n    }', dismissStart);
     const dismissSource = accessibilityService.slice(dismissStart, dismissEnd);
     const policy = readFileSync(
@@ -65,24 +61,6 @@ describe('blocked-app system interaction contract', () => {
     expect(simulated.state).toBe('home');
   });
 
-  it('uses a non-focusable accessibility overlay and retains activity fallback', () => {
-    const overlayStart = accessibilityService.indexOf('private fun showWindowOverlay(');
-    const overlayEnd = accessibilityService.indexOf('\n    private fun dismissWindowOverlay()', overlayStart);
-    const overlaySource = accessibilityService.slice(overlayStart, overlayEnd);
-    const launchStart = accessibilityService.indexOf('private fun launchBlockOverlay(');
-    const launchEnd = accessibilityService.indexOf('\n    private fun isBlockedPackageStillActive', launchStart);
-    const launchSource = accessibilityService.slice(launchStart, launchEnd);
-
-    expect(overlaySource).toContain('TYPE_ACCESSIBILITY_OVERLAY');
-    expect(overlaySource).toContain('FLAG_NOT_FOCUSABLE');
-    expect(overlaySource).toContain('): Boolean');
-    expect(overlaySource).toContain('return false');
-    expect(overlaySource).toContain('return true');
-    expect(launchSource).toContain('if (showWindowOverlay(blockedPackage, appName, blockReason))');
-    expect(launchSource).toContain('Fallback: full-screen notification PendingIntent');
-    expect(launchSource).not.toContain('canUseWindowOverlay()');
-  });
-
   it('does not let a delayed retry kick an allowed app after the user switches processes', () => {
     const retryStart = accessibilityService.indexOf('private fun scheduleRetryCheck(');
     const retryEnd = accessibilityService.indexOf('\n    }', retryStart);
@@ -101,11 +79,9 @@ describe('blocked-app system interaction contract', () => {
   });
 
   it('keeps watchdog foreground and cooldown state aligned with accessibility events', () => {
-    const watchdogStart = accessibilityService.indexOf(
-      'private fun checkForegroundNow(lookbackMs: Long = 3_000L)',
-    );
+    const watchdogStart = accessibilityService.indexOf('private fun checkForegroundNow()');
     const watchdogEnd = accessibilityService.indexOf(
-      '\n    private fun recoverForegroundAllowanceSession()',
+      '\n    private fun startForegroundWatchdog()',
       watchdogStart,
     );
     const watchdogSource = accessibilityService.slice(watchdogStart, watchdogEnd);

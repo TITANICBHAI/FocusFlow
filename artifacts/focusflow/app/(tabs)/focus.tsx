@@ -30,7 +30,6 @@ import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 import { useTheme } from '@/hooks/useTheme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { TimerState } from '@/hooks/useTimer';
-import { useNavPress } from '@/hooks/useNavPress';
 
 const FOCUS_DEFENSE_HINT_DISMISSED_KEY = '@focusflow/focusDefenseHintDismissed';
 
@@ -61,7 +60,6 @@ function FocusScreen() {
   const [focusStopPinVisible, setFocusStopPinVisible] = useState(false);
   const [showDefenseHint, setShowDefenseHint] = useState(false);
   const [activeTab, setActiveTab] = useState<'task' | 'block'>('task');
-  const navHome = useNavPress('/');
   const pendingStartTaskTimer = task?.startTime ?? '';
   const pendingEndTaskTimer = task?.endTime ?? '';
   const taskTimer = useTaskTimer(pendingStartTaskTimer, pendingEndTaskTimer);
@@ -251,7 +249,7 @@ function FocusScreen() {
       />
       <TouchableOpacity
         style={[styles.outlineAction, { backgroundColor: theme.card, borderColor: COLORS.red + '44' }]}
-        onPress={() => requestAnimationFrame(() => setBlockModalVisible(true))}
+        onPress={() => setBlockModalVisible(true)}
         activeOpacity={0.8}
       >
         <Ionicons name="ban" size={18} color={COLORS.red} />
@@ -317,9 +315,8 @@ function FocusScreen() {
             Choose a task from Schedule to start a focused session.
           </Text>
           <TouchableOpacity
-            style={[styles.primaryBtn, { backgroundColor: COLORS.primary }, navHome.loading && { opacity: 0.6 }]}
-            onPress={navHome.onPress}
-            disabled={navHome.loading}
+            style={[styles.primaryBtn, { backgroundColor: COLORS.primary }]}
+            onPress={() => router.push('/')}
             activeOpacity={0.85}
           >
             <Ionicons name="calendar-outline" size={20} color="#fff" />
@@ -327,7 +324,7 @@ function FocusScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.blockScheduleBtn, { backgroundColor: theme.card, borderColor: theme.border }]}
-            onPress={() => requestAnimationFrame(() => setBlockModalVisible(true))}
+            onPress={() => setBlockModalVisible(true)}
             activeOpacity={0.8}
           >
             <Ionicons name="ban-outline" size={18} color={COLORS.primary} />
@@ -408,9 +405,8 @@ function FocusScreen() {
               )}
               {otherActiveCount > 0 && (
                 <TouchableOpacity
-                  style={[styles.moreActiveChip, { backgroundColor: theme.card, borderColor: theme.border }, navHome.loading && { opacity: 0.6 }]}
-                  onPress={navHome.onPress}
-                  disabled={navHome.loading}
+                  style={[styles.moreActiveChip, { backgroundColor: theme.card, borderColor: theme.border }]}
+                  onPress={() => router.push('/')}
                 >
                   <Ionicons name="layers-outline" size={12} color={COLORS.primary} />
                   <Text style={[styles.moreActiveChipText, { color: COLORS.primary }]}>+{otherActiveCount} more active</Text>
@@ -495,7 +491,7 @@ function FocusScreen() {
               {!standaloneActive && (
                 <TouchableOpacity
                   style={[styles.taskBlockAction, { backgroundColor: theme.card, borderColor: COLORS.red + '44' }]}
-                  onPress={() => requestAnimationFrame(() => setBlockModalVisible(true))}
+                  onPress={() => setBlockModalVisible(true)}
                   activeOpacity={0.8}
                 >
                   <Ionicons name="ban-outline" size={17} color={COLORS.red} />

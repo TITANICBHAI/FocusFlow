@@ -2,7 +2,7 @@
   "expo": {
     "name": "FocusFlow",
     "slug": "focusflow",
-    "version": "1.1.1",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "focusflow",
@@ -14,7 +14,6 @@
       "backgroundColor": "#6366f1"
     },
     "android": {
-      "allowBackup": false,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#0D0D0D"
@@ -58,7 +57,7 @@
         "com.huawei.android.launcher.permission.READ_SETTINGS",
         "com.huawei.android.launcher.permission.WRITE_SETTINGS"
       ],
-      "versionCode": 12
+      "versionCode": 11
     },
     "web": {
       "favicon": "./assets/images/icon.png"
