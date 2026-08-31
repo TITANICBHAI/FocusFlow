@@ -41,6 +41,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   blockInstagramReelsEnabled: false,
   vpnBlockEnabled: false,
   standaloneVpnPackages: [],
+  vpnFocusMirrorEnabled: false,
   vpnSelfHealEnabled: false,
   keepFocusActiveUntilTaskEnd: true,
   launcherEnabled: false,

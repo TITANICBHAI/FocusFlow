@@ -15,6 +15,7 @@ import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
 import com.tbtechs.focusflow.services.NetworkBlockerVpnService
+import com.tbtechs.focusflow.services.VpnPolicyCoordinator
 import org.json.JSONObject
 
 /**
@@ -196,8 +197,15 @@ class NetworkBlockModule(private val reactContext: ReactApplicationContext) :
             if (obj.has("mobile"))   editor.putBoolean("net_block_mobile",  obj.getBoolean("mobile"))
             if (obj.has("global"))   editor.putBoolean("net_block_global",  obj.getBoolean("global"))
             if (obj.has("restore"))  editor.putBoolean("net_block_restore", obj.getBoolean("restore"))
-            if (obj.has("packages")) editor.putString("net_block_packages", obj.getString("packages"))
+            if (obj.has("packages")) {
+                val packagesJson = obj.getString("packages")
+                // Keep explicit VPN selections separate from the effective
+                // service list, which may also contain focus-derived targets.
+                editor.putString("vpn_selected_packages", packagesJson)
+                    .putString("net_block_packages", packagesJson)
+            }
             editor.apply()
+            VpnPolicyCoordinator.reconcile(reactContext)
             promise.resolve(null)
         } catch (e: Exception) {
             promise.reject("INVALID_JSON", e.message, e)
@@ -376,6 +384,21 @@ class NetworkBlockModule(private val reactContext: ReactApplicationContext) :
     @ReactMethod
     fun isNetworkBlockActive(promise: Promise) {
         promise.resolve(NetworkBlockerVpnService.isRunning)
+    }
+
+    /**
+     * Recomputes the effective VPN target set from durable native state.
+     * This is used after focus state changes so explicit VPN selections survive
+     * while focus-derived targets are added or removed.
+     */
+    @ReactMethod
+    fun reconcileVpnPolicy(promise: Promise) {
+        try {
+            VpnPolicyCoordinator.reconcile(reactContext)
+            promise.resolve(null)
+        } catch (e: Exception) {
+            promise.reject("VPN_POLICY_ERROR", e.message, e)
+        }
     }
 
     // ─── VPN conflict detection ───────────────────────────────────────────────

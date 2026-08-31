@@ -712,6 +712,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       void logger.warn('AppContext', `instagram-reels guard sync failed: ${String(e)}`);
     }
     try {
+      await SharedPrefsModule.setVpnFocusMirrorEnabled(settings.vpnFocusMirrorEnabled ?? false);
+    } catch (e) {
+      void logger.warn('AppContext', `vpn focus mirror sync failed: ${String(e)}`);
+    }
+    try {
       // Keep the UI setting, native mechanism flag, and package list in one
       // native write. The VPN service, watchdog, and AccessibilityService all
       // consume net_block_packages as the canonical list.
@@ -736,14 +741,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // VPN blocking is enabled. The native service reconfigures itself when the
     // package set changes and is otherwise a no-op.
     try {
-      const alwaysOnVpnPkgs = settings.alwaysOnVpnPackages ?? [];
-      const sessionVpnPkgs = settings.standaloneVpnPackages ?? [];
-      const mergedVpnPkgs = Array.from(new Set([...alwaysOnVpnPkgs, ...sessionVpnPkgs]));
-      if ((settings.vpnBlockEnabled ?? false) && mergedVpnPkgs.length > 0) {
-        void NetworkBlockModule.startNetworkBlock(JSON.stringify(mergedVpnPkgs)).catch((e) =>
-          void logger.warn('AppContext', `always-on VPN start failed: ${String(e)}`),
-        );
-      } else if (!(settings.vpnBlockEnabled ?? false) || mergedVpnPkgs.length === 0) {
+      if (!(settings.vpnBlockEnabled ?? false)) {
         void NetworkBlockModule.stopNetworkBlock(defensePinHash).catch((e) =>
           void logger.warn('AppContext', `VPN stop after disabling failed: ${String(e)}`),
         );
@@ -1570,20 +1568,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         };
         dispatch({ type: 'SET_FOCUS_SESSION', payload: session });
 
-        // Start VPN network blocking if the toggle is on. Include the
-        // standalone list when it is active so native and UI package state
-        // cannot diverge during an overlapping focus session.
-        // Best-effort — a failure here does not abort focus mode.
-        if (state.settings.vpnBlockEnabled) {
-          const alwaysOnVpnPkgs = state.settings.alwaysOnVpnPackages ?? [];
-          const sessionVpnPkgs = state.settings.standaloneVpnPackages ?? [];
-          const mergedVpnPkgs = Array.from(new Set([...alwaysOnVpnPkgs, ...sessionVpnPkgs]));
-          if (mergedVpnPkgs.length > 0) {
-            void NetworkBlockModule.startNetworkBlock(JSON.stringify(mergedVpnPkgs)).catch((e) =>
-              void logger.warn('AppContext', `network block start failed: ${String(e)}`),
-            );
-          }
-        }
       } catch (e) {
         void logger.error('AppContext', `startFocusMode failed: ${String(e)}`);
         throw e;
@@ -1592,9 +1576,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [
       state.tasks,
       state.settings.allowedInFocus,
-      state.settings.vpnBlockEnabled,
-      state.settings.alwaysOnVpnPackages,
-      state.settings.standaloneVpnPackages,
     ],
   );
 
@@ -1616,25 +1597,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       await SharedPrefsModule.setAllowedPackages([]);
     } catch { /* best-effort */ }
     try {
-      await NetworkBlockModule.stopNetworkBlock(pinHash);
-    } catch { /* best-effort — VPN may already be stopped */ }
-    // After stopping the session VPN, restart it with always-on packages so
-    // 24/7 VPN blocking continues working even when no focus session is active.
-    // A short delay is required here: ACTION_STOP is processed asynchronously
-    // by NetworkBlockerVpnService. Without it, the always-on startNetworkBlock
-    // call can race with the teardown of the previous TUN interface, causing
-    // the VPN service to fail silently or start in a broken state.
-    try {
-      const settings = stateRef.current.settings;
-      const alwaysOnVpnPkgs = settings.alwaysOnVpnPackages ?? [];
-      const sessionVpnPkgs = settings.standaloneVpnPackages ?? [];
-      const mergedVpnPkgs = Array.from(new Set([...alwaysOnVpnPkgs, ...sessionVpnPkgs]));
-      if ((settings.vpnBlockEnabled ?? false) && mergedVpnPkgs.length > 0) {
-        await new Promise<void>((resolve) => setTimeout(resolve, 400));
-        void NetworkBlockModule.startNetworkBlock(JSON.stringify(mergedVpnPkgs)).catch((e) =>
-          void logger.warn('AppContext', `always-on VPN restart after focus failed: ${String(e)}`),
-        );
-      }
+      // Native policy state already contains explicit VPN selections. Reconcile
+      // once after clearing focus so only focus-derived targets are removed.
+      await NetworkBlockModule.reconcileVpnPolicy();
     } catch { /* best-effort */ }
     dispatch({ type: 'SET_FOCUS_SESSION', payload: null });
   }, []);
@@ -1763,15 +1728,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'SET_SETTINGS', payload: newSettings });
     const active = packages.length > 0 && untilMs !== null && untilMs > Date.now();
     await SharedPrefsModule.setStandaloneBlock(active, packages, untilMs ?? 0, pinHash);
-    const vpnPkgs = Array.from(new Set([
-      ...(newSettings.alwaysOnVpnPackages ?? []),
-      ...(newSettings.standaloneVpnPackages ?? []),
-    ]));
-    if ((newSettings.vpnBlockEnabled ?? false) && active && vpnPkgs.length > 0) {
-      void NetworkBlockModule.startNetworkBlock(JSON.stringify(vpnPkgs)).catch((e) =>
-        void logger.warn('AppContext', `standalone VPN start failed: ${String(e)}`),
-      );
-    }
+    void NetworkBlockModule.reconcileVpnPolicy().catch((e) =>
+      void logger.warn('AppContext', `standalone VPN policy sync failed: ${String(e)}`),
+    );
     // Sync always-on enforcement using the dedicated alwaysOnPackages list
     const allowanceEntries = newSettings.dailyAllowanceEntries ?? [];
     const alwaysOnActive = (newSettings.alwaysOnEnforcementEnabled !== false) &&
@@ -1863,23 +1822,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       standaloneVpnPackages: resolvedVpnPackages,
       vpnBlockEnabled:
         resolvedVpnPackages.length > 0 ||
-        (state.settings.alwaysOnVpnPackages ?? []).length > 0,
+        (state.settings.alwaysOnVpnPackages ?? []).length > 0 ||
+        (state.settings.vpnFocusMirrorEnabled ?? false),
     };
     try { await dbSaveSettings(newSettings); } catch (e) { void logger.warn('AppContext', `setStandaloneBlockAndAllowance: dbSaveSettings non-fatal: ${String(e)}`); }
     dispatch({ type: 'SET_SETTINGS', payload: newSettings });
     const active = packages.length > 0 && untilMs !== null && untilMs > Date.now();
     await SharedPrefsModule.setStandaloneBlock(active, packages, untilMs ?? 0, pinHash);
     await SharedPrefsModule.setDailyAllowanceConfig(allowanceEntries);
-    await SharedPrefsModule.setVpnSelectedPackages(resolvedVpnPackages).catch(() => {});
     const mergedVpnPkgs = Array.from(new Set([
       ...(newSettings.alwaysOnVpnPackages ?? []),
       ...(newSettings.standaloneVpnPackages ?? []),
     ]));
-    if ((newSettings.vpnBlockEnabled ?? false) && active && mergedVpnPkgs.length > 0) {
-      void NetworkBlockModule.startNetworkBlock(JSON.stringify(mergedVpnPkgs)).catch((e) =>
-        void logger.warn('AppContext', `standalone VPN start failed: ${String(e)}`),
-      );
-    }
+    await SharedPrefsModule.setVpnSelectedPackages(mergedVpnPkgs).catch(() => {});
+    void NetworkBlockModule.reconcileVpnPolicy().catch((e) =>
+      void logger.warn('AppContext', `standalone VPN policy sync failed: ${String(e)}`),
+    );
     // Sync always-on enforcement using the dedicated alwaysOnPackages list
     const alwaysOnActive2 = (newSettings.alwaysOnEnforcementEnabled !== false) &&
       ((newSettings.alwaysOnPackages ?? []).length > 0 || allowanceEntries.length > 0);

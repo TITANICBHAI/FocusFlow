@@ -73,6 +73,13 @@ class PackageInstallReceiver : BroadcastReceiver() {
 
         if (!focusActive && !saActive) return
 
+        // Keep an opted-in Focus → VPN mirror current when a new launchable
+        // package appears during the session. This only updates VPN-derived
+        // targets; overlay and standalone package state remain unchanged.
+        if (focusActive && prefs.getBoolean("vpn_focus_mirror_enabled", false)) {
+            VpnPolicyCoordinator.reconcile(context)
+        }
+
         val editor = prefs.edit()
 
         flagNewInstall(newPkg, prefs, editor)

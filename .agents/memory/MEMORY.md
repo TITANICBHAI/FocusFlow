@@ -14,3 +14,5 @@
 - [FocusFlow test planning](focusflow-test-planning.md) — keep test layers and durable native sources inside the FocusFlow artifact; validate local, CI, device, then relevant CodeQL evidence.
 - [FocusFlow test-plan review](test-plan-review.md) — test fallback preconditions and cross-service timing, not only mocked blocked outcomes.
 - [FocusFlow additional recommendations](additional-recommendations.md) — optional backlog is status-tracked in the FocusFlow artifact; distinguish existing behavior from new ideas.
+- [FocusFlow protected surfaces](focusflow-protected-surfaces.md) — never touch or duplicate standalone, Always-On, accessibility window-overlay, back/back/home/back, or Kotlin block-overlay behavior.
+- [FocusFlow reference packet](focusflow-reference-packet.md) — imported plans and reviews live in the artifact; validate them against the current checkout before editing.

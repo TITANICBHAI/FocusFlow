@@ -78,6 +78,19 @@ export const SharedPrefsModule = {
     await callNative('setAllowedPackages', () => SharedPrefs.setAllowedPackages(packages));
   },
 
+  /**
+   * Opts the native VPN policy coordinator into mirroring the currently
+   * blocked Focus Mode apps. This is deliberately separate from the
+   * AccessibilityService's overlay policy.
+   */
+  async setVpnFocusMirrorEnabled(enabled: boolean): Promise<void> {
+    if (!hasSharedPrefsMethod('setVpnFocusMirrorEnabled')) return;
+    await callNative(
+      'setVpnFocusMirrorEnabled',
+      () => SharedPrefs.setVpnFocusMirrorEnabled(enabled),
+    );
+  },
+
   async setActiveTask(taskId: string, name: string, endMs: number, nextName: string | null): Promise<void> {
     if (!hasSharedPrefsMethod('setActiveTask')) return;
     await callNative('setActiveTask', () => SharedPrefs.setActiveTask(taskId, name, endMs, nextName ?? null));

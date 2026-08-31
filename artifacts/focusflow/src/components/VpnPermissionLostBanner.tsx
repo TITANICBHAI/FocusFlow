@@ -41,12 +41,18 @@ interface Props {
   vpnBlockEnabled: boolean;
   /**
    * Packages to route through the VPN tunnel when the permission is re-granted.
-   * Should be the merged set of alwaysOnVpnPackages + any active session packages.
+   * This may be empty when the opt-in Focus mirror is the only VPN source.
    */
   vpnPackages: string[];
+  /** True when Focus Mode can contribute derived VPN targets. */
+  vpnFocusMirrorEnabled: boolean;
 }
 
-export function VpnPermissionLostBanner({ vpnBlockEnabled, vpnPackages }: Props) {
+export function VpnPermissionLostBanner({
+  vpnBlockEnabled,
+  vpnPackages,
+  vpnFocusMirrorEnabled,
+}: Props) {
   const insets = useSafeAreaInsets();
   const [permissionLost, setPermissionLost] = useState(false);
   const [regranting, setRegranting] = useState(false);
@@ -55,8 +61,10 @@ export function VpnPermissionLostBanner({ vpnBlockEnabled, vpnPackages }: Props)
 
   const check = useCallback(async () => {
     // A configured toggle alone is not enough to justify a consent prompt.
-    // Only check/recover when there is an actual saved VPN package list.
-    if (Platform.OS !== 'android' || !vpnBlockEnabled || vpnPackages.length === 0) {
+    // The Focus mirror is also a real VPN source even before it derives its
+    // first package list.
+    const vpnConfigured = vpnPackages.length > 0 || vpnFocusMirrorEnabled;
+    if (Platform.OS !== 'android' || !vpnBlockEnabled || !vpnConfigured) {
       setPermissionLost(false);
       return;
     }
@@ -73,10 +81,10 @@ export function VpnPermissionLostBanner({ vpnBlockEnabled, vpnPackages }: Props)
       setPermissionLost(needsAttention);
 
       // Re-granting permission is not enough by itself. Once the app becomes
-      // active again, explicitly restart the tunnel with the canonical list.
-      if (granted && nextStatus.state === 'permission_missing' && vpnPackages.length > 0) {
+      // active again, recompute the effective explicit + Focus-derived list.
+      if (granted && nextStatus.state === 'permission_missing' && vpnConfigured) {
         try {
-          await NetworkBlockModule.startNetworkBlock(JSON.stringify(vpnPackages));
+          await NetworkBlockModule.reconcileVpnPolicy();
           const afterStart = await NetworkBlockModule.getNetworkBlockStatus();
           setStatus(afterStart);
           setPermissionLost(
@@ -92,7 +100,7 @@ export function VpnPermissionLostBanner({ vpnBlockEnabled, vpnPackages }: Props)
       setStatus(null);
       setPermissionLost(true);
     }
-  }, [vpnBlockEnabled, vpnPackages]);
+  }, [vpnBlockEnabled, vpnFocusMirrorEnabled, vpnPackages]);
 
   // Check on mount and every time the app returns to the foreground.
   useEffect(() => {
@@ -130,7 +138,7 @@ export function VpnPermissionLostBanner({ vpnBlockEnabled, vpnPackages }: Props)
     await check();
   };
 
-  if (!vpnBlockEnabled || vpnPackages.length === 0) return null;
+  if (!vpnBlockEnabled || (vpnPackages.length === 0 && !vpnFocusMirrorEnabled)) return null;
 
   return (
     <Animated.View

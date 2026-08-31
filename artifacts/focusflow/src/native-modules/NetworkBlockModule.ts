@@ -201,6 +201,19 @@ export const NetworkBlockModule = {
     }));
   },
 
+  /**
+   * Recomputes the effective VPN target set from persisted explicit selections
+   * and the current native Focus Mode state.
+   */
+  async reconcileVpnPolicy(): Promise<void> {
+    const native = requireNetworkBlock();
+    if (!native) return;
+    if (typeof native.reconcileVpnPolicy !== 'function') {
+      throw new Error('FocusFlow native NetworkBlock.reconcileVpnPolicy is missing.');
+    }
+    await native.reconcileVpnPolicy();
+  },
+
   async getNetworkBlockStatus(): Promise<NetworkBlockStatus> {
     const native = requireNetworkBlock();
     if (!native) {

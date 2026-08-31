@@ -44,6 +44,15 @@ class BootReceiver : BroadcastReceiver() {
             AppBlockerAccessibilityService.PREFS_NAME, Context.MODE_PRIVATE
         )
 
+        // USER_UNLOCKED and package replacement are safe points to recompute
+        // launchable Focus-derived VPN targets. The boot broadcast can arrive
+        // before credential-protected storage is available.
+        if (action == Intent.ACTION_USER_UNLOCKED ||
+            action == Intent.ACTION_MY_PACKAGE_REPLACED
+        ) {
+            VpnPolicyCoordinator.reconcile(context)
+        }
+
         val focusActive   = prefs.getBoolean("focus_active", false)
         val endTimeMs     = prefs.getLong("task_end_ms", 0L)
         val startTimeMs   = prefs.getLong("task_start_ms", 0L)

@@ -3,7 +3,7 @@
 These are optional product and reliability ideas collected during review. They are
 kept separate from the required test plan. Status reflects the current checkout:
 
-- `[ ]` already implemented or substantially covered
+- `[x]` already implemented or substantially covered
 - `[~]` partially implemented or needs verification
 - `[ ]` suggestion not implemented
 - `[N/A]` intentionally outside the current FocusFlow product scope
@@ -12,13 +12,13 @@ This status was checked against the current TypeScript and Kotlin implementation
 on 2026-08-24. A recommendation is not marked complete merely because it is
 described in a comment, plan, or test stub.
 
-## 1 — Precise Budget-Expiry Trigger `[ ]`
+## 1 — Precise Budget-Expiry Trigger `[x]`
 
 The native ForegroundTaskService schedules a callback for the known remaining
 time of the current foreground time-budget app, re-checks the foreground package,
 marks the allowance exhausted, and wakes the fallback blocker immediately.
 
-## 2 — Friction Screen on Block Overlay `[ ]`
+## 2 — Friction Screen on Block Overlay `[x]`
 
 `BlockOverlayActivity` and the WindowManager overlay already use a delayed
 escape-control reveal with a countdown and block reason. Keep device-level tests
@@ -50,20 +50,20 @@ Not needed now. The stored usage object is small and bounded by the configured
 allowance list in normal use; this cleanup can remain deferred unless usage data
 growth is observed.
 
-## 7 — Fix Default Settings Discrepancy `[ ]`
+## 7 — Fix Default Settings Discrepancy `[x]`
 
 The app now uses one canonical defaults object for both React startup and the
 database fallback. Automatic Always-On copying and VPN self-healing default to
 off; keeping focus active until the scheduled task end defaults to on. Existing
 saved settings still override these defaults.
 
-## 8 — Guard Backup Restore During an Active Focus Session `[ ]`
+## 8 — Guard Backup Restore During an Active Focus Session `[x]`
 
 Replacement restore is rejected before settings or tasks are changed when either
 the in-memory session snapshot or the database reports an active focus session.
 The user receives a clear message telling them to stop the session first.
 
-## 9 — Validate SHA-256 Fallback Vectors `[ ]`
+## 9 — Validate SHA-256 Fallback Vectors `[x]`
 
 The PIN suite now forces the pure-JavaScript fallback path and verifies the
 empty-string and `abc` NIST vectors.

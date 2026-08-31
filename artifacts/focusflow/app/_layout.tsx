@@ -358,6 +358,7 @@ function VpnPermissionHost() {
     <VpnPermissionLostBanner
       vpnBlockEnabled={state.settings.vpnBlockEnabled ?? false}
       vpnPackages={vpnPackages}
+      vpnFocusMirrorEnabled={state.settings.vpnFocusMirrorEnabled ?? false}
     />
   );
 }

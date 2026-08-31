@@ -222,6 +222,11 @@ export interface AppSettings {
   vpnBlockEnabled: boolean;             // Tunnel blocked apps through VPN to cut their network access (requires VPN permission)
   standaloneVpnPackages: string[];      // Per-app VPN: packages selected to receive network blocking in addition to accessibility blocking
   /**
+   * When true, the per-app VPN target set also includes apps that Focus Mode
+   * currently blocks. Explicit VPN selections remain independent.
+   */
+  vpnFocusMirrorEnabled?: boolean;
+  /**
    * When true, the VPN block automatically restarts itself if it gets disconnected
    * mid-session (e.g. user pulls down quick-settings tile and taps disconnect).
    * Implemented by two complementary native mechanisms:

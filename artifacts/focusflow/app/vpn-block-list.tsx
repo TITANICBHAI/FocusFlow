@@ -21,6 +21,7 @@ import {
   StyleSheet,
   Image,
   Alert,
+  Switch,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -55,6 +56,9 @@ export default function VpnBlockListScreen() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [pinVerifyVisible, setPinVerifyVisible] = useState(false);
+  const [focusMirrorEnabled, setFocusMirrorEnabled] = useState(
+    settings.vpnFocusMirrorEnabled ?? false,
+  );
 
   const originalPkgsRef = useRef<Set<string>>(new Set(settings.alwaysOnVpnPackages ?? []));
   const blockProtectionActive =
@@ -98,7 +102,7 @@ export default function VpnBlockListScreen() {
 
       // The Android VPN grant can be revoked while this picker is open. Ask
       // for it before persisting any non-empty network block list.
-      if (vpnPkgs.length > 0) {
+      if (vpnPkgs.length > 0 || focusMirrorEnabled) {
         const vpnGranted = await NetworkBlockModule.ensureVpnPermission();
         if (!vpnGranted) {
           Alert.alert(
@@ -110,7 +114,9 @@ export default function VpnBlockListScreen() {
       }
 
       const hasVpnPackages =
-        vpnPkgs.length > 0 || (settings.standaloneVpnPackages ?? []).length > 0;
+        vpnPkgs.length > 0 ||
+        (settings.standaloneVpnPackages ?? []).length > 0 ||
+        focusMirrorEnabled;
 
       await updateSettings({
         ...settings,
@@ -120,6 +126,7 @@ export default function VpnBlockListScreen() {
         // aligned with the actual package configuration.
         vpnBlockEnabled: hasVpnPackages,
         vpnSelfHealEnabled: hasVpnPackages,
+        vpnFocusMirrorEnabled: focusMirrorEnabled,
       }, { defensePinHash });
       router.back();
     } catch {
@@ -127,7 +134,7 @@ export default function VpnBlockListScreen() {
     } finally {
       setSaving(false);
     }
-  }, [selected, settings, updateSettings]);
+  }, [focusMirrorEnabled, selected, settings, updateSettings]);
 
   const handleSave = async () => {
     const originalPkgs = originalPkgsRef.current;
@@ -274,6 +281,28 @@ export default function VpnBlockListScreen() {
         </TouchableOpacity>
       )}
 
+      <View style={[styles.mirrorCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+        <View style={styles.mirrorCopy}>
+          <View style={styles.mirrorTitleRow}>
+            <Ionicons name="git-merge-outline" size={17} color={COLORS.primary} />
+            <Text style={[styles.mirrorTitle, { color: theme.text }]}>
+              Mirror Focus Mode into VPN
+            </Text>
+          </View>
+          <Text style={[styles.mirrorDescription, { color: theme.muted }]}>
+            When enabled, apps blocked by the current Focus task also lose network access.
+            This is opt-in and does not change the overlay block list or global VPN mode.
+          </Text>
+        </View>
+        <Switch
+          value={focusMirrorEnabled}
+          onValueChange={setFocusMirrorEnabled}
+          trackColor={{ false: theme.border, true: COLORS.primary + '66' }}
+          thumbColor={focusMirrorEnabled ? COLORS.primary : theme.muted}
+          accessibilityLabel="Mirror Focus Mode into VPN"
+        />
+      </View>
+
       {/* Search */}
       <View style={[styles.searchWrap, { backgroundColor: theme.card, borderColor: theme.border }]}>
         <Ionicons name="search" size={16} color={COLORS.muted} />
@@ -377,6 +406,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   ironGuideText: { flex: 1, fontSize: FONT.xs, lineHeight: 18 },
+  mirrorCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    marginHorizontal: SPACING.md,
+    marginTop: SPACING.sm,
+    padding: SPACING.md,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+  },
+  mirrorCopy: { flex: 1, gap: 4 },
+  mirrorTitleRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs },
+  mirrorTitle: { fontSize: FONT.sm, fontWeight: '700' },
+  mirrorDescription: { fontSize: FONT.xs, lineHeight: 17 },
   searchWrap: {
     flexDirection: 'row',
     alignItems: 'center',

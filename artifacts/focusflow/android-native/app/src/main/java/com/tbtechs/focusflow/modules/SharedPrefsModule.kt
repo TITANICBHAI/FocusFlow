@@ -7,6 +7,7 @@ import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.ReadableArray
 import com.facebook.react.bridge.WritableNativeMap
 import com.tbtechs.focusflow.services.AppBlockerAccessibilityService
+import com.tbtechs.focusflow.services.VpnPolicyCoordinator
 import com.tbtechs.focusflow.widget.FocusFlowWidget
 
 /**
@@ -62,7 +63,13 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
                 }
             }
         }
-        prefs().edit().putBoolean("focus_active", active).apply()
+        prefs().edit()
+            .putBoolean("focus_active", active)
+            // Prevent the coordinator from deriving targets between focus
+            // activation and the subsequent allow-list write.
+            .putBoolean("focus_allowed_ready", false)
+            .apply()
+        VpnPolicyCoordinator.reconcile(reactContext)
         promise.resolve(null)
     }
 
@@ -82,6 +89,7 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
                 .remove("focus_break_until_ms")
         }
         editor.apply()
+        VpnPolicyCoordinator.reconcile(reactContext)
         promise.resolve(null)
     }
 
@@ -106,7 +114,22 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
     fun setAllowedPackages(packages: ReadableArray, promise: Promise) {
         val list = (0 until packages.size()).map { "\"${packages.getString(it)}\"" }
         val json = "[${list.joinToString(",")}]"
-        prefs().edit().putString("allowed_packages", json).apply()
+        prefs().edit()
+            .putString("allowed_packages", json)
+            .putBoolean("focus_allowed_ready", prefs().getBoolean("focus_active", false))
+            .apply()
+        VpnPolicyCoordinator.reconcile(reactContext)
+        promise.resolve(null)
+    }
+
+    /**
+     * Enables the opt-in Focus → VPN mirror without changing AccessibilityService
+     * state or the user's explicit VPN package selections.
+     */
+    @ReactMethod
+    fun setVpnFocusMirrorEnabled(enabled: Boolean, promise: Promise) {
+        prefs().edit().putBoolean("vpn_focus_mirror_enabled", enabled).apply()
+        VpnPolicyCoordinator.reconcile(reactContext)
         promise.resolve(null)
     }
 
@@ -400,6 +423,7 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
             // toggle. Older services still read both keys.
             .putBoolean("net_block_vpn", enabled)
             .apply()
+        VpnPolicyCoordinator.reconcile(reactContext)
         promise.resolve(null)
     }
 
@@ -419,6 +443,7 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
             // service, watchdog, AccessibilityService, and restore path.
             .putString("net_block_packages", packagesJson)
             .apply()
+        VpnPolicyCoordinator.reconcile(reactContext)
         promise.resolve(null)
     }
 
