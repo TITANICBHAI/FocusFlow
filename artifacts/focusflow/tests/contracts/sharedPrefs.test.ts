@@ -17,7 +17,6 @@ const { nativePrefs } = vi.hoisted(() => ({
     setBlockedWords: vi.fn(),
     setNetworkBlockEnabled: vi.fn(),
     setVpnSelectedPackages: vi.fn(),
-    setVpnPolicySources: vi.fn(),
     setDailyStats: vi.fn(),
   },
 }));
@@ -86,18 +85,6 @@ describe('SharedPrefs JS↔Kotlin serialization contract', () => {
     expect(nativePrefs.setBlockedWords).toHaveBeenCalledWith(['spoiler', 'headline']);
     expect(nativePrefs.setVpnSelectedPackages).toHaveBeenCalledWith(
       JSON.stringify(['com.example.video', 'com.example.social']),
-    );
-  });
-
-  it('keeps persistent and timed VPN sources separate across the bridge', async () => {
-    await SharedPrefsModule.setVpnPolicySources(
-      ['com.example.persistent'],
-      ['com.example.session'],
-    );
-
-    expect(nativePrefs.setVpnPolicySources).toHaveBeenCalledWith(
-      JSON.stringify(['com.example.persistent']),
-      JSON.stringify(['com.example.session']),
     );
   });
 

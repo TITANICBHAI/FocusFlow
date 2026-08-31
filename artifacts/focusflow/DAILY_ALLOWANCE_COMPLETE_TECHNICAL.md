@@ -7,7 +7,7 @@
 Use the status marker beside each item as work progresses:
 
 - `[ ]` Pending investigation or implementation
-- `[ ]` Fixed and verified
+- `[x]` Fixed and verified
 - `[✗]` Rejected, not applicable, or accepted as a limitation
 
 Keep the file/line reference with every status change so each result remains traceable to the original finding.
@@ -16,28 +16,28 @@ Keep the file/line reference with every status change so each result remains tra
 
 #### Confirmed bugs
 
-- [ ] **1.1** `ACTION_USER_PRESENT` remaining time ignores the date and window reset — `AppBlockerAccessibilityService.kt:767-774` — reset-aware remaining-time calculation added; source-verified
-- [ ] **1.2** `parseUsage` returns stale interval usage after window expiry — `allowanceUsageCache.ts:37-39`, `SharedPrefsModule.kt:507` — cache now reads the native config and filters expired rolling windows; source-verified
-- [ ] **1.3** `force=true` joins a stale in-flight request — `allowanceUsageCache.ts:57-60` — forced reads now bypass the existing in-flight request; source-verified
-- [ ] **1.4** `checkForegroundNow` misses an already-foreground app after restart — `AppBlockerAccessibilityService.kt:562` — one-time 60-second foreground allowance recovery added; source-verified
-- [ ] **1.5** `timedExpireRunnable` fires after focus or standalone mode ends — `AppBlockerAccessibilityService.kt:2650-2661` — session cleanup and fire-time enforcement guard added; source-verified
-- [ ] **1.6** Allowance configuration changes leave an active timer and checkpoint loop running — `DailyAllowanceModal.tsx:handleSave`, `AppBlockerAccessibilityService.kt` — config writes broadcast a native session reset; source-verified
-- [ ] **1.7** `isFallbackBlocked` enforces allowance without an active enforcement session — `ForegroundTaskService.kt:522-530`, `1236-1282` — fallback allowance checks now require active enforcement; source-verified
-- [ ] **1.8** `goIdle()` does not cancel `allowanceExpiryRunnable` — `ForegroundTaskService.kt:732-753` — idle transition now cancels the pending expiry; source-verified
-- [ ] **1.9** The block overlay shows the wrong reason when an allowance is exhausted during focus — `AppBlockerAccessibilityService.kt:3295` — quota reason now takes priority in the reason builder; source-verified
+- [x] **1.1** `ACTION_USER_PRESENT` remaining time ignores the date and window reset — `AppBlockerAccessibilityService.kt:767-774` — reset-aware remaining-time calculation added; source-verified
+- [x] **1.2** `parseUsage` returns stale interval usage after window expiry — `allowanceUsageCache.ts:37-39`, `SharedPrefsModule.kt:507` — cache now reads the native config and filters expired rolling windows; source-verified
+- [x] **1.3** `force=true` joins a stale in-flight request — `allowanceUsageCache.ts:57-60` — forced reads now bypass the existing in-flight request; source-verified
+- [x] **1.4** `checkForegroundNow` misses an already-foreground app after restart — `AppBlockerAccessibilityService.kt:562` — one-time 60-second foreground allowance recovery added; source-verified
+- [x] **1.5** `timedExpireRunnable` fires after focus or standalone mode ends — `AppBlockerAccessibilityService.kt:2650-2661` — session cleanup and fire-time enforcement guard added; source-verified
+- [x] **1.6** Allowance configuration changes leave an active timer and checkpoint loop running — `DailyAllowanceModal.tsx:handleSave`, `AppBlockerAccessibilityService.kt` — config writes broadcast a native session reset; source-verified
+- [x] **1.7** `isFallbackBlocked` enforces allowance without an active enforcement session — `ForegroundTaskService.kt:522-530`, `1236-1282` — fallback allowance checks now require active enforcement; source-verified
+- [x] **1.8** `goIdle()` does not cancel `allowanceExpiryRunnable` — `ForegroundTaskService.kt:732-753` — idle transition now cancels the pending expiry; source-verified
+- [x] **1.9** The block overlay shows the wrong reason when an allowance is exhausted during focus — `AppBlockerAccessibilityService.kt:3295` — quota reason now takes priority in the reason builder; source-verified
 
 #### Practice and maintenance concerns
 
-- [ ] **2.1** Interval mode has no `ForegroundTaskService` UsageStats backup — `ForegroundTaskService.kt:272-289, 370-396` — rolling-window UsageStats reconciliation added; source-verified
-- [ ] **2.2** The two services use an uncoordinated read-modify-write for usage — `AppBlockerAccessibilityService.kt:2456`, `ForegroundTaskService.kt:336, 468`, `SharedPrefsModule.kt:629` — shared in-process lock now covers service sync, expiry promotion, and manual resets; source-verified
-- [ ] **2.3** Usage progress and checkpoint timestamp are written in separate operations — `AppBlockerAccessibilityService.kt:2538-2577` — timed checkpoint now persists usage, heartbeat, and handoff marker in one editor; source-verified
-- [ ] **2.4** `todayDateString()` repeatedly allocates `SimpleDateFormat` objects — `AppBlockerAccessibilityService.kt`, `ForegroundTaskService.kt` — formatter instances are cached per service and refreshed if the device timezone changes; source-verified
-- [ ] **2.5** Deferred enforcement actions do not re-check enforcement state at fire time — `AppBlockerAccessibilityService.kt` — delayed launcher, power-menu, and app-dismissal actions now re-check the current toggle/session state; source-verified
-- [ ] **2.6** Always-on blocking with an empty list silently becomes allowance-only enforcement — `AppBlockerAccessibilityService.kt`, `block-defense.tsx` — the Defense screen now explains that no apps are blocked 24/7 until the list is populated; source-verified
-- [ ] **2.7** The modal refresh timer is shorter than the usage-cache TTL — `DailyAllowanceModal.tsx:usageTimer` — refresh cadence now matches the 10-second cache TTL; source-verified
-- [ ] **2.8** Switching allowance modes preserves old values accidentally — `DailyAllowanceModal.tsx:updateEntry` — non-destructive preservation is now documented as intentional; source-verified
-- [ ] **2.9** `scheduleAllowanceExpiry` does not check for a fresh active allowance session — `ForegroundTaskService.kt:392-406` — expiry callback now respects the active-session heartbeat; source-verified
-- [ ] **2.10** `focusMirrorVpnEnabled` is missing from backup — `backupService.ts` — backup export/import already preserves this setting; source-verified
+- [x] **2.1** Interval mode has no `ForegroundTaskService` UsageStats backup — `ForegroundTaskService.kt:272-289, 370-396` — rolling-window UsageStats reconciliation added; source-verified
+- [x] **2.2** The two services use an uncoordinated read-modify-write for usage — `AppBlockerAccessibilityService.kt:2456`, `ForegroundTaskService.kt:336, 468`, `SharedPrefsModule.kt:629` — shared in-process lock now covers service sync, expiry promotion, and manual resets; source-verified
+- [x] **2.3** Usage progress and checkpoint timestamp are written in separate operations — `AppBlockerAccessibilityService.kt:2538-2577` — timed checkpoint now persists usage, heartbeat, and handoff marker in one editor; source-verified
+- [x] **2.4** `todayDateString()` repeatedly allocates `SimpleDateFormat` objects — `AppBlockerAccessibilityService.kt`, `ForegroundTaskService.kt` — formatter instances are cached per service and refreshed if the device timezone changes; source-verified
+- [x] **2.5** Deferred enforcement actions do not re-check enforcement state at fire time — `AppBlockerAccessibilityService.kt` — delayed launcher, power-menu, and app-dismissal actions now re-check the current toggle/session state; source-verified
+- [x] **2.6** Always-on blocking with an empty list silently becomes allowance-only enforcement — `AppBlockerAccessibilityService.kt`, `block-defense.tsx` — the Defense screen now explains that no apps are blocked 24/7 until the list is populated; source-verified
+- [x] **2.7** The modal refresh timer is shorter than the usage-cache TTL — `DailyAllowanceModal.tsx:usageTimer` — refresh cadence now matches the 10-second cache TTL; source-verified
+- [x] **2.8** Switching allowance modes preserves old values accidentally — `DailyAllowanceModal.tsx:updateEntry` — non-destructive preservation is now documented as intentional; source-verified
+- [x] **2.9** `scheduleAllowanceExpiry` does not check for a fresh active allowance session — `ForegroundTaskService.kt:392-406` — expiry callback now respects the active-session heartbeat; source-verified
+- [x] **2.10** `focusMirrorVpnEnabled` is missing from backup — `backupService.ts` — backup export/import already preserves this setting; source-verified
 
 ---
 

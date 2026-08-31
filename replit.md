@@ -1,25 +1,7 @@
 # Project Notes
 
-## Non-Negotiable FocusFlow Agent Guardrail
-
-Before changing any FocusFlow code or plan, read
-`artifacts/focusflow/FOCUSFLOW_PROTECTED_SURFACES.md`.
-
-Do not touch, replace, refactor, redesign, remove, or duplicate the following
-protected behavior:
-
-- Standalone block and all related paths.
-- Always-On and all related paths.
-- Accessibility window-overlay behavior and all related paths.
-- The existing back/back/home/back action sequence.
-- The Kotlin block-overlay implementation, including
-  `BlockOverlayActivity.kt`.
-
-Reading a nearby plan does not override this guardrail. If a task appears to
-require one of these protected areas, stop and request explicit scope
-clarification.
-
 ## Recent Fixes (latest session)
+- **Android automatic backup disabled**: `app.json`, the Expo config plugin, and `android-native/install.sh` all force `android:allowBackup="false"`. Do not ever change this to `true`; FocusFlow's explicit `.focusflow` export/import is separate and remains available.
 - **QUERY_ALL_PACKAGES + REQUEST_DELETE_PACKAGES**: Added both permissions to `install.sh`. `QUERY_ALL_PACKAGES` is required on Android 11+ for the app drawer to list all installed apps. `REQUEST_DELETE_PACKAGES` is required by `NuclearModeModule` to launch the system uninstall dialog.
 - **LauncherActivity manifest flags**: `install.sh` now adds `android:clearTaskOnLaunch="true"` and `android:stateNotNeeded="true"` to the LauncherActivity registration, preventing stale task state from persisting across HOME presses.
 - **NuclearModeModule.ts**: Created the missing JS bridge for `NuclearModeModule.kt` (`requestUninstallApp`, `requestUninstallApps`, `isAppInstalled`).

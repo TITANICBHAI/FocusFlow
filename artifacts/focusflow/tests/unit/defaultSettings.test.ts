@@ -10,7 +10,6 @@ describe('canonical default settings', () => {
   it('keeps protection defaults explicit and consistent', () => {
     expect(DEFAULT_SETTINGS.autoCopyToAlwaysOn).toBe(false);
     expect(DEFAULT_SETTINGS.keepFocusActiveUntilTaskEnd).toBe(true);
-    expect(DEFAULT_SETTINGS.vpnFocusMirrorEnabled).toBe(false);
     expect(DEFAULT_SETTINGS.vpnSelfHealEnabled).toBe(false);
   });
 

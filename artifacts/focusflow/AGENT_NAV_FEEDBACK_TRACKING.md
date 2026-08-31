@@ -7,14 +7,14 @@ FocusFlow artifact without changing the original task description.
 
 ## Implementation checklist
 
-- [ ] Step 1 — Add the guarded `navPush` utility.
-- [ ] Step 2 — Add the `useNavPress` loading/press hook.
-- [ ] Step 3 — Add loading feedback and disabled behavior to `SettingButton`.
-- [ ] Step 4 — Wire `useNavPress` into every `SettingButton` call site.
-- [ ] Step 5 — Add loading feedback to `ActiveHeaderButton`.
-- [ ] Step 6 — Replace remaining user-initiated navigation pushes with guarded navigation.
-- [ ] Step 7 — Defer the Active screen data load until navigation interactions finish.
-- [ ] Step 8 — Defer sheet openings by one frame to avoid first-frame stutter.
+- [x] Step 1 — Add the guarded `navPush` utility.
+- [x] Step 2 — Add the `useNavPress` loading/press hook.
+- [x] Step 3 — Add loading feedback and disabled behavior to `SettingButton`.
+- [x] Step 4 — Wire `useNavPress` into every `SettingButton` call site.
+- [x] Step 5 — Add loading feedback to `ActiveHeaderButton`.
+- [x] Step 6 — Replace remaining user-initiated navigation pushes with guarded navigation.
+- [x] Step 7 — Defer the Active screen data load until navigation interactions finish.
+- [x] Step 8 — Defer sheet openings by one frame to avoid first-frame stutter.
 
 ## Verification checklist
 

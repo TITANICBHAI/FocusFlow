@@ -1,5 +1,6 @@
 package com.tbtechs.focusflow.modules
 
+import android.content.Intent
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
@@ -7,10 +8,8 @@ import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.ReadableArray
 import com.facebook.react.bridge.WritableNativeMap
 import com.tbtechs.focusflow.services.AppBlockerAccessibilityService
-import com.tbtechs.focusflow.services.VpnPolicyCoordinator
+import com.tbtechs.focusflow.services.NetworkBlockerVpnService
 import com.tbtechs.focusflow.widget.FocusFlowWidget
-import org.json.JSONArray
-import java.util.Locale
 
 /**
  * SharedPrefsModule
@@ -65,13 +64,8 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
                 }
             }
         }
-        prefs().edit()
-            .putBoolean("focus_active", active)
-            // Prevent the coordinator from deriving targets between focus
-            // activation and the subsequent allow-list write.
-            .putBoolean("focus_allowed_ready", false)
-            .apply()
-        VpnPolicyCoordinator.reconcile(reactContext)
+        prefs().edit().putBoolean("focus_active", active).apply()
+        NetworkBlockerVpnService.requestSync(reactContext)
         promise.resolve(null)
     }
 
@@ -91,7 +85,7 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
                 .remove("focus_break_until_ms")
         }
         editor.apply()
-        VpnPolicyCoordinator.reconcile(reactContext)
+        NetworkBlockerVpnService.requestSync(reactContext)
         promise.resolve(null)
     }
 
@@ -116,22 +110,8 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
     fun setAllowedPackages(packages: ReadableArray, promise: Promise) {
         val list = (0 until packages.size()).map { "\"${packages.getString(it)}\"" }
         val json = "[${list.joinToString(",")}]"
-        prefs().edit()
-            .putString("allowed_packages", json)
-            .putBoolean("focus_allowed_ready", prefs().getBoolean("focus_active", false))
-            .apply()
-        VpnPolicyCoordinator.reconcile(reactContext)
-        promise.resolve(null)
-    }
-
-    /**
-     * Enables the opt-in Focus → VPN mirror without changing AccessibilityService
-     * state or the user's explicit VPN package selections.
-     */
-    @ReactMethod
-    fun setVpnFocusMirrorEnabled(enabled: Boolean, promise: Promise) {
-        prefs().edit().putBoolean("vpn_focus_mirror_enabled", enabled).apply()
-        VpnPolicyCoordinator.reconcile(reactContext)
+        prefs().edit().putString("allowed_packages", json).apply()
+        NetworkBlockerVpnService.requestSync(reactContext)
         promise.resolve(null)
     }
 
@@ -298,6 +278,7 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
             .putString("standalone_blocked_packages", json)
             .putLong("standalone_block_until_ms", untilMs.toLong())
             .apply()
+        NetworkBlockerVpnService.requestSync(reactContext)
         // Standalone block changes are independent of focus mode, so the widget
         // needs an explicit nudge to re-read prefs and switch render mode.
         FocusFlowWidget.pushWidgetUpdate(reactContext)
@@ -425,7 +406,7 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
             // toggle. Older services still read both keys.
             .putBoolean("net_block_vpn", enabled)
             .apply()
-        VpnPolicyCoordinator.reconcile(reactContext)
+        NetworkBlockerVpnService.requestSync(reactContext)
         promise.resolve(null)
     }
 
@@ -441,48 +422,13 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
     fun setVpnSelectedPackages(packagesJson: String, promise: Promise) {
         prefs().edit()
             .putString("vpn_selected_packages", packagesJson)
-            // net_block_packages is the canonical list consumed by the VPN
-            // service, watchdog, AccessibilityService, and restore path.
-            .putString("net_block_packages", packagesJson)
+            // Compatibility path: preserve the old API while keeping its
+            // values in the explicit policy slot. The native resolver owns the
+            // effective list now.
+            .putString("net_block_explicit_packages", packagesJson)
             .apply()
-        VpnPolicyCoordinator.reconcile(reactContext)
+        NetworkBlockerVpnService.requestSync(reactContext)
         promise.resolve(null)
-    }
-
-    /**
-     * Persists VPN sources independently. The coordinator combines these into
-     * the effective target set while preserving the distinction between
-     * persistent Always-On selections and timed-session selections.
-     */
-    @ReactMethod
-    fun setVpnPolicySources(
-        alwaysOnPackagesJson: String,
-        sessionPackagesJson: String,
-        promise: Promise,
-    ) {
-        val merged = mergePackageJson(alwaysOnPackagesJson, sessionPackagesJson)
-        prefs().edit()
-            .putString("vpn_always_on_packages", alwaysOnPackagesJson)
-            .putString("vpn_session_packages", sessionPackagesJson)
-            .putString("vpn_selected_packages", merged)
-            .putString("net_block_packages", merged)
-            .apply()
-        VpnPolicyCoordinator.reconcile(reactContext)
-        promise.resolve(null)
-    }
-
-    private fun mergePackageJson(vararg jsonValues: String): String {
-        val packages = linkedSetOf<String>()
-        jsonValues.forEach { json ->
-            runCatching {
-                val array = JSONArray(json)
-                for (index in 0 until array.length()) {
-                    val packageName = array.optString(index).trim().lowercase(Locale.ROOT)
-                    if (packageName.isNotBlank()) packages.add(packageName)
-                }
-            }
-        }
-        return JSONArray(packages.toList().sorted()).toString()
     }
 
     /**
@@ -501,6 +447,11 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
         prefs().edit()
             .putString("daily_allowance_config", configJson)
             .apply()
+        reactContext.sendBroadcast(
+            Intent(AppBlockerAccessibilityService.ACTION_ALLOWANCE_CONFIG_CHANGED).apply {
+                `package` = reactContext.packageName
+            },
+        )
         promise.resolve(null)
     }
 
@@ -557,12 +508,15 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
      */
     @ReactMethod
     fun getAllowanceSnapshot(promise: Promise) {
-        val current = prefs()
-        promise.resolve(WritableNativeMap().apply {
-            putString("usageJson", current.getString("daily_allowance_used", null))
-            putString("activeSessionPackage", current.getString("active_session_pkg", null))
-            putDouble("activeSessionEndMs", current.getLong("active_session_end_ms", 0L).toDouble())
-        })
+        synchronized (AppBlockerAccessibilityService.ALLOWANCE_USAGE_LOCK) {
+            val current = prefs()
+            promise.resolve(WritableNativeMap().apply {
+                putString("usageJson", current.getString("daily_allowance_used", null))
+                putString("configJson", current.getString("daily_allowance_config", null))
+                putString("activeSessionPackage", current.getString("active_session_pkg", null))
+                putDouble("activeSessionEndMs", current.getLong("active_session_end_ms", 0L).toDouble())
+            })
+        }
     }
 
     /**
@@ -674,20 +628,31 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
 
     @ReactMethod
     fun resetDailyAllowanceUsage(packageName: String?, promise: Promise) {
-        val editor = prefs().edit()
-        if (packageName == null) {
-            editor.putString(AppBlockerAccessibilityService.PREF_DAILY_ALLOWANCE_USED, "{}")
-        } else {
-            val usedJson = prefs().getString(AppBlockerAccessibilityService.PREF_DAILY_ALLOWANCE_USED, "{}") ?: "{}"
-            try {
-                val obj = org.json.JSONObject(usedJson)
-                obj.remove(packageName)
-                editor.putString(AppBlockerAccessibilityService.PREF_DAILY_ALLOWANCE_USED, obj.toString())
-            } catch (_: Exception) {
+        synchronized (AppBlockerAccessibilityService.ALLOWANCE_USAGE_LOCK) {
+            val editor = prefs().edit()
+            if (packageName == null) {
                 editor.putString(AppBlockerAccessibilityService.PREF_DAILY_ALLOWANCE_USED, "{}")
+            } else {
+                val usedJson = prefs().getString(
+                    AppBlockerAccessibilityService.PREF_DAILY_ALLOWANCE_USED,
+                    "{}",
+                ) ?: "{}"
+                try {
+                    val obj = org.json.JSONObject(usedJson)
+                    obj.remove(packageName)
+                    editor.putString(
+                        AppBlockerAccessibilityService.PREF_DAILY_ALLOWANCE_USED,
+                        obj.toString(),
+                    )
+                } catch (_: Exception) {
+                    editor.putString(
+                        AppBlockerAccessibilityService.PREF_DAILY_ALLOWANCE_USED,
+                        "{}",
+                    )
+                }
             }
+            editor.apply()
         }
-        editor.apply()
         promise.resolve(null)
     }
 }

@@ -29,6 +29,8 @@ import {
   dbCheckpointWal,
   dbPruneOldData,
   resetDb,
+  isDbUnrecoverable,
+  isUsingRecoveryDb,
   logDbDiagnostics,
   probeDbHealth,
 } from '@/data/database';
@@ -82,11 +84,13 @@ interface AppState {
   focusViolationApp: string | null;
   isLoading: boolean;
   isDbReady: boolean;
+  isDbUnrecoverable: boolean;
 }
 
 type AppAction =
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'SET_DB_READY' }
+  | { type: 'SET_DB_UNRECOVERABLE'; payload: boolean }
   | { type: 'SET_TASKS'; payload: Task[] }
   | { type: 'ADD_TASK'; payload: Task }
   | { type: 'UPDATE_TASK'; payload: Task }
@@ -101,6 +105,8 @@ function reducer(state: AppState, action: AppAction): AppState {
       return { ...state, isLoading: action.payload };
     case 'SET_DB_READY':
       return { ...state, isDbReady: true };
+    case 'SET_DB_UNRECOVERABLE':
+      return { ...state, isDbUnrecoverable: action.payload };
     case 'SET_TASKS':
       return { ...state, tasks: action.payload };
     case 'ADD_TASK':
@@ -130,6 +136,7 @@ const initialState: AppState = {
   focusViolationApp: null,
   isLoading: true,
   isDbReady: false,
+  isDbUnrecoverable: false,
 };
 
 function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
@@ -146,6 +153,28 @@ function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T
         resolve(fallback);
       });
   });
+}
+
+function getExplicitVpnPackages(settings: AppSettings): string[] {
+  return Array.from(new Set([
+    ...(settings.alwaysOnVpnPackages ?? []),
+    ...(settings.standaloneVpnPackages ?? []),
+  ]));
+}
+
+const FOCUS_BLOCK_ALL_SENTINEL = 'com.focusflow.internal.blockall';
+
+function getNativeFocusAllowedPackages(
+  settings: AppSettings,
+  focusSession: FocusSession | null,
+): string[] {
+  // A task-specific allow-list takes precedence over the global setting while
+  // that task is active. Keep the same non-installed sentinel used by
+  // focusService so an intentionally empty list means "block all" natively,
+  // rather than being confused with an unset policy.
+  const allowedPackages = focusSession?.allowedPackages ?? settings.allowedInFocus;
+  const filteredAllowed = allowedPackages.filter((p) => p.includes('.'));
+  return filteredAllowed.length > 0 ? filteredAllowed : [FOCUS_BLOCK_ALL_SENTINEL];
 }
 
 // ─── Context ──────────────────────────────────────────────────────────────────
@@ -396,6 +425,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // ── Database / settings ────────────────────────────────────────────────
       void logger.info('AppContext', 'Loading settings from DB (timeout=8000ms)');
       const rawSettings = await withTimeout(dbGetSettings(), 8000, DEFAULT_SETTINGS);
+      const dbWasUnrecoverable = isDbUnrecoverable();
+      const dbWasRecovered = isUsingRecoveryDb();
+      dispatch({ type: 'SET_DB_UNRECOVERABLE', payload: dbWasUnrecoverable });
       void logger.info('AppContext', 'Settings loaded from DB');
       // Fire-and-forget: writes one [DB_DIAG] INFO line per session with
       // API level, Android version, manufacturer, model, and SQLite version.
@@ -515,7 +547,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       try {
         void logger.info('AppContext', 'Syncing system guard');
-        await _syncSystemGuard(settings);
+        await _syncSystemGuard(
+          settings,
+          null,
+          rawSettings === DEFAULT_SETTINGS || dbWasRecovered || dbWasUnrecoverable,
+        );
         void logger.info('AppContext', 'System guard synced');
       } catch (e) {
         void logger.warn('AppContext', `System guard sync failed: ${String(e)}`);
@@ -560,6 +596,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       void logger.info('AppContext', '[STARTUP_COMPLETE] init() finished successfully');
     } catch (e) {
       void logger.error('AppContext', `[STARTUP_ERROR] Unhandled init error: ${String(e)}`);
+        dispatch({ type: 'SET_DB_UNRECOVERABLE', payload: isDbUnrecoverable() });
       // Even if a non-critical startup step fails before the DB path completes,
       // recover the first-run markers before showing the app. Otherwise a
       // returning user could be sent back through privacy/onboarding merely
@@ -695,6 +732,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   async function _syncSystemGuard(
     settings: AppSettings,
     defensePinHash: string | null = null,
+    preserveVpnDuringDbRecovery = false,
   ): Promise<void> {
     try {
       await SharedPrefsModule.setSystemGuardEnabled(settings.systemGuardEnabled ?? false);
@@ -711,44 +749,51 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } catch (e) {
       void logger.warn('AppContext', `instagram-reels guard sync failed: ${String(e)}`);
     }
-    try {
-      await SharedPrefsModule.setVpnFocusMirrorEnabled(settings.vpnFocusMirrorEnabled ?? false);
-    } catch (e) {
-      void logger.warn('AppContext', `vpn focus mirror sync failed: ${String(e)}`);
-    }
-    try {
-      // Keep the UI setting, native mechanism flag, and package list in one
-      // native write. The VPN service, watchdog, and AccessibilityService all
-      // consume net_block_packages as the canonical list.
-      const alwaysOnVpnPkgs = settings.alwaysOnVpnPackages ?? [];
-      const sessionVpnPkgs = settings.standaloneVpnPackages ?? [];
-      const mergedVpnPkgs = Array.from(new Set([...alwaysOnVpnPkgs, ...sessionVpnPkgs]));
-      await NetworkBlockModule.setNetworkBlockSettings({
-        enabled: settings.vpnBlockEnabled ?? false,
-        vpn: settings.vpnBlockEnabled ?? false,
-        packages: mergedVpnPkgs,
-        defensePinHash,
-      });
-      await SharedPrefsModule.setVpnPolicySources(alwaysOnVpnPkgs, sessionVpnPkgs);
-    } catch (e) {
-      void logger.warn('AppContext', `vpn settings sync failed: ${String(e)}`);
-    }
-    try {
-      await NetworkBlockModule.setVpnSelfHealEnabled(settings.vpnSelfHealEnabled ?? false);
-    } catch (e) {
-      void logger.warn('AppContext', `vpn self-heal sync failed: ${String(e)}`);
-    }
-    // Start the VPN service now if any canonical packages are configured and
-    // VPN blocking is enabled. The native service reconfigures itself when the
-    // package set changes and is otherwise a no-op.
-    try {
-      if (!(settings.vpnBlockEnabled ?? false)) {
-        void NetworkBlockModule.stopNetworkBlock(defensePinHash).catch((e) =>
-          void logger.warn('AppContext', `VPN stop after disabling failed: ${String(e)}`),
-        );
+    const explicitVpnPkgs = Array.from(new Set(settings.alwaysOnVpnPackages ?? []));
+    const vpnDisableRequested =
+      !(settings.vpnBlockEnabled ?? false) || explicitVpnPkgs.length === 0;
+    const preserveActiveVpn =
+      preserveVpnDuringDbRecovery || isUsingRecoveryDb() || isDbUnrecoverable();
+
+    if (!(preserveActiveVpn && vpnDisableRequested)) {
+      try {
+        // Keep the UI setting, native mechanism flag, explicit package list, and
+        // focus-mirror preference in one native write. The native service derives
+        // the effective per-app target set from these persisted values.
+        await NetworkBlockModule.setNetworkBlockSettings({
+          enabled: settings.vpnBlockEnabled ?? false,
+          vpn: settings.vpnBlockEnabled ?? false,
+          packages: explicitVpnPkgs,
+          standalonePackages: settings.standaloneVpnPackages ?? [],
+          focusMirrorEnabled: settings.focusMirrorVpnEnabled ?? false,
+          defensePinHash,
+        });
+      } catch (e) {
+        void logger.warn('AppContext', `vpn settings sync failed: ${String(e)}`);
       }
-    } catch (e) {
-      void logger.warn('AppContext', `always-on VPN start failed: ${String(e)}`);
+      try {
+        await NetworkBlockModule.setVpnSelfHealEnabled(settings.vpnSelfHealEnabled ?? false);
+      } catch (e) {
+        void logger.warn('AppContext', `vpn self-heal sync failed: ${String(e)}`);
+      }
+      // Start the VPN service now if any canonical packages are configured and
+      // VPN blocking is enabled. The native service reconfigures itself when the
+      // package set changes and is otherwise a no-op.
+      try {
+        if ((settings.vpnBlockEnabled ?? false) && explicitVpnPkgs.length > 0) {
+          void NetworkBlockModule.startNetworkBlock(JSON.stringify(explicitVpnPkgs)).catch((e) =>
+            void logger.warn('AppContext', `always-on VPN start failed: ${String(e)}`),
+          );
+        } else if (vpnDisableRequested) {
+          void NetworkBlockModule.stopNetworkBlock(defensePinHash).catch((e) =>
+            void logger.warn('AppContext', `VPN stop after disabling failed: ${String(e)}`),
+          );
+        }
+      } catch (e) {
+        void logger.warn('AppContext', `always-on VPN start failed: ${String(e)}`);
+      }
+    } else {
+      void logger.warn('AppContext', 'Skipping VPN disable sync while using recovery/unrecoverable DB');
     }
     try {
       await SharedPrefsModule.setLauncherHiddenPackages(settings.launcherHiddenPackages ?? []);
@@ -1201,6 +1246,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // ── Tasks ───────────────────────────────────────────────────────────────────
 
   const refreshTasks = useCallback(async () => {
+    if (isDbUnrecoverable()) {
+      if (!stateRef.current.isDbUnrecoverable) {
+        dispatch({ type: 'SET_DB_UNRECOVERABLE', payload: true });
+      }
+      return;
+    }
     try {
       const todayTasks = await dbGetTasksForDate(new Date().toISOString());
       // Also include tasks from the last 24 hours that are still unresolved so
@@ -1212,6 +1263,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         ...todayTasks,
         ...recentUnresolved.filter((t) => !todayIds.has(t.id)),
       ];
+      if (isDbUnrecoverable()) {
+        dispatch({ type: 'SET_DB_UNRECOVERABLE', payload: true });
+        return;
+      }
       dispatch({ type: 'SET_TASKS', payload: merged });
     } catch (e) {
       void logger.warn('AppContext', `refreshTasks failed: ${String(e)}`);
@@ -1598,10 +1653,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       await SharedPrefsModule.setAllowedPackages([]);
     } catch { /* best-effort */ }
     try {
-      // Native policy state already contains explicit VPN selections. Reconcile
-      // once after clearing focus so only focus-derived targets are removed.
-      await NetworkBlockModule.reconcileVpnPolicy();
-    } catch { /* best-effort */ }
+      await NetworkBlockModule.stopNetworkBlock(pinHash);
+    } catch { /* best-effort — VPN may already be stopped */ }
     dispatch({ type: 'SET_FOCUS_SESSION', payload: null });
   }, []);
 
@@ -1626,7 +1679,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       await Promise.all([
         state.focusSession !== null
           ? SharedPrefsModule.setAllowedPackages(
-              settings.allowedInFocus.filter((p) => p.includes('.')),
+              getNativeFocusAllowedPackages(settings, state.focusSession),
             )
           : Promise.resolve(),
         _syncStandaloneBlock(settings),
@@ -1637,7 +1690,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         GreyoutModule.setSchedule(_recurringSchedulesToGreyoutWindows(settings)).catch((e) =>
           void logger.warn('AppContext', `greyout sync failed: ${String(e)}`),
         ),
-        _syncSystemGuard(settings, options.defensePinHash ?? null),
+        _syncSystemGuard(
+          settings,
+          options.defensePinHash ?? null,
+          state.isDbUnrecoverable || isUsingRecoveryDb(),
+        ),
       ]);
     } catch (e) {
       void logger.error('AppContext', `updateSettings failed: ${String(e)}`);
@@ -1729,9 +1786,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'SET_SETTINGS', payload: newSettings });
     const active = packages.length > 0 && untilMs !== null && untilMs > Date.now();
     await SharedPrefsModule.setStandaloneBlock(active, packages, untilMs ?? 0, pinHash);
-    void NetworkBlockModule.reconcileVpnPolicy().catch((e) =>
-      void logger.warn('AppContext', `standalone VPN policy sync failed: ${String(e)}`),
-    );
+    const vpnPkgs = getExplicitVpnPackages(newSettings);
+    if ((newSettings.vpnBlockEnabled ?? false) && active && vpnPkgs.length > 0) {
+      void NetworkBlockModule.startNetworkBlock(JSON.stringify(vpnPkgs)).catch((e) =>
+        void logger.warn('AppContext', `standalone VPN start failed: ${String(e)}`),
+      );
+    }
     // Sync always-on enforcement using the dedicated alwaysOnPackages list
     const allowanceEntries = newSettings.dailyAllowanceEntries ?? [];
     const alwaysOnActive = (newSettings.alwaysOnEnforcementEnabled !== false) &&
@@ -1823,21 +1883,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       standaloneVpnPackages: resolvedVpnPackages,
       vpnBlockEnabled:
         resolvedVpnPackages.length > 0 ||
-        (state.settings.alwaysOnVpnPackages ?? []).length > 0 ||
-        (state.settings.vpnFocusMirrorEnabled ?? false),
+        (state.settings.alwaysOnVpnPackages ?? []).length > 0,
     };
     try { await dbSaveSettings(newSettings); } catch (e) { void logger.warn('AppContext', `setStandaloneBlockAndAllowance: dbSaveSettings non-fatal: ${String(e)}`); }
     dispatch({ type: 'SET_SETTINGS', payload: newSettings });
     const active = packages.length > 0 && untilMs !== null && untilMs > Date.now();
     await SharedPrefsModule.setStandaloneBlock(active, packages, untilMs ?? 0, pinHash);
     await SharedPrefsModule.setDailyAllowanceConfig(allowanceEntries);
-    await SharedPrefsModule.setVpnPolicySources(
-      newSettings.alwaysOnVpnPackages ?? [],
-      newSettings.standaloneVpnPackages ?? [],
-    ).catch(() => {});
-    void NetworkBlockModule.reconcileVpnPolicy().catch((e) =>
-      void logger.warn('AppContext', `standalone VPN policy sync failed: ${String(e)}`),
-    );
+    await NetworkBlockModule.setNetworkBlockSettings({
+      enabled: newSettings.vpnBlockEnabled ?? false,
+      vpn: newSettings.vpnBlockEnabled ?? false,
+      packages: Array.from(new Set(newSettings.alwaysOnVpnPackages ?? [])),
+      standalonePackages: newSettings.standaloneVpnPackages ?? [],
+      focusMirrorEnabled: newSettings.focusMirrorVpnEnabled ?? false,
+      defensePinHash: pinHash,
+    });
     // Sync always-on enforcement using the dedicated alwaysOnPackages list
     const alwaysOnActive2 = (newSettings.alwaysOnEnforcementEnabled !== false) &&
       ((newSettings.alwaysOnPackages ?? []).length > 0 || allowanceEntries.length > 0);

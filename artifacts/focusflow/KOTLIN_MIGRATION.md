@@ -290,7 +290,7 @@ Each composable listed here is a 1:1 replacement for its React Native counterpar
 - Row: priority badge (colored chip) + task title (lg, bold) + time range
 - If active: animated linear progress bar (Indigo), live countdown via `ViewModel`
 - Tags: horizontal `FlowRow` of small chips
-- Action icons:  Complete, ⏭ Skip, ⏱ Extend, 🎯 Start Focus (shown on swipe or expand)
+- Action icons: ✓ Complete, ⏭ Skip, ⏱ Extend, 🎯 Start Focus (shown on swipe or expand)
 - **Data:** `Task` entity from Room DB
 
 ### [ ] TaskDetailModal (Bottom Sheet)

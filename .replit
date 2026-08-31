@@ -1,10 +1,9 @@
-modules = ["nodejs-20", "web", "bash", "java-graalvm22.3"]
+modules = ["nodejs-20", "web", "bash"]
 
 [deployment]
 router = "application"
 deploymentTarget = "static"
-build = ["pnpm", "--filter", "@workspace/mockup-sandbox", "run", "build"]
-publicDir = "artifacts/mockup-sandbox/dist"
+publicDir = "docs"
 
 [deployment.postBuild]
 args = ["pnpm", "store", "prune"]

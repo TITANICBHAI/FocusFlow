@@ -171,6 +171,12 @@ export interface AppSettings {
    */
   alwaysOnVpnPackages?: string[];
   /**
+   * When true, FocusFlow mirrors the current focus allow-list into the
+   * per-app VPN target set. This is opt-in and does not alter explicit VPN
+   * selections or GLOBAL mode.
+   */
+  focusMirrorVpnEnabled?: boolean;
+  /**
    * When true, any packages added via standalone block are automatically
    * mirrored into `alwaysOnPackages` so they stay blocked after the timed
    * session expires. Default false.
@@ -221,11 +227,6 @@ export interface AppSettings {
   blockInstagramReelsEnabled: boolean;   // Intercept the Instagram Reels player / clips viewer (Instagram itself stays usable)
   vpnBlockEnabled: boolean;             // Tunnel blocked apps through VPN to cut their network access (requires VPN permission)
   standaloneVpnPackages: string[];      // Per-app VPN: packages selected to receive network blocking in addition to accessibility blocking
-  /**
-   * When true, the per-app VPN target set also includes apps that Focus Mode
-   * currently blocks. Explicit VPN selections remain independent.
-   */
-  vpnFocusMirrorEnabled?: boolean;
   /**
    * When true, the VPN block automatically restarts itself if it gets disconnected
    * mid-session (e.g. user pulls down quick-settings tile and taps disconnect).

@@ -89,23 +89,23 @@ must be reported as permission/configuration loss when observed.
 
 ### 3.1 Already present
 
--  `AppBlockerAccessibilityService` is the primary foreground app enforcement
+- ✅ `AppBlockerAccessibilityService` is the primary foreground app enforcement
   authority.
--  `onServiceConnected()` restores service-local state and starts its internal
+- ✅ `onServiceConnected()` restores service-local state and starts its internal
   foreground-package watchdog.
--  The blocking overlay now uses `TYPE_ACCESSIBILITY_OVERLAY` with
+- ✅ The blocking overlay now uses `TYPE_ACCESSIBILITY_OVERLAY` with
   `FLAG_NOT_FOCUSABLE`, and has an activity fallback when the window cannot be
   added.
--  `ForegroundTaskService` is a foreground service with `START_STICKY`.
--  `ForegroundTaskService` has a roughly one-second UsageStats fallback poll
+- ✅ `ForegroundTaskService` is a foreground service with `START_STICKY`.
+- ✅ `ForegroundTaskService` has a roughly one-second UsageStats fallback poll
   and can launch `BlockOverlayActivity`.
--  `BootReceiver` handles boot, user unlock, package replacement, and selected
+- ✅ `BootReceiver` handles boot, user unlock, package replacement, and selected
   OEM quick-boot broadcasts.
--  The VPN has a separate AlarmManager watchdog pattern that can be reused as
+- ✅ The VPN has a separate AlarmManager watchdog pattern that can be reused as
   a design reference.
--  FocusFlow already requests battery-optimization-related access and has
+- ✅ FocusFlow already requests battery-optimization-related access and has
   native settings/permission status surfaces.
--  The project has a Device Admin component, but that is an anti-bypass option,
+- ✅ The project has a Device Admin component, but that is an anti-bypass option,
   not an AccessibilityService restart mechanism.
 
 ### 3.2 Current gap
@@ -156,17 +156,17 @@ not be described as behaviorally identical to primary enforcement.
 
 ## 5. Implementation tracker
 
-**Legend:**  complete or confirmed · 🚧 in progress · ❌ open · ⏸ deferred
+**Legend:** ✅ complete or confirmed · 🚧 in progress · ❌ open · ⏸ deferred
 
 ### Phase 0 — Confirm constraints and product behavior
 
--  Confirm that a normal service/process kill does not inherently mean
+- ✅ Confirm that a normal service/process kill does not inherently mean
   Accessibility access was revoked.
--  Confirm that Android owns AccessibilityService binding and that FocusFlow
+- ✅ Confirm that Android owns AccessibilityService binding and that FocusFlow
   cannot silently re-enable it.
--  Confirm that a foreground service can provide fallback enforcement but
+- ✅ Confirm that a foreground service can provide fallback enforcement but
   cannot guarantee a manual Accessibility rebind.
--  Confirm that competitor public materials do not prove a hidden,
+- ✅ Confirm that competitor public materials do not prove a hidden,
   guaranteed Accessibility restart API.
 - ❌ Decide whether the independent watchdog runs only while a blocking policy is
   active or also while FocusFlow is idle. Recommended: active policy only.

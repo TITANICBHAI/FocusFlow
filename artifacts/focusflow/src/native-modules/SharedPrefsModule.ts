@@ -78,19 +78,6 @@ export const SharedPrefsModule = {
     await callNative('setAllowedPackages', () => SharedPrefs.setAllowedPackages(packages));
   },
 
-  /**
-   * Opts the native VPN policy coordinator into mirroring the currently
-   * blocked Focus Mode apps. This is deliberately separate from the
-   * AccessibilityService's overlay policy.
-   */
-  async setVpnFocusMirrorEnabled(enabled: boolean): Promise<void> {
-    if (!hasSharedPrefsMethod('setVpnFocusMirrorEnabled')) return;
-    await callNative(
-      'setVpnFocusMirrorEnabled',
-      () => SharedPrefs.setVpnFocusMirrorEnabled(enabled),
-    );
-  },
-
   async setActiveTask(taskId: string, name: string, endMs: number, nextName: string | null): Promise<void> {
     if (!hasSharedPrefsMethod('setActiveTask')) return;
     await callNative('setActiveTask', () => SharedPrefs.setActiveTask(taskId, name, endMs, nextName ?? null));
@@ -228,17 +215,6 @@ export const SharedPrefsModule = {
   },
 
   /**
-   * Keeps persistent Always-On VPN selections separate from timed-session
-   * selections. Native reconciliation unions them only for the active policy.
-   */
-  async setVpnPolicySources(alwaysOnPackages: string[], sessionPackages: string[]): Promise<void> {
-    if (!hasSharedPrefsMethod('setVpnPolicySources')) return;
-    await callNative('setVpnPolicySources', () =>
-      SharedPrefs.setVpnPolicySources(JSON.stringify(alwaysOnPackages), JSON.stringify(sessionPackages)),
-    );
-  },
-
-  /**
    * Writes the list of packages that are hidden from FocusFlow's home launcher
    * app drawer. Only blocked packages should be hidden — enforced by UI, not native.
    */
@@ -316,22 +292,30 @@ export const SharedPrefsModule = {
 
   async getAllowanceSnapshot(): Promise<{
     usageJson: string | null;
+    configJson: string | null;
     activeSessionPackage: string | null;
     activeSessionEndMs: number;
   }> {
     if (!hasSharedPrefsMethod('getAllowanceSnapshot')) {
-      return { usageJson: null, activeSessionPackage: null, activeSessionEndMs: 0 };
+      return {
+        usageJson: null,
+        configJson: null,
+        activeSessionPackage: null,
+        activeSessionEndMs: 0,
+      };
     }
     const result = await callNative(
       'getAllowanceSnapshot',
       () => SharedPrefs.getAllowanceSnapshot() as Promise<{
         usageJson: string | null;
+        configJson: string | null;
         activeSessionPackage: string | null;
         activeSessionEndMs: number;
       }>,
     );
     return {
       usageJson: result?.usageJson ?? null,
+      configJson: result?.configJson ?? null,
       activeSessionPackage: result?.activeSessionPackage ?? null,
       activeSessionEndMs: Number(result?.activeSessionEndMs ?? 0) || 0,
     };

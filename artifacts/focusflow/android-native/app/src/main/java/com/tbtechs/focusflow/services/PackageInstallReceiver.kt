@@ -4,14 +4,13 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
-import android.os.Build
 import org.json.JSONArray
 
 /**
  * PackageInstallReceiver
  *
- * Listens for package add/remove broadcasts so the effective policy is
- * recalculated whenever an installed target changes.
+ * Listens for package add/remove broadcasts so the effective VPN policy can be
+ * recalculated when installed-package availability changes.
  *
  * Behaviour during an active session:
  *   1. Reads the current focus/standalone block state from SharedPreferences.
@@ -26,7 +25,8 @@ import org.json.JSONArray
  *      standalone_blocked_packages so it is immediately covered by the block.
  *   4. Starts a brief aversive deterrent (vibration) to alert the user that
  *      the install was noticed.
- *   5. If neither session mode is active, does nothing.
+ *   5. On package removal, recalculates the policy so the removed package is
+ *      no longer treated as an active VPN target.
  *
  * Declared in AndroidManifest.xml with:
  *   <action android:name="android.intent.action.PACKAGE_ADDED" />
@@ -45,18 +45,11 @@ class PackageInstallReceiver : BroadcastReceiver() {
     }
 
     override fun onReceive(context: Context, intent: Intent) {
-        when (intent.action) {
-            Intent.ACTION_PACKAGE_REMOVED,
-            Intent.ACTION_PACKAGE_FULLY_REMOVED -> {
-                // PACKAGE_REMOVED also fires during replacement. The add
-                // broadcast will handle the replacement after installation.
-                if (intent.getBooleanExtra(Intent.EXTRA_REPLACING, false)) return
-                reconcileVpnIfConfigured(context)
-                return
-            }
-            Intent.ACTION_PACKAGE_ADDED -> Unit
-            else -> return
-        }
+        val action = intent.action ?: return
+        if (action != Intent.ACTION_PACKAGE_ADDED &&
+            action != Intent.ACTION_PACKAGE_REMOVED &&
+            action != Intent.ACTION_PACKAGE_FULLY_REMOVED
+        ) return
 
         val isReplacing = intent.getBooleanExtra(Intent.EXTRA_REPLACING, false)
         if (isReplacing) return
@@ -84,18 +77,18 @@ class PackageInstallReceiver : BroadcastReceiver() {
             } else false
         }
 
-        if (hasConfiguredVpnPolicy(prefs)) {
-            // Revalidate explicit targets as well as Focus-derived targets. A
-            // package that was unavailable during the previous reconciliation
-            // can become installable after this broadcast.
-            VpnPolicyCoordinator.reconcile(context)
+        val persistentVpn = NetworkBlockerVpnService.hasPersistentVpnConfiguration(prefs)
+        if (!focusActive && !saActive && !persistentVpn) {
+            return
         }
 
-        if (!focusActive && !saActive) return
+        // A removal must recalculate even when no focus/standalone session is
+        // active: a persistent explicit selection may be the only source.
+        if (action != Intent.ACTION_PACKAGE_ADDED) {
+            NetworkBlockerVpnService.requestSync(context)
+            return
+        }
 
-        // Keep an opted-in Focus → VPN mirror current when a new launchable
-        // package appears during the session. This only updates VPN-derived
-        // targets; overlay and standalone package state remain unchanged.
         val editor = prefs.edit()
 
         flagNewInstall(newPkg, prefs, editor)
@@ -104,36 +97,13 @@ class PackageInstallReceiver : BroadcastReceiver() {
             appendToSaBlockedPackages(newPkg, prefs, editor)
         }
 
-        editor.apply()
+        // This receiver can run while the JS process is dead. Commit the
+        // standalone package update before asking the native VPN policy to
+        // recalculate, otherwise requestSync could read the previous list.
+        editor.commit()
+        NetworkBlockerVpnService.requestSync(context)
 
         AversiveActionsManager.onBlockedApp(context)
-    }
-
-    private fun reconcileVpnIfConfigured(context: Context) {
-        val prefs = context.getSharedPreferences(
-            AppBlockerAccessibilityService.PREFS_NAME,
-            Context.MODE_PRIVATE,
-        )
-        val explicit = prefs.getString("vpn_selected_packages", "[]") ?: "[]"
-        val canonical = prefs.getString("net_block_packages", "[]") ?: "[]"
-        val hasTargets = explicit != "[]" || canonical != "[]"
-        val hasVpnPolicy = prefs.getBoolean("net_block_enabled", false) &&
-            prefs.getBoolean("net_block_vpn", true) &&
-            (prefs.getBoolean("net_block_global", false) ||
-                hasTargets ||
-                prefs.getBoolean("vpn_focus_mirror_enabled", false))
-        if (hasVpnPolicy) VpnPolicyCoordinator.reconcile(context)
-    }
-
-    private fun hasConfiguredVpnPolicy(prefs: SharedPreferences): Boolean {
-        val explicit = prefs.getString("vpn_selected_packages", "[]") ?: "[]"
-        val canonical = prefs.getString("net_block_packages", "[]") ?: "[]"
-        return prefs.getBoolean("net_block_enabled", false) &&
-            prefs.getBoolean("net_block_vpn", true) &&
-            (prefs.getBoolean("net_block_global", false) ||
-                explicit != "[]" ||
-                canonical != "[]" ||
-                prefs.getBoolean("vpn_focus_mirror_enabled", false))
     }
 
     private fun flagNewInstall(

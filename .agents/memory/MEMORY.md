@@ -1,18 +1,21 @@
 - [Android usage launch counts](usage-stats-launch-count.md) — derive app-entry counts from UsageEvents, not UsageStats.appLaunchCount, for this Android build.
 - [Android usage aggregation](usage-stats-aggregation.md) — aggregate UsageStats milliseconds before converting to display minutes; bucket-by-bucket flooring undercounts.
 - [Onboarding permission tiers](onboarding-permission-tiers.md) — keep first-run focused: three permissions gate readiness, while recommended access and personalization stay non-blocking.
-- [User-controlled diagnostic email](user-controlled-diagnostic-email.md) — keep reports in a user-reviewed native email draft with a sanitized text attachment, not a server relay.
-- [Imported audit verification](imported-audit-verification.md) — uploaded codebase audits may describe fixes already present; validate each finding against the current checkout before editing.
 - [Android SQLite write serialization](android-sqlite-write-serialization.md) — single-flight database opening does not prevent concurrent Expo SQLite writes from contending.
 - [Android prebuild native patches](android-prebuild-native-patches.md) — release-critical Gradle changes must be mirrored in the Expo config plugin, not only install.sh.
 - [FocusFlow implementation plan](focusflow-implementation-plan.md) — use the final Kotlin-focused plan as the authoritative execution order for UsageStats and fallback enforcement work.
-- [FocusFlow plain-English guide](focusflow-plain-english-guide.md) — use the companion explanation to understand the two-guard architecture and rationale behind the implementation plan.
 - [Dependency installation timing](dependency-installation-timing.md) — read the applicable plan and do requested code edits before installing dependencies; install when the user asks or verification requires it.
 - [Workspace package firewall](workspace-package-firewall.md) — filtered frozen installs can still fail on the shared shell-quote tarball before workspace-local node_modules is linked.
 - [System-control enforcement gate](system-control-enforcement-gate.md) — installer and system-control interception must require the explicit Protect system controls toggle.
 - [Task deletion and focus cleanup](task-deletion-focus-cleanup.md) — clearing tasks must end active focus sessions before deleting their task rows, without changing block settings.
-- [FocusFlow test planning](focusflow-test-planning.md) — keep test layers and durable native sources inside the FocusFlow artifact; validate local, CI, device, then relevant CodeQL evidence.
-- [FocusFlow test-plan review](test-plan-review.md) — test fallback preconditions and cross-service timing, not only mocked blocked outcomes.
-- [FocusFlow additional recommendations](additional-recommendations.md) — optional backlog is status-tracked in the FocusFlow artifact; distinguish existing behavior from new ideas.
-- [FocusFlow protected surfaces](focusflow-protected-surfaces.md) — never touch or duplicate standalone, Always-On, accessibility window-overlay, back/back/home/back, or Kotlin block-overlay behavior.
-- [FocusFlow reference packet](focusflow-reference-packet.md) — imported plans and reviews live in the artifact; validate them against the current checkout before editing.
+- [FocusFlow persistence migration](focusflow-persistence-plan.md) — PERSISTENCE_MIGRATION_PLAN.md is authoritative; the reliability plan and review are supporting references.
+- [FocusFlow database logging plan](agent-db-logging-plan.md) — structured, privacy-safe database health and failure logging with an artifact-local checklist.
+- [VPN enforcement plan authority](vpn-enforcement-independence.md) — read the background-enforcement plan and its code review together before implementing; the review supports the plan.
+- [VPN validation boundary](vpn-validation-boundary.md) — source contracts can run here, but real Kotlin/Gradle/device verification requires a generated Android project and toolchain.
+- [Receiver recovery dispatch](vpn-receiver-recovery-dispatch.md) — boot and watchdog VPN recovery must dispatch before a BroadcastReceiver returns, not only through a delayed handler.
+- [Android backup privacy](android-backup-privacy.md) — keep Android automatic backup disabled; user data moves only through explicit FocusFlow export/import.
+- [Accessibility restricted recovery](accessibility-restricted-recovery.md) — keep the retry UI after restricted settings unlock until Accessibility is actually granted.
+- [Daily Allowance review bundle](daily-allowance-review-bundle.md) — read the paired plain-English helper and source-pinned technical checklist before allowance work.
+- [Deferred enforcement fire-time checks](deferred-enforcement-fire-time.md) — handler callbacks must re-check the policy that scheduled them before navigation or dismissal actions.
+- [Agent navigation feedback](agent-navigation-feedback.md) — FocusFlow navigation reliability feedback and its artifact-local implementation tracker.
+- [Accessibility service liveness](accessibility-service-liveness.md) — enabled state is authorization, not proof the service is bound; use a heartbeat before trusting primary enforcement.

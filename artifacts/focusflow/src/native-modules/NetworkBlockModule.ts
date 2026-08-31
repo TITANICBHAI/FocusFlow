@@ -35,9 +35,9 @@ export interface NetworkBlockStatus {
   running: boolean;
   error: string | null;
   failedPackages: string[];
-  desiredGeneration: number;
-  appliedGeneration: number;
-  recoveryPending: boolean;
+  desiredPolicy?: string | null;
+  policyGeneration?: number;
+  appliedPolicyGeneration?: number;
 }
 
 export type NetworkBlockStartState =
@@ -189,6 +189,9 @@ export const NetworkBlockModule = {
     enabled: boolean;
     vpn: boolean;
     packages: string[];
+    /** Timed standalone VPN selections; ordinary overlay packages stay separate. */
+    standalonePackages?: string[];
+    focusMirrorEnabled?: boolean;
     defensePinHash?: string | null;
   }): Promise<void> {
     const native = requireNetworkBlock();
@@ -200,35 +203,18 @@ export const NetworkBlockModule = {
       enabled: settings.enabled,
       vpn: settings.vpn,
       packages: JSON.stringify(Array.from(new Set(settings.packages))),
+      standalonePackages: JSON.stringify(
+        Array.from(new Set(settings.standalonePackages ?? [])),
+      ),
+      focusMirrorEnabled: settings.focusMirrorEnabled ?? false,
       ...(settings.defensePinHash ? { defensePinHash: settings.defensePinHash } : {}),
     }));
-  },
-
-  /**
-   * Recomputes the effective VPN target set from persisted explicit selections
-   * and the current native Focus Mode state.
-   */
-  async reconcileVpnPolicy(): Promise<void> {
-    const native = requireNetworkBlock();
-    if (!native) return;
-    if (typeof native.reconcileVpnPolicy !== 'function') {
-      throw new Error('FocusFlow native NetworkBlock.reconcileVpnPolicy is missing.');
-    }
-    await native.reconcileVpnPolicy();
   },
 
   async getNetworkBlockStatus(): Promise<NetworkBlockStatus> {
     const native = requireNetworkBlock();
     if (!native) {
-      return {
-        state: 'disabled',
-        running: false,
-        error: null,
-        failedPackages: [],
-        desiredGeneration: 0,
-        appliedGeneration: 0,
-        recoveryPending: false,
-      };
+      return { state: 'disabled', running: false, error: null, failedPackages: [] };
     }
     if (typeof native.getNetworkBlockStatus !== 'function') {
       throw new Error('FocusFlow native NetworkBlock.getNetworkBlockStatus is missing.');
@@ -239,9 +225,9 @@ export const NetworkBlockModule = {
       running?: boolean;
       error?: string | null;
       failedPackages?: string | string[];
-      desiredGeneration?: number;
-      appliedGeneration?: number;
-      recoveryPending?: boolean;
+      desiredPolicy?: string | null;
+      policyGeneration?: number;
+      appliedPolicyGeneration?: number;
     };
     let failedPackages: string[] = [];
     if (Array.isArray(parsed.failedPackages)) {
@@ -257,9 +243,14 @@ export const NetworkBlockModule = {
       running: Boolean(parsed.running),
       error: parsed.error ?? null,
       failedPackages,
-      desiredGeneration: Number.isFinite(parsed.desiredGeneration) ? parsed.desiredGeneration! : 0,
-      appliedGeneration: Number.isFinite(parsed.appliedGeneration) ? parsed.appliedGeneration! : 0,
-      recoveryPending: Boolean(parsed.recoveryPending),
+      desiredPolicy:
+        typeof parsed.desiredPolicy === 'string' ? parsed.desiredPolicy : null,
+      policyGeneration:
+        typeof parsed.policyGeneration === 'number' ? parsed.policyGeneration : 0,
+      appliedPolicyGeneration:
+        typeof parsed.appliedPolicyGeneration === 'number'
+          ? parsed.appliedPolicyGeneration
+          : 0,
     };
   },
 

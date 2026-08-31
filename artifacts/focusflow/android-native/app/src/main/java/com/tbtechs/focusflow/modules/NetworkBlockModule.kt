@@ -1,21 +1,18 @@
 package com.tbtechs.focusflow.modules
 
 import android.content.Context
-import android.content.Intent
 import android.content.SharedPreferences
 import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
 import android.net.VpnService
 import android.net.wifi.WifiManager
 import android.os.Build
-import android.os.Handler
-import android.os.Looper
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
 import com.tbtechs.focusflow.services.NetworkBlockerVpnService
 import com.tbtechs.focusflow.services.VpnPolicyCoordinator
+import com.tbtechs.focusflow.services.VpnWatchdogReceiver
 import org.json.JSONObject
 
 /**
@@ -151,7 +148,8 @@ class NetworkBlockModule(private val reactContext: ReactApplicationContext) :
      * Persists network-block settings from a JSON object string.
      * Only keys present in [settingsJson] are updated; missing keys are left unchanged.
      *
-     * Accepted keys: enabled, vpn, wifi, mobile, global, restore, packages
+     * Accepted keys: enabled, vpn, wifi, mobile, global, restore, packages,
+     * focusMirrorEnabled, standalonePackages
      */
     @ReactMethod
     fun setNetworkBlockSettings(settingsJson: String, promise: Promise) {
@@ -198,17 +196,22 @@ class NetworkBlockModule(private val reactContext: ReactApplicationContext) :
             if (obj.has("global"))   editor.putBoolean("net_block_global",  obj.getBoolean("global"))
             if (obj.has("restore"))  editor.putBoolean("net_block_restore", obj.getBoolean("restore"))
             if (obj.has("packages")) {
-                val packagesJson = obj.getString("packages")
-                // Keep explicit VPN selections separate from the effective
-                // service list, which may also contain focus-derived targets.
-                editor.putString("vpn_selected_packages", packagesJson)
-                    .putString("net_block_packages", packagesJson)
+                // Keep persistent explicit VPN selections separate from the
+                // effective package list, which may include timed standalone
+                // or focus-mirrored targets.
+                editor.putString("net_block_explicit_packages", obj.getString("packages"))
             }
-            if (!editor.commit()) {
-                promise.reject("PERSISTENCE_ERROR", "Could not persist VPN settings")
-                return
+            if (obj.has("standalonePackages")) {
+                editor.putString(
+                    "net_block_standalone_vpn_packages",
+                    obj.getString("standalonePackages"),
+                )
             }
-            VpnPolicyCoordinator.reconcile(reactContext)
+            if (obj.has("focusMirrorEnabled")) {
+                editor.putBoolean("net_block_focus_mirror", obj.getBoolean("focusMirrorEnabled"))
+            }
+            editor.apply()
+            NetworkBlockerVpnService.requestSync(reactContext)
             promise.resolve(null)
         } catch (e: Exception) {
             promise.reject("INVALID_JSON", e.message, e)
@@ -232,9 +235,9 @@ class NetworkBlockModule(private val reactContext: ReactApplicationContext) :
                 put("running", NetworkBlockerVpnService.isRunning)
                 put("error", error ?: JSONObject.NULL)
                 put("failedPackages", failed)
-                put("desiredGeneration", prefs.getLong("vpn_desired_generation", 0L))
-                put("appliedGeneration", prefs.getLong("vpn_applied_generation", 0L))
-                put("recoveryPending", prefs.getBoolean("vpn_recovery_pending", false))
+                put("desiredPolicy", prefs.getString("net_block_desired_policy", null) ?: JSONObject.NULL)
+                put("policyGeneration", prefs.getLong("net_block_policy_generation", 0L))
+                put("appliedPolicyGeneration", prefs.getLong("net_block_applied_generation", 0L))
             }
             promise.resolve(obj.toString())
         } catch (e: Exception) {
@@ -268,15 +271,15 @@ class NetworkBlockModule(private val reactContext: ReactApplicationContext) :
 
             // 1 — VPN tunnel (primary, most reliable)
             if (useVpn) {
-                // The service and every watchdog path read this canonical list.
-                // Persist it before dispatching the asynchronous service start.
-                val persisted = prefs.edit()
-                    .putString("net_block_packages", packagesJson)
-                    .putString("net_block_mode", if (global) NetworkBlockerVpnService.MODE_GLOBAL
-                                                 else NetworkBlockerVpnService.MODE_PER_APP)
-                    .commit()
-                if (!persisted) {
-                    promise.reject("PERSISTENCE_ERROR", "Could not persist VPN package policy")
+                if (!prefs.contains("net_block_explicit_packages")) {
+                    // One-time compatibility for installations created before
+                    // explicit and effective package lists were separated.
+                    prefs.edit().putString("net_block_explicit_packages", packagesJson).apply()
+                }
+                val effectivePackagesJson = if (global) packagesJson
+                    else NetworkBlockerVpnService.effectivePackagesJson(reactContext, prefs)
+                if (!global && effectivePackagesJson == "[]") {
+                    promise.resolve(NetworkBlockerVpnService.STATUS_DISABLED)
                     return
                 }
             }
@@ -301,10 +304,10 @@ class NetworkBlockModule(private val reactContext: ReactApplicationContext) :
                     )
                     return
                 }
-                // The coordinator owns the effective target set and generation
-                // ordering. Keep this legacy entry point as an input writer
-                // instead of dispatching a parallel start command.
-                VpnPolicyCoordinator.reconcile(reactContext)
+                // The coordinator owns the persisted desired policy and the
+                // serialized service dispatch. Keep this bridge as a
+                // foreground permission-gated entry point only.
+                VpnPolicyCoordinator.requestSync(reactContext)
             }
 
             // 2 — Direct WiFi disable (supplementary; works on Android 9-)
@@ -360,14 +363,18 @@ class NetworkBlockModule(private val reactContext: ReactApplicationContext) :
             promise.reject("PIN_REQUIRED", "A session PIN or Defense Password is required to stop network block")
             return
         }
+        // Focus and standalone teardown must not remove an explicitly persistent
+        // VPN policy. Recalculate the effective set instead; this drops only
+        // focus-derived targets while keeping explicit always-on targets alive.
+        if (NetworkBlockerVpnService.hasPersistentVpnConfiguration(prefs)) {
+            NetworkBlockerVpnService.requestSync(reactContext)
+            promise.resolve(null)
+            return
+        }
         try {
-            val intent = Intent(reactContext, NetworkBlockerVpnService::class.java).apply {
-                action = NetworkBlockerVpnService.ACTION_STOP
-            }
-            try { startVpnService(intent) } catch (e: Exception) {
-                promise.reject("NET_RESTORE_ERROR", e.message, e)
-                return
-            }
+            // A stop is also a policy update: the coordinator must serialize
+            // it with any queued start/reconfigure and attach its generation.
+            VpnPolicyCoordinator.requestSync(reactContext)
 
             val restore = prefs.getBoolean("net_block_restore", true)
             if (restore) {
@@ -392,21 +399,6 @@ class NetworkBlockModule(private val reactContext: ReactApplicationContext) :
         promise.resolve(NetworkBlockerVpnService.isRunning)
     }
 
-    /**
-     * Recomputes the effective VPN target set from durable native state.
-     * This is used after focus state changes so explicit VPN selections survive
-     * while focus-derived targets are added or removed.
-     */
-    @ReactMethod
-    fun reconcileVpnPolicy(promise: Promise) {
-        try {
-            VpnPolicyCoordinator.reconcile(reactContext)
-            promise.resolve(null)
-        } catch (e: Exception) {
-            promise.reject("VPN_POLICY_ERROR", e.message, e)
-        }
-    }
-
     // ─── VPN conflict detection ───────────────────────────────────────────────
 
     /**
@@ -428,14 +420,7 @@ class NetworkBlockModule(private val reactContext: ReactApplicationContext) :
     }
 
     private fun isAnotherVpnActiveInternal(): Boolean {
-        if (NetworkBlockerVpnService.isRunning) return false
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return false
-        val cm = reactContext.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
-            ?: return false
-        return cm.allNetworks.any { network ->
-            cm.getNetworkCapabilities(network)
-                ?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true
-        }
+        return NetworkBlockerVpnService.isAnotherVpnActive(reactContext)
     }
 
     /**
@@ -461,14 +446,6 @@ class NetworkBlockModule(private val reactContext: ReactApplicationContext) :
         return focusActive || standaloneActive
     }
 
-    private fun startVpnService(intent: Intent) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            reactContext.startForegroundService(intent)
-        } else {
-            reactContext.startService(intent)
-        }
-    }
-
     // ─── VPN self-heal ────────────────────────────────────────────────────────
 
     /**
@@ -484,12 +461,13 @@ class NetworkBlockModule(private val reactContext: ReactApplicationContext) :
     fun setVpnSelfHealEnabled(enabled: Boolean, promise: Promise) {
         try {
             prefs.edit().putBoolean("net_block_self_heal", enabled).apply()
-            if (enabled) {
-                // Reconcile immediately so an existing durable policy does not
-                // wait for the next watchdog tick before recovery is protected.
-                VpnPolicyCoordinator.reconcile(reactContext)
-            } else {
+            if (!enabled) {
                 VpnWatchdogReceiver.cancel(reactContext)
+            } else {
+                // Enabling self-healing must also wake an existing durable
+                // policy. Otherwise a configured but currently stopped VPN
+                // would wait for a watchdog that may not be scheduled yet.
+                NetworkBlockerVpnService.requestRecoverySync(reactContext)
             }
             promise.resolve(null)
         } catch (e: Exception) {

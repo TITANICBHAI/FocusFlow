@@ -134,9 +134,7 @@ export default function AlwaysOnScreen() {
         alwaysOnPackages: pkgs,
         alwaysOnVpnPackages: vpnPkgs,
         vpnBlockEnabled:
-          vpnPkgs.length > 0 ||
-          (settings.standaloneVpnPackages ?? []).length > 0 ||
-          (settings.vpnFocusMirrorEnabled ?? false),
+          vpnPkgs.length > 0 || (settings.standaloneVpnPackages ?? []).length > 0,
       }, { defensePinHash });
       router.back();
     } catch {

@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.os.Build
+import android.os.UserManager
 
 /**
  * BootReceiver
@@ -44,24 +45,6 @@ class BootReceiver : BroadcastReceiver() {
             AppBlockerAccessibilityService.PREFS_NAME, Context.MODE_PRIVATE
         )
 
-        // VPN-only persistence is independent from Focus and Standalone
-        // overlays. Rearm its watchdog across lifecycle boundaries without
-        // changing the existing overlay/Always-On startup behavior below.
-        if (prefs.getBoolean("net_block_self_heal", false) &&
-            NetworkBlockerVpnService.hasPersistentVpnConfiguration(prefs)
-        ) {
-            VpnWatchdogReceiver.schedule(context)
-        }
-
-        // USER_UNLOCKED and package replacement are safe points to recompute
-        // launchable Focus-derived VPN targets. The boot broadcast can arrive
-        // before credential-protected storage is available.
-        if (action == Intent.ACTION_USER_UNLOCKED ||
-            action == Intent.ACTION_MY_PACKAGE_REPLACED
-        ) {
-            VpnPolicyCoordinator.reconcile(context)
-        }
-
         val focusActive   = prefs.getBoolean("focus_active", false)
         val endTimeMs     = prefs.getLong("task_end_ms", 0L)
         val startTimeMs   = prefs.getLong("task_start_ms", 0L)
@@ -69,6 +52,9 @@ class BootReceiver : BroadcastReceiver() {
         val lastWrittenMs = prefs.getLong("task_last_written_ms", 0L)
         val standaloneActive = prefs.getBoolean("standalone_block_active", false)
         val standaloneUntilMs = prefs.getLong("standalone_block_until_ms", 0L)
+        val persistentVpn = NetworkBlockerVpnService.hasPersistentVpnConfiguration(prefs)
+        val netBlockEnabled = prefs.getBoolean("net_block_enabled", false)
+        val selfHeal = prefs.getBoolean("net_block_self_heal", false)
 
         val now = System.currentTimeMillis()
 
@@ -85,10 +71,24 @@ class BootReceiver : BroadcastReceiver() {
         val sessionValid = focusActive && (primaryValid || secondaryValid)
         val standaloneValid = standaloneActive && (standaloneUntilMs == 0L || standaloneUntilMs > now)
 
+        if (persistentVpn && netBlockEnabled && selfHeal) {
+            // Boot kills the process-local VPN state and cancels its alarm.
+            // Rearm recovery for always-on-only configurations as well as focus.
+            VpnWatchdogReceiver.schedule(context)
+        }
+
         // Clear an expired timed standalone block, but preserve an indefinite
         // standalone block (until=0) across reboot.
         if (standaloneActive && standaloneUntilMs > 0L && standaloneUntilMs <= now) {
             prefs.edit().putBoolean("standalone_block_active", false).apply()
+        }
+
+        // Receiver-delivered recovery must not wait for the watchdog interval.
+        // BOOT_COMPLETED may arrive before file-based-encryption data is
+        // unlocked, so defer the durable reconciliation until USER_UNLOCKED
+        // when Android reports the user is still locked.
+        if (persistentVpn && netBlockEnabled && isUserUnlocked(context)) {
+            NetworkBlockerVpnService.requestRecoverySync(context)
         }
 
         if (sessionValid && endTimeMs > 0L) {
@@ -108,8 +108,6 @@ class BootReceiver : BroadcastReceiver() {
             // Rearm the VPN watchdog alarm — it was cancelled when the process
             // was killed. If network blocking was active it will restart the VPN
             // within one watchdog interval without the user noticing.
-            val netBlockEnabled = prefs.getBoolean("net_block_enabled", false)
-            val selfHeal        = prefs.getBoolean("net_block_self_heal", false)
             if (netBlockEnabled && selfHeal) {
                 VpnWatchdogReceiver.schedule(context)
             }
@@ -137,5 +135,10 @@ class BootReceiver : BroadcastReceiver() {
         } else {
             context.startService(intent)
         }
+    }
+
+    private fun isUserUnlocked(context: Context): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return true
+        return context.getSystemService(UserManager::class.java)?.isUserUnlocked == true
     }
 }

@@ -2,26 +2,26 @@
 
 ## Implementation Progress
 
-Legend: `[ ]` implemented and present in this checkout · `[ ]` not yet implemented
+Legend: `[x]` implemented and present in this checkout · `[ ]` not yet implemented
 or not yet evidenced · `[~]` partially covered or environment-dependent.
 
 ### Test infrastructure and current evidence
 
-- [ ] Vitest runner and FocusFlow test command
-- [ ] JavaScript unit tests for scheduler, tasks, PIN crypto, PIN reuse, backup, and setup persistence
-- [ ] JavaScript service orchestration tests for focus start/stop and headless background tasks
-- [ ] React↔Kotlin SharedPreferences serialization contract tests
-- [ ] React↔native event contract tests
+- [x] Vitest runner and FocusFlow test command
+- [x] JavaScript unit tests for scheduler, tasks, PIN crypto, PIN reuse, backup, and setup persistence
+- [x] JavaScript service orchestration tests for focus start/stop and headless background tasks
+- [x] React↔Kotlin SharedPreferences serialization contract tests
+- [x] React↔native event contract tests
 - [~] Full TypeScript typecheck (known pre-existing application errors are documented in `TEST_SETUP.md`)
 - [~] Kotlin JVM/policy test source is present and wired for generated projects; local command is unavailable without Android/Gradle tooling
 - [ ] Android/Robolectric test source and command
 - [ ] Instrumented/emulator/device test source and command
 - [ ] Grouped CI validation workflow for FocusFlow test layers
-- [ ] Reproducible test inventory with command, layer, proof, result, and limitations
+- [x] Reproducible test inventory with command, layer, proof, result, and limitations
 
 ### Delivery milestones
 
-- [ ] Milestone 1 — fast, pure coverage (scheduler, task lifecycle, PIN, backup, persistence, diagnostics, and notification coverage present)
+- [x] Milestone 1 — fast, pure coverage (scheduler, task lifecycle, PIN, backup, persistence, diagnostics, and notification coverage present)
 - [~] Milestone 2 — service orchestration (focus start/stop, notifications, backup, and diagnostics covered; settings sync remains)
 - [ ] Milestone 3 — persistence
 - [ ] Milestone 4 — Kotlin policy
@@ -31,7 +31,7 @@ or not yet evidenced · `[~]` partially covered or environment-dependent.
 ### Review-derived gap tracking
 
 These items were added after reviewing the plan against the current implementation.
-`[ ]` means covered by durable tests, `[~]` means partly covered or only covered
+`[x]` means covered by durable tests, `[~]` means partly covered or only covered
 on one side of a boundary, and `[ ]` means still pending.
 
 - [ ] Fallback poller remains scheduled for always-on-only and allowance-only modes instead of exiting early
@@ -41,12 +41,12 @@ on one side of a boundary, and `[ ]` means still pending.
 - [ ] Screen-off pause and ForegroundTaskService sync cannot double-charge or incorrectly exhaust allowance
 - [ ] Repeated overrun delivery cannot double-extend a task during the notification replacement race
 - [ ] Overnight greyout windows carry the configured weekday into the next morning
-- [ ] Medium-priority conflict behavior is documented as either intended or a known failing contract
+- [x] Medium-priority conflict behavior is documented as either intended or a known failing contract
 - [~] SharedPreferences contracts cover JS serialization and native event shapes; Kotlin producer/consumer fixtures remain
 - [ ] Raise-only `daily_allowance_used` behavior is tested against a lower UsageStats value
 - [ ] Backup replacement is guarded while a focus session is active
 - [~] Bulk scheduling is capped at the notification capacity; 48-hour horizon and native alarm capacity remain
-- [ ] SHA-256 fallback is verified against known-answer vectors without Web Crypto
+- [x] SHA-256 fallback is verified against known-answer vectors without Web Crypto
 - [ ] Always-on plus allowance precedence is tested
 - [ ] Manually owned always-on packages are not removed by automatic standalone cleanup
 - [ ] Standalone VPN handoff has no protection gap

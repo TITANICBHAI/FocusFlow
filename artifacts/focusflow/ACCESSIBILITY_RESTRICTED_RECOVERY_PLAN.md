@@ -26,55 +26,55 @@ and its proactive `RestrictedSettingsBanner` remain unchanged.
 
 ## Scope
 
-- [ ] Add `src/components/AccessibilityRestrictedRecovery.tsx`.
-- [ ] Update `app/onboarding.tsx` only:
-  - [ ] Replace the immediate onboarding banner with the recovery component.
-  - [ ] Track whether the user attempted Accessibility setup.
-  - [ ] Render recovery only while Accessibility is not granted.
-- [ ] Leave `app/permissions.tsx` unchanged.
-- [ ] Leave `src/components/RestrictedSettingsBanner.tsx` unchanged.
-- [ ] Do not change the native Kotlin module or add a targeted OEM-specific
+- [x] Add `src/components/AccessibilityRestrictedRecovery.tsx`.
+- [x] Update `app/onboarding.tsx` only:
+  - [x] Replace the immediate onboarding banner with the recovery component.
+  - [x] Track whether the user attempted Accessibility setup.
+  - [x] Render recovery only while Accessibility is not granted.
+- [x] Leave `app/permissions.tsx` unchanged.
+- [x] Leave `src/components/RestrictedSettingsBanner.tsx` unchanged.
+- [x] Do not change the native Kotlin module or add a targeted OEM-specific
   Accessibility intent.
 
 ## Component behavior
 
-- [ ] Render nothing on non-Android platforms.
-- [ ] Render nothing before the Accessibility action has been attempted.
-- [ ] Render nothing when Accessibility is granted.
-- [ ] Show a greyed-entry question after the user returns from the normal
+- [x] Render nothing on non-Android platforms.
+- [x] Render nothing before the Accessibility action has been attempted.
+- [x] Render nothing when Accessibility is granted.
+- [x] Show a greyed-entry question after the user returns from the normal
   Accessibility attempt, without requiring reliable detection of which system
   row they tapped.
-- [ ] Provide three choices: “Yes, I tapped it”, “No, I haven’t tapped it”, and
+- [x] Provide three choices: “Yes, I tapped it”, “No, I haven’t tapped it”, and
   “Skip Accessibility”.
-- [ ] “No, I haven’t tapped it” shows the greyed-entry instructions, deep-links
+- [x] “No, I haven’t tapped it” shows the greyed-entry instructions, deep-links
   to Accessibility settings, and waits for the user to confirm they are done.
-- [ ] “Yes, I tapped it” goes directly to the App Info → ⋮ → Allow restricted
+- [x] “Yes, I tapped it” goes directly to the App Info → ⋮ → Allow restricted
   settings instructions.
-- [ ] Keep a collapsible greyed-entry fallback inside the App Info instructions
+- [x] Keep a collapsible greyed-entry fallback inside the App Info instructions
   so an accidental “Yes” selection cannot trap the user.
-- [ ] Check `UsageStatsModule.isRestrictedSettingsBlocked()` only after the App
+- [x] Check `UsageStatsModule.isRestrictedSettingsBlocked()` only after the App
   Info step is marked done.
-- [ ] If restricted settings are allowed, show the final Accessibility enable
+- [x] If restricted settings are allowed, show the final Accessibility enable
   step and keep it visible until Accessibility is actually granted.
-- [ ] “Skip Accessibility” dismisses this recovery helper and lets onboarding
+- [x] “Skip Accessibility” dismisses this recovery helper and lets onboarding
   continue.
-- [ ] Show a dismiss X on every recovery stage; it dismisses only the popup
+- [x] Show a dismiss X on every recovery stage; it dismisses only the popup
   recovery helper and does not mark Accessibility as granted or exit onboarding.
-- [ ] Present recovery as a step-based modal popup over onboarding, with a
+- [x] Present recovery as a step-based modal popup over onboarding, with a
   progress indicator and one focused stage at a time.
 
 ## Verification
 
-- [ ] TypeScript/type-level checks for the changed component and screen.
-- [ ] FocusFlow test suite (90 tests).
-- [ ] Expo production-style Android and iOS bundle build.
-- [ ] Confirm only onboarding changed; Permissions and the existing banner are
+- [x] TypeScript/type-level checks for the changed component and screen.
+- [x] FocusFlow test suite (90 tests).
+- [x] Expo production-style Android and iOS bundle build.
+- [x] Confirm only onboarding changed; Permissions and the existing banner are
   untouched.
-- [ ] Confirm Android/non-Android and pre-attempt render gates.
-- [ ] Confirm the retry panel remains after App Info unlock.
-- [ ] Confirm recovery can be dismissed from every stage without an async check
+- [x] Confirm Android/non-Android and pre-attempt render gates.
+- [x] Confirm the retry panel remains after App Info unlock.
+- [x] Confirm recovery can be dismissed from every stage without an async check
   reopening the helper.
-- [ ] Confirm no `allowBackup` changes are part of this accessibility work; the
+- [x] Confirm no `allowBackup` changes are part of this accessibility work; the
   prior backup-security changes remain separate.
 - [ ] Run the FocusFlow workflow and inspect logs after implementation — blocked
   because no FocusFlow workflow is registered in the workspace workflow list.
@@ -92,15 +92,15 @@ and its proactive `RestrictedSettingsBanner` remain unchanged.
 
 ## Execution status
 
-Legend: `[ ]` complete, `[ ]` pending or blocked. Blocked items say so
+Legend: `[x]` complete, `[ ]` pending or blocked. Blocked items say so
 explicitly in their text.
 
-- [ ] Read the Android findings and source plan.
-- [ ] Resolve the post-unlock CTA and native promise-handling catches.
-- [ ] Create this trackable plan.
-- [ ] Implement the recovery component.
-- [ ] Wire the component into onboarding.
-- [ ] Run static validation available in this checkout.
+- [x] Read the Android findings and source plan.
+- [x] Resolve the post-unlock CTA and native promise-handling catches.
+- [x] Create this trackable plan.
+- [x] Implement the recovery component.
+- [x] Wire the component into onboarding.
+- [x] Run static validation available in this checkout.
 - [ ] Restart the FocusFlow workflow and inspect logs — blocked because no
   FocusFlow workflow is registered in the workspace workflow list.
 - [ ] Complete physical Android 13+ sideload verification — blocked until an
