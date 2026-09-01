@@ -14,6 +14,26 @@ type Entry = {
 
 const CHANGELOG: Entry[] = [
   {
+    version: '1.1.2',
+    date: 'September 2026',
+    sections: [
+      {
+        heading: 'Protect System Controls',
+        icon: 'settings-outline',
+        items: [
+          'Fixed Protect system controls so protected Android settings screens are blocked correctly when the feature is enabled',
+        ],
+      },
+      {
+        heading: 'Daily Allowance',
+        icon: 'hourglass-outline',
+        items: [
+          'Daily allowance enforcement improvements are still in progress and will be addressed in a later update',
+        ],
+      },
+    ],
+  },
+  {
     version: '1.1.1',
     date: 'August 2026',
     sections: [
