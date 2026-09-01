@@ -19,3 +19,4 @@
 - [Deferred enforcement fire-time checks](deferred-enforcement-fire-time.md) — handler callbacks must re-check the policy that scheduled them before navigation or dismissal actions.
 - [Agent navigation feedback](agent-navigation-feedback.md) — FocusFlow navigation reliability feedback and its artifact-local implementation tracker.
 - [Accessibility service liveness](accessibility-service-liveness.md) — enabled state is authorization, not proof the service is bound; use a heartbeat before trusting primary enforcement.
+- [GitHub push serialization](github-push-serialization.md) — serialize same-branch API push workflows to avoid stale-ref fast-forward failures.

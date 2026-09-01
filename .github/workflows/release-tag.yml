@@ -166,7 +166,7 @@ jobs:
           text = re.sub(r'(?s)\brelease\s*\{[^{}]*\}', patch_release, text)
 
           open(path, 'w').write(text)
-           print('v1+v2+v3 signing patched into app/build.gradle')
+          print('v1+v2+v3 signing patched into app/build.gradle')
           PYEOF
 
       - name: Decode release keystore
