@@ -171,7 +171,10 @@ jobs:
                   s = re.sub(r'(release\s*\{)', r'\1\n            signingConfig signingConfigs.release', s, count=1)
               return s
 
-          text = re.sub(r'(?s)\brelease\s*\{[^{}]*\}', patch_release, text)
+          def patch_build_types(m):
+              return re.sub(r'(?s)\brelease\s*\{[^{}]*\}', patch_release, m.group(0))
+
+          text = re.sub(r'(?s)\bbuildTypes\s*\{(?:[^{}]|\{[^{}]*\})*\}', patch_build_types, text)
 
           open(path, 'w').write(text)
           print('v1+v2+v3 signing patched into app/build.gradle')
