@@ -83,6 +83,7 @@
     "softwareVersion": "1.0",
     "installUrl": [
       "https://apps.gov.in/app-info/2691",
+      "https://indusapp.store/kcf38kt1",
       "https://appgallery.huawei.com/app/C117698039",
       "https://github.com/TITANICBHAI/FocusFlow/releases"
     ],
@@ -346,11 +347,25 @@
     }
     .store-pair {
       display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 0.75rem;
       align-items: center;
     }
-    .store-pair > a { min-width: 0; }
+    .store-pair > a { min-width: 0; justify-self: center; }
+    .store-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 52px;
+      max-width: 100%;
+    }
+    .store-badge img {
+      display: block;
+      height: 52px;
+      width: auto;
+      max-width: 100%;
+      object-fit: contain;
+    }
     .india-store {
       border-color: rgba(255, 153, 51, 0.55);
       background: linear-gradient(135deg, rgba(255, 153, 51, 0.08), rgba(19, 136, 8, 0.08));
@@ -723,11 +738,14 @@
       <a class="btn-ghost store-link india-store" href="https://apps.gov.in/app-info/2691" target="_blank" rel="noopener noreferrer" aria-label="Get FocusFlow from Gov.in Appstore">
         <span class="en">🇮🇳 Gov.in Appstore</span><span class="zh">🇮🇳 Gov.in Appstore</span>
       </a>
+      <a class="store-badge" href="https://indusapp.store/kcf38kt1" target="_blank" rel="noopener noreferrer" aria-label="Get FocusFlow from Indus Appstore">
+        <img src="https://docstore.indusappstore.com/public/external/developerdashboard-static/badge-black-background-english.png" alt="Get it on Indus Appstore" />
+      </a>
       <a class="btn-ghost" href="https://github.com/TITANICBHAI/FocusFlow/releases"><span class="en">⬇ GitHub APK</span><span class="zh">⬇ GitHub APK</span></a>
       <a class="btn-ghost" href="https://github.com/TITANICBHAI/FocusFlow"><span class="en">View Source →</span><span class="zh">在 GitHub 上查看 →</span></a>
     </div>
-    <p class="store-note en">Now available through India’s Government App Store.</p>
-    <p class="store-note zh">现已在印度政府应用商店上线。</p>
+    <p class="store-note en">Now available through India’s Government App Store and Indus Appstore.</p>
+    <p class="store-note zh">现已在印度政府应用商店和 Indus Appstore 上线。</p>
 
     <div class="stat-strip">
       <div class="stat">
@@ -1129,8 +1147,8 @@
     <div class="section-inner">
       <h2 class="en">Ready to actually focus?</h2>
       <h2 class="zh">准备好真正专注了吗？</h2>
-      <p class="en">Download from India’s Government App Store, Huawei AppGallery, or grab the APK directly from GitHub. Completely free, forever.</p>
-      <p class="zh">可从印度政府应用商店、华为应用市场下载，或直接从 GitHub 获取 APK。完全免费，永久如此。</p>
+      <p class="en">Download from India’s Government App Store, Indus Appstore, Huawei AppGallery, or grab the APK directly from GitHub. Completely free, forever.</p>
+      <p class="zh">可从印度政府应用商店、Indus Appstore、华为应用市场下载，或直接从 GitHub 获取 APK。完全免费，永久如此。</p>
       <div class="cta-group">
         <div class="store-pair" aria-label="Download stores">
           <a href="https://appgallery.huawei.com/app/C117698039" style="display:inline-block;flex-shrink:0;vertical-align:middle;">
@@ -1138,6 +1156,9 @@
           </a>
           <a class="btn-ghost store-link india-store" href="https://apps.gov.in/app-info/2691" target="_blank" rel="noopener noreferrer" aria-label="Get FocusFlow from Gov.in Appstore">
             <span class="en">🇮🇳 Gov.in Appstore</span><span class="zh">🇮🇳 Gov.in Appstore</span>
+          </a>
+          <a class="store-badge" href="https://indusapp.store/kcf38kt1" target="_blank" rel="noopener noreferrer" aria-label="Get FocusFlow from Indus Appstore">
+            <img src="https://docstore.indusappstore.com/public/external/developerdashboard-static/badge-black-background-english.png" alt="Get it on Indus Appstore" />
           </a>
         </div>
         <a class="btn-ghost" href="https://github.com/TITANICBHAI/FocusFlow/releases"><span class="en">⬇ GitHub APK</span><span class="zh">⬇ GitHub APK</span></a>
