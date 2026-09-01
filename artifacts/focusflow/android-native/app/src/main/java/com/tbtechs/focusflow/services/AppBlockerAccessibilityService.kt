@@ -600,9 +600,15 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         // the recent-apps screen).
         lastSeenPkg = pkg
         if (pkg == packageName) return
-        if (NEVER_BLOCK.any { pkg.equals(it, ignoreCase = true) } ||
-            (!BLOCKABLE_AFTER_WARNING.any { pkg.equals(it, ignoreCase = true) } &&
-                isHomePackage(pkg))
+        if (NEVER_BLOCK.any { pkg.equals(it, ignoreCase = true) }) {
+            // Match the normal accessibility-event path: entering a safe package
+            // means the previous blocked package's cooldown must not carry over.
+            lastBlockedPkg = null
+            lastBlockedAtMs = 0L
+            return
+        }
+        if (!BLOCKABLE_AFTER_WARNING.any { pkg.equals(it, ignoreCase = true) } &&
+            isHomePackage(pkg)
         ) {
             lastBlockedPkg = null
             lastBlockedAtMs = 0L
@@ -618,28 +624,6 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             else prefs.getLong(PREF_SA_UNTIL, 0L).let { until -> until <= 0L || now < until }
         }
         val alwaysBlockActive = prefs.getBoolean(PREF_ALWAYS_BLOCK, false)
-
-        if (BLOCKABLE_AFTER_WARNING.any { pkg.equals(it, ignoreCase = true) }) {
-            // Apply the same isPackageBlocked decision as the event path so that
-            // returning to Settings (or any BLOCKABLE_AFTER_WARNING package) via
-            // recents is also enforced.
-            if (!focusActive && !saActive && !alwaysBlockActive) return
-            val blocked = isPackageBlocked(pkg, focusActive, saActive, alwaysBlockActive)
-            if (blocked) {
-                val samePackage = pkg == lastBlockedPkg
-                val cooldownExpired = (now - lastBlockedAtMs) > 2_000L
-                if (!samePackage || cooldownExpired) {
-                    lastBlockedPkg = pkg
-                    lastBlockedAtMs = now
-                    handleBlockedApp(
-                        pkg,
-                        explicitBlockReason(pkg, focusActive, saActive, alwaysBlockActive),
-                    )
-                    scheduleRetryCheck(pkg, 1, focusActive, saActive, alwaysBlockActive)
-                }
-            }
-            return
-        }
 
         if (isInGreyoutWindow(pkg)) {
             val samePackage = pkg == lastBlockedPkg
@@ -657,6 +641,27 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             // Do not carry a previous block's cooldown into a later session.
             lastBlockedPkg = null
             lastBlockedAtMs = 0L
+            return
+        }
+
+        if (BLOCKABLE_AFTER_WARNING.any { pkg.equals(it, ignoreCase = true) }) {
+            // Apply the same isPackageBlocked decision as the event path so that
+            // returning to Settings (or any BLOCKABLE_AFTER_WARNING package) via
+            // recents is also enforced.
+            val blocked = isPackageBlocked(pkg, focusActive, saActive, alwaysBlockActive)
+            if (blocked) {
+                val samePackage = pkg == lastBlockedPkg
+                val cooldownExpired = (now - lastBlockedAtMs) > 2_000L
+                if (!samePackage || cooldownExpired) {
+                    lastBlockedPkg = pkg
+                    lastBlockedAtMs = now
+                    handleBlockedApp(
+                        pkg,
+                        explicitBlockReason(pkg, focusActive, saActive, alwaysBlockActive),
+                    )
+                    scheduleRetryCheck(pkg, 1, focusActive, saActive, alwaysBlockActive)
+                }
+            }
             return
         }
 
