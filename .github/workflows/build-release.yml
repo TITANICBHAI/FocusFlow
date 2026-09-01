@@ -1,15 +1,15 @@
 name: Build Release (APK × 3 + AAB)
 
 # Two independent jobs:
-#   apks  — expo prebuild → assembleRelease with ABI splits
+#   apks  — expo prebuild → assemblePlayRelease with ABI splits
 #           produces arm64-v8a APK, armeabi-v7a APK, universal APK
-#   aab   — expo prebuild → bundleRelease (no ABI splits needed)
+#   aab   — expo prebuild → bundlePlayRelease (no ABI splits needed)
 #           produces AAB for Play Store
 #
 # Signing:
 #   A Python patch step rewrites app/build.gradle after expo prebuild to add a
 #   signingConfigs.release block with v1SigningEnabled + v2SigningEnabled +
-#   v3SigningEnabled all set to true.  The credentials are read from env vars
+#   enableV3Signing set to true.  The credentials are read from env vars
 #   (set from GitHub secrets) so no -P flags are needed on the Gradle command.
 #
 # ── Required secrets ──────────────────────────────────────────────────────────
@@ -121,6 +121,7 @@ jobs:
                       keyPassword  (System.getenv("RELEASE_KEY_PASSWORD")     ?: "")
                       v1SigningEnabled true
                       v2SigningEnabled true
+                      enableV3Signing true
                   }
               }'''
 
@@ -171,36 +172,38 @@ jobs:
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: |
-          ./gradlew assembleRelease --no-daemon
+          ./gradlew assemblePlayRelease --no-daemon
 
           echo "── APK outputs ──"
-          find app/build/outputs/apk/release/ -name "*.apk" -exec ls -lh {} \;
+          find app/build/outputs/apk/play/release/ -name "*.apk" -exec ls -lh {} \;
 
       - name: Upload arm64-v8a APK
         uses: actions/upload-artifact@v4
         with:
           name: focusflow-arm64-v8a-release-v${{ steps.app-version.outputs.version }}-vc${{ steps.app-version.outputs.versionCode }}-run${{ github.run_number }}
-          path: artifacts/focusflow/android/app/build/outputs/apk/release/app-arm64-v8a-release.apk
+          path: artifacts/focusflow/android/app/build/outputs/apk/play/release/app-play-arm64-v8a-release.apk
           retention-days: 30
 
       - name: Upload armeabi-v7a APK
         uses: actions/upload-artifact@v4
         with:
           name: focusflow-armeabi-v7a-release-v${{ steps.app-version.outputs.version }}-vc${{ steps.app-version.outputs.versionCode }}-run${{ github.run_number }}
-          path: artifacts/focusflow/android/app/build/outputs/apk/release/app-armeabi-v7a-release.apk
+          path: artifacts/focusflow/android/app/build/outputs/apk/play/release/app-play-armeabi-v7a-release.apk
           retention-days: 30
 
       - name: Upload universal APK
         uses: actions/upload-artifact@v4
         with:
           name: focusflow-universal-release-v${{ steps.app-version.outputs.version }}-vc${{ steps.app-version.outputs.versionCode }}-run${{ github.run_number }}
-          path: artifacts/focusflow/android/app/build/outputs/apk/release/app-universal-release.apk
+          path: artifacts/focusflow/android/app/build/outputs/apk/play/release/app-play-universal-release.apk
           retention-days: 30
 
       - name: Remove keystore from runner
         if: always()
-        working-directory: artifacts/focusflow/android/app
-        run: rm -f release.keystore
+        run: |
+          if [ -f artifacts/focusflow/android/app/release.keystore ]; then
+            rm -f artifacts/focusflow/android/app/release.keystore
+          fi
 
   # ── Job 2: AAB for Play Store ──────────────────────────────────────────────
   aab:
@@ -279,7 +282,7 @@ jobs:
           echo "android.enableR8.fullMode=true" >> gradle.properties
 
       # ABI splits must be disabled for AAB builds.
-      # When splits { abi { enable true } } is active alongside bundleRelease + R8,
+      # When splits { abi { enable true } } is active alongside bundlePlayRelease + R8,
       # Gradle creates one shrunk-resources file per ABI and then fails to merge them.
       # See: https://issuetracker.google.com/402800800
       - name: Disable ABI splits for AAB build
@@ -354,19 +357,21 @@ jobs:
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: |
-          ./gradlew bundleRelease --no-daemon
+          ./gradlew bundlePlayRelease --no-daemon
 
           echo "── AAB output ──"
-          find app/build/outputs/bundle/release/ -name "*.aab" -exec ls -lh {} \;
+          find app/build/outputs/bundle/playRelease/ -name "*.aab" -exec ls -lh {} \;
 
       - name: Upload AAB
         uses: actions/upload-artifact@v4
         with:
           name: focusflow-release-aab-v${{ steps.app-version.outputs.version }}-vc${{ steps.app-version.outputs.versionCode }}-run${{ github.run_number }}
-          path: artifacts/focusflow/android/app/build/outputs/bundle/release/app-release.aab
+          path: artifacts/focusflow/android/app/build/outputs/bundle/playRelease/app-play-release.aab
           retention-days: 30
 
       - name: Remove keystore from runner
         if: always()
-        working-directory: artifacts/focusflow/android/app
-        run: rm -f release.keystore
+        run: |
+          if [ -f artifacts/focusflow/android/app/release.keystore ]; then
+            rm -f artifacts/focusflow/android/app/release.keystore
+          fi

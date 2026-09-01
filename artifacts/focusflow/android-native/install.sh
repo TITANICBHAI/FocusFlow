@@ -128,6 +128,46 @@ fi
 
 echo "📋  Patching AndroidManifest.xml..."
 
+# ── Store flavors ─────────────────────────────────────────────────────────────
+# Keep this fallback synchronized with the Expo config plugin. The Indus ID is
+# assigned through a Gradle variable so Expo cannot rewrite it during prebuild.
+if [ -f "$APP_GRADLE" ]; then
+  if grep -q "com.tbtechsdev.focusflow" "$APP_GRADLE"; then
+    echo "   ✓ Play and Indus store flavors already present"
+  else
+    python3 - "$APP_GRADLE" <<'PYEOF'
+import re
+import sys
+
+path = sys.argv[1]
+text = open(path, encoding="utf-8").read()
+flavor_block = '''
+    // FocusFlow store variants
+    flavorDimensions "store"
+    def focusFlowIndusApplicationId = "com.tbtechsdev.focusflow"
+    productFlavors {
+        play {
+            dimension "store"
+            applicationId "com.tbtechs.focusflow"
+        }
+        indus {
+            dimension "store"
+            applicationId focusFlowIndusApplicationId
+        }
+    }'''
+
+patched = re.sub(r'(\n[ \t]*buildTypes\s*\{)', flavor_block + r'\1', text, count=1)
+if patched == text:
+    raise SystemExit("Could not find buildTypes block while adding store flavors.")
+
+open(path, "w", encoding="utf-8").write(patched)
+PYEOF
+    echo "   ✓ Play and Indus store flavors added"
+  fi
+else
+  echo "   ⚠ app/build.gradle not found; store flavors were not added"
+fi
+
 # RecyclerView is used by LauncherActivity for a recycled, searchable app
 # drawer. Expo/RN projects do not all include it as a direct dependency, so
 # ensure generated Android projects compile the launcher after installation.

@@ -1,31 +1,13 @@
-name: Release (Tag)
+name: Release Indus (Tag)
 
-# Builds a signed Play release (three APKs + AAB) via Expo Prebuild and publishes a
-# GitHub Release whenever a version tag is pushed (e.g. v1.0.0).
-# Skips automatically if the tag ends with -debug (those go to debug-tag.yml).
-#
-# Signing:
-#   A Python patch step rewrites app/build.gradle after expo prebuild to add a
-#   signingConfigs.release block with v1SigningEnabled + v2SigningEnabled +
-#   enableV3Signing set to true.  Credentials are read from env vars so
-#   no -P flags are needed on the Gradle command.
-#
-# ── How to trigger ────────────────────────────────────────────────────────────
-#   git tag v1.0.0
-#   git push origin v1.0.0
-#
-# ── Required secrets ──────────────────────────────────────────────────────────
-#   RELEASE_KEYSTORE_BASE64   base64-encoded .jks keystore file
-#   RELEASE_STORE_PASSWORD    keystore store password
-#   RELEASE_KEY_ALIAS         key alias inside the keystore
-#   RELEASE_KEY_PASSWORD      key password
-#   SLACK_WEBHOOK_URL         Slack incoming webhook URL (optional)
-# ─────────────────────────────────────────────────────────────────────────────
+# Builds the Indus Appstore AAB as a workflow artifact whenever an indus-v* tag
+# is pushed (for example, indus-v1.1.0). It intentionally does not create a
+# GitHub Release; only the Play release workflow publishes release assets.
 
 on:
   push:
     tags:
-      - 'v*'
+      - 'indus-v*'
 
 permissions:
   contents: write
@@ -36,12 +18,8 @@ env:
 
 jobs:
   release:
-    name: Release ${{ github.ref_name }}
+    name: Indus Release ${{ github.ref_name }}
     runs-on: ubuntu-latest
-    if: ${{ !endsWith(github.ref_name, '-debug') }}
-
-    env:
-      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
     steps:
       - name: Checkout
@@ -94,11 +72,12 @@ jobs:
           VCODE=$(node -e "const j=require('./app.json'); console.log(j.expo.android.versionCode)")
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "versionCode=$VCODE" >> $GITHUB_OUTPUT
-          echo "### Release Build Info" >> $GITHUB_STEP_SUMMARY
+          echo "### Indus Release Build Info" >> $GITHUB_STEP_SUMMARY
           echo "- **App Version:** $VERSION" >> $GITHUB_STEP_SUMMARY
           echo "- **versionCode:** $VCODE" >> $GITHUB_STEP_SUMMARY
           echo "- **Tag:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Type:** Signed Release APK + AAB" >> $GITHUB_STEP_SUMMARY
+          echo "- **Application ID:** com.tbtechsdev.focusflow" >> $GITHUB_STEP_SUMMARY
+          echo "- **Type:** Indus AAB artifact" >> $GITHUB_STEP_SUMMARY
 
       - name: Expo Prebuild
         working-directory: artifacts/focusflow
@@ -133,13 +112,12 @@ jobs:
                       storePassword (System.getenv("RELEASE_STORE_PASSWORD") ?: "")
                       keyAlias     (System.getenv("RELEASE_KEY_ALIAS")        ?: "")
                       keyPassword  (System.getenv("RELEASE_KEY_PASSWORD")     ?: "")
-                       v1SigningEnabled true
-                       v2SigningEnabled true
-                       enableV3Signing true
+                      v1SigningEnabled true
+                      v2SigningEnabled true
+                      enableV3Signing true
                   }
               }'''
 
-          # Remove any pre-existing signingConfigs block (Expo generates a debug-only one)
           text = re.sub(
               r'\n?[ \t]*signingConfigs\s*\{(?:[^{}]|\{[^{}]*\})*\}',
               '',
@@ -147,7 +125,6 @@ jobs:
               flags=re.DOTALL,
           )
 
-          # Insert our block immediately before buildTypes
           text = re.sub(
               r'(\n[ \t]*buildTypes\s*\{)',
               sig_block + r'\1',
@@ -155,7 +132,6 @@ jobs:
               count=1,
           )
 
-          # Patch buildTypes.release to reference signingConfigs.release
           def patch_release(m):
               s = m.group(0)
               s = re.sub(r'signingConfig\s+\S+', 'signingConfig signingConfigs.release', s)
@@ -163,30 +139,19 @@ jobs:
                   s = re.sub(r'(release\s*\{)', r'\1\n            signingConfig signingConfigs.release', s, count=1)
               return s
 
-          text = re.sub(r'(?s)\brelease\s*\{[^{}]*\}', patch_release, text)
+          def patch_build_types(m):
+              return re.sub(r'(?s)\brelease\s*\{[^{}]*\}', patch_release, m.group(0))
 
+          text = re.sub(r'(?s)\bbuildTypes\s*\{(?:[^{}]|\{[^{}]*\})*\}', patch_build_types, text)
           open(path, 'w').write(text)
-           print('v1+v2+v3 signing patched into app/build.gradle')
+          print('v1+v2+v3 signing patched into app/build.gradle')
           PYEOF
 
       - name: Decode release keystore
         working-directory: artifacts/focusflow/android/app
-        run: |
-          echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 --decode > release.keystore
-          echo "Keystore size: $(du -sh release.keystore)"
+        run: echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 --decode > release.keystore
 
-      - name: Build Play release APKs (arm64 + arm32 + universal)
-        working-directory: artifacts/focusflow/android
-        env:
-          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.daemon=false"
-          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
-          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
-          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
-        run: |
-          chmod +x gradlew
-          ./gradlew assemblePlayRelease --no-daemon
-
-      - name: Disable ABI splits for Play AAB
+      - name: Disable ABI splits for Indus AAB
         working-directory: artifacts/focusflow/android
         run: |
           sed -i '/splits\s*{/,/^[[:space:]]*}/ {
@@ -195,7 +160,7 @@ jobs:
           echo "android.splits.abi.enable=false" >> gradle.properties
           echo "android.splits.density.enable=false" >> gradle.properties
 
-      - name: Build Play release AAB
+      - name: Build Indus AAB artifact
         working-directory: artifacts/focusflow/android
         env:
           GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.daemon=false"
@@ -203,38 +168,18 @@ jobs:
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: |
-          ./gradlew bundlePlayRelease --no-daemon
-
-      - name: Rename build outputs
-        run: |
-          APK_DIR=artifacts/focusflow/android/app/build/outputs/apk/play/release
-          AAB=artifacts/focusflow/android/app/build/outputs/bundle/playRelease/app-play-release.aab
-          APK_ARM64="$APK_DIR/app-play-arm64-v8a-release.apk"
-          APK_ARM32="$APK_DIR/app-play-armeabi-v7a-release.apk"
-          APK_UNIVERSAL="$APK_DIR/app-play-universal-release.apk"
-          test -f "$APK_ARM64"
-          test -f "$APK_ARM32"
-          test -f "$APK_UNIVERSAL"
+          ./gradlew bundleIndusRelease --no-daemon
+          AAB=app/build/outputs/bundle/indusRelease/app-indus-release.aab
           test -f "$AAB"
-          cp "$APK_ARM64" "focusflow-${{ github.ref_name }}-arm64-v8a.apk"
-          cp "$APK_ARM32" "focusflow-${{ github.ref_name }}-armeabi-v7a.apk"
-          cp "$APK_UNIVERSAL" "focusflow-${{ github.ref_name }}-universal.apk"
-          cp "$AAB" "focusflow-${{ github.ref_name }}.aab"
-          ls -lh focusflow-${{ github.ref_name }}-*.apk focusflow-${{ github.ref_name }}.aab
+          ls -lh "$AAB"
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+      - name: Upload Indus AAB artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: FocusFlow ${{ github.ref_name }}
-          tag_name: ${{ github.ref_name }}
-          draft: false
-          prerelease: false
-          generate_release_notes: true
-          files: |
-            focusflow-${{ github.ref_name }}-arm64-v8a.apk
-            focusflow-${{ github.ref_name }}-armeabi-v7a.apk
-            focusflow-${{ github.ref_name }}-universal.apk
-            focusflow-${{ github.ref_name }}.aab
+          name: focusflow-indus-aab-v${{ steps.app-version.outputs.version }}-vc${{ steps.app-version.outputs.versionCode }}-${{ github.ref_name }}
+          path: artifacts/focusflow/android/app/build/outputs/bundle/indusRelease/app-indus-release.aab
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Remove keystore from runner
         if: always()
@@ -242,10 +187,3 @@ jobs:
           if [ -f artifacts/focusflow/android/app/release.keystore ]; then
             rm -f artifacts/focusflow/android/app/release.keystore
           fi
-
-      - name: Notify Slack
-        if: env.SLACK_WEBHOOK_URL != ''
-        run: |
-          curl -s -X POST "$SLACK_WEBHOOK_URL" \
-            -H "Content-Type: application/json" \
-            -d "{\"attachments\":[{\"color\":\"good\",\"text\":\":rocket: *FocusFlow ${{ github.ref_name }}* released! Three APKs + AAB on GitHub Releases.\",\"mrkdwn_in\":[\"text\"]}]}"

@@ -77,7 +77,7 @@ jobs:
 
       - name: Build Android project for CodeQL
         working-directory: artifacts/focusflow/android
-        run: ./gradlew assembleDebug --no-daemon
+        run: ./gradlew assemblePlayDebug --no-daemon
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4

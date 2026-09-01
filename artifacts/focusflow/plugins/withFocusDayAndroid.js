@@ -698,7 +698,7 @@ function withFocusDayKotlin(config) {
   ]);
 }
 
-// ─── 5. Patch app/build.gradle: R8 + shrinkResources + ABI splits ─────────────
+// ─── 5. Patch app/build.gradle: flavors, R8, shrinkResources + ABI splits ────
 
 function withFocusDayBuildConfig(config) {
   return withDangerousMod(config, [
@@ -713,6 +713,40 @@ function withFocusDayBuildConfig(config) {
       }
 
       let content = fs.readFileSync(buildGradlePath, 'utf8');
+
+      // ── Store flavors ──────────────────────────────────────────────────────
+      // Keep the default Expo package as the Play application ID. The Indus
+      // application ID must be assigned through a Gradle variable because Expo
+      // can rewrite literal applicationId assignments during prebuild.
+      if (!content.includes('com.tbtechsdev.focusflow')) {
+        const flavorBlock = `
+    // FocusFlow store variants
+    flavorDimensions "store"
+    def focusFlowIndusApplicationId = "com.tbtechsdev.focusflow"
+    productFlavors {
+        play {
+            dimension "store"
+            applicationId "com.tbtechs.focusflow"
+        }
+        indus {
+            dimension "store"
+            applicationId focusFlowIndusApplicationId
+        }
+    }`;
+        const flavorPatched = content.replace(
+          /(\n\s*buildTypes\s*\{)/,
+          flavorBlock + '$1'
+        );
+
+        if (flavorPatched === content) {
+          throw new Error(
+            '[withFocusDayAndroid] Could not find buildTypes block in app/build.gradle while adding store flavors.'
+          );
+        }
+
+        content = flavorPatched;
+        console.log('[withFocusDayAndroid] Added Play and Indus store flavors.');
+      }
 
       // ── AndroidX RecyclerView for LauncherActivity's app drawer ───────────
       // LauncherActivity uses RecyclerView and GridLayoutManager directly.
