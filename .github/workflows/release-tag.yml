@@ -26,6 +26,13 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Existing or new version tag to build and release'
+        required: true
+        default: 'v1.1.2'
+        type: string
 
 permissions:
   contents: write
@@ -33,12 +40,13 @@ permissions:
 env:
   NPM_CONFIG_NODE_LINKER: hoisted
   EXPO_ROUTER_APP_ROOT: app
+  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag_name || github.ref_name }}
 
 jobs:
   release:
-    name: Release ${{ github.ref_name }}
+    name: Release ${{ github.event_name == 'workflow_dispatch' && inputs.tag_name || github.ref_name }}
     runs-on: ubuntu-latest
-    if: ${{ !endsWith(github.ref_name, '-debug') }}
+    if: ${{ github.event_name != 'workflow_dispatch' || !endsWith(inputs.tag_name, '-debug') }}
 
     env:
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
@@ -97,7 +105,7 @@ jobs:
           echo "### Release Build Info" >> $GITHUB_STEP_SUMMARY
           echo "- **App Version:** $VERSION" >> $GITHUB_STEP_SUMMARY
           echo "- **versionCode:** $VCODE" >> $GITHUB_STEP_SUMMARY
-          echo "- **Tag:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tag:** ${{ env.RELEASE_TAG }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Type:** Signed Release APK + AAB" >> $GITHUB_STEP_SUMMARY
 
       - name: Expo Prebuild
@@ -216,25 +224,25 @@ jobs:
           test -f "$APK_ARM32"
           test -f "$APK_UNIVERSAL"
           test -f "$AAB"
-          cp "$APK_ARM64" "focusflow-${{ github.ref_name }}-arm64-v8a.apk"
-          cp "$APK_ARM32" "focusflow-${{ github.ref_name }}-armeabi-v7a.apk"
-          cp "$APK_UNIVERSAL" "focusflow-${{ github.ref_name }}-universal.apk"
-          cp "$AAB" "focusflow-${{ github.ref_name }}.aab"
-          ls -lh focusflow-${{ github.ref_name }}-*.apk focusflow-${{ github.ref_name }}.aab
+          cp "$APK_ARM64" "focusflow-${{ env.RELEASE_TAG }}-arm64-v8a.apk"
+          cp "$APK_ARM32" "focusflow-${{ env.RELEASE_TAG }}-armeabi-v7a.apk"
+          cp "$APK_UNIVERSAL" "focusflow-${{ env.RELEASE_TAG }}-universal.apk"
+          cp "$AAB" "focusflow-${{ env.RELEASE_TAG }}.aab"
+          ls -lh focusflow-${{ env.RELEASE_TAG }}-*.apk focusflow-${{ env.RELEASE_TAG }}.aab
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: FocusFlow ${{ github.ref_name }}
-          tag_name: ${{ github.ref_name }}
+          name: FocusFlow ${{ env.RELEASE_TAG }}
+          tag_name: ${{ env.RELEASE_TAG }}
           draft: false
           prerelease: false
           generate_release_notes: true
           files: |
-            focusflow-${{ github.ref_name }}-arm64-v8a.apk
-            focusflow-${{ github.ref_name }}-armeabi-v7a.apk
-            focusflow-${{ github.ref_name }}-universal.apk
-            focusflow-${{ github.ref_name }}.aab
+            focusflow-${{ env.RELEASE_TAG }}-arm64-v8a.apk
+            focusflow-${{ env.RELEASE_TAG }}-armeabi-v7a.apk
+            focusflow-${{ env.RELEASE_TAG }}-universal.apk
+            focusflow-${{ env.RELEASE_TAG }}.aab
 
       - name: Remove keystore from runner
         if: always()
@@ -248,4 +256,4 @@ jobs:
         run: |
           curl -s -X POST "$SLACK_WEBHOOK_URL" \
             -H "Content-Type: application/json" \
-            -d "{\"attachments\":[{\"color\":\"good\",\"text\":\":rocket: *FocusFlow ${{ github.ref_name }}* released! Three APKs + AAB on GitHub Releases.\",\"mrkdwn_in\":[\"text\"]}]}"
+            -d "{\"attachments\":[{\"color\":\"good\",\"text\":\":rocket: *FocusFlow ${{ env.RELEASE_TAG }}* released! Three APKs + AAB on GitHub Releases.\",\"mrkdwn_in\":[\"text\"]}]}"
