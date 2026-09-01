@@ -77,7 +77,7 @@ describe('blocked-app system interaction contract', () => {
     expect(overlaySource).toContain('TYPE_APPLICATION_OVERLAY');
     expect(overlaySource).toContain('TYPE_PHONE');
     expect(overlaySource).not.toContain('TYPE_ACCESSIBILITY_OVERLAY');
-    expect(overlaySource).not.toContain('FLAG_NOT_FOCUSABLE');
+    expect(overlaySource).toContain('FLAG_NOT_FOCUSABLE');
     expect(overlaySource).toContain('): Boolean');
     expect(overlaySource).toContain('return false');
     expect(overlaySource).toContain('return true');
