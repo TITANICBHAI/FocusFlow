@@ -600,6 +600,11 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         // the recent-apps screen).
         lastSeenPkg = pkg
         if (pkg == packageName) return
+        if (isHomePackage(pkg)) {
+            lastBlockedPkg = null
+            lastBlockedAtMs = 0L
+            return
+        }
         if (NEVER_BLOCK.any { pkg.equals(it, ignoreCase = true) }) {
             // Match the normal accessibility-event path: entering a safe package
             // means the previous blocked package's cooldown must not carry over.
@@ -607,13 +612,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             lastBlockedAtMs = 0L
             return
         }
-        if (!BLOCKABLE_AFTER_WARNING.any { pkg.equals(it, ignoreCase = true) } &&
-            isHomePackage(pkg)
-        ) {
-            lastBlockedPkg = null
-            lastBlockedAtMs = 0L
-            return
-        }
+        if (BLOCKABLE_AFTER_WARNING.any { pkg.equals(it, ignoreCase = true) }) return
 
         val focusActive = prefs.getBoolean(PREF_FOCUS_ON, false).let { on ->
             if (!on) false
@@ -624,7 +623,6 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             else prefs.getLong(PREF_SA_UNTIL, 0L).let { until -> until <= 0L || now < until }
         }
         val alwaysBlockActive = prefs.getBoolean(PREF_ALWAYS_BLOCK, false)
-
         if (isInGreyoutWindow(pkg)) {
             val samePackage = pkg == lastBlockedPkg
             val cooldownExpired = (now - lastBlockedAtMs) > 2_000L
@@ -644,27 +642,6 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             return
         }
 
-        if (BLOCKABLE_AFTER_WARNING.any { pkg.equals(it, ignoreCase = true) }) {
-            // Apply the same isPackageBlocked decision as the event path so that
-            // returning to Settings (or any BLOCKABLE_AFTER_WARNING package) via
-            // recents is also enforced.
-            val blocked = isPackageBlocked(pkg, focusActive, saActive, alwaysBlockActive)
-            if (blocked) {
-                val samePackage = pkg == lastBlockedPkg
-                val cooldownExpired = (now - lastBlockedAtMs) > 2_000L
-                if (!samePackage || cooldownExpired) {
-                    lastBlockedPkg = pkg
-                    lastBlockedAtMs = now
-                    handleBlockedApp(
-                        pkg,
-                        explicitBlockReason(pkg, focusActive, saActive, alwaysBlockActive),
-                    )
-                    scheduleRetryCheck(pkg, 1, focusActive, saActive, alwaysBlockActive)
-                }
-            }
-            return
-        }
-
         val blocked = isPackageBlocked(pkg, focusActive, saActive, alwaysBlockActive)
         if (blocked) {
             val samePackage = pkg == lastBlockedPkg
@@ -678,17 +655,6 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                 )
                 scheduleRetryCheck(pkg, 1, focusActive, saActive, alwaysBlockActive)
             }
-            return
-        }
-
-        // Skip exhaustion enforcement while an active allowance session is in progress.
-        // For count mode, isAllowanceAvailable returns false immediately after
-        // recordAllowanceOpen increments the counter, even though this foreground
-        // session is still valid. Timed modes can also briefly report exhaustion
-        // before their next checkpoint is persisted.
-        if (currentTimedPkg?.equals(pkg, ignoreCase = true) == true) {
-            lastBlockedPkg = null
-            lastBlockedAtMs = 0L
             return
         }
 
@@ -1097,16 +1063,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         // override this. This check runs before BLOCKABLE_AFTER_WARNING so
         // that even if a user somehow adds one of these packages to a block
         // list, the block is silently ignored.
-        // BLOCKABLE_AFTER_WARNING packages must reach their own policy check even
-        // if the OEM registers them as a home handler (e.g. Settings on some
-        // Realme builds).
-        if (pkg == "com.android.settings") {
-            android.util.Log.d("FF", "isHomePackage=${isHomePackage(pkg)} cachedHome=$cachedHomePackages")
-        }
-        if (NEVER_BLOCK.any { pkg.equals(it, ignoreCase = true) } ||
-            (!BLOCKABLE_AFTER_WARNING.any { pkg.equals(it, ignoreCase = true) } &&
-                isHomePackage(pkg))
-        ) {
+        if (NEVER_BLOCK.any { pkg.equals(it, ignoreCase = true) } || isHomePackage(pkg)) {
             // Visiting a safe/home package means the user has left the blocked
             // app, so the next open must not inherit its de-duplication window.
             lastBlockedPkg = null
@@ -3145,7 +3102,6 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                     WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
                     WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
                     WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD or
-                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                     WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
             PixelFormat.TRANSLUCENT
         )

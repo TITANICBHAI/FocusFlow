@@ -198,6 +198,14 @@ describe('blocked-app system interaction contract', () => {
       'handleBlockedApp(pkg, allowanceExhaustedReason(pkg, allowanceEntry))',
     );
 
+    const activeAllowanceGuard = watchdogSource.indexOf(
+      'if (currentTimedPkg?.equals(pkg, ignoreCase = true) == true)',
+    );
+    expect(activeAllowanceGuard).toBeGreaterThan(explicitCheck);
+    expect(activeAllowanceGuard).toBeLessThan(allowanceCheck);
+    expect(watchdogSource).toContain('lastBlockedPkg = null');
+    expect(watchdogSource).toContain('lastBlockedAtMs = 0L');
+
     const inactiveReset = watchdogSource.indexOf(
       'lastBlockedPkg = null',
       inactiveGate,

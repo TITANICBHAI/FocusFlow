@@ -56,6 +56,11 @@ class ForegroundTaskService : Service() {
         val windowStartMs: Long = 0L,
     )
 
+    private data class IntervalUsageSample(
+        val windowStartMs: Long,
+        val usedMs: Long,
+    )
+
     companion object {
         const val CHANNEL_ID        = "focusday_foreground"
         const val CHANNEL_NAME      = "FocusFlow Active Task"
@@ -330,11 +335,43 @@ class ForegroundTaskService : Service() {
         var foregroundAllowanceExpiry: AllowanceExpiry? = null
         val foregroundPkg = getFallbackForegroundPackage()
         val trackedPackages = (timeBudgetPkgs.keys + intervalPkgs.keys).toSet()
+
+        /*
+         * UsageStatsManager.INTERVAL_DAILY returns calendar-day buckets even when
+         * passed a rolling-window start time. Capture the current interval starts
+         * under the same lock used by the merge, then query UsageEvents outside the
+         * lock so the potentially slow system call does not block allowance writes.
+         */
+        val intervalWindowStarts = synchronized(
+            AppBlockerAccessibilityService.ALLOWANCE_USAGE_LOCK,
+        ) {
+            val usedJson = blockPrefs.getString(
+                AppBlockerAccessibilityService.PREF_DAILY_ALLOWANCE_USED,
+                "{}",
+            ) ?: "{}"
+            val allUsed = try { org.json.JSONObject(usedJson) } catch (_: Exception) {
+                org.json.JSONObject()
+            }
+            intervalPkgs.mapNotNull { (pkg, config) ->
+                val windowStartMs = allUsed.optJSONObject(pkg)?.optLong("windowStartMs", 0L) ?: 0L
+                if (windowStartMs > 0L && now <= windowStartMs + config.second) {
+                    pkg to windowStartMs
+                } else {
+                    null
+                }
+            }.toMap()
+        }
+        val intervalUsageSamples = intervalWindowStarts.mapValues { (pkg, windowStartMs) ->
+            IntervalUsageSample(
+                windowStartMs = windowStartMs,
+                usedMs = queryIntervalUsageMs(usm, pkg, windowStartMs, now),
+            )
+        }
+
         /*
          * The broad day query happens before this monitor. Reload the JSON inside
          * the monitor, then merge and persist it while the other service is
-         * unable to perform its own read-modify-write. Interval queries stay
-         * inside the monitor so their window metadata and merge use one snapshot.
+         * unable to perform its own read-modify-write.
          */
         synchronized (AppBlockerAccessibilityService.ALLOWANCE_USAGE_LOCK) {
             val usedJson = blockPrefs.getString(
@@ -382,18 +419,18 @@ class ForegroundTaskService : Service() {
                 ) {
                     continue
                 }
+                val intervalUsageSample = intervalConfig?.let { intervalUsageSamples[pkg] }
+                if (intervalConfig != null &&
+                    intervalUsageSample?.windowStartMs != windowStartMs
+                ) {
+                    // The AccessibilityService opened or reset a different window
+                    // while UsageEvents was being queried. Do not merge an old
+                    // window's total into the new one.
+                    continue
+                }
 
                 val actualMs = if (intervalConfig != null) {
-                    try {
-                        usm.queryUsageStats(
-                            android.app.usage.UsageStatsManager.INTERVAL_DAILY,
-                            windowStartMs,
-                            now,
-                        )?.firstOrNull { it.packageName.equals(pkg, ignoreCase = true) }
-                            ?.totalTimeInForeground ?: 0L
-                    } catch (_: Exception) {
-                        0L
-                    }
+                    intervalUsageSample?.usedMs ?: 0L
                 } else {
                     statsMap[pkg]?.totalTimeInForeground ?: 0L
                 }.coerceAtMost(limitMs)
@@ -451,6 +488,78 @@ class ForegroundTaskService : Service() {
         } ?: run {
             allowanceExpiryRunnable?.let { handler.removeCallbacks(it) }
             allowanceExpiryRunnable = null
+        }
+    }
+
+    /**
+     * Measures foreground time for one package inside its rolling allowance
+     * window. The lookback lets us capture a session that began before the
+     * window boundary; each segment is clipped to [windowStartMs, endMs].
+     */
+    private fun queryIntervalUsageMs(
+        usm: UsageStatsManager,
+        pkg: String,
+        windowStartMs: Long,
+        endMs: Long,
+    ): Long {
+        if (windowStartMs <= 0L || endMs <= windowStartMs) return 0L
+
+        val foregroundType =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                UsageEvents.Event.ACTIVITY_RESUMED
+            } else {
+                UsageEvents.Event.MOVE_TO_FOREGROUND
+            }
+        val backgroundType =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                UsageEvents.Event.ACTIVITY_PAUSED
+            } else {
+                UsageEvents.Event.MOVE_TO_BACKGROUND
+            }
+        val lookbackMs = maxOf(
+            6L * 60 * 60 * 1000L,
+            endMs - windowStartMs,
+        )
+        val queryStart = (windowStartMs - lookbackMs).coerceAtLeast(0L)
+
+        return try {
+            val events = usm.queryEvents(queryStart, endMs)
+            val event = UsageEvents.Event()
+            var segmentStartMs = 0L
+            var windowTotalMs = 0L
+
+            while (events.hasNextEvent()) {
+                events.getNextEvent(event)
+                if (!event.packageName.equals(pkg, ignoreCase = true)) continue
+
+                when (event.eventType) {
+                    foregroundType -> {
+                        // Some devices emit duplicate resume events while the
+                        // same activity remains visible. Keep the first start.
+                        if (segmentStartMs == 0L) {
+                            segmentStartMs = event.timeStamp
+                        }
+                    }
+                    backgroundType -> {
+                        if (segmentStartMs > 0L) {
+                            windowTotalMs += (
+                                event.timeStamp.coerceAtMost(endMs) -
+                                    segmentStartMs.coerceAtLeast(windowStartMs)
+                                ).coerceAtLeast(0L)
+                            segmentStartMs = 0L
+                        }
+                    }
+                }
+            }
+
+            if (segmentStartMs > 0L) {
+                windowTotalMs += (
+                    endMs - segmentStartMs.coerceAtLeast(windowStartMs)
+                ).coerceAtLeast(0L)
+            }
+            windowTotalMs
+        } catch (_: Exception) {
+            0L
         }
     }
 

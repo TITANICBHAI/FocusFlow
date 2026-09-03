@@ -39,4 +39,25 @@ describe('ForegroundTaskService allowance expiry contract', () => {
     );
     expect(scheduleSource).not.toContain('intervalPkgs[pkg]');
   });
+
+  it('uses window-scoped UsageEvents for interval allowance accounting', () => {
+    expect(foregroundTaskService).toContain(
+      'private fun queryIntervalUsageMs(',
+    );
+    expect(foregroundTaskService).toContain(
+      'UsageEvents.Event.ACTIVITY_RESUMED',
+    );
+    expect(foregroundTaskService).toContain(
+      'UsageEvents.Event.ACTIVITY_PAUSED',
+    );
+    expect(foregroundTaskService).toContain(
+      'val intervalUsageSamples = intervalWindowStarts.mapValues',
+    );
+    expect(foregroundTaskService).toContain(
+      'intervalUsageSample?.windowStartMs != windowStartMs',
+    );
+    expect(foregroundTaskService).not.toContain(
+      'UsageStatsManager.INTERVAL_DAILY,\n                            windowStartMs',
+    );
+  });
 });
