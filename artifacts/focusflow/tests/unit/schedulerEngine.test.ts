@@ -101,6 +101,19 @@ describe('schedulerEngine', () => {
     expect(result[2]).toBe(skipped);
   });
 
+  it('compresses a task that starts exactly at the skipped task end', () => {
+    vi.setSystemTime(new Date('2026-08-24T08:00:00.000Z'));
+    const skipped = task('skipped', '2026-08-24T09:00:00.000Z', '2026-08-24T10:00:00.000Z', {
+      status: 'skipped',
+    });
+    const later = task('later', '2026-08-24T10:00:00.000Z', '2026-08-24T11:00:00.000Z');
+
+    const result = compressSchedule(skipped, '2026-08-24T09:00:00.000Z', [skipped, later]);
+
+    expect(result[1].startTime).toBe('2026-08-24T09:00:00.000Z');
+    expect(result[1].endTime).toBe('2026-08-24T10:00:00.000Z');
+  });
+
   it('leaves the schedule unchanged when completion was not early', () => {
     const completed = task('completed', '2026-08-24T09:00:00.000Z', '2026-08-24T10:00:00.000Z');
     const later = task('later', '2026-08-24T11:00:00.000Z', '2026-08-24T12:00:00.000Z');

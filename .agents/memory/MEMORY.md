@@ -8,6 +8,7 @@
 - [Workspace package firewall](workspace-package-firewall.md) — filtered frozen installs can still fail on the shared shell-quote tarball before workspace-local node_modules is linked.
 - [System-control enforcement gate](system-control-enforcement-gate.md) — installer and system-control interception must require the explicit Protect system controls toggle.
 - [Task deletion and focus cleanup](task-deletion-focus-cleanup.md) — clearing tasks must end active focus sessions before deleting their task rows, without changing block settings.
+- [Task operation ordering](task-operation-ordering.md) — task reads and mutations must share one AppContext ordering boundary to prevent stale refreshes from restoring old status.
 - [FocusFlow persistence migration](focusflow-persistence-plan.md) — PERSISTENCE_MIGRATION_PLAN.md is authoritative; the reliability plan and review are supporting references.
 - [FocusFlow database logging plan](agent-db-logging-plan.md) — structured, privacy-safe database health and failure logging with an artifact-local checklist.
 - [VPN enforcement plan authority](vpn-enforcement-independence.md) — read the background-enforcement plan and its code review together before implementing; the review supports the plan.

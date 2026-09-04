@@ -177,6 +177,15 @@ if [ -f "$APP_GRADLE" ] && ! grep -q "androidx.recyclerview:recyclerview" "$APP_
   echo "   ✓ AndroidX RecyclerView dependency added"
 fi
 
+# Launcher drawer fling physics uses AndroidX DynamicAnimation. Keep this
+# fallback synchronized with the Expo config plugin for projects installed by
+# running this script after prebuild.
+if [ -f "$APP_GRADLE" ] && ! grep -q "androidx.dynamicanimation:dynamicanimation" "$APP_GRADLE"; then
+  sedi '/dependencies[[:space:]]*{/a\
+    implementation "androidx.dynamicanimation:dynamicanimation:1.1.0"' "$APP_GRADLE"
+  echo "   ✓ AndroidX DynamicAnimation dependency added"
+fi
+
 # ── Ensure xmlns:tools namespace is declared in <manifest> ───────────────────
 # NOTE: manifest existence is confirmed above — safe to patch here.
 if ! grep -q 'xmlns:tools' "$MANIFEST"; then

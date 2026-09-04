@@ -273,7 +273,7 @@ export function compressSchedule(
       t.id === completedTask.id ||
       t.status === 'completed' ||
       t.status === 'skipped' ||
-      !dayjs(t.startTime).isAfter(plannedEnd)
+      dayjs(t.startTime).isBefore(plannedEnd)
     ) {
       return t;
     }

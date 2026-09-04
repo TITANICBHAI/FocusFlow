@@ -44,6 +44,7 @@ import {
   extendTask,
   updateTaskStatus,
 } from '@/services/taskService';
+import { createTaskOperationQueue } from '@/services/taskOperationQueue';
 import {
   rebalanceAfterOverrun,
   getUnfinishedOverdueTasks,
@@ -884,9 +885,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // ── Keep a ref to latest state so the tick interval never needs to re-create ─
   // (fixes NEW-021: setInterval restarting on every task/settings change)
   const stateRef = useRef(state);
+  // React dispatch is asynchronous. Task operations queued back-to-back must
+  // see the previous operation's task result immediately, before the next
+  // render updates stateRef.
+  const taskSnapshotRef = useRef<Task[]>(state.tasks);
   useEffect(() => {
     stateRef.current = state;
+    taskSnapshotRef.current = state.tasks;
   });
+  // Task refreshes and mutations must share one queue. Otherwise a refresh can
+  // read the DB before a skip commits, then dispatch that stale snapshot after
+  // the skip has already updated the UI.
+  const taskOperationsRef = useRef(createTaskOperationQueue());
 
   // ── Tick: check active tasks + standalone block expiry every 30s ─────────────
   // Only recreated when DB readiness changes — state is read via stateRef.
@@ -1175,12 +1185,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     toAlert.forEach((t) => alertedUnresolvedRef.current.add(t.id));
 
     const batchResolve = async (items: typeof toAlert, status: 'completed' | 'skipped') => {
-      const now = new Date().toISOString();
-      const updated = items.map((t) => ({ ...t, status, updatedAt: now }));
-      try {
-        await dbUpdateTasksBatch(updated);
-        updated.forEach((u) => dispatch({ type: 'UPDATE_TASK', payload: u }));
-      } catch { /* non-fatal */ }
+      await taskOperationsRef.current.enqueue(async () => {
+        const now = new Date().toISOString();
+        const latestById = new Map(taskSnapshotRef.current.map((task) => [task.id, task]));
+        const updated = items
+          .map((item) => latestById.get(item.id) ?? item)
+          .filter((task) => task.status !== 'completed' && task.status !== 'skipped')
+          .map((task) => ({ ...task, status, updatedAt: now }));
+        if (updated.length === 0) return;
+
+        try {
+          await dbUpdateTasksBatch(updated);
+          await cancelTaskRemindersBatch(updated.map((task) => task.id));
+
+          const updatedById = new Map(updated.map((task) => [task.id, task]));
+          const nextTasks = taskSnapshotRef.current.map(
+            (task) => updatedById.get(task.id) ?? task,
+          );
+          taskSnapshotRef.current = nextTasks;
+          dispatch({ type: 'SET_TASKS', payload: nextTasks });
+        } catch (e) {
+          void logger.error('AppContext', `bulk task resolution failed: ${String(e)}`);
+          Alert.alert(
+            'Could not update tasks',
+            'The task changes were not saved. Please try again.',
+            [{ text: 'OK' }],
+          );
+        }
+      });
     };
 
     if (toAlert.length === 1) {
@@ -1246,116 +1278,128 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // ── Tasks ───────────────────────────────────────────────────────────────────
 
   const refreshTasks = useCallback(async () => {
-    if (isDbUnrecoverable()) {
-      if (!stateRef.current.isDbUnrecoverable) {
-        dispatch({ type: 'SET_DB_UNRECOVERABLE', payload: true });
-      }
-      return;
-    }
-    try {
-      const todayTasks = await dbGetTasksForDate(new Date().toISOString());
-      // Also include tasks from the last 24 hours that are still unresolved so
-      // they stay visible on the Focus tab after midnight. The user will be
-      // prompted to resolve them when a new task or block session starts.
-      const recentUnresolved = await dbGetRecentUnresolvedTasks();
-      const todayIds = new Set(todayTasks.map((t) => t.id));
-      const merged = [
-        ...todayTasks,
-        ...recentUnresolved.filter((t) => !todayIds.has(t.id)),
-      ];
+    await taskOperationsRef.current.enqueue(async () => {
       if (isDbUnrecoverable()) {
-        dispatch({ type: 'SET_DB_UNRECOVERABLE', payload: true });
+        if (!stateRef.current.isDbUnrecoverable) {
+          dispatch({ type: 'SET_DB_UNRECOVERABLE', payload: true });
+        }
         return;
       }
-      dispatch({ type: 'SET_TASKS', payload: merged });
-    } catch (e) {
-      void logger.warn('AppContext', `refreshTasks failed: ${String(e)}`);
-    }
+      try {
+        const todayTasks = await dbGetTasksForDate(new Date().toISOString());
+        // Also include tasks from the last 24 hours that are still unresolved so
+        // they stay visible on the Focus tab after midnight. The user will be
+        // prompted to resolve them when a new task or block session starts.
+        const recentUnresolved = await dbGetRecentUnresolvedTasks();
+        const todayIds = new Set(todayTasks.map((t) => t.id));
+        const merged = [
+          ...todayTasks,
+          ...recentUnresolved.filter((t) => !todayIds.has(t.id)),
+        ];
+        if (isDbUnrecoverable()) {
+          dispatch({ type: 'SET_DB_UNRECOVERABLE', payload: true });
+          return;
+        }
+        taskSnapshotRef.current = merged;
+        dispatch({ type: 'SET_TASKS', payload: merged });
+      } catch (e) {
+        void logger.warn('AppContext', `refreshTasks failed: ${String(e)}`);
+      }
+    });
   }, []);
 
   const addTask = useCallback(async (task: Task, options?: { skipAlarms?: boolean }) => {
-    try {
-      await dbInsertTask(task);
-      dispatch({ type: 'ADD_TASK', payload: task });
-      if (!options?.skipAlarms) {
-        await scheduleTaskReminders(task);
+    await taskOperationsRef.current.enqueue(async () => {
+      try {
+        await dbInsertTask(task);
+        taskSnapshotRef.current = [...taskSnapshotRef.current, task];
+        dispatch({ type: 'ADD_TASK', payload: task });
+        if (!options?.skipAlarms) {
+          await scheduleTaskReminders(task);
+        }
+      } catch (e) {
+        void logger.error('AppContext', `addTask failed: ${String(e)}`);
+        throw e;
       }
-    } catch (e) {
-      void logger.error('AppContext', `addTask failed: ${String(e)}`);
-      throw e;
-    }
+    });
   }, []);
 
   const updateTask = useCallback(async (task: Task) => {
-    try {
-      await dbUpdateTask(task);
-      dispatch({ type: 'UPDATE_TASK', payload: task });
-      await scheduleTaskReminders(task);
-
-      // The native focus service and AccessibilityService do not read the
-      // React task state. Keep their active-task snapshot current when an
-      // in-session task is edited (title, end time, or both).
-      if (stateRef.current.focusSession?.taskId === task.id) {
-        const finalTasks = stateRef.current.tasks.map((t) => (t.id === task.id ? task : t));
-        const endMs = new Date(task.endTime).getTime();
-        const nextTask = finalTasks
-          .filter(
-            (t) =>
-              t.id !== task.id &&
-              t.status !== 'completed' &&
-              t.status !== 'skipped' &&
-              new Date(t.startTime).getTime() >= endMs,
-          )
-          .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())[0];
-        _updateCurrentFocusTask(task);
-        await ForegroundServiceModule.updateNotification(
-          task.id,
-          task.title,
-          endMs,
-          nextTask?.title ?? null,
+    await taskOperationsRef.current.enqueue(async () => {
+      try {
+        await dbUpdateTask(task);
+        taskSnapshotRef.current = taskSnapshotRef.current.map(
+          (candidate) => (candidate.id === task.id ? task : candidate),
         );
-        await SharedPrefsModule.setActiveTask(task.id, task.title, endMs, nextTask?.title ?? null);
+        dispatch({ type: 'UPDATE_TASK', payload: task });
+        await scheduleTaskReminders(task);
+
+        // The native focus service and AccessibilityService do not read the
+        // React task state. Keep their active-task snapshot current when an
+        // in-session task is edited (title, end time, or both).
+        if (stateRef.current.focusSession?.taskId === task.id) {
+          const finalTasks = stateRef.current.tasks.map((t) => (t.id === task.id ? task : t));
+          const endMs = new Date(task.endTime).getTime();
+          const nextTask = finalTasks
+            .filter(
+              (t) =>
+                t.id !== task.id &&
+                t.status !== 'completed' &&
+                t.status !== 'skipped' &&
+                new Date(t.startTime).getTime() >= endMs,
+            )
+            .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())[0];
+          _updateCurrentFocusTask(task);
+          await ForegroundServiceModule.updateNotification(
+            task.id,
+            task.title,
+            endMs,
+            nextTask?.title ?? null,
+          );
+          await SharedPrefsModule.setActiveTask(task.id, task.title, endMs, nextTask?.title ?? null);
+        }
+      } catch (e) {
+        void logger.error('AppContext', `updateTask failed: ${String(e)}`);
+        throw e;
       }
-    } catch (e) {
-      void logger.error('AppContext', `updateTask failed: ${String(e)}`);
-      throw e;
-    }
+    });
   }, []);
 
   const deleteTask = useCallback(async (taskId: string) => {
-    try {
-      const tasks = stateRef.current.tasks;
-      const task = tasks.find((t) => t.id === taskId);
-      const isFutureScheduledTask =
-        task?.status === 'scheduled' &&
-        new Date(task.startTime).getTime() > Date.now();
-      const compressed = task && isFutureScheduledTask
-        ? compressDeletedTaskGap(task, tasks)
-        : tasks;
-      const shifted = compressed.filter((candidate) => {
-        const original = tasks.find((t) => t.id === candidate.id);
-        return (
-          candidate.id !== taskId &&
-          original &&
-          (candidate.startTime !== original.startTime || candidate.endTime !== original.endTime)
-        );
-      });
+    await taskOperationsRef.current.enqueue(async () => {
+      try {
+        const tasks = taskSnapshotRef.current;
+        const task = tasks.find((t) => t.id === taskId);
+        const isFutureScheduledTask =
+          task?.status === 'scheduled' &&
+          new Date(task.startTime).getTime() > Date.now();
+        const compressed = task && isFutureScheduledTask
+          ? compressDeletedTaskGap(task, tasks)
+          : tasks;
+        const shifted = compressed.filter((candidate) => {
+          const original = tasks.find((t) => t.id === candidate.id);
+          return (
+            candidate.id !== taskId &&
+            original &&
+            (candidate.startTime !== original.startTime || candidate.endTime !== original.endTime)
+          );
+        });
 
-      await dbDeleteTask(taskId);
-      await dbUpdateTasksBatch(shifted);
-      await cancelTaskRemindersBatch([taskId]);
-      await scheduleTaskRemindersBatch(shifted);
+        await dbDeleteTask(taskId);
+        await dbUpdateTasksBatch(shifted);
+        await cancelTaskRemindersBatch([taskId]);
+        await scheduleTaskRemindersBatch(shifted);
 
-      // Deleting a future scheduled task frees its entire reserved slot. Pull
-      // only later, unresolved tasks forward; active/history rows never move.
-      dispatch({
-        type: 'SET_TASKS',
-        payload: compressed.filter((candidate) => candidate.id !== taskId),
-      });
-    } catch (e) {
-      void logger.error('AppContext', `deleteTask failed: ${String(e)}`);
-      throw e;
-    }
+        // Deleting a future scheduled task frees its entire reserved slot. Pull
+        // only later, unresolved tasks forward; active/history rows never move.
+        const nextTasks = compressed.filter((candidate) => candidate.id !== taskId);
+        taskSnapshotRef.current = nextTasks;
+        dispatch({ type: 'SET_TASKS', payload: nextTasks });
+      } catch (e) {
+        void logger.error('AppContext', `deleteTask failed: ${String(e)}`);
+        throw e;
+      }
+    });
   }, []);
 
   // Guard against concurrent extend calls — prevents stale-state double-writes.
@@ -1363,85 +1407,88 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const completeTask = useCallback(
     async (taskId: string) => {
-      const tasks = stateRef.current.tasks;
-      const task = tasks.find((t) => t.id === taskId);
-      if (!task) return;
-      // Guard: if the task is already completed, do nothing. This prevents
-      // double-completion when "keepFocusActiveUntilTaskEnd" is on — the focus
-      // ring keeps running after the first complete tap, so the button stays
-      // visible and a second tap would re-trigger the logic on an already-done task.
-      if (task.status === 'completed') return;
-      try {
-        const completedAt = new Date().toISOString();
-        const keepUntilEnd =
-          stateRef.current.focusSession?.taskId === taskId &&
-          (stateRef.current.settings.keepFocusActiveUntilTaskEnd ?? false) &&
-          new Date(task.endTime).getTime() > Date.now();
-        const updated = {
-          ...updateTaskStatus(task, 'completed'),
-          updatedAt: completedAt,
-        };
-        const tasksWithUpdate = tasks.map((t) => (t.id === taskId ? updated : t));
-        // If focus is intentionally kept alive until the original end, its
-        // reserved time is still occupied. Otherwise reclaim an early finish.
-        const compressionTime = keepUntilEnd ? updated.endTime : completedAt;
-        const compressed = compressSchedule(updated, compressionTime, tasksWithUpdate);
-        const originalById = new Map(tasks.map((t) => [t.id, t]));
-        const changedTasks = compressed.filter((candidate) => {
-          const original = originalById.get(candidate.id);
-          return (
-            candidate.id === taskId ||
-            !original ||
-            candidate.startTime !== original.startTime ||
-            candidate.endTime !== original.endTime ||
-            candidate.status !== original.status
-          );
-        });
-        const shifted = changedTasks.filter((candidate) => candidate.id !== taskId);
-
-        await dbUpdateTasksBatch(changedTasks);
-        await cancelTaskRemindersBatch([taskId]);
-        await scheduleTaskRemindersBatch(shifted);
-        // Cancel the OS alarm first so it cannot launch at the original end
-        // time after an early completion. Then dismiss any currently visible UI.
-        await TaskAlarmModule.cancelAlarm(taskId);
-        void TaskAlarmModule.dismissAlarm(taskId);
-        dispatch({ type: 'SET_TASKS', payload: compressed });
-
-        // Record/refresh today's daily-completion row immediately so the
-        // streak survives even if the user never opens the Stats tab today.
+      await taskOperationsRef.current.enqueue(async () => {
+        const tasks = taskSnapshotRef.current;
+        const task = tasks.find((t) => t.id === taskId);
+        if (!task) return;
+        // Guard: if the task is already completed, do nothing. This prevents
+        // double-completion when "keepFocusActiveUntilTaskEnd" is on — the focus
+        // ring keeps running after the first complete tap, so the button stays
+        // visible and a second tap would re-trigger the logic on an already-done task.
+        if (task.status === 'completed' || task.status === 'skipped') return;
         try {
-           const refreshed = compressed;
-          const today = getTodayTasks(refreshed);
-          if (today.length > 0) {
-            const done = today.filter((t) => t.status === 'completed').length;
-            void dbRecordDayCompletion(done, today.length);
+          const completedAt = new Date().toISOString();
+          const keepUntilEnd =
+            stateRef.current.focusSession?.taskId === taskId &&
+            (stateRef.current.settings.keepFocusActiveUntilTaskEnd ?? false) &&
+            new Date(task.endTime).getTime() > Date.now();
+          const updated = {
+            ...updateTaskStatus(task, 'completed'),
+            updatedAt: completedAt,
+          };
+          const tasksWithUpdate = tasks.map((t) => (t.id === taskId ? updated : t));
+          // If focus is intentionally kept alive until the original end, its
+          // reserved time is still occupied. Otherwise reclaim an early finish.
+          const compressionTime = keepUntilEnd ? updated.endTime : completedAt;
+          const compressed = compressSchedule(updated, compressionTime, tasksWithUpdate);
+          const originalById = new Map(tasks.map((t) => [t.id, t]));
+          const changedTasks = compressed.filter((candidate) => {
+            const original = originalById.get(candidate.id);
+            return (
+              candidate.id === taskId ||
+              !original ||
+              candidate.startTime !== original.startTime ||
+              candidate.endTime !== original.endTime ||
+              candidate.status !== original.status
+            );
+          });
+          const shifted = changedTasks.filter((candidate) => candidate.id !== taskId);
+
+          await dbUpdateTasksBatch(changedTasks);
+          await cancelTaskRemindersBatch([taskId]);
+          await scheduleTaskRemindersBatch(shifted);
+          // Cancel the OS alarm first so it cannot launch at the original end
+          // time after an early completion. Then dismiss any currently visible UI.
+          await TaskAlarmModule.cancelAlarm(taskId);
+          void TaskAlarmModule.dismissAlarm(taskId);
+          taskSnapshotRef.current = compressed;
+          dispatch({ type: 'SET_TASKS', payload: compressed });
+
+          // Record/refresh today's daily-completion row immediately so the
+          // streak survives even if the user never opens the Stats tab today.
+          try {
+            const refreshed = compressed;
+            const today = getTodayTasks(refreshed);
+            if (today.length > 0) {
+              const done = today.filter((t) => t.status === 'completed').length;
+              void dbRecordDayCompletion(done, today.length);
+            }
+          } catch (e) {
+            void logger.warn('AppContext', `dbRecordDayCompletion in completeTask failed: ${String(e)}`);
+          }
+          if (stateRef.current.focusSession?.taskId === taskId) {
+            // If the user has opted in to "keep focus running for the full
+            // duration", and we're still before the task's scheduled end time,
+            // leave the focus session running. The 30 s tick below will stop it
+            // automatically once we cross task.endTime — robust across app
+            // restarts because both the task (with its endTime) and the focus
+            // session live in the DB.
+            const keepUntilEnd = stateRef.current.settings.keepFocusActiveUntilTaskEnd ?? false;
+            const taskEndMs = new Date(updated.endTime).getTime();
+            if (keepUntilEnd && taskEndMs > Date.now()) {
+              void logger.info(
+                'AppContext',
+                `task ${taskId} marked done early; keeping focus active until ${new Date(taskEndMs).toISOString()}`,
+              );
+            } else {
+              await stopFocusMode();
+            }
           }
         } catch (e) {
-          void logger.warn('AppContext', `dbRecordDayCompletion in completeTask failed: ${String(e)}`);
+          void logger.error('AppContext', `completeTask failed: ${String(e)}`);
+          throw e;
         }
-        if (stateRef.current.focusSession?.taskId === taskId) {
-          // If the user has opted in to "keep focus running for the full
-          // duration", and we're still before the task's scheduled end time,
-          // leave the focus session running. The 30 s tick below will stop it
-          // automatically once we cross task.endTime — robust across app
-          // restarts because both the task (with its endTime) and the focus
-          // session live in the DB.
-          const keepUntilEnd = stateRef.current.settings.keepFocusActiveUntilTaskEnd ?? false;
-          const taskEndMs = new Date(updated.endTime).getTime();
-          if (keepUntilEnd && taskEndMs > Date.now()) {
-            void logger.info(
-              'AppContext',
-              `task ${taskId} marked done early; keeping focus active until ${new Date(taskEndMs).toISOString()}`,
-            );
-          } else {
-            await stopFocusMode();
-          }
-        }
-      } catch (e) {
-        void logger.error('AppContext', `completeTask failed: ${String(e)}`);
-        throw e;
-      }
+      });
     },
     // stateRef is a stable ref — no deps needed
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1450,47 +1497,51 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const skipTask = useCallback(
     async (taskId: string) => {
-      const tasks = stateRef.current.tasks;
-      const task = tasks.find((t) => t.id === taskId);
-      if (!task) return;
-      try {
-        const skippedAt =
-          Date.now() < new Date(task.startTime).getTime()
-            ? task.startTime
-            : new Date().toISOString();
-        const updated = updateTaskStatus(task, 'skipped');
-        const tasksWithUpdate = tasks.map((t) => (t.id === taskId ? updated : t));
-        const compressed = compressSchedule(updated, skippedAt, tasksWithUpdate);
-        const originalById = new Map(tasks.map((t) => [t.id, t]));
-        const changedTasks = compressed.filter((candidate) => {
-          const original = originalById.get(candidate.id);
-          return (
-            candidate.id === taskId ||
-            !original ||
-            candidate.startTime !== original.startTime ||
-            candidate.endTime !== original.endTime ||
-            candidate.status !== original.status
-          );
-        });
-        const shifted = changedTasks.filter((candidate) => candidate.id !== taskId);
+      await taskOperationsRef.current.enqueue(async () => {
+        const tasks = taskSnapshotRef.current;
+        const task = tasks.find((t) => t.id === taskId);
+        if (!task) return;
+        if (task.status === 'completed' || task.status === 'skipped') return;
+        try {
+          const skippedAt =
+            Date.now() < new Date(task.startTime).getTime()
+              ? task.startTime
+              : new Date().toISOString();
+          const updated = updateTaskStatus(task, 'skipped');
+          const tasksWithUpdate = tasks.map((t) => (t.id === taskId ? updated : t));
+          const compressed = compressSchedule(updated, skippedAt, tasksWithUpdate);
+          const originalById = new Map(tasks.map((t) => [t.id, t]));
+          const changedTasks = compressed.filter((candidate) => {
+            const original = originalById.get(candidate.id);
+            return (
+              candidate.id === taskId ||
+              !original ||
+              candidate.startTime !== original.startTime ||
+              candidate.endTime !== original.endTime ||
+              candidate.status !== original.status
+            );
+          });
+          const shifted = changedTasks.filter((candidate) => candidate.id !== taskId);
 
-        await dbUpdateTasksBatch(changedTasks);
-        await cancelTaskRemindersBatch([taskId]);
-        // Cancel the OS alarm first so it cannot launch at the original end
-        // time after a skip. Then dismiss any currently visible alarm UI.
-        await TaskAlarmModule.cancelAlarm(taskId);
-        void TaskAlarmModule.dismissAlarm(taskId);
-        await scheduleTaskRemindersBatch(shifted);
-        dispatch({ type: 'SET_TASKS', payload: compressed });
-        // Skip is an explicit move-on action. Unlike early completion, it
-        // never inherits keepFocusActiveUntilTaskEnd.
-        if (stateRef.current.focusSession?.taskId === taskId) {
-          await stopFocusMode();
+          await dbUpdateTasksBatch(changedTasks);
+          await cancelTaskRemindersBatch([taskId]);
+          // Cancel the OS alarm first so it cannot launch at the original end
+          // time after a skip. Then dismiss any currently visible alarm UI.
+          await TaskAlarmModule.cancelAlarm(taskId);
+          void TaskAlarmModule.dismissAlarm(taskId);
+          await scheduleTaskRemindersBatch(shifted);
+          taskSnapshotRef.current = compressed;
+          dispatch({ type: 'SET_TASKS', payload: compressed });
+          // Skip is an explicit move-on action. Unlike early completion, it
+          // never inherits keepFocusActiveUntilTaskEnd.
+          if (stateRef.current.focusSession?.taskId === taskId) {
+            await stopFocusMode();
+          }
+        } catch (e) {
+          void logger.error('AppContext', `skipTask failed: ${String(e)}`);
+          throw e;
         }
-      } catch (e) {
-        void logger.error('AppContext', `skipTask failed: ${String(e)}`);
-        throw e;
-      }
+      });
     },
     [],
   );
@@ -1500,81 +1551,84 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // Prevent concurrent extend calls — second tap is silently ignored.
       if (extendingRef.current) return;
       extendingRef.current = true;
-      try {
-        // Always read from the ref so we get the latest tasks even if the
-        // closure was captured before a previous extend dispatch resolved.
-        const tasks = stateRef.current.tasks;
-        const task = tasks.find((t) => t.id === taskId);
-        if (!task) return;
+      await taskOperationsRef.current.enqueue(async () => {
+        try {
+          // Always read from the ref so we get the latest tasks even if the
+          // closure was captured before a previous extend dispatch resolved.
+          const tasks = taskSnapshotRef.current;
+          const task = tasks.find((t) => t.id === taskId);
+          if (!task) return;
 
-        const extended = extendTask(task, extraMinutes);
+          const extended = extendTask(task, extraMinutes);
 
-        const { updatedSchedule, needsUserConfirm, skipped } = rebalanceAfterOverrun(extended, extraMinutes, tasks);
+          const { updatedSchedule, needsUserConfirm, skipped } = rebalanceAfterOverrun(extended, extraMinutes, tasks);
 
-        await dbUpdateTasksBatch([extended, ...updatedSchedule.filter((t) => t.id !== extended.id)]);
+          await dbUpdateTasksBatch([extended, ...updatedSchedule.filter((t) => t.id !== extended.id)]);
 
-        const updatedById = new Map(updatedSchedule.map((t) => [t.id, t]));
-        const finalTasks = tasks.map((t) => {
-          if (t.id === extended.id) return extended;
-          return updatedById.get(t.id) ?? t;
-        });
-        dispatch({ type: 'SET_TASKS', payload: finalTasks });
+          const updatedById = new Map(updatedSchedule.map((t) => [t.id, t]));
+          const finalTasks = tasks.map((t) => {
+            if (t.id === extended.id) return extended;
+            return updatedById.get(t.id) ?? t;
+          });
+          taskSnapshotRef.current = finalTasks;
+          dispatch({ type: 'SET_TASKS', payload: finalTasks });
 
-        // Re-arm the extended schedule in one pass. Skipped tasks are included
-        // for cancellation but are filtered out from new scheduling.
-        await scheduleTaskRemindersBatch([
-          extended,
-          ...updatedSchedule.filter((t) => t.id !== extended.id),
-        ]);
+          // Re-arm the extended schedule in one pass. Skipped tasks are included
+          // for cancellation but are filtered out from new scheduling.
+          await scheduleTaskRemindersBatch([
+            extended,
+            ...updatedSchedule.filter((t) => t.id !== extended.id),
+          ]);
 
-        // Dismiss the full-screen task-end alarm only after the extension has
-        // been persisted — keeps the alarm UI in sync with task state so a
-        // mid-flight failure leaves the alarm ringing for the user to retry.
-        void TaskAlarmModule.dismissAlarm(taskId);
+          // Dismiss the full-screen task-end alarm only after the extension has
+          // been persisted — keeps the alarm UI in sync with task state so a
+          // mid-flight failure leaves the alarm ringing for the user to retry.
+          void TaskAlarmModule.dismissAlarm(taskId);
 
-        // If this task is the one currently in focus, update the foreground notification
-        // with the new end time so the countdown shows the correct remaining time.
-        if (stateRef.current.focusSession?.taskId === taskId) {
-          const newEndMs = new Date(extended.endTime).getTime();
-          const nextTask = finalTasks.find(
-            (t) => t.id !== extended.id && new Date(t.startTime).getTime() >= newEndMs
-          );
-          await ForegroundServiceModule.updateNotification(
-            extended.id,
-            extended.title,
-            newEndMs,
-            nextTask?.title ?? null,
-          );
-          // Also update the SharedPrefs task_end_ms so the widget and AccessibilityService
-          // see the new end time immediately.
-          _updateCurrentFocusTask(extended);
-          await SharedPrefsModule.setActiveTask(
-            extended.id,
-            extended.title,
-            newEndMs,
-            nextTask?.title ?? null,
-          );
+          // If this task is the one currently in focus, update the foreground notification
+          // with the new end time so the countdown shows the correct remaining time.
+          if (stateRef.current.focusSession?.taskId === taskId) {
+            const newEndMs = new Date(extended.endTime).getTime();
+            const nextTask = finalTasks.find(
+              (t) => t.id !== extended.id && new Date(t.startTime).getTime() >= newEndMs
+            );
+            await ForegroundServiceModule.updateNotification(
+              extended.id,
+              extended.title,
+              newEndMs,
+              nextTask?.title ?? null,
+            );
+            // Also update the SharedPrefs task_end_ms so the widget and AccessibilityService
+            // see the new end time immediately.
+            _updateCurrentFocusTask(extended);
+            await SharedPrefsModule.setActiveTask(
+              extended.id,
+              extended.title,
+              newEndMs,
+              nextTask?.title ?? null,
+            );
+          }
+
+          if (needsUserConfirm.length > 0) {
+            const names = needsUserConfirm.map((t) => `• ${t.title}`).join('\n');
+            Alert.alert(
+              '⚠️ Critical Tasks Affected',
+              `These high-priority tasks overlap with your extension and need your attention:\n\n${names}\n\nPlease review and reschedule them manually.`,
+              [{ text: 'OK' }],
+            );
+          }
+          if (skipped.length > 0) {
+            const names = skipped.map((t) => `• ${t.title}`).join('\n');
+            Alert.alert(
+              'Tasks Auto-Skipped',
+              `These lower-priority tasks were skipped to protect your schedule:\n\n${names}`,
+              [{ text: 'OK' }],
+            );
+          }
+        } finally {
+          extendingRef.current = false;
         }
-
-        if (needsUserConfirm.length > 0) {
-          const names = needsUserConfirm.map((t) => `• ${t.title}`).join('\n');
-          Alert.alert(
-            '⚠️ Critical Tasks Affected',
-            `These high-priority tasks overlap with your extension and need your attention:\n\n${names}\n\nPlease review and reschedule them manually.`,
-            [{ text: 'OK' }],
-          );
-        }
-        if (skipped.length > 0) {
-          const names = skipped.map((t) => `• ${t.title}`).join('\n');
-          Alert.alert(
-            'Tasks Auto-Skipped',
-            `These lower-priority tasks were skipped to protect your schedule:\n\n${names}`,
-            [{ text: 'OK' }],
-          );
-        }
-      } finally {
-        extendingRef.current = false;
-      }
+      });
     },
     [],
   );

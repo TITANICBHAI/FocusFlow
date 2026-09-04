@@ -13,7 +13,12 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Typeface
 import android.graphics.BitmapFactory
+import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.LayerDrawable
+import android.graphics.drawable.RippleDrawable
+import android.content.res.ColorStateList
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -39,6 +44,8 @@ import android.widget.ScrollView
 import android.widget.TextView
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.dynamicanimation.animation.DynamicAnimation
+import androidx.dynamicanimation.animation.FlingAnimation
 import org.json.JSONArray
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -86,14 +93,56 @@ class LauncherActivity : Activity() {
         private const val DRAWER_TYPE_HEADER   = 0
         private const val DRAWER_TYPE_APP      = 1
 
-        private val ACCENT       = Color.parseColor("#6366f1")
-        // Scrim: 20% black — wallpaper shows through naturally.
-        // The dock area gets its own darker gradient so icons stay readable.
-        private val SCRIM_COLOR  = Color.parseColor("#33000000")
-        private val DRAWER_BG    = Color.parseColor("#F0111827")
-        private val TEXT_DIM     = Color.parseColor("#EEF0FF")
-        private val TEXT_MUTED   = Color.parseColor("#99AABB")
-        private val DOCK_SURFACE = Color.parseColor("#28FFFFFF")  // frosted glass tint
+        // ── Typography scale ─────────────────────────────────────────────────
+        private const val SIZE_CLOCK_MAIN  = 86f
+        private const val SIZE_CLOCK_AMPM  = 18f
+        private const val SIZE_DATE        = 13f
+        private const val SIZE_LABEL_HOME  = 11.5f
+        private const val SIZE_LABEL_DOCK  = 10.5f
+        private const val SIZE_SEARCH_HINT = 14f
+        private const val SIZE_SECTION_HDR = 11f
+
+        // ── Spacing unit — 8-point grid ──────────────────────────────────────
+        private const val UNIT = 8
+
+        // ── Icon sizes ───────────────────────────────────────────────────────
+        private const val ICON_HOME        = 54
+        private const val ICON_DOCK        = 52
+        private const val ICON_CELL_FRAME  = 62
+        private const val ICON_DOCK_FRAME  = 60
+
+        // ── Glass surfaces ───────────────────────────────────────────────────
+        private val GLASS_ULTRA         = Color.parseColor("#0FFFFFFF")
+        private val GLASS_LIGHT         = Color.parseColor("#1AFFFFFF")
+        private val GLASS_MID           = Color.parseColor("#2AFFFFFF")
+        private val GLASS_HEAVY         = Color.parseColor("#3CFFFFFF")
+        private val GLASS_BORDER        = Color.parseColor("#20FFFFFF")
+        private val GLASS_BORDER_BRIGHT = Color.parseColor("#35FFFFFF")
+
+        // ── Brand ────────────────────────────────────────────────────────────
+        private val ACCENT         = Color.parseColor("#6366f1")
+        private val ACCENT_TEXT    = Color.parseColor("#818CF8")
+        private val ACCENT_DIM     = Color.parseColor("#406366f1")
+        private val ACCENT_GLOW    = Color.parseColor("#1A6366f1")
+        private val ACCENT_SURFACE = Color.parseColor("#226366f1")
+
+        // ── Text ─────────────────────────────────────────────────────────────
+        private val TEXT_PRIMARY = Color.WHITE
+        private val TEXT_DIM     = Color.parseColor("#CCF0F4FF")
+        private val TEXT_MUTED   = Color.parseColor("#B3AAB8CC")
+        private val TEXT_BLOCKED = Color.parseColor("#55FFFFFF")
+
+        // ── Status ───────────────────────────────────────────────────────────
+        private val RED_BLOCK     = Color.parseColor("#EF4444")
+        private val RED_BLOCK_DIM = Color.parseColor("#99EF4444")
+        private val AMBER_WARN    = Color.parseColor("#F59E0B")
+
+        // ── Scrim ─────────────────────────────────────────────────────────────
+        private val SCRIM_FULL_TOP = Color.parseColor("#26000000")
+        private val SCRIM_FULL_BTM = Color.parseColor("#BF000000")
+        private val SCRIM_DOCK_BTM = Color.parseColor("#F0000000")
+
+        private val DRAWER_BG = Color.parseColor("#F0111827")
     }
 
     private data class AllowanceCardData(
@@ -114,17 +163,26 @@ class LauncherActivity : Activity() {
 
     private lateinit var rootFrame: FrameLayout
     private var clockView: TextView? = null
+    private var minuteView: TextView? = null
+    private var colonView: TextView? = null
     private var ampmView: TextView? = null
     private var dateView: TextView? = null
     private var analogClockView: AnalogClockView? = null
     private var digitalTimeRow: LinearLayout? = null
+    private var focusCard: LinearLayout? = null
+    private var focusTitleView: TextView? = null
+    private var focusSubtitleView: TextView? = null
     private var allowanceStripContainer: LinearLayout? = null
     private var allowanceTickCount = 0
     private var customWallpaperView: ImageView? = null
     private var homeGrid: GridLayout? = null
     private var dockRow: LinearLayout? = null
+    private var productivityStrip: LinearLayout? = null
+    private var wallpaperAccent: Int = ACCENT
+    private var dockFocusButton: View? = null
     private var drawerOverlay: FrameLayout? = null
     private var drawerRecycler: RecyclerView? = null
+    private var drawerSearchInput: EditText? = null
     private var isDrawerOpen = false
     private var swipeTouchStartY = 0f
     private var swipeVelocityTracker: VelocityTracker? = null
@@ -154,10 +212,11 @@ class LauncherActivity : Activity() {
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
             if (viewType == DRAWER_TYPE_HEADER) {
                 val header = TextView(parent.context).apply {
-                    textSize = 12f
+                    textSize = SIZE_SECTION_HDR
                     typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-                    setTextColor(ACCENT)
-                    setPadding(dp(12), dp(8), dp(12), dp(4))
+                    setTextColor(ACCENT_TEXT)
+                    letterSpacing = 0.12f
+                    setPadding(dp(16), dp(10), dp(16), dp(4))
                     layoutParams = RecyclerView.LayoutParams(
                         RecyclerView.LayoutParams.MATCH_PARENT,
                         RecyclerView.LayoutParams.WRAP_CONTENT,
@@ -177,13 +236,23 @@ class LauncherActivity : Activity() {
                 isClickable = true
                 isFocusable = true
             }
-            val iconView = ImageView(parent.context).apply {
-                layoutParams = LinearLayout.LayoutParams(dp(48), dp(48)).also {
+            val iconFrame = FrameLayout(parent.context).apply {
+                layoutParams = LinearLayout.LayoutParams(dp(62), dp(62)).also {
                     it.gravity = Gravity.CENTER_HORIZONTAL
+                }
+                background = GradientDrawable().apply {
+                    shape = GradientDrawable.RECTANGLE
+                    cornerRadius = dp(12).toFloat()
+                    setColor(GLASS_ULTRA)
+                }
+            }
+            val iconView = ImageView(parent.context).apply {
+                layoutParams = FrameLayout.LayoutParams(dp(52), dp(52)).also {
+                    it.gravity = Gravity.CENTER
                 }
             }
             val labelView = TextView(parent.context).apply {
-                textSize = 10f
+                textSize = SIZE_LABEL_HOME
                 setTextColor(TEXT_DIM)
                 gravity = Gravity.CENTER
                 maxLines = 1
@@ -192,10 +261,13 @@ class LauncherActivity : Activity() {
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT,
-                ).also { it.topMargin = dp(3) }
+                ).also { it.topMargin = dp(6) }
             }
-            item.addView(iconView)
+            iconFrame.addView(iconView)
+            item.addView(iconFrame)
             item.addView(labelView)
+            item.foreground = rippleForeground(12)
+            addPressAnimation(item)
             return AppViewHolder(item, iconView, labelView)
         }
 
@@ -215,6 +287,8 @@ class LauncherActivity : Activity() {
                     appHolder.icon.alpha = if (isBlocked) 0.28f else 1f
                     appHolder.label.text = item.label
                     appHolder.label.setTextColor(if (isBlocked) TEXT_MUTED else TEXT_DIM)
+                    appHolder.itemView.contentDescription =
+                        if (isBlocked) "${item.label}, blocked" else item.label
                     appHolder.itemView.setOnClickListener {
                         closeDrawer()
                         if (isBlocked) launchBlockOverlay(item.packageName)
@@ -247,13 +321,16 @@ class LauncherActivity : Activity() {
             key == PREF_ALWAYS_BLOCK ||
             key == PREF_ALWAYS_BLOCK_PKGS ||
             key == PREF_LAUNCHER_WALLPAPER ||
-            key == "launcher_clock_style"
+            key == "launcher_clock_style" ||
+            key == "next_task_name"
         ) {
             runOnUiThread {
                 refreshHomeGrid()
                 refreshDock()
                 updateClockText()
+                refreshProductivityStrip()
                 loadCustomWallpaper()
+                applyWallpaperTint()
             }
         }
     }
@@ -269,6 +346,7 @@ class LauncherActivity : Activity() {
         setContentView(rootFrame)
 
         buildHomeLayout()
+        applyWallpaperTint()
         startClock()
     }
 
@@ -278,7 +356,9 @@ class LauncherActivity : Activity() {
         refreshHomeGrid()
         refreshDock()
         refreshAllowanceStrip()
+        refreshProductivityStrip()
         loadCustomWallpaper()
+        applyWallpaperTint()
     }
 
     override fun onPause() {
@@ -314,10 +394,13 @@ class LauncherActivity : Activity() {
         rootFrame.addView(customWallpaperView)
         loadCustomWallpaper()
 
-        // Wallpaper scrim — light translucent overlay (20% black) so the user's
-        // wallpaper stays visible. FLAG_SHOW_WALLPAPER composites it behind the window.
+        // Wallpaper scrim — light translucent overlay so the user's wallpaper
+        // stays visible. FLAG_SHOW_WALLPAPER composites it behind the window.
         val scrim = View(this).apply {
-            setBackgroundColor(SCRIM_COLOR)
+            background = GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                intArrayOf(SCRIM_FULL_TOP, SCRIM_FULL_BTM)
+            )
             layoutParams = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT
@@ -325,18 +408,27 @@ class LauncherActivity : Activity() {
         }
         rootFrame.addView(scrim)
 
-        // Bottom gradient — transparent → 60% black over the bottom 280dp.
-        // This makes the dock and clock text readable without killing the wallpaper.
-        val bottomGrad = View(this).apply {
+        val gradDock = View(this).apply {
             background = GradientDrawable(
                 GradientDrawable.Orientation.TOP_BOTTOM,
-                intArrayOf(Color.TRANSPARENT, Color.parseColor("#CC000000"))
+                intArrayOf(Color.TRANSPARENT, SCRIM_DOCK_BTM)
             )
             layoutParams = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT, dp(280)
+                FrameLayout.LayoutParams.MATCH_PARENT, dp(240)
             ).also { it.gravity = Gravity.BOTTOM }
         }
-        rootFrame.addView(bottomGrad)
+        rootFrame.addView(gradDock)
+
+        val gradTop = View(this).apply {
+            background = GradientDrawable(
+                GradientDrawable.Orientation.BOTTOM_TOP,
+                intArrayOf(Color.parseColor("#44000000"), Color.TRANSPARENT)
+            )
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, dp(180)
+            ).also { it.gravity = Gravity.TOP }
+        }
+        rootFrame.addView(gradTop)
 
         // Root column
         val column = LinearLayout(this).apply {
@@ -350,6 +442,12 @@ class LauncherActivity : Activity() {
         // ── Clock widget ──────────────────────────────────────────────────────
         val clockWidget = buildClockWidget()
         column.addView(clockWidget)
+
+        // ── Active focus session ──────────────────────────────────────────────
+        column.addView(buildFocusSessionCard())
+
+        // ── Productivity summary ──────────────────────────────────────────────
+        column.addView(buildProductivityStrip())
 
         // ── Daily allowance strip ─────────────────────────────────────────────
         column.addView(buildAllowanceStrip())
@@ -380,48 +478,55 @@ class LauncherActivity : Activity() {
 
         column.addView(gridScroll)
 
+        // ── Search shortcut ────────────────────────────────────────────────────
+        column.addView(buildSearchBar())
+
         // ── Dock area ─────────────────────────────────────────────────────────
         column.addView(buildDockArea())
 
         rootFrame.addView(column)
 
-        // ── Gestures: swipe-up → drawer, swipe-down → notifications ──────────
-        rootFrame.setOnTouchListener { _, ev ->
-            when (ev.action) {
-                MotionEvent.ACTION_DOWN -> {
-                    swipeTouchStartY = ev.rawY
-                    swipeVelocityTracker?.recycle()
-                    swipeVelocityTracker = VelocityTracker.obtain().also { it.addMovement(ev) }
-                    false
-                }
-                MotionEvent.ACTION_MOVE -> {
-                    swipeVelocityTracker?.addMovement(ev)
-                    false
-                }
-                MotionEvent.ACTION_UP -> {
-                    swipeVelocityTracker?.addMovement(ev)
-                    swipeVelocityTracker?.computeCurrentVelocity(1000)
-                    val velocityY = swipeVelocityTracker?.yVelocity ?: 0f
-                    swipeVelocityTracker?.recycle()
-                    swipeVelocityTracker = null
-                    val dy = swipeTouchStartY - ev.rawY
-                    when {
-                        dy > dp(60) && velocityY < -250f && !isDrawerOpen -> { openDrawer(); true }
-                        dy < -dp(80) && velocityY > 250f -> { expandNotificationsPanel(); true }
-                        else -> false
-                    }
-                }
-                MotionEvent.ACTION_CANCEL -> {
-                    swipeVelocityTracker?.recycle()
-                    swipeVelocityTracker = null
-                    false
-                }
-                else -> false
-            }
-        }
-
         refreshHomeGrid()
         refreshDock()
+        refreshProductivityStrip()
+    }
+
+    /**
+     * Preserve the launcher's global swipe gestures without making the root view
+     * consume taps destined for child controls.
+     */
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        when (ev.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                swipeTouchStartY = ev.rawY
+                swipeVelocityTracker?.recycle()
+                swipeVelocityTracker = VelocityTracker.obtain().also { it.addMovement(ev) }
+            }
+            MotionEvent.ACTION_MOVE -> swipeVelocityTracker?.addMovement(ev)
+            MotionEvent.ACTION_UP -> {
+                swipeVelocityTracker?.addMovement(ev)
+                swipeVelocityTracker?.computeCurrentVelocity(1000)
+                val velocityY = swipeVelocityTracker?.yVelocity ?: 0f
+                swipeVelocityTracker?.recycle()
+                swipeVelocityTracker = null
+                val dy = swipeTouchStartY - ev.rawY
+                when {
+                    dy > dp(60) && velocityY < -250f && !isDrawerOpen -> {
+                        openDrawer()
+                        return true
+                    }
+                    dy < -dp(80) && velocityY > 250f -> {
+                        expandNotificationsPanel()
+                        return true
+                    }
+                }
+            }
+            MotionEvent.ACTION_CANCEL -> {
+                swipeVelocityTracker?.recycle()
+                swipeVelocityTracker = null
+            }
+        }
+        return super.dispatchTouchEvent(ev)
     }
 
     private fun buildClockWidget(): LinearLayout {
@@ -431,23 +536,21 @@ class LauncherActivity : Activity() {
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
-            ).also { it.topMargin = dp(48); it.bottomMargin = dp(12) }
+            ).also { it.topMargin = dp(UNIT * 2); it.bottomMargin = dp(UNIT) }
         }
 
-        // Day of week + date
         dateView = TextView(this).apply {
-            textSize = 13f
-            setTextColor(TEXT_DIM)
+            textSize = SIZE_DATE
+            setTextColor(TEXT_MUTED)
             gravity = Gravity.CENTER
-            letterSpacing = 0.12f
+            letterSpacing = 0.14f
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
-            )
+            ).also { it.bottomMargin = dp(10) }
         }
         wrap.addView(dateView)
 
-        // Time row (clock + AM/PM)
         val timeRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL or Gravity.CENTER_HORIZONTAL
@@ -458,8 +561,31 @@ class LauncherActivity : Activity() {
         }
 
         clockView = TextView(this).apply {
-            textSize = 72f
-            setTextColor(Color.WHITE)
+            textSize = SIZE_CLOCK_MAIN
+            setTextColor(TEXT_DIM)
+            gravity = Gravity.CENTER
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        }
+
+        colonView = TextView(this).apply {
+            text = ":"
+            textSize = SIZE_CLOCK_MAIN * 0.85f
+            setTextColor(TEXT_DIM)
+            gravity = Gravity.CENTER
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).also { it.bottomMargin = dp(10) }
+        }
+
+        minuteView = TextView(this).apply {
+            textSize = SIZE_CLOCK_MAIN
+            setTextColor(TEXT_PRIMARY)
             gravity = Gravity.CENTER
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             layoutParams = LinearLayout.LayoutParams(
@@ -469,16 +595,19 @@ class LauncherActivity : Activity() {
         }
 
         ampmView = TextView(this).apply {
-            textSize = 20f
-            setTextColor(TEXT_DIM)
+            textSize = SIZE_CLOCK_AMPM
+            setTextColor(wallpaperAccent)
             gravity = Gravity.BOTTOM
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
-            ).also { it.bottomMargin = dp(14); it.leftMargin = dp(6) }
+            ).also { it.bottomMargin = dp(22); it.leftMargin = dp(UNIT) }
         }
 
         timeRow.addView(clockView)
+        timeRow.addView(colonView)
+        timeRow.addView(minuteView)
         timeRow.addView(ampmView)
         digitalTimeRow = timeRow
         wrap.addView(timeRow)
@@ -497,6 +626,312 @@ class LauncherActivity : Activity() {
         return wrap
     }
 
+    private fun buildSearchBar(): View {
+        val searchBar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dp(24).toFloat()
+                setColor(GLASS_MID)
+                setStroke(dp(1), GLASS_BORDER_BRIGHT)
+            }
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(48)
+            ).also {
+                it.setMargins(dp(UNIT * 2), dp(UNIT * 2), dp(UNIT * 2), dp(UNIT))
+            }
+            setPadding(dp(18), 0, dp(18), 0)
+            contentDescription = "Search apps — opens app drawer"
+            isClickable = true
+            isFocusable = true
+        }
+
+        val searchIcon = object : View(this) {
+            private val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = TEXT_MUTED
+                style = Paint.Style.STROKE
+                strokeWidth = dp(2).toFloat()
+                strokeCap = Paint.Cap.ROUND
+            }
+
+            override fun onDraw(canvas: Canvas) {
+                val radius = dp(6).toFloat()
+                val centerX = dp(8).toFloat()
+                val centerY = height / 2f - dp(1).toFloat()
+                canvas.drawCircle(centerX, centerY, radius, iconPaint)
+                canvas.drawLine(
+                    centerX + dp(4).toFloat(),
+                    centerY + dp(4).toFloat(),
+                    centerX + dp(9).toFloat(),
+                    centerY + dp(9).toFloat(),
+                    iconPaint
+                )
+            }
+        }.apply {
+            layoutParams = LinearLayout.LayoutParams(dp(20), dp(20))
+            contentDescription = "Search"
+        }
+
+        val hint = TextView(this).apply {
+            text = "Search apps"
+            textSize = SIZE_SEARCH_HINT
+            setTextColor(TEXT_MUTED)
+            letterSpacing = 0.01f
+            layoutParams = LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f
+            ).also { it.leftMargin = dp(12) }
+        }
+
+        val micIcon = object : View(this) {
+            private val micPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = TEXT_MUTED
+                style = Paint.Style.STROKE
+                strokeWidth = dp(1.8f)
+                strokeCap = Paint.Cap.ROUND
+            }
+
+            override fun onDraw(canvas: Canvas) {
+                val cx = width / 2f
+                val bodyPath = android.graphics.Path().apply {
+                    addRoundRect(
+                        cx - dp(2.5f), dp(2).toFloat(),
+                        cx + dp(2.5f), dp(10).toFloat(),
+                        dp(2).toFloat(), dp(2).toFloat(),
+                        android.graphics.Path.Direction.CW
+                    )
+                }
+                canvas.drawPath(bodyPath, micPaint)
+                val curve = android.graphics.Path().apply {
+                    moveTo(cx - dp(6).toFloat(), dp(9).toFloat())
+                    cubicTo(
+                        cx - dp(6).toFloat(), dp(16).toFloat(),
+                        cx + dp(6).toFloat(), dp(16).toFloat(),
+                        cx + dp(6).toFloat(), dp(9).toFloat()
+                    )
+                    moveTo(cx, dp(16).toFloat())
+                    lineTo(cx, dp(19).toFloat())
+                    moveTo(cx - dp(4).toFloat(), dp(19).toFloat())
+                    lineTo(cx + dp(4).toFloat(), dp(19).toFloat())
+                }
+                canvas.drawPath(curve, micPaint)
+            }
+        }.apply {
+            layoutParams = LinearLayout.LayoutParams(dp(20), dp(20))
+            contentDescription = "Voice search"
+        }
+
+        searchBar.addView(searchIcon)
+        searchBar.addView(hint)
+        searchBar.addView(micIcon)
+        searchBar.setOnClickListener {
+            openDrawer()
+            handler.postDelayed({ drawerSearchInput?.requestFocus() }, 150L)
+        }
+        searchBar.foreground = rippleForeground(24)
+        return searchBar
+    }
+
+    private fun buildFocusSessionCard(): LinearLayout {
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            visibility = View.GONE
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).also { it.setMargins(dp(20), dp(UNIT), dp(20), dp(UNIT)) }
+            setPadding(dp(16), dp(14), dp(16), dp(14))
+            isClickable = true
+            isFocusable = true
+        }
+        val layer0 = GradientDrawable(
+            GradientDrawable.Orientation.LEFT_RIGHT,
+            intArrayOf(Color.parseColor("#1A6366f1"), Color.parseColor("#0A000000"))
+        ).apply { cornerRadius = dp(18).toFloat() }
+        val layer1 = GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = dp(18).toFloat()
+            setStroke(dp(1.5f), Color.parseColor("#4D6366f1"))
+        }
+        card.background = LayerDrawable(arrayOf(layer0, layer1))
+
+        val iconFrame = FrameLayout(this).apply {
+            layoutParams = LinearLayout.LayoutParams(dp(40), dp(40))
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(ACCENT_SURFACE)
+                setStroke(dp(1), ACCENT_DIM)
+            }
+        }
+        val iconView = TextView(this).apply {
+            text = "⏱"
+            textSize = 17f
+            gravity = Gravity.CENTER
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+            contentDescription = "Active focus session"
+        }
+        iconFrame.addView(iconView)
+
+        val labels = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                .also { it.leftMargin = dp(12) }
+        }
+        val title = TextView(this).apply {
+            textSize = 14f
+            setTextColor(TEXT_PRIMARY)
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            maxLines = 1
+            ellipsize = TextUtils.TruncateAt.END
+        }
+        val subtitle = TextView(this).apply {
+            textSize = 12f
+            setTextColor(TEXT_MUTED)
+            maxLines = 1
+            ellipsize = TextUtils.TruncateAt.END
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).also { it.topMargin = dp(3) }
+        }
+        labels.addView(title)
+        labels.addView(subtitle)
+
+        val chevron = TextView(this).apply {
+            text = "›"
+            textSize = 26f
+            setTextColor(wallpaperAccent)
+            gravity = Gravity.CENTER
+            contentDescription = "Open active focus session"
+        }
+        card.addView(iconFrame)
+        card.addView(labels)
+        card.addView(chevron)
+        focusCard = card
+        focusTitleView = title
+        focusSubtitleView = subtitle
+        card.setOnClickListener { openFocusFlow() }
+        card.setOnTouchListener { v, ev ->
+            when (ev.actionMasked) {
+                MotionEvent.ACTION_DOWN -> if (animationsEnabled()) {
+                    v.animate().scaleX(0.97f).scaleY(0.97f).setDuration(80)
+                        .setInterpolator(DecelerateInterpolator()).start()
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    if (animationsEnabled()) {
+                        v.animate().scaleX(1f).scaleY(1f).setDuration(150)
+                            .setInterpolator(android.view.animation.OvershootInterpolator(1.5f)).start()
+                    } else {
+                        v.scaleX = 1f
+                        v.scaleY = 1f
+                    }
+                }
+            }
+            false
+        }
+        card.foreground = rippleForeground(18)
+        return card
+    }
+
+    private fun refreshFocusCard() {
+        val card = focusCard ?: return
+        val active = prefs.getBoolean("focus_active", false)
+        val taskName = prefs.getString("task_name", null)?.takeIf { it.isNotBlank() }
+        if (!active || taskName == null) {
+            card.visibility = View.GONE
+            return
+        }
+        val endMs = prefs.getLong("task_end_ms", 0L)
+        val remaining = (endMs - System.currentTimeMillis()).coerceAtLeast(0L)
+        val minutes = remaining / 60_000L
+        val seconds = (remaining / 1_000L) % 60L
+        focusTitleView?.text = taskName
+        focusSubtitleView?.text = if (endMs > 0L) {
+            "Focused · %02d:%02d remaining".format(Locale.getDefault(), minutes, seconds)
+        } else {
+            "Focus session active"
+        }
+        card.visibility = View.VISIBLE
+    }
+
+    private fun openFocusFlow() {
+        try {
+            startActivity(Intent(this, com.tbtechs.focusflow.MainActivity::class.java))
+        } catch (_: Exception) {
+        }
+    }
+
+    private fun buildProductivityStrip(): LinearLayout {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            visibility = View.GONE
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).also { it.setMargins(dp(20), dp(4), dp(20), dp(4)) }
+            productivityStrip = this
+        }
+    }
+
+    private fun buildChip(icon: String, label: String): View {
+        val chip = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            minimumHeight = dp(44)
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dp(12).toFloat()
+                setColor(GLASS_LIGHT)
+                setStroke(dp(1), GLASS_BORDER)
+            }
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, dp(44)
+            ).also { it.rightMargin = dp(6) }
+            setPadding(dp(10), 0, dp(10), 0)
+            contentDescription = label
+            isClickable = true
+            isFocusable = true
+        }
+        chip.addView(TextView(this).apply {
+            text = icon
+            textSize = 13f
+        })
+        chip.addView(TextView(this).apply {
+            text = label
+            textSize = 12f
+            setTextColor(TEXT_DIM)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).also { it.leftMargin = dp(5) }
+        })
+        chip.foreground = rippleForeground(12)
+        return chip
+    }
+
+    private fun refreshProductivityStrip() {
+        val strip = productivityStrip ?: return
+        strip.removeAllViews()
+        val chips = mutableListOf<View>()
+        val saActive = prefs.getBoolean(PREF_SA_ACTIVE, false)
+        val alwaysActive = prefs.getBoolean(PREF_ALWAYS_BLOCK, false)
+        val nextTask = prefs.getString("next_task_name", null)?.takeIf { it.isNotBlank() }
+        if (saActive) {
+            val count = parseJsonArray(prefs.getString(PREF_SA_PKGS, "[]") ?: "[]").size
+            if (count > 0) chips += buildChip("🔒", "$count blocked")
+        }
+        if (alwaysActive) chips += buildChip("🛡️", "Always-On")
+        if (nextTask != null) chips += buildChip("⏭", "Next: $nextTask")
+        chips.forEach { strip.addView(it) }
+        strip.visibility = if (chips.isEmpty()) View.GONE else View.VISIBLE
+    }
+
     private fun buildDockArea(): LinearLayout {
         val dockWrapper = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -506,80 +941,120 @@ class LauncherActivity : Activity() {
             )
         }
 
-        // ── All Apps pill button — tappable, also activates on swipe-up ────────
-        // Gives users the familiar "drawer icon" affordance they expect from stock launchers.
-        val allAppsBtn = LinearLayout(this).apply {
+        val quickActions = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL or Gravity.CENTER_HORIZONTAL
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.RECTANGLE
-                cornerRadius = dp(22).toFloat()
-                setColor(DOCK_SURFACE)
-                setStroke(dp(1), Color.parseColor("#25FFFFFF"))
-            }
+            gravity = Gravity.CENTER
             layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT, dp(40)
-            ).also {
-                it.gravity = Gravity.CENTER_HORIZONTAL
-                it.topMargin = dp(12)
-                it.bottomMargin = dp(8)
-            }
-            setPadding(dp(18), 0, dp(20), 0)
-        }
-
-        // 3×3 dot grid drawn on a small canvas — the universal "apps" icon
-        val dotsView = object : View(this) {
-            private val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.WHITE
-                style = Paint.Style.FILL
-            }
-            override fun onDraw(canvas: Canvas) {
-                val dotR  = dp(2).toFloat()
-                val gap   = dp(6).toFloat()
-                val cx    = width  / 2f
-                val cy    = height / 2f
-                val start = -gap
-                for (row in 0..2) for (col in 0..2) {
-                    canvas.drawCircle(cx + start + col * gap, cy + start + row * gap, dotR, dotPaint)
-                }
-            }
-        }.apply {
-            layoutParams = LinearLayout.LayoutParams(dp(26), dp(26))
-        }
-
-        val allAppsLabel = TextView(this).apply {
-            text = "All Apps"
-            textSize = 13f
-            setTextColor(Color.WHITE)
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
-            ).also { it.leftMargin = dp(8) }
+            ).also {
+                it.setMargins(dp(UNIT * 4), dp(12), dp(UNIT * 4), dp(UNIT))
+            }
         }
 
-        allAppsBtn.addView(dotsView)
-        allAppsBtn.addView(allAppsLabel)
-        allAppsBtn.setOnClickListener { openDrawer() }
-        dockWrapper.addView(allAppsBtn)
+        fun circleButton(isFocusFlow: Boolean): View {
+            return object : View(this) {
+                private val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = TEXT_PRIMARY
+                    style = Paint.Style.FILL
+                    textAlign = Paint.Align.CENTER
+                    typeface = Typeface.DEFAULT_BOLD
+                }
 
-        // ── Dock icon row ──────────────────────────────────────────────────────
-        // Frosted glass pill that holds the user's pinned dock apps.
+                override fun onDraw(canvas: Canvas) {
+                    super.onDraw(canvas)
+                    iconPaint.color = if (isFocusFlow) wallpaperAccent else TEXT_PRIMARY
+                    if (isFocusFlow) {
+                        iconPaint.textSize = dp(22).toFloat()
+                        val bounds = android.graphics.Rect()
+                        iconPaint.getTextBounds("F", 0, 1, bounds)
+                        val baseline = height / 2f - bounds.exactCenterY()
+                        canvas.drawText("F", width / 2f, baseline, iconPaint)
+                    } else {
+                        val dotR = dp(2.5f)
+                        val gap = dp(6)
+                        val start = -gap
+                        for (row in 0..2) for (col in 0..2) {
+                            canvas.drawCircle(
+                                width / 2f + start + col * gap,
+                                height / 2f + start + row * gap,
+                                dotR,
+                                iconPaint
+                            )
+                        }
+                    }
+                }
+            }.apply {
+                background = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(if (isFocusFlow) ACCENT_SURFACE else GLASS_MID)
+                    setStroke(dp(1.5f), if (isFocusFlow) ACCENT_DIM else GLASS_BORDER_BRIGHT)
+                }
+                layoutParams = LinearLayout.LayoutParams(dp(58), dp(58))
+                contentDescription = if (isFocusFlow) "Open FocusFlow" else "All apps"
+                isClickable = true
+                isFocusable = true
+            }
+        }
+
+        fun actionGroup(label: String, isFocusFlow: Boolean): LinearLayout {
+            val group = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                contentDescription = label
+                isClickable = true
+                isFocusable = true
+            }
+            val button = circleButton(isFocusFlow)
+            button.setOnClickListener {
+                if (isFocusFlow) openFocusFlow() else openDrawer()
+            }
+            button.foreground = rippleForeground(999)
+            addPressAnimation(button)
+            val labelView = TextView(this).apply {
+                text = label
+                textSize = SIZE_LABEL_HOME
+                setTextColor(TEXT_MUTED)
+                gravity = Gravity.CENTER
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).also { it.topMargin = dp(6) }
+            }
+            group.addView(button)
+            group.addView(labelView)
+            group.setOnClickListener {
+                if (isFocusFlow) openFocusFlow() else openDrawer()
+            }
+            group.foreground = rippleForeground(999)
+            addPressAnimation(group)
+            return group
+        }
+
+        quickActions.addView(actionGroup("All Apps", false))
+        val focusGroup = actionGroup("FocusFlow", true)
+        dockFocusButton = focusGroup.getChildAt(0)
+        quickActions.addView(focusGroup)
+        dockWrapper.addView(quickActions)
+
         val dockCard = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
             background = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
-                cornerRadius = dp(28).toFloat()
-                setColor(DOCK_SURFACE)
-                setStroke(dp(1), Color.parseColor("#20FFFFFF"))
+                cornerRadius = dp(36).toFloat()
+                setColor(GLASS_MID)
+                setStroke(dp(1), GLASS_BORDER_BRIGHT)
             }
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(90)
+                dp(100)
             ).also {
-                it.setMargins(dp(16), dp(4), dp(16), dp(24))
+                it.setMargins(dp(UNIT), dp(UNIT / 2), dp(UNIT), dp(UNIT * 3))
             }
-            setPadding(dp(4), 0, dp(4), 0)
+            setPadding(dp(UNIT), 0, dp(UNIT), 0)
+            elevation = dp(8).toFloat()
         }
 
         dockRow = dockCard
@@ -644,38 +1119,51 @@ class LauncherActivity : Activity() {
             val lp = GridLayout.LayoutParams(colSpec, colSpec)
             lp.width = 0
             lp.height = GridLayout.LayoutParams.WRAP_CONTENT
-            lp.setMargins(dp(4), dp(10), dp(4), dp(10))
+            lp.setMargins(dp(3), dp(6), dp(3), dp(6))
             layoutParams = lp
+            contentDescription = if (isBlocked) "$label, blocked" else label
+            isClickable = true
+            isFocusable = true
         }
 
-        // Native adaptive icon — no extra circle background so it looks just
-        // like the user's real home screen. Blocked apps get a dim + red dot.
         val iconFrame = FrameLayout(this).apply {
-            layoutParams = LinearLayout.LayoutParams(dp(56), dp(56)).also {
+            layoutParams = LinearLayout.LayoutParams(dp(ICON_CELL_FRAME), dp(ICON_CELL_FRAME)).also {
                 it.gravity = Gravity.CENTER_HORIZONTAL
             }
         }
 
+        val backdrop = View(this).apply {
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dp(16).toFloat()
+                setColor(if (isBlocked) Color.parseColor("#1AEF4444") else GLASS_ULTRA)
+            }
+            layoutParams = FrameLayout.LayoutParams(
+                dp(ICON_CELL_FRAME), dp(ICON_CELL_FRAME)
+            ).also { it.gravity = Gravity.CENTER }
+        }
+        iconFrame.addView(backdrop)
+
         val iconView = ImageView(this).apply {
             setImageDrawable(icon)
-            alpha = if (isBlocked) 0.35f else 1f
-            layoutParams = FrameLayout.LayoutParams(dp(52), dp(52)).also {
+            alpha = if (isBlocked) 0.30f else 1f
+            layoutParams = FrameLayout.LayoutParams(dp(ICON_HOME), dp(ICON_HOME)).also {
                 it.gravity = Gravity.CENTER
             }
         }
         iconFrame.addView(iconView)
 
-        // Blocked badge dot in the top-right corner
         if (isBlocked) {
             val dot = View(this).apply {
                 background = GradientDrawable().apply {
                     shape = GradientDrawable.OVAL
-                    setColor(Color.parseColor("#EF4444"))
-                    setStroke(dp(1), Color.parseColor("#CC000000"))
+                    setColor(RED_BLOCK)
+                    setStroke(dp(1.5f), Color.parseColor("#BB000000"))
                 }
-                layoutParams = FrameLayout.LayoutParams(dp(10), dp(10)).also {
+                layoutParams = FrameLayout.LayoutParams(dp(12), dp(12)).also {
                     it.gravity = Gravity.TOP or Gravity.END
-                    it.topMargin = dp(1); it.rightMargin = dp(1)
+                    it.topMargin = dp(1)
+                    it.rightMargin = dp(1)
                 }
             }
             iconFrame.addView(dot)
@@ -683,16 +1171,16 @@ class LauncherActivity : Activity() {
 
         val labelView = TextView(this).apply {
             text = label
-            textSize = 11f
-            setTextColor(if (isBlocked) Color.parseColor("#88FFFFFF") else Color.WHITE)
+            textSize = SIZE_LABEL_HOME
+            setTextColor(if (isBlocked) TEXT_BLOCKED else TEXT_DIM)
             gravity = Gravity.CENTER
             maxLines = 1
             ellipsize = TextUtils.TruncateAt.END
-            setShadowLayer(3f, 0f, 1f, Color.parseColor("#CC000000"))
+            setShadowLayer(5f, 0f, 2f, Color.parseColor("#BB000000"))
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
-            ).also { it.topMargin = dp(5) }
+            ).also { it.topMargin = dp(6) }
         }
 
         item.addView(iconFrame)
@@ -706,6 +1194,8 @@ class LauncherActivity : Activity() {
             showHomeIconMenu(pkg, label)
             true
         }
+        item.foreground = rippleForeground()
+        addPressAnimation(item)
 
         parent.addView(item)
     }
@@ -735,21 +1225,35 @@ class LauncherActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-            setPadding(dp(4), dp(10), dp(4), dp(8))
+            setPadding(dp(4), dp(8), dp(4), dp(6))
+            contentDescription = if (isBlocked) "$label, blocked" else label
+            isClickable = true
+            isFocusable = true
         }
 
-        // Native icon — no extra oval container so the icon looks just like
-        // a stock launcher's dock. Blocked apps dim and get a red corner dot.
         val iconFrame = FrameLayout(this).apply {
-            layoutParams = LinearLayout.LayoutParams(dp(54), dp(54)).also {
+            layoutParams = LinearLayout.LayoutParams(dp(ICON_DOCK_FRAME), dp(ICON_DOCK_FRAME)).also {
                 it.gravity = Gravity.CENTER_HORIZONTAL
             }
         }
 
+        val backdrop = View(this).apply {
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dp(14).toFloat()
+                setColor(GLASS_ULTRA)
+            }
+            layoutParams = FrameLayout.LayoutParams(
+                dp(ICON_DOCK_FRAME), dp(ICON_DOCK_FRAME)
+            ).also { it.gravity = Gravity.CENTER }
+        }
+        iconFrame.addView(backdrop)
+
         val iconView = ImageView(this).apply {
             setImageDrawable(icon)
-            alpha = if (isBlocked) 0.35f else 1f
-            layoutParams = FrameLayout.LayoutParams(dp(50), dp(50)).also {
+            alpha = if (isBlocked) 0.30f else 1f
+            contentDescription = if (isBlocked) "$label, blocked" else label
+            layoutParams = FrameLayout.LayoutParams(dp(ICON_DOCK), dp(ICON_DOCK)).also {
                 it.gravity = Gravity.CENTER
             }
         }
@@ -759,12 +1263,13 @@ class LauncherActivity : Activity() {
             val dot = View(this).apply {
                 background = GradientDrawable().apply {
                     shape = GradientDrawable.OVAL
-                    setColor(Color.parseColor("#EF4444"))
-                    setStroke(dp(1), Color.parseColor("#CC000000"))
+                    setColor(RED_BLOCK)
+                    setStroke(dp(1.5f), Color.parseColor("#BB000000"))
                 }
-                layoutParams = FrameLayout.LayoutParams(dp(10), dp(10)).also {
+                layoutParams = FrameLayout.LayoutParams(dp(12), dp(12)).also {
                     it.gravity = Gravity.TOP or Gravity.END
-                    it.topMargin = dp(1); it.rightMargin = dp(1)
+                    it.topMargin = dp(1)
+                    it.rightMargin = dp(1)
                 }
             }
             iconFrame.addView(dot)
@@ -772,12 +1277,12 @@ class LauncherActivity : Activity() {
 
         val labelView = TextView(this).apply {
             text = label
-            textSize = 10f
-            setTextColor(if (isBlocked) Color.parseColor("#88FFFFFF") else TEXT_DIM)
+            textSize = SIZE_LABEL_DOCK
+            setTextColor(TEXT_DIM)
             gravity = Gravity.CENTER
             maxLines = 1
             ellipsize = TextUtils.TruncateAt.END
-            setShadowLayer(3f, 0f, 1f, Color.parseColor("#CC000000"))
+            setShadowLayer(5f, 0f, 2f, Color.parseColor("#BB000000"))
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
@@ -795,6 +1300,8 @@ class LauncherActivity : Activity() {
             showDockIconMenu(pkg, label)
             true
         }
+        item.foreground = rippleForeground()
+        addPressAnimation(item)
 
         parent.addView(item)
     }
@@ -816,16 +1323,28 @@ class LauncherActivity : Activity() {
 
         val sheet = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = GradientDrawable(
-                GradientDrawable.Orientation.TOP_BOTTOM,
-                intArrayOf(Color.parseColor("#F01A1F2E"), Color.parseColor("#FF0D1117"))
-            ).also { it.cornerRadii = floatArrayOf(dp(28).toFloat(), dp(28).toFloat(), 0f, 0f, 0f, 0f, dp(28).toFloat(), dp(28).toFloat()) }
+            setBackgroundColor(DRAWER_BG)
             layoutParams = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 (resources.displayMetrics.heightPixels * 0.92).toInt()
             ).also { it.gravity = Gravity.BOTTOM }
-            translationY = resources.displayMetrics.heightPixels.toFloat()
+            translationY = if (animationsEnabled()) {
+                resources.displayMetrics.heightPixels.toFloat()
+            } else {
+                0f
+            }
         }
+
+        val topBar = View(this).apply {
+            background = GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                intArrayOf(Color.parseColor("#40FFFFFF"), Color.TRANSPARENT)
+            )
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(1)
+            )
+        }
+        sheet.addView(topBar)
 
         // Drag handle
         val handle = View(this).apply {
@@ -858,21 +1377,22 @@ class LauncherActivity : Activity() {
         // Search bar
         val searchBar = EditText(this).apply {
             hint = "Search apps…"
-            setHintTextColor(Color.parseColor("#556688AA"))
-            setTextColor(Color.WHITE)
+            setHintTextColor(TEXT_MUTED)
+            setTextColor(TEXT_PRIMARY)
             textSize = 15f
             background = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
-                cornerRadius = dp(14).toFloat()
-                setColor(Color.parseColor("#1AFFFFFF"))
-                setStroke(dp(1), Color.parseColor("#22FFFFFF"))
+                cornerRadius = dp(22).toFloat()
+                setColor(GLASS_LIGHT)
+                setStroke(dp(1), GLASS_BORDER)
             }
-            setPadding(dp(16), dp(12), dp(16), dp(12))
+            setPadding(dp(18), 0, dp(18), 0)
             layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
-            ).also { it.setMargins(dp(16), 0, dp(16), dp(12)) }
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(52)
+            ).also { it.setMargins(dp(UNIT * 2), 0, dp(UNIT * 2), dp(UNIT * 2)) }
         }
         sheet.addView(searchBar)
+        drawerSearchInput = searchBar
 
         // One recycled list for the complete drawer. Section headers occupy all
         // five columns; app cells occupy one. Filtering replaces the adapter's
@@ -917,11 +1437,55 @@ class LauncherActivity : Activity() {
 
         // Swipe-down to close
         var swipeDownY = 0f
+        var velocityTracker: VelocityTracker? = null
         sheet.setOnTouchListener { _, ev ->
-            when (ev.action) {
-                MotionEvent.ACTION_DOWN -> { swipeDownY = ev.rawY; false }
-                MotionEvent.ACTION_UP   -> {
-                    if (ev.rawY - swipeDownY > dp(80)) { closeDrawer(); true } else false
+            when (ev.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    swipeDownY = ev.rawY
+                    velocityTracker?.recycle()
+                    velocityTracker = VelocityTracker.obtain().also { it.addMovement(ev) }
+                    false
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    velocityTracker?.addMovement(ev)
+                    false
+                }
+                MotionEvent.ACTION_UP -> {
+                    velocityTracker?.addMovement(ev)
+                    velocityTracker?.computeCurrentVelocity(1000)
+                    val vy = velocityTracker?.yVelocity ?: 0f
+                    velocityTracker?.recycle()
+                    velocityTracker = null
+                    if (ev.rawY - swipeDownY > dp(80)) {
+                        closeDrawer()
+                        true
+                    } else if (animationsEnabled() && vy > 800f) {
+                        val fling = FlingAnimation(sheet, DynamicAnimation.TRANSLATION_Y).apply {
+                            startVelocity = vy
+                            minValue = 0f
+                            maxValue = dp(1200).toFloat()
+                            addEndListener { _, _, _, _ ->
+                                if (isDrawerOpen) closeDrawer()
+                            }
+                        }
+                        fling.start()
+                        true
+                    } else {
+                        if (sheet.translationY > dp(200) || vy > 800f) {
+                            closeDrawer()
+                        } else if (animationsEnabled()) {
+                            sheet.animate().translationY(0f).setDuration(200)
+                                .setInterpolator(DecelerateInterpolator(1.5f)).start()
+                        } else {
+                            sheet.translationY = 0f
+                        }
+                        false
+                    }
+                }
+                MotionEvent.ACTION_CANCEL -> {
+                    velocityTracker?.recycle()
+                    velocityTracker = null
+                    false
                 }
                 else -> false
             }
@@ -930,9 +1494,14 @@ class LauncherActivity : Activity() {
         drawerOverlay = overlay
         rootFrame.addView(overlay)
 
-        // Animate in
-        overlay.animate().alpha(1f).setDuration(200).setInterpolator(DecelerateInterpolator()).start()
-        sheet.animate().translationY(0f).setDuration(280).setInterpolator(DecelerateInterpolator(1.5f)).start()
+        if (animationsEnabled()) {
+            overlay.animate().alpha(1f).setDuration(300).start()
+            sheet.animate().translationY(0f).setDuration(380)
+                .setInterpolator(DecelerateInterpolator(2.2f)).start()
+        } else {
+            overlay.alpha = 1f
+            sheet.translationY = 0f
+        }
     }
 
     private fun loadDrawerApps(pm: PackageManager, hiddenPackages: Set<String>): List<DrawerItem.App> {
@@ -976,22 +1545,26 @@ class LauncherActivity : Activity() {
         val sheet = overlay.getChildAt(0)
         isDrawerOpen = false
 
-        sheet?.animate()
-            ?.translationY(resources.displayMetrics.heightPixels.toFloat())
-            ?.setDuration(220)
-            ?.setInterpolator(AccelerateInterpolator())
-            ?.start()
-
-        overlay.animate()
-            .alpha(0f)
-            .setDuration(220)
-            .setInterpolator(AccelerateInterpolator())
-            .withEndAction {
-                rootFrame.removeView(overlay)
-                drawerOverlay = null
-                drawerRecycler = null
-            }
-            .start()
+        if (animationsEnabled() && sheet != null) {
+            val targetY = sheet.height.toFloat().coerceAtLeast(dp(600).toFloat())
+            sheet.animate()
+                .translationY(targetY)
+                .setDuration(280)
+                .setInterpolator(AccelerateInterpolator(1.8f))
+                .withEndAction {
+                    rootFrame.removeView(overlay)
+                    drawerOverlay = null
+                    drawerRecycler = null
+                    drawerSearchInput = null
+                }
+                .start()
+            overlay.animate().alpha(0f).setDuration(240).start()
+        } else {
+            rootFrame.removeView(overlay)
+            drawerOverlay = null
+            drawerRecycler = null
+            drawerSearchInput = null
+        }
     }
 
     // ── Long-press context menus ───────────────────────────────────────────────
@@ -1172,18 +1745,30 @@ class LauncherActivity : Activity() {
             analogClockView?.visibility = View.GONE
             if (use24h) {
                 clockView?.text = SimpleDateFormat("HH:mm", Locale.getDefault()).format(now)
-                ampmView?.text  = ""
+                clockView?.setTextColor(TEXT_PRIMARY)
+                colonView?.visibility = View.GONE
+                minuteView?.visibility = View.GONE
+                ampmView?.visibility = View.GONE
             } else {
-                clockView?.text = SimpleDateFormat("h:mm", Locale.getDefault()).format(now)
-                ampmView?.text  = SimpleDateFormat("a", Locale.getDefault()).format(now)
+                colonView?.visibility = View.VISIBLE
+                minuteView?.visibility = View.VISIBLE
+                ampmView?.visibility = View.VISIBLE
+                clockView?.setTextColor(TEXT_DIM)
+                clockView?.text = SimpleDateFormat("h", Locale.getDefault()).format(now)
+                colonView?.text = ":"
+                minuteView?.text = SimpleDateFormat("mm", Locale.getDefault()).format(now)
+                ampmView?.text = SimpleDateFormat("a", Locale.getDefault()).format(now)
+                ampmView?.setTextColor(wallpaperAccent)
             }
         }
 
-        dateView?.text = SimpleDateFormat("EEEE, MMMM d", Locale.getDefault()).format(now)
+        dateView?.text = SimpleDateFormat("EEE, d MMM", Locale.getDefault()).format(now)
+        refreshFocusCard()
         allowanceTickCount++
         if (allowanceTickCount >= 60) {
             allowanceTickCount = 0
             refreshAllowanceStrip()
+            refreshProductivityStrip()
         }
     }
 
@@ -1437,7 +2022,89 @@ class LauncherActivity : Activity() {
         }
     }
 
+    private fun animationsEnabled(): Boolean {
+        val scale = android.provider.Settings.Global.getFloat(
+            contentResolver,
+            android.provider.Settings.Global.ANIMATOR_DURATION_SCALE,
+            1f
+        )
+        return scale > 0f
+    }
+
+    private fun contrastRatio(fg: Int, bg: Int): Double {
+        fun linearize(c: Double): Double =
+            if (c <= 0.04045) c / 12.92
+            else Math.pow((c + 0.055) / 1.055, 2.2)
+
+        fun luminance(color: Int): Double {
+            val r = linearize(Color.red(color) / 255.0)
+            val g = linearize(Color.green(color) / 255.0)
+            val b = linearize(Color.blue(color) / 255.0)
+            return 0.2126 * r + 0.7152 * g + 0.0722 * b
+        }
+
+        val l1 = luminance(fg)
+        val l2 = luminance(bg)
+        val lighter = maxOf(l1, l2)
+        val darker = minOf(l1, l2)
+        return (lighter + 0.05) / (darker + 0.05)
+    }
+
+    private fun rippleForeground(cornerDp: Int = 16): Drawable {
+        val mask = GradientDrawable().apply {
+            setColor(Color.WHITE)
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = dp(cornerDp).toFloat()
+        }
+        return RippleDrawable(
+            ColorStateList.valueOf(Color.parseColor("#30FFFFFF")),
+            null,
+            mask
+        )
+    }
+
+    private fun addPressAnimation(view: View) {
+        view.setOnTouchListener { v, ev ->
+            when (ev.actionMasked) {
+                MotionEvent.ACTION_DOWN -> if (animationsEnabled()) {
+                    v.animate().scaleX(0.93f).scaleY(0.93f).setDuration(100)
+                        .setInterpolator(DecelerateInterpolator()).start()
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    if (animationsEnabled()) {
+                        v.animate().scaleX(1f).scaleY(1f).setDuration(200)
+                            .setInterpolator(android.view.animation.OvershootInterpolator(1.5f)).start()
+                    } else {
+                        v.scaleX = 1f
+                        v.scaleY = 1f
+                    }
+                }
+            }
+            false
+        }
+    }
+
+    private fun applyWallpaperTint() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O_MR1) return
+        try {
+            val colors = WallpaperManager.getInstance(this)
+                .getWallpaperColors(WallpaperManager.FLAG_SYSTEM) ?: return
+            val dominant = colors.primaryColor.toArgb()
+            val r = ((Color.red(dominant) * 0.4f) + (Color.red(ACCENT) * 0.6f)).toInt()
+            val g = ((Color.green(dominant) * 0.4f) + (Color.green(ACCENT) * 0.6f)).toInt()
+            val b = ((Color.blue(dominant) * 0.4f) + (Color.blue(ACCENT) * 0.6f)).toInt()
+            val candidate = Color.rgb(r, g, b)
+            val darkBg = Color.parseColor("#111827")
+            wallpaperAccent = if (contrastRatio(candidate, darkBg) >= 3.0) candidate else ACCENT
+        } catch (_: Exception) {
+            wallpaperAccent = ACCENT
+        }
+        ampmView?.setTextColor(wallpaperAccent)
+        dockFocusButton?.invalidate()
+    }
+
     private fun dp(v: Int) = (v * resources.displayMetrics.density + 0.5f).toInt()
+    private fun dp(v: Float) = (v * resources.displayMetrics.density + 0.5f).toInt()
 }
 
 /**

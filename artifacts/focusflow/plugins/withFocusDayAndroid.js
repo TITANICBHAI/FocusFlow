@@ -770,6 +770,28 @@ function withFocusDayBuildConfig(config) {
         console.log('[withFocusDayAndroid] Added AndroidX RecyclerView dependency.');
       }
 
+      // ── AndroidX DynamicAnimation for launcher fling physics ─────────────
+      // LauncherActivity uses FlingAnimation for guarded drawer swipe physics.
+      // Keep this in the config plugin because `expo prebuild --clean`
+      // regenerates android/ and does not rely on android-native/install.sh.
+      const dynamicAnimationDependency =
+        'implementation "androidx.dynamicanimation:dynamicanimation:1.1.0"';
+      if (!content.includes('androidx.dynamicanimation:dynamicanimation')) {
+        const dynamicAnimationPatched = content.replace(
+          /(^\s*dependencies\s*\{)/m,
+          `$1\n    ${dynamicAnimationDependency}`
+        );
+
+        if (dynamicAnimationPatched === content) {
+          throw new Error(
+            '[withFocusDayAndroid] Could not find dependencies block in app/build.gradle while adding DynamicAnimation.'
+          );
+        }
+
+        content = dynamicAnimationPatched;
+        console.log('[withFocusDayAndroid] Added AndroidX DynamicAnimation dependency.');
+      }
+
       // ── Enable R8 full minification for release ──────────────────────────
       // Expo default: minifyEnabled (findProperty('android.enableProguardInReleaseBuilds')?.toBoolean() ?: false)
       // We force it true so R8 runs unconditionally on release builds.
