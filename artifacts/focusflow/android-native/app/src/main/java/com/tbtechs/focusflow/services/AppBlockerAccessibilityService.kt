@@ -2847,11 +2847,18 @@ class AppBlockerAccessibilityService : AccessibilityService() {
      */
     private fun scheduleTimedExpiry(pkg: String, sessionEndMs: Long) {
         timedExpireRunnable?.let { handler.removeCallbacks(it) }
+        val scheduledSessionOpenAtMs = prefs.getLong(PREF_ACTIVE_SESSION_OPEN_AT_MS, 0L)
+        fun isScheduledSessionStillCurrent(): Boolean {
+            return currentTimedPkg?.equals(pkg, ignoreCase = true) == true &&
+                currentTimedSessionEndMs == sessionEndMs &&
+                prefs.getLong(PREF_ACTIVE_SESSION_OPEN_AT_MS, 0L) == scheduledSessionOpenAtMs
+        }
         val delayMs = sessionEndMs - System.currentTimeMillis()
         if (delayMs <= 0L) {
             // Already expired — dismiss immediately
+            if (!isScheduledSessionStillCurrent()) return
             var shouldGoHome = false
-            if (currentTimedPkg == pkg) {
+            if (isScheduledSessionStillCurrent()) {
                 val entry = findAllowanceEntry(pkg)
                 if (entry != null) accumulateTimedUsage(pkg, entry, currentTimedOpenAtMs)
                 shouldGoHome = hasActiveEnforcementSession()
@@ -2865,13 +2872,21 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         }
         val runnable = Runnable {
             timedExpireRunnable = null
+            if (!isScheduledSessionStillCurrent()) return@Runnable
+            val now = System.currentTimeMillis()
+            if (now < sessionEndMs) {
+                // A wall-clock adjustment or an early Handler delivery must not
+                // finalize the session before its absolute deadline.
+                scheduleTimedExpiry(pkg, sessionEndMs)
+                return@Runnable
+            }
             var shouldGoHome = false
             val entry = findAllowanceEntry(pkg)
-            if (entry != null && currentTimedPkg == pkg) {
+            if (entry != null && isScheduledSessionStillCurrent()) {
                 accumulateTimedUsage(pkg, entry, currentTimedOpenAtMs)
                 shouldGoHome = hasActiveEnforcementSession()
             }
-            if (currentTimedPkg == pkg) {
+            if (isScheduledSessionStillCurrent()) {
                 clearActiveSessionSignal()
                 currentTimedPkg = null
                 currentTimedOpenAtMs = 0L

@@ -245,6 +245,33 @@ describe('blocked-app system interaction contract', () => {
     expect(inactiveTimestampReset).toBeGreaterThan(inactiveReset);
   });
 
+  it('finalizes only the timed session that created the expiry callback', () => {
+    const expiryStart = accessibilityService.indexOf(
+      'private fun scheduleTimedExpiry(pkg: String, sessionEndMs: Long)',
+    );
+    const expiryEnd = accessibilityService.indexOf(
+      '\n    private fun hasActiveEnforcementSession',
+      expiryStart,
+    );
+    const expirySource = accessibilityService.slice(expiryStart, expiryEnd);
+
+    expect(expirySource).toContain(
+      'val scheduledSessionOpenAtMs = prefs.getLong(PREF_ACTIVE_SESSION_OPEN_AT_MS, 0L)',
+    );
+    expect(expirySource).toContain(
+      'currentTimedSessionEndMs == sessionEndMs',
+    );
+    expect(expirySource).toContain(
+      'prefs.getLong(PREF_ACTIVE_SESSION_OPEN_AT_MS, 0L) == scheduledSessionOpenAtMs',
+    );
+    expect(expirySource).toContain(
+      'if (now < sessionEndMs)',
+    );
+    expect(expirySource).toContain(
+      'scheduleTimedExpiry(pkg, sessionEndMs)',
+    );
+  });
+
   it('swallows fallback activity Back without ending enforcement', () => {
     const backStart = overlayActivity.indexOf('override fun onBackPressed()');
     const backEnd = overlayActivity.indexOf('\n    }', backStart);

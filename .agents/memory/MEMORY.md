@@ -20,3 +20,4 @@
 - [Agent navigation feedback](agent-navigation-feedback.md) — FocusFlow navigation reliability feedback and its artifact-local implementation tracker.
 - [Accessibility service liveness](accessibility-service-liveness.md) — enabled state is authorization, not proof the service is bound; use a heartbeat before trusting primary enforcement.
 - [GitHub push serialization](github-push-serialization.md) — serialize same-branch API push workflows to avoid stale-ref fast-forward failures.
+- [FocusFlow launcher redesign](focusflow-launcher-redesign.md) — original brief and mutable tracker are both preserved; agents must update the tracker, not the original.

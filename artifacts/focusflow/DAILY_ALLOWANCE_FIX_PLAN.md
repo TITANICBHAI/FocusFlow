@@ -25,7 +25,9 @@ Use the markers below while executing this plan:
 - [x] Add a focused interval `UsageEvents` source-contract assertion.
 - [x] Bug 3 safeguard — the watchdog finalizes an overdue live timed session when the AccessibilityService timer callback is delayed (source-contract verified; device-unverified).
 - [x] Reported case 3 accounting fix — use bounded `UsageEvents` for Time Budget fallback reconciliation (source and contract verified; device-unverified).
-- [x] Run the focused Vitest contracts and TypeScript typecheck — 14 focused contract tests passed and `tsc -p tsconfig.json --noEmit` passed.
+- [x] Reported case 4 source fix — timed expiry callbacks require the same session open timestamp and deadline that scheduled them, with early-fire rescheduling.
+- [x] Reported case 5 source safeguards — fresh AccessibilityService sessions own enforcement, Interval cannot inherit an FTS timer, and stale fallback timers are invalidated across close/reopen.
+- [x] Run the focused Vitest contracts and TypeScript typecheck — 15 focused contract tests passed and `tsc -p tsconfig.json --noEmit` passed.
 - [X] Complete Android/device verification for the fixed count, interval, and time-budget flows — blocked/deferred: no Android Gradle toolchain, emulator, or device is available in this environment.
 
 ---
@@ -58,8 +60,8 @@ runtime behavior identify the remaining failure.
   actionable failure case.
 
 The Time Budget report led to bounded event accounting plus session-identity
-invalidation for the FTS fallback timer. The interval report keeps below-limit
-and combined timed-mode behavior under runtime verification.
+invalidation for both AS and FTS fallback timers. The interval report keeps
+below-limit and combined timed-mode behavior under runtime verification.
 
 **Evidence still needed before marking the reported cases fixed:** timestamps
 for app open, app close/background, Accessibility checkpoints, active-session
@@ -394,8 +396,8 @@ containment; neither source check substitutes for Android runtime verification.
 - [ ] 6. `now > windowStartMs + windowMs` (expired window) — FTS must skip the pkg; `usedMs` unchanged.
 
 ### Time Budget timer coordination
-- [ ] 7. When `hasFreshActiveAllowanceSession(pkg) = true`, `syncAllowanceFromUsageStats` must NOT call `scheduleAllowanceExpiry`. Assert `allowanceExpiryRunnable` remains null.
-- [ ] 8. When signal is stale and app is foreground, FTS must call `scheduleAllowanceExpiry`. Assert `allowanceExpiryRunnable` is non-null.
+- [x] 7. When `hasFreshActiveAllowanceSession(pkg) = true`, `syncAllowanceFromUsageStats` must NOT call `scheduleAllowanceExpiry`. Source contract covers the fresh-session gate.
+- [x] 8. When signal is stale and app is foreground, FTS must call `scheduleAllowanceExpiry`. Source contract covers the stale fallback path.
 
 ### General
 - [ ] 9. `BlockedAppDismissalPolicy.shouldRetry` with `allowanceExhausted=true` and `lastSeenPackage=blockedPackage` returns true. (Guard against regression.)
@@ -409,10 +411,10 @@ containment; neither source check substitutes for Android runtime verification.
 - [x] Bug 1 guard is inserted **before** `val allowanceEntry = findAllowanceEntry(pkg)` — avoids the lookup entirely during an active session.
 - [x] Bug 2 `queryEvents` call is **outside** `synchronized(ALLOWANCE_USAGE_LOCK)`. Only `blockPrefs.edit()` is inside.
 - [x] Bug 2 API guard matches the pattern in `reconcileCountAllowances()` exactly (`Build.VERSION_CODES.Q`, `ACTIVITY_RESUMED` / `ACTIVITY_PAUSED` vs `MOVE_TO_FOREGROUND` / `MOVE_TO_BACKGROUND`).
-- [x] Bug 3 safeguard source contract covers the overdue-session watchdog path; the full timer-ownership change remains unchecked pending reproduction.
-- [X] Bug 3 proposed ownership rewrite checks — deferred with the rewrite; the current source still preserves the interval exclusion through `timeBudgetPkgs[pkg] ?: return@let`.
-- [X] `hasFreshActiveAllowanceSession` scheduling-time check — deferred with the rejected ownership rewrite; the existing expiry callback still re-checks freshness before writing.
-- [X] Contract test lambda-parameter rename — not applicable; the current `{ (pkg, expiryMs) ->` form remains unchanged.
+- [x] Bug 3 safeguard source contract covers the overdue-session watchdog path and the source-level timer-ownership guard.
+- [x] FTS fallback scheduling is stale-signal-only and session-identity-aware; Interval remains excluded.
+- [x] `hasFreshActiveAllowanceSession` scheduling-time and callback checks are both present.
+- [x] Contract test updated for the `foregroundAllowanceExpiry?.let { expiry ->` lambda and the new session checks.
 - [x] Brace balance after edits:
   ```
   python3 -c "s=open('AppBlockerAccessibilityService.kt').read(); print(s.count('{') - s.count('}'))"
