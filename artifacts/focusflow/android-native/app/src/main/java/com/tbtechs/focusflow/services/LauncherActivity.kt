@@ -688,7 +688,7 @@ class LauncherActivity : Activity() {
             private val micPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = TEXT_MUTED
                 style = Paint.Style.STROKE
-                strokeWidth = dp(1.8f)
+                strokeWidth = dp(1.8f).toFloat()
                 strokeCap = Paint.Cap.ROUND
             }
 
@@ -971,7 +971,7 @@ class LauncherActivity : Activity() {
                         val baseline = height / 2f - bounds.exactCenterY()
                         canvas.drawText("F", width / 2f, baseline, iconPaint)
                     } else {
-                        val dotR = dp(2.5f)
+                        val dotR = dp(2.5f).toFloat()
                         val gap = dp(6)
                         val start = -gap
                         for (row in 0..2) for (col in 0..2) {
@@ -1461,9 +1461,9 @@ class LauncherActivity : Activity() {
                         true
                     } else if (animationsEnabled() && vy > 800f) {
                         val fling = FlingAnimation(sheet, DynamicAnimation.TRANSLATION_Y).apply {
-                            startVelocity = vy
-                            minValue = 0f
-                            maxValue = dp(1200).toFloat()
+                            setStartVelocity(vy)
+                            setMinValue(0f)
+                            setMaxValue(dp(1200).toFloat())
                             addEndListener { _, _, _, _ ->
                                 if (isDrawerOpen) closeDrawer()
                             }
