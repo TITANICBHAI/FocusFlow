@@ -1,12 +1,4 @@
-import React, {
-  createContext,
-  useContext,
-  useEffect,
-  useMemo,
-  useReducer,
-  useCallback,
-  useRef,
-} from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useReducer, useCallback, useRef } from 'react';
 import { Alert, AppState as RNAppState, type AppStateStatus } from 'react-native';
 import type { Task, AppSettings, FocusSession, DailyAllowanceEntry, RecurringBlockSchedule, GreyoutWindow } from '@/data/types';
 import { DEFAULT_SETTINGS } from '@/data/defaultSettings';
@@ -44,12 +36,7 @@ import {
   updateTaskStatus,
 } from '@/services/taskService';
 import { createTaskOperationQueue } from '@/services/taskOperationQueue';
-import {
-  rebalanceAfterOverrun,
-  getUnfinishedOverdueTasks,
-  compressSchedule,
-  compressDeletedTaskGap,
-} from '@/services/schedulerEngine';
+import { rebalanceAfterOverrun, getUnfinishedOverdueTasks, compressSchedule, compressDeletedTaskGap } from '@/services/schedulerEngine';
 import {
   scheduleTaskReminders,
   scheduleTaskRemindersBatch,
@@ -121,7 +108,10 @@ function reducer(state: AppState, action: AppAction): AppState {
         tasks: state.tasks.map((t) => (t.id === action.payload.id ? action.payload : t)),
       };
     case 'DELETE_TASK':
-      return { ...state, tasks: state.tasks.filter((t) => t.id !== action.payload) };
+      return {
+        ...state,
+        tasks: state.tasks.filter((t) => t.id !== action.payload),
+      };
     case 'SET_SETTINGS':
       return { ...state, settings: action.payload };
     case 'SET_FOCUS_SESSION':
@@ -159,18 +149,12 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 }
 
 function getExplicitVpnPackages(settings: AppSettings): string[] {
-  return Array.from(new Set([
-    ...(settings.alwaysOnVpnPackages ?? []),
-    ...(settings.standaloneVpnPackages ?? []),
-  ]));
+  return Array.from(new Set([...(settings.alwaysOnVpnPackages ?? []), ...(settings.standaloneVpnPackages ?? [])]));
 }
 
 const FOCUS_BLOCK_ALL_SENTINEL = 'com.focusflow.internal.blockall';
 
-function getNativeFocusAllowedPackages(
-  settings: AppSettings,
-  focusSession: FocusSession | null,
-): string[] {
+function getNativeFocusAllowedPackages(settings: AppSettings, focusSession: FocusSession | null): string[] {
   // A task-specific allow-list takes precedence over the global setting while
   // that task is active. Keep the same non-installed sentinel used by
   // focusService so an intentionally empty list means "block all" natively,
@@ -214,7 +198,13 @@ interface AppContextValue {
    * Atomically sets standalone block + daily allowance. When stopping an active session
    * and a session PIN is configured, [pinHash] must be the SHA-256 hex of the PIN.
    */
-  setStandaloneBlockAndAllowance: (packages: string[], untilMs: number | null, allowanceEntries: DailyAllowanceEntry[], vpnPackages?: string[], pinHash?: string | null) => Promise<void>;
+  setStandaloneBlockAndAllowance: (
+    packages: string[],
+    untilMs: number | null,
+    allowanceEntries: DailyAllowanceEntry[],
+    vpnPackages?: string[],
+    pinHash?: string | null,
+  ) => Promise<void>;
   setDailyAllowanceEntries: (entries: DailyAllowanceEntry[]) => Promise<void>;
   setBlockedWords: (words: string[]) => Promise<void>;
   setRecurringBlockSchedules: (schedules: RecurringBlockSchedule[]) => Promise<void>;
@@ -245,7 +235,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!state.isDbReady) return;
     void dbPruneOldData(90).catch(() => {});
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.isDbReady]);
 
   // ── 20-second DB watchdog ─────────────────────────────────────────────────
@@ -254,7 +244,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     watchdogRef.current = setTimeout(() => {
-      if (!state.isDbReady) {
+      if (!state.isDbReady && !state.isDbUnrecoverable) {
         void logger.error('AppContext', '[WATCHDOG] DB still loading after 20s — marking unavailable');
         dispatch({ type: 'SET_DB_UNRECOVERABLE', payload: true });
         dispatch({ type: 'SET_LOADING', payload: false });
@@ -263,7 +253,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => {
       if (watchdogRef.current) clearTimeout(watchdogRef.current);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -315,9 +305,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const appStatePrev = useRef(RNAppState.currentState);
   useEffect(() => {
     const handleResume = async (nextState: AppStateStatus) => {
-      const isResuming =
-        (appStatePrev.current === 'background' || appStatePrev.current === 'inactive') &&
-        nextState === 'active';
+      const isResuming = (appStatePrev.current === 'background' || appStatePrev.current === 'inactive') && nextState === 'active';
       // Update prev-state immediately so re-entrant events see the right value.
       appStatePrev.current = nextState;
 
@@ -361,8 +349,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
     const sub = RNAppState.addEventListener('change', handleResume);
     return () => sub.remove();
-  // refreshTasks is stable (useCallback with no deps), so this effect only runs once.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // refreshTasks is stable (useCallback with no deps), so this effect only runs once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function init() {
@@ -408,10 +396,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // demand. The probe itself is a no-op on Android < 12 and on iOS.
       try {
         const exactOk = await TaskAlarmModule.canScheduleExactAlarms();
-        void logger.info(
-          'AppContext',
-          `Exact alarm permission: ${exactOk ? 'granted' : 'denied'}`,
-        );
+        void logger.info('AppContext', `Exact alarm permission: ${exactOk ? 'granted' : 'denied'}`);
       } catch (e) {
         void logger.warn('AppContext', `Exact alarm probe failed: ${String(e)}`);
       }
@@ -464,12 +449,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         void logger.warn('AppContext', `Critical setup backup check failed: ${String(e)}`);
       }
       if (restoredFromBackup) {
-        try { await dbSaveSettings(settings); } catch { /* non-fatal — primary path is the in-memory state */ }
+        try {
+          await dbSaveSettings(settings);
+        } catch {
+          /* non-fatal — primary path is the in-memory state */
+        }
       }
       // Heal all backup stores from the final merged settings. This covers
       // upgrades where only one of SharedPreferences, AsyncStorage, or SQLite
       // still contains the first-run decision.
-      try { await persistSetupBackups(settings); } catch { /* non-fatal */ }
+      try {
+        await persistSetupBackups(settings);
+      } catch {
+        /* non-fatal */
+      }
 
       void logger.info('AppContext', 'Dispatching SET_SETTINGS + SET_DB_READY');
       dispatch({ type: 'SET_SETTINGS', payload: settings });
@@ -490,7 +483,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           const due = milestones.filter((m) => streak >= m && m > lastShown).pop();
           if (due) {
             const next = { ...settings, pendingAchievementCelebration: due };
-            try { await dbSaveSettings(next); } catch { /* non-fatal */ }
+            try {
+              await dbSaveSettings(next);
+            } catch {
+              /* non-fatal */
+            }
             dispatch({ type: 'SET_SETTINGS', payload: next });
           }
         } catch (e) {
@@ -550,11 +547,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       try {
         void logger.info('AppContext', 'Syncing system guard');
-        await _syncSystemGuard(
-          settings,
-          null,
-           rawSettings === DEFAULT_SETTINGS || dbWasUnrecoverable,
-        );
+        await _syncSystemGuard(settings, null, rawSettings === DEFAULT_SETTINGS || dbWasUnrecoverable);
         void logger.info('AppContext', 'System guard synced');
       } catch (e) {
         void logger.warn('AppContext', `System guard sync failed: ${String(e)}`);
@@ -681,10 +674,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   async function _syncAversions(settings: AppSettings): Promise<void> {
     try {
       await AversionsModule.setSettings({
-        dimmerEnabled:       settings.aversionDimmerEnabled  ?? false,
-        vibrateEnabled:      settings.aversionVibrateEnabled ?? false,
-        soundEnabled:        settings.aversionSoundEnabled   ?? false,
-        weeklyReportEnabled: settings.weeklyReportEnabled    ?? false,
+        dimmerEnabled: settings.aversionDimmerEnabled ?? false,
+        vibrateEnabled: settings.aversionVibrateEnabled ?? false,
+        soundEnabled: settings.aversionSoundEnabled ?? false,
+        weeklyReportEnabled: settings.weeklyReportEnabled ?? false,
       });
     } catch (e) {
       void logger.warn('AppContext', `aversions sync failed: ${String(e)}`);
@@ -752,10 +745,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       void logger.warn('AppContext', `instagram-reels guard sync failed: ${String(e)}`);
     }
     const explicitVpnPkgs = Array.from(new Set(settings.alwaysOnVpnPackages ?? []));
-    const vpnDisableRequested =
-      !(settings.vpnBlockEnabled ?? false) || explicitVpnPkgs.length === 0;
-    const preserveActiveVpn =
-      preserveVpnDuringDbUnavailable || isDbUnrecoverable();
+    const vpnDisableRequested = !(settings.vpnBlockEnabled ?? false) || explicitVpnPkgs.length === 0;
+    const preserveActiveVpn = preserveVpnDuringDbUnavailable || isDbUnrecoverable();
 
     if (!(preserveActiveVpn && vpnDisableRequested)) {
       try {
@@ -783,12 +774,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // package set changes and is otherwise a no-op.
       try {
         if ((settings.vpnBlockEnabled ?? false) && explicitVpnPkgs.length > 0) {
-          void NetworkBlockModule.startNetworkBlock(JSON.stringify(explicitVpnPkgs)).catch((e) =>
-            void logger.warn('AppContext', `always-on VPN start failed: ${String(e)}`),
+          void NetworkBlockModule.startNetworkBlock(JSON.stringify(explicitVpnPkgs)).catch(
+            (e) => void logger.warn('AppContext', `always-on VPN start failed: ${String(e)}`),
           );
         } else if (vpnDisableRequested) {
-          void NetworkBlockModule.stopNetworkBlock(defensePinHash).catch((e) =>
-            void logger.warn('AppContext', `VPN stop after disabling failed: ${String(e)}`),
+          void NetworkBlockModule.stopNetworkBlock(defensePinHash).catch(
+            (e) => void logger.warn('AppContext', `VPN stop after disabling failed: ${String(e)}`),
           );
         }
       } catch (e) {
@@ -818,9 +809,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       void logger.warn('AppContext', `launcher block uninstall sync failed: ${String(e)}`);
     }
     try {
-      await SharedPrefsModule.setLauncherClockStyle(
-        (settings.launcherClockStyle ?? 'digital') as 'digital' | 'analog',
-      );
+      await SharedPrefsModule.setLauncherClockStyle((settings.launcherClockStyle ?? 'digital') as 'digital' | 'analog');
     } catch (e) {
       void logger.warn('AppContext', `launcher clock style sync failed: ${String(e)}`);
     }
@@ -872,7 +861,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         alwaysOnPackages: updatedAlwaysOn,
         autoCopiedAlwaysOnPackages: updatedAutoCopied,
       };
-      try { await dbSaveSettings(cleared); } catch (e) { void logger.warn('AppContext', `_syncStandaloneBlock expiry clear: dbSaveSettings non-fatal: ${String(e)}`); }
+      try {
+        await dbSaveSettings(cleared);
+      } catch (e) {
+        void logger.warn('AppContext', `_syncStandaloneBlock expiry clear: dbSaveSettings non-fatal: ${String(e)}`);
+      }
       dispatch({ type: 'SET_SETTINGS', payload: cleared });
     } else {
       try {
@@ -957,17 +950,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // Focus session owns the task_* keys + pushes widget itself — don't fight it.
       if (s.focusSession) return;
 
-      const active   = getActiveTask(s.tasks);
-      const current  = getCurrentTask(s.tasks);   // includes ended-but-unresolved
+      const active = getActiveTask(s.tasks);
+      const current = getCurrentTask(s.tasks); // includes ended-but-unresolved
       const awaiting = current && isAwaitingDecision(current) ? current : null;
 
       if (active) {
         // ── State 1: task running ────────────────────────────────────────────
-        const endMs   = new Date(active.endTime).getTime();
+        const endMs = new Date(active.endTime).getTime();
         const startMs = new Date(active.startTime).getTime();
-        const next    = s.tasks.find(
-          (t) => t.id !== active.id && new Date(t.startTime).getTime() >= endMs,
-        );
+        const next = s.tasks.find((t) => t.id !== active.id && new Date(t.startTime).getTime() >= endMs);
         await SharedPrefsModule.setActiveTask(active.id, active.title, endMs, next?.title ?? null);
         await SharedPrefsModule.setActiveTaskColor(active.color ?? '');
         await SharedPrefsModule.setActiveTaskStartMs(active.id, startMs);
@@ -979,7 +970,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // ── State 2: task ended, user hasn't resolved it yet ─────────────────
         // Keep task_name / task_end_ms in SharedPrefs so the widget can show
         // "TIME'S UP · <task name> · Tap to resolve" without the app running.
-        const endMs   = new Date(awaiting.endTime).getTime();
+        const endMs = new Date(awaiting.endTime).getTime();
         const startMs = new Date(awaiting.startTime).getTime();
         await SharedPrefsModule.setActiveTask(awaiting.id, awaiting.title, endMs, null);
         await SharedPrefsModule.setActiveTaskColor(awaiting.color ?? '');
@@ -997,10 +988,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const upcoming = getUpcomingTask(s.tasks);
         if (upcoming) {
           await SharedPrefsModule.putString('next_upcoming_name', upcoming.title);
-          await SharedPrefsModule.putString(
-            'next_upcoming_start_ms',
-            String(new Date(upcoming.startTime).getTime()),
-          );
+          await SharedPrefsModule.putString('next_upcoming_start_ms', String(new Date(upcoming.startTime).getTime()));
         } else {
           await SharedPrefsModule.putString('next_upcoming_name', '');
           await SharedPrefsModule.putString('next_upcoming_start_ms', '0');
@@ -1022,14 +1010,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!state.isDbReady) return;
     void _syncWidget(state);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    state.isDbReady,
-    state.tasks,
-    state.focusSession,
-    state.settings.standaloneBlockUntil,
-    state.settings.standaloneBlockPackages,
-  ]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.isDbReady, state.tasks, state.focusSession, state.settings.standaloneBlockUntil, state.settings.standaloneBlockPackages]);
 
   // ── Daily-stats snapshot for the widget ────────────────────────────────────
   // Pushes today's progress (tasks done/total, focus minutes, streak) into
@@ -1044,24 +1026,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       try {
         const todayTasks = getTodayTasks(state.tasks);
         const tasksTotal = todayTasks.length;
-        const tasksDone  = todayTasks.filter((t) => t.status === 'completed').length;
-        const [focusMins, streak] = await Promise.all([
-          dbGetTodayFocusMinutes().catch(() => 0),
-          dbGetStreak().catch(() => 0),
-        ]);
+        const tasksDone = todayTasks.filter((t) => t.status === 'completed').length;
+        const [focusMins, streak] = await Promise.all([dbGetTodayFocusMinutes().catch(() => 0), dbGetStreak().catch(() => 0)]);
         if (cancelled) return;
         await SharedPrefsModule.setDailyStats(tasksDone, tasksTotal, focusMins, streak);
       } catch (e) {
         void logger.warn('AppContext', `daily-stats sync failed: ${String(e)}`);
       }
     })();
-    return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    state.isDbReady,
-    state.tasks,
-    state.focusSession,
-  ]);
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.isDbReady, state.tasks, state.focusSession]);
 
   // ── Precise expiry timer: clears standalone block the moment it expires ───────
   // Fires a one-shot setTimeout set to the exact expiry ms so the UI updates
@@ -1104,10 +1081,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!active || !active.focusMode) return;
 
     // Task-specific allowed packages take priority over the global list.
-    const autoAllowed =
-      active.focusAllowedPackages !== undefined
-        ? active.focusAllowedPackages
-        : s.settings.allowedInFocus;
+    const autoAllowed = active.focusAllowedPackages !== undefined ? active.focusAllowedPackages : s.settings.allowedInFocus;
     void _startFocusMode(
       active,
       autoAllowed,
@@ -1117,15 +1091,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       },
       { skipGoHome: true },
       s.tasks,
-    ).then(() => {
-      const session: FocusSession = {
-        taskId: active.id,
-        startedAt: new Date().toISOString(),
-        isActive: true,
-        allowedPackages: autoAllowed,
-      };
-      dispatch({ type: 'SET_FOCUS_SESSION', payload: session });
-    }).catch(() => {});
+    )
+      .then(() => {
+        const session: FocusSession = {
+          taskId: active.id,
+          startedAt: new Date().toISOString(),
+          isActive: true,
+          allowedPackages: autoAllowed,
+        };
+        dispatch({ type: 'SET_FOCUS_SESSION', payload: session });
+      })
+      .catch(() => {});
   }, []);
 
   // Keep the long-lived 30 s tick's ref in sync with the latest callback.
@@ -1143,17 +1119,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const now = Date.now();
     const nextFocusTask = state.tasks
-      .filter(
-        (t) =>
-          t.focusMode &&
-          t.status !== 'completed' &&
-          t.status !== 'skipped' &&
-          new Date(t.startTime).getTime() > now,
-      )
-      .sort(
-        (a, b) =>
-          new Date(a.startTime).getTime() - new Date(b.startTime).getTime(),
-      )[0];
+      .filter((t) => t.focusMode && t.status !== 'completed' && t.status !== 'skipped' && new Date(t.startTime).getTime() > now)
+      .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())[0];
     if (!nextFocusTask) return;
     const msUntilStart = new Date(nextFocusTask.startTime).getTime() - now;
     // Cap at ~24 h — beyond that we'll re-schedule on the next state.tasks change.
@@ -1177,9 +1144,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // the user is between tasks or in idle, and we don't want to nag then.
     if (!active) return;
 
-    const unresolved = tasks.filter(
-      (t) => t.id !== active.id && isAwaitingDecision(t),
-    );
+    const unresolved = tasks.filter((t) => t.id !== active.id && isAwaitingDecision(t));
 
     const toAlert = unresolved.filter((t) => !alertedUnresolvedRef.current.has(t.id));
     if (toAlert.length === 0) return;
@@ -1200,18 +1165,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           await cancelTaskRemindersBatch(updated.map((task) => task.id));
 
           const updatedById = new Map(updated.map((task) => [task.id, task]));
-          const nextTasks = taskSnapshotRef.current.map(
-            (task) => updatedById.get(task.id) ?? task,
-          );
+          const nextTasks = taskSnapshotRef.current.map((task) => updatedById.get(task.id) ?? task);
           taskSnapshotRef.current = nextTasks;
           dispatch({ type: 'SET_TASKS', payload: nextTasks });
         } catch (e) {
           void logger.error('AppContext', `bulk task resolution failed: ${String(e)}`);
-          Alert.alert(
-            'Could not update tasks',
-            'The task changes were not saved. Please try again.',
-            [{ text: 'OK' }],
-          );
+          Alert.alert('Could not update tasks', 'The task changes were not saved. Please try again.', [{ text: 'OK' }]);
         }
       });
     };
@@ -1222,8 +1181,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         'Previous Task Unresolved',
         `"${t.title}" ended without being marked done or skipped.\n\nDid you complete it?`,
         [
-          { text: 'Mark Done', onPress: () => void batchResolve([t], 'completed') },
-          { text: 'Skip It', style: 'destructive', onPress: () => void batchResolve([t], 'skipped') },
+          {
+            text: 'Mark Done',
+            onPress: () => void batchResolve([t], 'completed'),
+          },
+          {
+            text: 'Skip It',
+            style: 'destructive',
+            onPress: () => void batchResolve([t], 'skipped'),
+          },
           { text: 'Keep Working', style: 'cancel' },
         ],
         { cancelable: false },
@@ -1234,14 +1200,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         `${toAlert.length} Tasks Unresolved`,
         `These tasks ended without a decision:\n\n${taskList}\n\nHow would you like to handle them?`,
         [
-          { text: 'Mark All Done', onPress: () => void batchResolve(toAlert, 'completed') },
-          { text: 'Skip All', style: 'destructive', onPress: () => void batchResolve(toAlert, 'skipped') },
+          {
+            text: 'Mark All Done',
+            onPress: () => void batchResolve(toAlert, 'completed'),
+          },
+          {
+            text: 'Skip All',
+            style: 'destructive',
+            onPress: () => void batchResolve(toAlert, 'skipped'),
+          },
           { text: 'Keep Working', style: 'cancel' },
         ],
         { cancelable: false },
       );
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.isDbReady, state.tasks]);
 
   // ── Native event subscriptions ───────────────────────────────────────────────
@@ -1256,10 +1229,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // still be holding an older task snapshot. The refresh makes the
       // awaiting-decision prompt and widget state converge immediately without
       // changing the explicit-resolution UX.
-      void logger.info(
-        'AppContext',
-        `TASK_ENDED received for ${event.taskId ?? 'unknown task'} — refreshing before user decision`,
-      );
+      void logger.info('AppContext', `TASK_ENDED received for ${event.taskId ?? 'unknown task'} — refreshing before user decision`);
       void refreshTasks().catch((e) => {
         void logger.warn('AppContext', `TASK_ENDED refresh failed: ${String(e)}`);
       });
@@ -1267,7 +1237,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
 
     const unsubAppBlocked = EventBridge.subscribe('APP_BLOCKED', (event) => {
-      dispatch({ type: 'SET_FOCUS_VIOLATION', payload: event.blockedApp ?? null });
+      dispatch({
+        type: 'SET_FOCUS_VIOLATION',
+        payload: event.blockedApp ?? null,
+      });
     });
 
     return () => {
@@ -1293,10 +1266,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // prompted to resolve them when a new task or block session starts.
         const recentUnresolved = await dbGetRecentUnresolvedTasks();
         const todayIds = new Set(todayTasks.map((t) => t.id));
-        const merged = [
-          ...todayTasks,
-          ...recentUnresolved.filter((t) => !todayIds.has(t.id)),
-        ];
+        const merged = [...todayTasks, ...recentUnresolved.filter((t) => !todayIds.has(t.id))];
         if (isDbUnrecoverable()) {
           dispatch({ type: 'SET_DB_UNRECOVERABLE', payload: true });
           return;
@@ -1332,9 +1302,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await taskOperationsRef.current.enqueue(async () => {
       try {
         await dbUpdateTask(task);
-        taskSnapshotRef.current = taskSnapshotRef.current.map(
-          (candidate) => (candidate.id === task.id ? task : candidate),
-        );
+        taskSnapshotRef.current = taskSnapshotRef.current.map((candidate) => (candidate.id === task.id ? task : candidate));
         dispatch({ type: 'UPDATE_TASK', payload: task });
         await scheduleTaskReminders(task);
 
@@ -1346,20 +1314,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           const endMs = new Date(task.endTime).getTime();
           const nextTask = finalTasks
             .filter(
-              (t) =>
-                t.id !== task.id &&
-                t.status !== 'completed' &&
-                t.status !== 'skipped' &&
-                new Date(t.startTime).getTime() >= endMs,
+              (t) => t.id !== task.id && t.status !== 'completed' && t.status !== 'skipped' && new Date(t.startTime).getTime() >= endMs,
             )
             .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())[0];
           _updateCurrentFocusTask(task);
-          await ForegroundServiceModule.updateNotification(
-            task.id,
-            task.title,
-            endMs,
-            nextTask?.title ?? null,
-          );
+          await ForegroundServiceModule.updateNotification(task.id, task.title, endMs, nextTask?.title ?? null);
           await SharedPrefsModule.setActiveTask(task.id, task.title, endMs, nextTask?.title ?? null);
         }
       } catch (e) {
@@ -1374,18 +1333,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       try {
         const tasks = taskSnapshotRef.current;
         const task = tasks.find((t) => t.id === taskId);
-        const isFutureScheduledTask =
-          task?.status === 'scheduled' &&
-          new Date(task.startTime).getTime() > Date.now();
-        const compressed = task && isFutureScheduledTask
-          ? compressDeletedTaskGap(task, tasks)
-          : tasks;
+        const isFutureScheduledTask = task?.status === 'scheduled' && new Date(task.startTime).getTime() > Date.now();
+        const compressed = task && isFutureScheduledTask ? compressDeletedTaskGap(task, tasks) : tasks;
         const shifted = compressed.filter((candidate) => {
           const original = tasks.find((t) => t.id === candidate.id);
           return (
-            candidate.id !== taskId &&
-            original &&
-            (candidate.startTime !== original.startTime || candidate.endTime !== original.endTime)
+            candidate.id !== taskId && original && (candidate.startTime !== original.startTime || candidate.endTime !== original.endTime)
           );
         });
 
@@ -1499,143 +1452,117 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
-  const skipTask = useCallback(
-    async (taskId: string) => {
-      await taskOperationsRef.current.enqueue(async () => {
+  const skipTask = useCallback(async (taskId: string) => {
+    await taskOperationsRef.current.enqueue(async () => {
+      const tasks = taskSnapshotRef.current;
+      const task = tasks.find((t) => t.id === taskId);
+      if (!task) return;
+      if (task.status === 'completed' || task.status === 'skipped') return;
+      try {
+        const skippedAt = Date.now() < new Date(task.startTime).getTime() ? task.startTime : new Date().toISOString();
+        const updated = updateTaskStatus(task, 'skipped');
+        const tasksWithUpdate = tasks.map((t) => (t.id === taskId ? updated : t));
+        const compressed = compressSchedule(updated, skippedAt, tasksWithUpdate);
+        const originalById = new Map(tasks.map((t) => [t.id, t]));
+        const changedTasks = compressed.filter((candidate) => {
+          const original = originalById.get(candidate.id);
+          return (
+            candidate.id === taskId ||
+            !original ||
+            candidate.startTime !== original.startTime ||
+            candidate.endTime !== original.endTime ||
+            candidate.status !== original.status
+          );
+        });
+        const shifted = changedTasks.filter((candidate) => candidate.id !== taskId);
+
+        await dbUpdateTasksBatch(changedTasks);
+        await cancelTaskRemindersBatch([taskId]);
+        // Cancel the OS alarm first so it cannot launch at the original end
+        // time after a skip. Then dismiss any currently visible alarm UI.
+        await TaskAlarmModule.cancelAlarm(taskId);
+        void TaskAlarmModule.dismissAlarm(taskId);
+        await scheduleTaskRemindersBatch(shifted);
+        taskSnapshotRef.current = compressed;
+        dispatch({ type: 'SET_TASKS', payload: compressed });
+        // Skip is an explicit move-on action. Unlike early completion, it
+        // never inherits keepFocusActiveUntilTaskEnd.
+        if (stateRef.current.focusSession?.taskId === taskId) {
+          await stopFocusMode();
+        }
+      } catch (e) {
+        void logger.error('AppContext', `skipTask failed: ${String(e)}`);
+        throw e;
+      }
+    });
+  }, []);
+
+  const extendTaskTime = useCallback(async (taskId: string, extraMinutes: number) => {
+    // Prevent concurrent extend calls — second tap is silently ignored.
+    if (extendingRef.current) return;
+    extendingRef.current = true;
+    await taskOperationsRef.current.enqueue(async () => {
+      try {
+        // Always read from the ref so we get the latest tasks even if the
+        // closure was captured before a previous extend dispatch resolved.
         const tasks = taskSnapshotRef.current;
         const task = tasks.find((t) => t.id === taskId);
         if (!task) return;
-        if (task.status === 'completed' || task.status === 'skipped') return;
-        try {
-          const skippedAt =
-            Date.now() < new Date(task.startTime).getTime()
-              ? task.startTime
-              : new Date().toISOString();
-          const updated = updateTaskStatus(task, 'skipped');
-          const tasksWithUpdate = tasks.map((t) => (t.id === taskId ? updated : t));
-          const compressed = compressSchedule(updated, skippedAt, tasksWithUpdate);
-          const originalById = new Map(tasks.map((t) => [t.id, t]));
-          const changedTasks = compressed.filter((candidate) => {
-            const original = originalById.get(candidate.id);
-            return (
-              candidate.id === taskId ||
-              !original ||
-              candidate.startTime !== original.startTime ||
-              candidate.endTime !== original.endTime ||
-              candidate.status !== original.status
-            );
-          });
-          const shifted = changedTasks.filter((candidate) => candidate.id !== taskId);
 
-          await dbUpdateTasksBatch(changedTasks);
-          await cancelTaskRemindersBatch([taskId]);
-          // Cancel the OS alarm first so it cannot launch at the original end
-          // time after a skip. Then dismiss any currently visible alarm UI.
-          await TaskAlarmModule.cancelAlarm(taskId);
-          void TaskAlarmModule.dismissAlarm(taskId);
-          await scheduleTaskRemindersBatch(shifted);
-          taskSnapshotRef.current = compressed;
-          dispatch({ type: 'SET_TASKS', payload: compressed });
-          // Skip is an explicit move-on action. Unlike early completion, it
-          // never inherits keepFocusActiveUntilTaskEnd.
-          if (stateRef.current.focusSession?.taskId === taskId) {
-            await stopFocusMode();
-          }
-        } catch (e) {
-          void logger.error('AppContext', `skipTask failed: ${String(e)}`);
-          throw e;
+        const extended = extendTask(task, extraMinutes);
+
+        const { updatedSchedule, needsUserConfirm, skipped } = rebalanceAfterOverrun(extended, extraMinutes, tasks);
+
+        await dbUpdateTasksBatch([extended, ...updatedSchedule.filter((t) => t.id !== extended.id)]);
+
+        const updatedById = new Map(updatedSchedule.map((t) => [t.id, t]));
+        const finalTasks = tasks.map((t) => {
+          if (t.id === extended.id) return extended;
+          return updatedById.get(t.id) ?? t;
+        });
+        taskSnapshotRef.current = finalTasks;
+        dispatch({ type: 'SET_TASKS', payload: finalTasks });
+
+        // Re-arm the extended schedule in one pass. Skipped tasks are included
+        // for cancellation but are filtered out from new scheduling.
+        await scheduleTaskRemindersBatch([extended, ...updatedSchedule.filter((t) => t.id !== extended.id)]);
+
+        // Dismiss the full-screen task-end alarm only after the extension has
+        // been persisted — keeps the alarm UI in sync with task state so a
+        // mid-flight failure leaves the alarm ringing for the user to retry.
+        void TaskAlarmModule.dismissAlarm(taskId);
+
+        // If this task is the one currently in focus, update the foreground notification
+        // with the new end time so the countdown shows the correct remaining time.
+        if (stateRef.current.focusSession?.taskId === taskId) {
+          const newEndMs = new Date(extended.endTime).getTime();
+          const nextTask = finalTasks.find((t) => t.id !== extended.id && new Date(t.startTime).getTime() >= newEndMs);
+          await ForegroundServiceModule.updateNotification(extended.id, extended.title, newEndMs, nextTask?.title ?? null);
+          // Also update the SharedPrefs task_end_ms so the widget and AccessibilityService
+          // see the new end time immediately.
+          _updateCurrentFocusTask(extended);
+          await SharedPrefsModule.setActiveTask(extended.id, extended.title, newEndMs, nextTask?.title ?? null);
         }
-      });
-    },
-    [],
-  );
 
-  const extendTaskTime = useCallback(
-    async (taskId: string, extraMinutes: number) => {
-      // Prevent concurrent extend calls — second tap is silently ignored.
-      if (extendingRef.current) return;
-      extendingRef.current = true;
-      await taskOperationsRef.current.enqueue(async () => {
-        try {
-          // Always read from the ref so we get the latest tasks even if the
-          // closure was captured before a previous extend dispatch resolved.
-          const tasks = taskSnapshotRef.current;
-          const task = tasks.find((t) => t.id === taskId);
-          if (!task) return;
-
-          const extended = extendTask(task, extraMinutes);
-
-          const { updatedSchedule, needsUserConfirm, skipped } = rebalanceAfterOverrun(extended, extraMinutes, tasks);
-
-          await dbUpdateTasksBatch([extended, ...updatedSchedule.filter((t) => t.id !== extended.id)]);
-
-          const updatedById = new Map(updatedSchedule.map((t) => [t.id, t]));
-          const finalTasks = tasks.map((t) => {
-            if (t.id === extended.id) return extended;
-            return updatedById.get(t.id) ?? t;
-          });
-          taskSnapshotRef.current = finalTasks;
-          dispatch({ type: 'SET_TASKS', payload: finalTasks });
-
-          // Re-arm the extended schedule in one pass. Skipped tasks are included
-          // for cancellation but are filtered out from new scheduling.
-          await scheduleTaskRemindersBatch([
-            extended,
-            ...updatedSchedule.filter((t) => t.id !== extended.id),
+        if (needsUserConfirm.length > 0) {
+          const names = needsUserConfirm.map((t) => `• ${t.title}`).join('\n');
+          Alert.alert(
+            '⚠️ Critical Tasks Affected',
+            `These high-priority tasks overlap with your extension and need your attention:\n\n${names}\n\nPlease review and reschedule them manually.`,
+            [{ text: 'OK' }],
+          );
+        }
+        if (skipped.length > 0) {
+          const names = skipped.map((t) => `• ${t.title}`).join('\n');
+          Alert.alert('Tasks Auto-Skipped', `These lower-priority tasks were skipped to protect your schedule:\n\n${names}`, [
+            { text: 'OK' },
           ]);
-
-          // Dismiss the full-screen task-end alarm only after the extension has
-          // been persisted — keeps the alarm UI in sync with task state so a
-          // mid-flight failure leaves the alarm ringing for the user to retry.
-          void TaskAlarmModule.dismissAlarm(taskId);
-
-          // If this task is the one currently in focus, update the foreground notification
-          // with the new end time so the countdown shows the correct remaining time.
-          if (stateRef.current.focusSession?.taskId === taskId) {
-            const newEndMs = new Date(extended.endTime).getTime();
-            const nextTask = finalTasks.find(
-              (t) => t.id !== extended.id && new Date(t.startTime).getTime() >= newEndMs
-            );
-            await ForegroundServiceModule.updateNotification(
-              extended.id,
-              extended.title,
-              newEndMs,
-              nextTask?.title ?? null,
-            );
-            // Also update the SharedPrefs task_end_ms so the widget and AccessibilityService
-            // see the new end time immediately.
-            _updateCurrentFocusTask(extended);
-            await SharedPrefsModule.setActiveTask(
-              extended.id,
-              extended.title,
-              newEndMs,
-              nextTask?.title ?? null,
-            );
-          }
-
-          if (needsUserConfirm.length > 0) {
-            const names = needsUserConfirm.map((t) => `• ${t.title}`).join('\n');
-            Alert.alert(
-              '⚠️ Critical Tasks Affected',
-              `These high-priority tasks overlap with your extension and need your attention:\n\n${names}\n\nPlease review and reschedule them manually.`,
-              [{ text: 'OK' }],
-            );
-          }
-          if (skipped.length > 0) {
-            const names = skipped.map((t) => `• ${t.title}`).join('\n');
-            Alert.alert(
-              'Tasks Auto-Skipped',
-              `These lower-priority tasks were skipped to protect your schedule:\n\n${names}`,
-              [{ text: 'OK' }],
-            );
-          }
-        } finally {
-          extendingRef.current = false;
         }
-      });
-    },
-    [],
-  );
+      } finally {
+        extendingRef.current = false;
+      }
+    });
+  }, []);
 
   // The native ForegroundTaskService fires NOTIF_ACTION when the user taps a
   // button on the persistent focus notification. We handle it here so the app
@@ -1659,8 +1586,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         void skipTask(taskId);
       }
     });
-    return () => { unsubNotifAction(); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => {
+      unsubNotifAction();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [completeTask, extendTaskTime, skipTask]);
 
   // ── Focus Mode ──────────────────────────────────────────────────────────────
@@ -1672,16 +1601,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       // Task-specific allowed packages take priority over the global setting.
       // undefined → fall back to global; [] → all allowed; [...] → specific list.
-      const allowedPackages =
-        task.focusAllowedPackages !== undefined
-          ? task.focusAllowedPackages
-          : state.settings.allowedInFocus;
+      const allowedPackages = task.focusAllowedPackages !== undefined ? task.focusAllowedPackages : state.settings.allowedInFocus;
 
       try {
-        await _startFocusMode(task, allowedPackages, (app) => {
-          dispatch({ type: 'SET_FOCUS_VIOLATION', payload: app });
-          setTimeout(() => dispatch({ type: 'SET_FOCUS_VIOLATION', payload: null }), 4000);
-        }, {}, state.tasks);
+        await _startFocusMode(
+          task,
+          allowedPackages,
+          (app) => {
+            dispatch({ type: 'SET_FOCUS_VIOLATION', payload: app });
+            setTimeout(() => dispatch({ type: 'SET_FOCUS_VIOLATION', payload: null }), 4000);
+          },
+          {},
+          state.tasks,
+        );
 
         const session: FocusSession = {
           taskId: task.id,
@@ -1690,16 +1622,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           allowedPackages,
         };
         dispatch({ type: 'SET_FOCUS_SESSION', payload: session });
-
       } catch (e) {
         void logger.error('AppContext', `startFocusMode failed: ${String(e)}`);
         throw e;
       }
     },
-    [
-      state.tasks,
-      state.settings.allowedInFocus,
-    ],
+    [state.tasks, state.settings.allowedInFocus],
   );
 
   const stopFocusMode = useCallback(async (pinHash: string | null = null) => {
@@ -1714,59 +1642,56 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
     try {
       await ForegroundServiceModule.stopService(pinHash);
-    } catch { /* already stopped */ }
+    } catch {
+      /* already stopped */
+    }
     try {
       await SharedPrefsModule.setFocusActive(false, pinHash);
       await SharedPrefsModule.setAllowedPackages([]);
-    } catch { /* best-effort */ }
+    } catch {
+      /* best-effort */
+    }
     try {
       await NetworkBlockModule.stopNetworkBlock(pinHash);
-    } catch { /* best-effort — VPN may already be stopped */ }
+    } catch {
+      /* best-effort — VPN may already be stopped */
+    }
     dispatch({ type: 'SET_FOCUS_SESSION', payload: null });
   }, []);
 
   // ── Settings ─────────────────────────────────────────────────────────────────
 
-  const updateSettings = useCallback(async (
-    settings: AppSettings,
-    options: { defensePinHash?: string | null } = {},
-  ) => {
-    // Optimistic UI: dispatch first so toggles flip instantly. The DB write
-    // and the half-dozen native bridge syncs below were previously awaited
-    // serially before the dispatch, which made every Switch feel laggy.
-    dispatch({ type: 'SET_SETTINGS', payload: settings });
-    try {
-      // Keep critical setup state recoverable even if SQLite is unavailable.
-      await Promise.all([
-        dbSaveSettings(settings),
-        persistSetupBackups(settings),
-      ]);
-      // Run all native syncs concurrently — they are independent of each other.
-      await Promise.all([
-        state.focusSession !== null
-          ? SharedPrefsModule.setAllowedPackages(
-              getNativeFocusAllowedPackages(settings, state.focusSession),
-            )
-          : Promise.resolve(),
-        _syncStandaloneBlock(settings),
-        _syncDailyAllowance(settings),
-        _syncAlwaysBlock(settings),
-        _syncAversions(settings),
-        _syncBlockedWords(settings),
-        GreyoutModule.setSchedule(_recurringSchedulesToGreyoutWindows(settings)).catch((e) =>
-          void logger.warn('AppContext', `greyout sync failed: ${String(e)}`),
-        ),
-        _syncSystemGuard(
-          settings,
-          options.defensePinHash ?? null,
-           state.isDbUnrecoverable,
-        ),
-      ]);
-    } catch (e) {
-      void logger.error('AppContext', `updateSettings failed: ${String(e)}`);
-      throw e;
-    }
-  }, [state.focusSession]);
+  const updateSettings = useCallback(
+    async (settings: AppSettings, options: { defensePinHash?: string | null } = {}) => {
+      // Optimistic UI: dispatch first so toggles flip instantly. The DB write
+      // and the half-dozen native bridge syncs below were previously awaited
+      // serially before the dispatch, which made every Switch feel laggy.
+      dispatch({ type: 'SET_SETTINGS', payload: settings });
+      try {
+        // Keep critical setup state recoverable even if SQLite is unavailable.
+        await Promise.all([dbSaveSettings(settings), persistSetupBackups(settings)]);
+        // Run all native syncs concurrently — they are independent of each other.
+        await Promise.all([
+          state.focusSession !== null
+            ? SharedPrefsModule.setAllowedPackages(getNativeFocusAllowedPackages(settings, state.focusSession))
+            : Promise.resolve(),
+          _syncStandaloneBlock(settings),
+          _syncDailyAllowance(settings),
+          _syncAlwaysBlock(settings),
+          _syncAversions(settings),
+          _syncBlockedWords(settings),
+          GreyoutModule.setSchedule(_recurringSchedulesToGreyoutWindows(settings)).catch(
+            (e) => void logger.warn('AppContext', `greyout sync failed: ${String(e)}`),
+          ),
+          _syncSystemGuard(settings, options.defensePinHash ?? null, state.isDbUnrecoverable),
+        ]);
+      } catch (e) {
+        void logger.error('AppContext', `updateSettings failed: ${String(e)}`);
+        throw e;
+      }
+    },
+    [state.focusSession],
+  );
 
   /**
    * Enable or disable standalone app blocking.
@@ -1775,131 +1700,166 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
    * @param packages  Package names to block (empty array = disable)
    * @param untilMs   Epoch ms when block expires (null = disable)
    */
-  const setDailyAllowanceEntries = useCallback(async (entries: DailyAllowanceEntry[]) => {
-    const newSettings: AppSettings = {
-      ...state.settings,
-      dailyAllowanceEntries: entries,
-    };
-    try { await dbSaveSettings(newSettings); } catch (e) { void logger.warn('AppContext', `setDailyAllowanceEntries: dbSaveSettings non-fatal: ${String(e)}`); }
-    dispatch({ type: 'SET_SETTINGS', payload: newSettings });
-    await SharedPrefsModule.setDailyAllowanceConfig(entries);
-    invalidateAllowanceUsageCache();
-    // Enable always-on enforcement whenever allowance entries are configured.
-    // Must use alwaysOnPackages (the 24/7 block list), NOT standaloneBlockPackages
-    // (the timed-session list), so that saving daily allowance entries does not
-    // overwrite always_block_packages in SharedPreferences with the wrong list.
-    // Also gate on alwaysOnEnforcementEnabled to match _syncAlwaysBlock behaviour.
-    const alwaysOnPkgs = newSettings.alwaysOnPackages ?? [];
-    const enforcementOn = newSettings.alwaysOnEnforcementEnabled !== false;
-    const alwaysActive = enforcementOn && (alwaysOnPkgs.length > 0 || entries.length > 0);
-    await SharedPrefsModule.setAlwaysBlockActive(alwaysActive, alwaysOnPkgs).catch(() => {});
-  }, [state.settings]);
+  const setDailyAllowanceEntries = useCallback(
+    async (entries: DailyAllowanceEntry[]) => {
+      const newSettings: AppSettings = {
+        ...state.settings,
+        dailyAllowanceEntries: entries,
+      };
+      try {
+        await dbSaveSettings(newSettings);
+      } catch (e) {
+        void logger.warn('AppContext', `setDailyAllowanceEntries: dbSaveSettings non-fatal: ${String(e)}`);
+      }
+      dispatch({ type: 'SET_SETTINGS', payload: newSettings });
+      await SharedPrefsModule.setDailyAllowanceConfig(entries);
+      invalidateAllowanceUsageCache();
+      // Enable always-on enforcement whenever allowance entries are configured.
+      // Must use alwaysOnPackages (the 24/7 block list), NOT standaloneBlockPackages
+      // (the timed-session list), so that saving daily allowance entries does not
+      // overwrite always_block_packages in SharedPreferences with the wrong list.
+      // Also gate on alwaysOnEnforcementEnabled to match _syncAlwaysBlock behaviour.
+      const alwaysOnPkgs = newSettings.alwaysOnPackages ?? [];
+      const enforcementOn = newSettings.alwaysOnEnforcementEnabled !== false;
+      const alwaysActive = enforcementOn && (alwaysOnPkgs.length > 0 || entries.length > 0);
+      await SharedPrefsModule.setAlwaysBlockActive(alwaysActive, alwaysOnPkgs).catch(() => {});
+    },
+    [state.settings],
+  );
 
-  const setBlockedWords = useCallback(async (words: string[]) => {
-    const newSettings: AppSettings = {
-      ...state.settings,
-      blockedWords: words,
-    };
-    try { await dbSaveSettings(newSettings); } catch (e) { void logger.warn('AppContext', `setBlockedWords: dbSaveSettings non-fatal: ${String(e)}`); }
-    dispatch({ type: 'SET_SETTINGS', payload: newSettings });
-    await SharedPrefsModule.setBlockedWords(words);
-  }, [state.settings]);
+  const setBlockedWords = useCallback(
+    async (words: string[]) => {
+      const newSettings: AppSettings = {
+        ...state.settings,
+        blockedWords: words,
+      };
+      try {
+        await dbSaveSettings(newSettings);
+      } catch (e) {
+        void logger.warn('AppContext', `setBlockedWords: dbSaveSettings non-fatal: ${String(e)}`);
+      }
+      dispatch({ type: 'SET_SETTINGS', payload: newSettings });
+      await SharedPrefsModule.setBlockedWords(words);
+    },
+    [state.settings],
+  );
 
-  const setRecurringBlockSchedules = useCallback(async (schedules: RecurringBlockSchedule[]) => {
-    const newSettings: AppSettings = {
-      ...state.settings,
-      recurringBlockSchedules: schedules,
-    };
-    try { await dbSaveSettings(newSettings); } catch (e) { void logger.warn('AppContext', `setRecurringBlockSchedules: dbSaveSettings non-fatal: ${String(e)}`); }
-    dispatch({ type: 'SET_SETTINGS', payload: newSettings });
-    // Sync combined greyout windows (user windows + recurring schedule windows)
-    const combined = _recurringSchedulesToGreyoutWindows(newSettings);
-    await GreyoutModule.setSchedule(combined).catch((e) =>
-      void logger.warn('AppContext', `greyout sync (recurring) failed: ${String(e)}`),
-    );
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.settings]);
-
-  const setStandaloneBlock = useCallback(async (packages: string[], untilMs: number | null, pinHash: string | null = null) => {
-    const untilIso = untilMs ? new Date(untilMs).toISOString() : null;
-    let alwaysOnPackages = state.settings.alwaysOnPackages ?? [];
-    let autoCopiedAlwaysOnPackages = state.settings.autoCopiedAlwaysOnPackages ?? [];
-    const autoCopy = state.settings.autoCopyToAlwaysOn ?? false;
-    if (autoCopy && packages.length > 0) {
-      // Auto-copy: merge incoming packages into the always-on list
-      const alreadyAlwaysOn = new Set(alwaysOnPackages);
-      const newlyAutoCopied = packages.filter((pkg) => !alreadyAlwaysOn.has(pkg));
-      const merged = new Set([...alwaysOnPackages, ...packages]);
-      alwaysOnPackages = Array.from(merged);
-      autoCopiedAlwaysOnPackages = Array.from(new Set([...autoCopiedAlwaysOnPackages, ...newlyAutoCopied]));
-    } else if (autoCopy && packages.length === 0) {
-      // Block is being cleared — remove the previously auto-copied packages so
-      // a 30-minute block doesn't silently become a permanent 24/7 block.
-      const prevStandalone = state.settings.standaloneBlockPackages ?? [];
-      const autoCopied = new Set(autoCopiedAlwaysOnPackages);
-      const toRemove = new Set(prevStandalone.filter((pkg) => autoCopied.has(pkg)));
-      alwaysOnPackages = alwaysOnPackages.filter((p) => !toRemove.has(p));
-      autoCopiedAlwaysOnPackages = autoCopiedAlwaysOnPackages.filter((p) => !toRemove.has(p));
-    }
-    const newSettings: AppSettings = {
-      ...state.settings,
-      standaloneBlockPackages: packages,
-      standaloneBlockUntil: untilIso,
-      alwaysOnPackages,
-      autoCopiedAlwaysOnPackages,
-    };
-    try { await dbSaveSettings(newSettings); } catch (e) { void logger.warn('AppContext', `setStandaloneBlock: dbSaveSettings non-fatal: ${String(e)}`); }
-    dispatch({ type: 'SET_SETTINGS', payload: newSettings });
-    const active = packages.length > 0 && untilMs !== null && untilMs > Date.now();
-    await SharedPrefsModule.setStandaloneBlock(active, packages, untilMs ?? 0, pinHash);
-    const vpnPkgs = getExplicitVpnPackages(newSettings);
-    if ((newSettings.vpnBlockEnabled ?? false) && active && vpnPkgs.length > 0) {
-      void NetworkBlockModule.startNetworkBlock(JSON.stringify(vpnPkgs)).catch((e) =>
-        void logger.warn('AppContext', `standalone VPN start failed: ${String(e)}`),
+  const setRecurringBlockSchedules = useCallback(
+    async (schedules: RecurringBlockSchedule[]) => {
+      const newSettings: AppSettings = {
+        ...state.settings,
+        recurringBlockSchedules: schedules,
+      };
+      try {
+        await dbSaveSettings(newSettings);
+      } catch (e) {
+        void logger.warn('AppContext', `setRecurringBlockSchedules: dbSaveSettings non-fatal: ${String(e)}`);
+      }
+      dispatch({ type: 'SET_SETTINGS', payload: newSettings });
+      // Sync combined greyout windows (user windows + recurring schedule windows)
+      const combined = _recurringSchedulesToGreyoutWindows(newSettings);
+      await GreyoutModule.setSchedule(combined).catch(
+        (e) => void logger.warn('AppContext', `greyout sync (recurring) failed: ${String(e)}`),
       );
-    }
-    // Sync always-on enforcement using the dedicated alwaysOnPackages list
-    const allowanceEntries = newSettings.dailyAllowanceEntries ?? [];
-    const alwaysOnActive = (newSettings.alwaysOnEnforcementEnabled !== false) &&
-      ((newSettings.alwaysOnPackages ?? []).length > 0 || allowanceEntries.length > 0);
-    await SharedPrefsModule.setAlwaysBlockActive(alwaysOnActive, newSettings.alwaysOnPackages ?? []).catch(() => {});
-    // Schedule or cancel the expiry warning notification
-    if (active && untilMs) {
-      void scheduleStandaloneBlockExpiry(untilMs, packages.length).catch(() => {});
-    } else {
-      void cancelStandaloneBlockExpiry().catch(() => {});
-    }
-  }, [state.settings]);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    },
+    [state.settings],
+  );
+
+  const setStandaloneBlock = useCallback(
+    async (packages: string[], untilMs: number | null, pinHash: string | null = null) => {
+      const untilIso = untilMs ? new Date(untilMs).toISOString() : null;
+      let alwaysOnPackages = state.settings.alwaysOnPackages ?? [];
+      let autoCopiedAlwaysOnPackages = state.settings.autoCopiedAlwaysOnPackages ?? [];
+      const autoCopy = state.settings.autoCopyToAlwaysOn ?? false;
+      if (autoCopy && packages.length > 0) {
+        // Auto-copy: merge incoming packages into the always-on list
+        const alreadyAlwaysOn = new Set(alwaysOnPackages);
+        const newlyAutoCopied = packages.filter((pkg) => !alreadyAlwaysOn.has(pkg));
+        const merged = new Set([...alwaysOnPackages, ...packages]);
+        alwaysOnPackages = Array.from(merged);
+        autoCopiedAlwaysOnPackages = Array.from(new Set([...autoCopiedAlwaysOnPackages, ...newlyAutoCopied]));
+      } else if (autoCopy && packages.length === 0) {
+        // Block is being cleared — remove the previously auto-copied packages so
+        // a 30-minute block doesn't silently become a permanent 24/7 block.
+        const prevStandalone = state.settings.standaloneBlockPackages ?? [];
+        const autoCopied = new Set(autoCopiedAlwaysOnPackages);
+        const toRemove = new Set(prevStandalone.filter((pkg) => autoCopied.has(pkg)));
+        alwaysOnPackages = alwaysOnPackages.filter((p) => !toRemove.has(p));
+        autoCopiedAlwaysOnPackages = autoCopiedAlwaysOnPackages.filter((p) => !toRemove.has(p));
+      }
+      const newSettings: AppSettings = {
+        ...state.settings,
+        standaloneBlockPackages: packages,
+        standaloneBlockUntil: untilIso,
+        alwaysOnPackages,
+        autoCopiedAlwaysOnPackages,
+      };
+      try {
+        await dbSaveSettings(newSettings);
+      } catch (e) {
+        void logger.warn('AppContext', `setStandaloneBlock: dbSaveSettings non-fatal: ${String(e)}`);
+      }
+      dispatch({ type: 'SET_SETTINGS', payload: newSettings });
+      const active = packages.length > 0 && untilMs !== null && untilMs > Date.now();
+      await SharedPrefsModule.setStandaloneBlock(active, packages, untilMs ?? 0, pinHash);
+      const vpnPkgs = getExplicitVpnPackages(newSettings);
+      if ((newSettings.vpnBlockEnabled ?? false) && active && vpnPkgs.length > 0) {
+        void NetworkBlockModule.startNetworkBlock(JSON.stringify(vpnPkgs)).catch(
+          (e) => void logger.warn('AppContext', `standalone VPN start failed: ${String(e)}`),
+        );
+      }
+      // Sync always-on enforcement using the dedicated alwaysOnPackages list
+      const allowanceEntries = newSettings.dailyAllowanceEntries ?? [];
+      const alwaysOnActive =
+        newSettings.alwaysOnEnforcementEnabled !== false &&
+        ((newSettings.alwaysOnPackages ?? []).length > 0 || allowanceEntries.length > 0);
+      await SharedPrefsModule.setAlwaysBlockActive(alwaysOnActive, newSettings.alwaysOnPackages ?? []).catch(() => {});
+      // Schedule or cancel the expiry warning notification
+      if (active && untilMs) {
+        void scheduleStandaloneBlockExpiry(untilMs, packages.length).catch(() => {});
+      } else {
+        void cancelStandaloneBlockExpiry().catch(() => {});
+      }
+    },
+    [state.settings],
+  );
 
   /**
    * Adds one package to the existing timed Standalone Block without honoring
    * autoCopyToAlwaysOn. Quick Block's temporary action must remain temporary.
    */
-  const setQuickBlockTemporary = useCallback(async (packageName: string, requestedUntilMs: number) => {
-    const currentPackages = state.settings.standaloneBlockPackages ?? [];
-    const currentUntilMs = state.settings.standaloneBlockUntil
-      ? new Date(state.settings.standaloneBlockUntil).getTime()
-      : 0;
-    const untilMs = Math.max(requestedUntilMs, currentUntilMs > Date.now() ? currentUntilMs : 0);
-    const packages = Array.from(new Set([...currentPackages, packageName]));
-    const newSettings: AppSettings = {
-      ...state.settings,
-      standaloneBlockPackages: packages,
-      standaloneBlockUntil: new Date(untilMs).toISOString(),
-      // Deliberately preserve the user's existing Always-On list and its
-      // auto-copy bookkeeping.
-      alwaysOnPackages: state.settings.alwaysOnPackages ?? [],
-      autoCopiedAlwaysOnPackages: state.settings.autoCopiedAlwaysOnPackages ?? [],
-    };
-    try { await dbSaveSettings(newSettings); } catch (e) { void logger.warn('AppContext', `setQuickBlockTemporary: dbSaveSettings non-fatal: ${String(e)}`); }
-    dispatch({ type: 'SET_SETTINGS', payload: newSettings });
-    await SharedPrefsModule.setStandaloneBlock(true, packages, untilMs);
-    const allowanceEntries = newSettings.dailyAllowanceEntries ?? [];
-    const alwaysOnActive = (newSettings.alwaysOnEnforcementEnabled !== false) &&
-      ((newSettings.alwaysOnPackages ?? []).length > 0 || allowanceEntries.length > 0);
-    await SharedPrefsModule.setAlwaysBlockActive(alwaysOnActive, newSettings.alwaysOnPackages ?? []).catch(() => {});
-    void scheduleStandaloneBlockExpiry(untilMs, packages.length).catch(() => {});
-  }, [state.settings]);
+  const setQuickBlockTemporary = useCallback(
+    async (packageName: string, requestedUntilMs: number) => {
+      const currentPackages = state.settings.standaloneBlockPackages ?? [];
+      const currentUntilMs = state.settings.standaloneBlockUntil ? new Date(state.settings.standaloneBlockUntil).getTime() : 0;
+      const untilMs = Math.max(requestedUntilMs, currentUntilMs > Date.now() ? currentUntilMs : 0);
+      const packages = Array.from(new Set([...currentPackages, packageName]));
+      const newSettings: AppSettings = {
+        ...state.settings,
+        standaloneBlockPackages: packages,
+        standaloneBlockUntil: new Date(untilMs).toISOString(),
+        // Deliberately preserve the user's existing Always-On list and its
+        // auto-copy bookkeeping.
+        alwaysOnPackages: state.settings.alwaysOnPackages ?? [],
+        autoCopiedAlwaysOnPackages: state.settings.autoCopiedAlwaysOnPackages ?? [],
+      };
+      try {
+        await dbSaveSettings(newSettings);
+      } catch (e) {
+        void logger.warn('AppContext', `setQuickBlockTemporary: dbSaveSettings non-fatal: ${String(e)}`);
+      }
+      dispatch({ type: 'SET_SETTINGS', payload: newSettings });
+      await SharedPrefsModule.setStandaloneBlock(true, packages, untilMs);
+      const allowanceEntries = newSettings.dailyAllowanceEntries ?? [];
+      const alwaysOnActive =
+        newSettings.alwaysOnEnforcementEnabled !== false &&
+        ((newSettings.alwaysOnPackages ?? []).length > 0 || allowanceEntries.length > 0);
+      await SharedPrefsModule.setAlwaysBlockActive(alwaysOnActive, newSettings.alwaysOnPackages ?? []).catch(() => {});
+      void scheduleStandaloneBlockExpiry(untilMs, packages.length).catch(() => {});
+    },
+    [state.settings],
+  );
 
   /**
    * Atomically saves standalone block settings AND daily allowance entries
@@ -1910,110 +1870,135 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
    * schedule modal — where the second call would overwrite the first with
    * stale state.settings, erasing the newly saved standalone block.
    */
-  const setStandaloneBlockAndAllowance = useCallback(async (
-    packages: string[],
-    untilMs: number | null,
-    allowanceEntries: DailyAllowanceEntry[],
-    vpnPackages?: string[],
-    pinHash: string | null = null,
-  ) => {
-    const untilIso = untilMs ? new Date(untilMs).toISOString() : null;
-    let alwaysOnPackages = state.settings.alwaysOnPackages ?? [];
-    let autoCopiedAlwaysOnPackages = state.settings.autoCopiedAlwaysOnPackages ?? [];
-    const autoCopy = state.settings.autoCopyToAlwaysOn ?? false;
-    if (autoCopy && packages.length > 0) {
-      // Auto-copy: merge incoming packages into the always-on list
-      const alreadyAlwaysOn = new Set(alwaysOnPackages);
-      const newlyAutoCopied = packages.filter((pkg) => !alreadyAlwaysOn.has(pkg));
-      const merged = new Set([...alwaysOnPackages, ...packages]);
-      alwaysOnPackages = Array.from(merged);
-      autoCopiedAlwaysOnPackages = Array.from(new Set([...autoCopiedAlwaysOnPackages, ...newlyAutoCopied]));
-    } else if (autoCopy && packages.length === 0) {
-      // Block is being cleared — remove previously auto-copied packages so a
-      // timed block doesn't silently become a permanent 24/7 always-on block.
-      const prevStandalone = state.settings.standaloneBlockPackages ?? [];
-      const autoCopied = new Set(autoCopiedAlwaysOnPackages);
-      const toRemove = new Set(prevStandalone.filter((pkg) => autoCopied.has(pkg)));
-      alwaysOnPackages = alwaysOnPackages.filter((p) => !toRemove.has(p));
-      autoCopiedAlwaysOnPackages = autoCopiedAlwaysOnPackages.filter((p) => !toRemove.has(p));
-    }
-    // Preserve existing vpnPackages if not explicitly passed
-    const resolvedVpnPackages = vpnPackages ?? state.settings.standaloneVpnPackages ?? [];
-    const newSettings: AppSettings = {
-      ...state.settings,
-      standaloneBlockPackages: packages,
-      standaloneBlockUntil: untilIso,
-      dailyAllowanceEntries: allowanceEntries,
-      alwaysOnPackages,
-      autoCopiedAlwaysOnPackages,
-      standaloneVpnPackages: resolvedVpnPackages,
-      vpnBlockEnabled:
-        resolvedVpnPackages.length > 0 ||
-        (state.settings.alwaysOnVpnPackages ?? []).length > 0,
-    };
-    try { await dbSaveSettings(newSettings); } catch (e) { void logger.warn('AppContext', `setStandaloneBlockAndAllowance: dbSaveSettings non-fatal: ${String(e)}`); }
-    dispatch({ type: 'SET_SETTINGS', payload: newSettings });
-    const active = packages.length > 0 && untilMs !== null && untilMs > Date.now();
-    await SharedPrefsModule.setStandaloneBlock(active, packages, untilMs ?? 0, pinHash);
-    await SharedPrefsModule.setDailyAllowanceConfig(allowanceEntries);
-    await NetworkBlockModule.setNetworkBlockSettings({
-      enabled: newSettings.vpnBlockEnabled ?? false,
-      vpn: newSettings.vpnBlockEnabled ?? false,
-      packages: Array.from(new Set(newSettings.alwaysOnVpnPackages ?? [])),
-      standalonePackages: newSettings.standaloneVpnPackages ?? [],
-      focusMirrorEnabled: newSettings.focusMirrorVpnEnabled ?? false,
-      defensePinHash: pinHash,
-    });
-    // Sync always-on enforcement using the dedicated alwaysOnPackages list
-    const alwaysOnActive2 = (newSettings.alwaysOnEnforcementEnabled !== false) &&
-      ((newSettings.alwaysOnPackages ?? []).length > 0 || allowanceEntries.length > 0);
-    await SharedPrefsModule.setAlwaysBlockActive(alwaysOnActive2, newSettings.alwaysOnPackages ?? []).catch(() => {});
-    // Schedule or cancel the expiry warning notification
-    if (active && untilMs) {
-      void scheduleStandaloneBlockExpiry(untilMs, packages.length).catch(() => {});
-    } else {
-      void cancelStandaloneBlockExpiry().catch(() => {});
-    }
-  }, [state.settings]);
+  const setStandaloneBlockAndAllowance = useCallback(
+    async (
+      packages: string[],
+      untilMs: number | null,
+      allowanceEntries: DailyAllowanceEntry[],
+      vpnPackages?: string[],
+      pinHash: string | null = null,
+    ) => {
+      const untilIso = untilMs ? new Date(untilMs).toISOString() : null;
+      let alwaysOnPackages = state.settings.alwaysOnPackages ?? [];
+      let autoCopiedAlwaysOnPackages = state.settings.autoCopiedAlwaysOnPackages ?? [];
+      const autoCopy = state.settings.autoCopyToAlwaysOn ?? false;
+      if (autoCopy && packages.length > 0) {
+        // Auto-copy: merge incoming packages into the always-on list
+        const alreadyAlwaysOn = new Set(alwaysOnPackages);
+        const newlyAutoCopied = packages.filter((pkg) => !alreadyAlwaysOn.has(pkg));
+        const merged = new Set([...alwaysOnPackages, ...packages]);
+        alwaysOnPackages = Array.from(merged);
+        autoCopiedAlwaysOnPackages = Array.from(new Set([...autoCopiedAlwaysOnPackages, ...newlyAutoCopied]));
+      } else if (autoCopy && packages.length === 0) {
+        // Block is being cleared — remove previously auto-copied packages so a
+        // timed block doesn't silently become a permanent 24/7 always-on block.
+        const prevStandalone = state.settings.standaloneBlockPackages ?? [];
+        const autoCopied = new Set(autoCopiedAlwaysOnPackages);
+        const toRemove = new Set(prevStandalone.filter((pkg) => autoCopied.has(pkg)));
+        alwaysOnPackages = alwaysOnPackages.filter((p) => !toRemove.has(p));
+        autoCopiedAlwaysOnPackages = autoCopiedAlwaysOnPackages.filter((p) => !toRemove.has(p));
+      }
+      // Preserve existing vpnPackages if not explicitly passed
+      const resolvedVpnPackages = vpnPackages ?? state.settings.standaloneVpnPackages ?? [];
+      const newSettings: AppSettings = {
+        ...state.settings,
+        standaloneBlockPackages: packages,
+        standaloneBlockUntil: untilIso,
+        dailyAllowanceEntries: allowanceEntries,
+        alwaysOnPackages,
+        autoCopiedAlwaysOnPackages,
+        standaloneVpnPackages: resolvedVpnPackages,
+        vpnBlockEnabled: resolvedVpnPackages.length > 0 || (state.settings.alwaysOnVpnPackages ?? []).length > 0,
+      };
+      try {
+        await dbSaveSettings(newSettings);
+      } catch (e) {
+        void logger.warn('AppContext', `setStandaloneBlockAndAllowance: dbSaveSettings non-fatal: ${String(e)}`);
+      }
+      dispatch({ type: 'SET_SETTINGS', payload: newSettings });
+      const active = packages.length > 0 && untilMs !== null && untilMs > Date.now();
+      await SharedPrefsModule.setStandaloneBlock(active, packages, untilMs ?? 0, pinHash);
+      await SharedPrefsModule.setDailyAllowanceConfig(allowanceEntries);
+      await NetworkBlockModule.setNetworkBlockSettings({
+        enabled: newSettings.vpnBlockEnabled ?? false,
+        vpn: newSettings.vpnBlockEnabled ?? false,
+        packages: Array.from(new Set(newSettings.alwaysOnVpnPackages ?? [])),
+        standalonePackages: newSettings.standaloneVpnPackages ?? [],
+        focusMirrorEnabled: newSettings.focusMirrorVpnEnabled ?? false,
+        defensePinHash: pinHash,
+      });
+      // Sync always-on enforcement using the dedicated alwaysOnPackages list
+      const alwaysOnActive2 =
+        newSettings.alwaysOnEnforcementEnabled !== false &&
+        ((newSettings.alwaysOnPackages ?? []).length > 0 || allowanceEntries.length > 0);
+      await SharedPrefsModule.setAlwaysBlockActive(alwaysOnActive2, newSettings.alwaysOnPackages ?? []).catch(() => {});
+      // Schedule or cancel the expiry warning notification
+      if (active && untilMs) {
+        void scheduleStandaloneBlockExpiry(untilMs, packages.length).catch(() => {});
+      } else {
+        void cancelStandaloneBlockExpiry().catch(() => {});
+      }
+    },
+    [state.settings],
+  );
 
   // ── Derived ──────────────────────────────────────────────────────────────────
 
-  const todayTasks  = useMemo(() => getTodayTasks(state.tasks),    [state.tasks]);
-  const activeTask  = useMemo(() => getActiveTask(state.tasks),    [state.tasks]);
-  const currentTask = useMemo(() => getCurrentTask(state.tasks),   [state.tasks]);
+  const todayTasks = useMemo(() => getTodayTasks(state.tasks), [state.tasks]);
+  const activeTask = useMemo(() => getActiveTask(state.tasks), [state.tasks]);
+  const currentTask = useMemo(() => getCurrentTask(state.tasks), [state.tasks]);
   const activeTasks = useMemo(() => getAllActiveTasks(state.tasks), [state.tasks]);
 
-  const value = useMemo<AppContextValue>(() => ({
-    state,
-    todayTasks,
-    activeTask,
-    currentTask,
-    activeTasks,
-    addTask,
-    updateTask,
-    deleteTask,
-    completeTask,
-    skipTask,
-    extendTaskTime,
-    startFocusMode,
-    stopFocusMode,
-    updateSettings,
-    setStandaloneBlock,
-    setQuickBlockTemporary,
-    setStandaloneBlockAndAllowance,
-    setDailyAllowanceEntries,
-    setBlockedWords,
-    setRecurringBlockSchedules,
-    refreshTasks,
-    init,
-  }), [
-    state, todayTasks, activeTask, currentTask, activeTasks,
-    addTask, updateTask, deleteTask, completeTask, skipTask,
-    extendTaskTime, startFocusMode, stopFocusMode, updateSettings,
-    setStandaloneBlock, setQuickBlockTemporary, setStandaloneBlockAndAllowance, setDailyAllowanceEntries,
-    setBlockedWords, setRecurringBlockSchedules, refreshTasks,
-    init,
-  ]);
+  const value = useMemo<AppContextValue>(
+    () => ({
+      state,
+      todayTasks,
+      activeTask,
+      currentTask,
+      activeTasks,
+      addTask,
+      updateTask,
+      deleteTask,
+      completeTask,
+      skipTask,
+      extendTaskTime,
+      startFocusMode,
+      stopFocusMode,
+      updateSettings,
+      setStandaloneBlock,
+      setQuickBlockTemporary,
+      setStandaloneBlockAndAllowance,
+      setDailyAllowanceEntries,
+      setBlockedWords,
+      setRecurringBlockSchedules,
+      refreshTasks,
+      init,
+    }),
+    [
+      state,
+      todayTasks,
+      activeTask,
+      currentTask,
+      activeTasks,
+      addTask,
+      updateTask,
+      deleteTask,
+      completeTask,
+      skipTask,
+      extendTaskTime,
+      startFocusMode,
+      stopFocusMode,
+      updateSettings,
+      setStandaloneBlock,
+      setQuickBlockTemporary,
+      setStandaloneBlockAndAllowance,
+      setDailyAllowanceEntries,
+      setBlockedWords,
+      setRecurringBlockSchedules,
+      refreshTasks,
+      init,
+    ],
+  );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }

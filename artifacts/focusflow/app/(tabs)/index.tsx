@@ -1,17 +1,7 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { withScreenErrorBoundary } from '@/components/withScreenErrorBoundary';
-import {
-  View,
-  Text,
-  FlatList,
-  TouchableOpacity,
-  Pressable,
-  ActivityIndicator,
-  StyleSheet,
-  Alert,
-  RefreshControl,
-} from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, Pressable, ActivityIndicator, StyleSheet, Alert, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ActiveHeaderButton } from '@/components/ActiveHeaderButton';
 import { Ionicons } from '@expo/vector-icons';
@@ -28,12 +18,26 @@ import { useTheme } from '@/hooks/useTheme';
 import type { Task } from '@/data/types';
 import { formatTime, isAwaitingDecision } from '@/services/taskService';
 import { analyzeScheduleHealth } from '@/services/schedulerEngine';
-import { resetDb } from '@/data/database';
+import { retryDb } from '@/data/database';
 
 function ScheduleScreen() {
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
-  const { state, todayTasks, activeTask, currentTask, addTask, updateTask, deleteTask, completeTask, skipTask, extendTaskTime, startFocusMode, refreshTasks, init } = useApp();
+  const {
+    state,
+    todayTasks,
+    activeTask,
+    currentTask,
+    addTask,
+    updateTask,
+    deleteTask,
+    completeTask,
+    skipTask,
+    extendTaskTime,
+    startFocusMode,
+    refreshTasks,
+    init,
+  } = useApp();
   const bannerTask = activeTask ?? currentTask;
   const bannerAwaitingDecision = bannerTask ? isAwaitingDecision(bannerTask) : false;
   const [showAddModal, setShowAddModal] = useState(false);
@@ -74,18 +78,16 @@ function ScheduleScreen() {
   const completedCount = todayTasks.filter((t) => t.status === 'completed').length;
   const totalCount = todayTasks.length;
   const scheduleHealth = useMemo(() => analyzeScheduleHealth(todayTasks), [todayTasks]);
-  const healthWarning = scheduleHealth.overlaps.length > 0
-    ? `${scheduleHealth.overlaps.length} overlapping task${scheduleHealth.overlaps.length !== 1 ? 's' : ''}`
-    : scheduleHealth.overloadedHours.length > 0
-      ? `${scheduleHealth.overloadedHours.length} overloaded hour${scheduleHealth.overloadedHours.length !== 1 ? 's' : ''}`
-      : scheduleHealth.gaps.length > 0
-        ? `${scheduleHealth.gaps[0].gapMinutes}-minute gap before your next task`
-        : null;
-  const healthColor = scheduleHealth.overlaps.length > 0
-    ? COLORS.red
-    : scheduleHealth.overloadedHours.length > 0
-      ? COLORS.orange
-      : COLORS.green;
+  const healthWarning =
+    scheduleHealth.overlaps.length > 0
+      ? `${scheduleHealth.overlaps.length} overlapping task${scheduleHealth.overlaps.length !== 1 ? 's' : ''}`
+      : scheduleHealth.overloadedHours.length > 0
+        ? `${scheduleHealth.overloadedHours.length} overloaded hour${scheduleHealth.overloadedHours.length !== 1 ? 's' : ''}`
+        : scheduleHealth.gaps.length > 0
+          ? `${scheduleHealth.gaps[0].gapMinutes}-minute gap before your next task`
+          : null;
+  const healthColor =
+    scheduleHealth.overlaps.length > 0 ? COLORS.red : scheduleHealth.overloadedHours.length > 0 ? COLORS.orange : COLORS.green;
   const [retrying, setRetrying] = useState(false);
 
   if (state.isDbUnrecoverable) {
@@ -95,43 +97,37 @@ function ScheduleScreen() {
           <Ionicons name="cloud-offline-outline" size={56} color={COLORS.red} />
           <Text style={[styles.dbStatusTitle, { color: theme.text }]}>Your schedule is unavailable</Text>
           <Text style={[styles.dbStatusText, { color: theme.textSecondary }]}>
-            Your tasks are safe. FocusFlow could not open its local database.
-            Tap retry to try again.
+            Your tasks are safe. FocusFlow could not open its local database. Tap retry to try again.
           </Text>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Retry opening the database"
-            style={({ pressed }) => [
-              styles.retryButton,
-              { backgroundColor: COLORS.primary, opacity: pressed ? 0.8 : 1 },
-            ]}
+            style={({ pressed }) => [styles.retryButton, { backgroundColor: COLORS.primary, opacity: pressed ? 0.8 : 1 }]}
             disabled={retrying}
-            onPress={() => {
+            onPress={async () => {
               setRetrying(true);
-              resetDb();
-              void init().finally(() => setRetrying(false));
+              try {
+                const recovered = await retryDb();
+                if (recovered) await init();
+              } finally {
+                setRetrying(false);
+              }
             }}
           >
-            {retrying ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.retryButtonText}>Retry</Text>
-            )}
+            {retrying ? <ActivityIndicator color="#fff" /> : <Text style={styles.retryButtonText}>Retry</Text>}
           </Pressable>
         </View>
       </SafeAreaView>
     );
   }
 
-  if (!state.isDbReady && state.isLoading) {
+  if (!state.isDbReady && !state.isDbUnrecoverable) {
     return (
       <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
         <View style={styles.dbStatus}>
           <ActivityIndicator size="large" color={COLORS.primary} />
           <Text style={[styles.dbStatusTitle, { color: theme.text }]}>Loading your schedule</Text>
-          <Text style={[styles.dbStatusText, { color: theme.textSecondary }]}>
-            Opening your local FocusFlow database…
-          </Text>
+          <Text style={[styles.dbStatusText, { color: theme.textSecondary }]}>Opening your local FocusFlow database…</Text>
         </View>
       </SafeAreaView>
     );
@@ -153,10 +149,7 @@ function ScheduleScreen() {
       {/* Active / Time's-up Banner — surfaces ended-but-undecided tasks too. */}
       {bannerTask && (
         <TouchableOpacity
-          style={[
-            styles.activeBanner,
-            bannerAwaitingDecision && { backgroundColor: COLORS.orange },
-          ]}
+          style={[styles.activeBanner, bannerAwaitingDecision && { backgroundColor: COLORS.orange }]}
           onPress={() => setSelectedTask(bannerTask)}
           activeOpacity={0.9}
         >
@@ -167,16 +160,11 @@ function ScheduleScreen() {
               {bannerTask.title}
             </Text>
             <Text style={styles.activeBannerTime}>
-              {bannerAwaitingDecision
-                ? `ended ${formatTime(bannerTask.endTime)} · pick one`
-                : `until ${formatTime(bannerTask.endTime)}`}
+              {bannerAwaitingDecision ? `ended ${formatTime(bannerTask.endTime)} · pick one` : `until ${formatTime(bannerTask.endTime)}`}
             </Text>
           </View>
           <View style={styles.activeBannerActions}>
-            <TouchableOpacity
-              style={styles.bannerAction}
-              onPress={() => handleCompleteTask(bannerTask.id)}
-            >
+            <TouchableOpacity style={styles.bannerAction} onPress={() => handleCompleteTask(bannerTask.id)}>
               <Ionicons name="checkmark" size={16} color="#fff" />
             </TouchableOpacity>
             <TouchableOpacity
@@ -241,11 +229,7 @@ function ScheduleScreen() {
       </TouchableOpacity>
 
       {/* Modals */}
-      <QuickAddModal
-        visible={showAddModal}
-        onClose={() => setShowAddModal(false)}
-        onSave={addTask}
-      />
+      <QuickAddModal visible={showAddModal} onClose={() => setShowAddModal(false)} onSave={addTask} />
 
       {extendTaskId && (
         <ExtendModal
@@ -265,9 +249,15 @@ function ScheduleScreen() {
           onClose={() => setSelectedTask(null)}
           onComplete={handleCompleteTask}
           onSkip={handleSkipTask}
-          onExtend={(id) => { setSelectedTask(null); setExtendTaskId(id); }}
+          onExtend={(id) => {
+            setSelectedTask(null);
+            setExtendTaskId(id);
+          }}
           onStartFocus={startFocusMode}
-          onEdit={(task) => { setSelectedTask(null); setEditTask(task); }}
+          onEdit={(task) => {
+            setSelectedTask(null);
+            setEditTask(task);
+          }}
         />
       )}
 
@@ -277,7 +267,10 @@ function ScheduleScreen() {
           task={editTask}
           onClose={() => setEditTask(null)}
           onSave={updateTask}
-          onDelete={async (id) => { await deleteTask(id); setEditTask(null); }}
+          onDelete={async (id) => {
+            await deleteTask(id);
+            setEditTask(null);
+          }}
         />
       )}
     </SafeAreaView>
@@ -349,7 +342,12 @@ const styles = StyleSheet.create({
     opacity: 0.8,
   },
   activeBannerContent: { flex: 1 },
-  activeBannerLabel: { fontSize: FONT.xs, fontWeight: '700', color: 'rgba(255,255,255,0.7)', letterSpacing: 1 },
+  activeBannerLabel: {
+    fontSize: FONT.xs,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.7)',
+    letterSpacing: 1,
+  },
   activeBannerTitle: { fontSize: FONT.md, fontWeight: '700', color: '#fff' },
   activeBannerTime: { fontSize: FONT.xs, color: 'rgba(255,255,255,0.7)' },
   scheduleHealth: {
@@ -394,4 +392,3 @@ const styles = StyleSheet.create({
 });
 
 export default withScreenErrorBoundary(ScheduleScreen, 'Schedule');
-

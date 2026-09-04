@@ -8,24 +8,24 @@ paths.
 
 ## Logging implementation checklist
 
-- [ ] 1. Add the successful-startup `[DB_READY]` health snapshot.
-- [ ] 2. Log `markUnrecoverable()` transitions with structured reasons.
-- [ ] 3. Add JSI probe/retry outcome logs.
-- [ ] 4. Log `resetDb()` state before clearing it.
-- [ ] 5. Add slow-operation timing to `runWithDb` and `runWithDbOr`.
-- [ ] 6. Add affected-row logging for the listed critical writes.
-- [ ] 7. Log WAL checkpoint outcomes and busy state.
-- [ ] 8. Add write-queue depth and wait-time telemetry.
-- [ ] 9. Add migration start, success, and failure logs.
+- [x] 1. Add the successful-startup `[DB_READY]` health snapshot.
+- [x] 2. Log `markUnrecoverable()` transitions with structured reasons.
+- [x] 3. Add JSI probe/retry outcome logs.
+- [x] 4. Log `resetDb()` state before clearing it.
+- [x] 5. Add slow-operation timing to `runWithDb` and `runWithDbOr`.
+- [x] 6. Add affected-row logging for the listed critical writes.
+- [x] 7. Log WAL checkpoint outcomes and busy state.
+- [x] 8. Add write-queue depth and wait-time telemetry.
+- [x] 9. Add migration start, success, and failure logs.
 
 ## Privacy and logging rules
 
-- [ ] Do not log task titles, descriptions, notes, or settings values.
-- [ ] Do not log SQL parameter values or full stack traces.
-- [ ] Do not log package names in the JS database logs.
-- [ ] Keep the database logger tag as `database`.
-- [ ] Do not use `console.log` or modify `startupLogger.ts`.
-- [ ] Keep SharedPrefs native logging separate from JS database logging.
+- [x] Do not log task titles, descriptions, notes, or settings values.
+- [x] Do not log SQL parameter values or full stack traces.
+- [x] Do not log package names in the JS database logs.
+- [x] Keep the database logger tag as `database`.
+- [x] Do not use `console.log` or modify `startupLogger.ts`.
+- [x] Keep SharedPrefs native logging separate from JS database logging.
 
 ## Device verification checklist
 
@@ -38,5 +38,6 @@ paths.
 
 ## Tracking notes
 
-- Status: captured from the attached plan; implementation not started.
+- Status: database logging implementation is complete in `src/data/database.ts`; device verification remains pending.
 - Keep the original logging plan unchanged as the detailed reference.
+- API 30/API 31 log-sequence verification was not claimed because no Android devices are available in this workspace.

@@ -11,17 +11,17 @@ execution plan for persistence reliability.
 
 ## Phase 1 — Persistence correctness
 
-- [ ] 1.1 Fix DB state transitions without introducing a status enum.
+- [x] 1.1 Fix DB state transitions without introducing a status enum.
 - [x] 1.2 Remove the recovery database as a live fallback.
 - [x] 1.3 Make critical `runWithDb` reads throw instead of masking failures.
-- [ ] 1.4 Add explicit DB-unavailable loading/error/retry UI to the schedule screen.
+- [x] 1.4 Add explicit DB-unavailable loading/error/retry UI to the schedule screen.
 - [ ] Verify Phase 1 on API 30 and API 31 devices.
 
 ## Phase 2 — JSI probe-reset
 
-- [ ] Add `retryDb()` with a throwaway probe database.
-- [ ] Wire the unavailable-screen retry action to `retryDb()`.
-- [ ] Keep JSI/dead-handle diagnostics during the observation window.
+- [x] Add `retryDb()` with a throwaway probe database.
+- [x] Wire the unavailable-screen retry action to `retryDb()`.
+- [x] Keep JSI/dead-handle diagnostics during the observation window.
 - [ ] Verify the probe/retry log sequence on the API 30 device.
 
 ## Phase 3 — Native enforcement atomicity
@@ -40,8 +40,9 @@ execution plan for persistence reliability.
 
 ## Tracking notes
 
-- Status: captured from the attached plan; implementation not started.
+- Status: Phase 1 items 1.1 and 1.4 are implemented; Phase 2 retry behavior is implemented.
 - Database Phase 1 pass: critical reads now propagate DB-unavailable failures, and
   primary-open failures latch `DB_UNAVAILABLE` without substituting a recovery DB.
 - Do not duplicate or replace the VPN coordinator work; the plan explicitly treats VPN as already handled.
+- API 30/API 31 device verification remains pending because no Android devices are available in this workspace.
 - Update this checklist as implementation lands and device gates are verified.
