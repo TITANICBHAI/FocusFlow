@@ -54,6 +54,7 @@ class ForegroundTaskService : Service() {
         val mode: String,
         val limitMs: Long,
         val windowStartMs: Long = 0L,
+        val sessionOpenAtMs: Long = 0L,
     )
 
     private data class IntervalUsageSample(
@@ -255,13 +256,14 @@ class ForegroundTaskService : Service() {
     /**
      * UsageStats-based allowance sync — runs every [ALLOWANCE_SYNC_MS] (60 s).
      *
-     * Uses Android's UsageStatsManager (PACKAGE_USAGE_STATS permission) to read the
-     * *actual* foreground time each tracked app has accumulated since the start of today.
+     * Uses Android's UsageStatsManager (PACKAGE_USAGE_STATS permission) and
+     * window-scoped UsageEvents to read the actual foreground time each tracked
+     * app has accumulated in its allowance range.
      * This is the ground-truth source — it is device-managed, cannot be inflated by
      * spurious accessibility events, and persists across service kills/reboots.
      *
      * Updates `time_budget` entries from midnight and `interval` entries from the
-     * active rolling window. Count mode does not map cleanly onto UsageStats and
+     * active rolling window. Count mode does not map cleanly onto UsageEvents and
      * keeps its own event-based tracking.
      *
      * The sync is additive — it only raises `usedMs` when UsageStats reports more time
@@ -327,20 +329,16 @@ class ForegroundTaskService : Service() {
         val startOfDay = cal.timeInMillis
         val today      = todayDateString()
 
-        val statsMap = try {
-            usm.queryUsageStats(android.app.usage.UsageStatsManager.INTERVAL_DAILY, startOfDay, now)
-                ?.associateBy { it.packageName } ?: return
-        } catch (_: Exception) { return }
-
         var foregroundAllowanceExpiry: AllowanceExpiry? = null
         val foregroundPkg = getFallbackForegroundPackage()
         val trackedPackages = (timeBudgetPkgs.keys + intervalPkgs.keys).toSet()
 
         /*
-         * UsageStatsManager.INTERVAL_DAILY returns calendar-day buckets even when
-         * passed a rolling-window start time. Capture the current interval starts
-         * under the same lock used by the merge, then query UsageEvents outside the
-         * lock so the potentially slow system call does not block allowance writes.
+         * Capture current interval starts under the same lock used by the merge,
+         * then query UsageEvents outside the lock so the potentially slow system
+         * call does not block allowance writes. Time budgets use the same event
+         * accounting from today's boundary; queryUsageStats(INTERVAL_DAILY) can
+         * return a calendar-day bucket that does not match the allowance handoff.
          */
         val intervalWindowStarts = synchronized(
             AppBlockerAccessibilityService.ALLOWANCE_USAGE_LOCK,
@@ -369,7 +367,7 @@ class ForegroundTaskService : Service() {
         }
 
         /*
-         * The broad day query happens before this monitor. Reload the JSON inside
+         * The event queries happen before this monitor. Reload the JSON inside
          * the monitor, then merge and persist it while the other service is
          * unable to perform its own read-modify-write.
          */
@@ -384,6 +382,10 @@ class ForegroundTaskService : Service() {
             val activeSessionPkg = blockPrefs.getString(
                 AppBlockerAccessibilityService.PREF_ACTIVE_SESSION_PKG,
                 null,
+            )
+            val activeSessionOpenAtMs = blockPrefs.getLong(
+                AppBlockerAccessibilityService.PREF_ACTIVE_SESSION_OPEN_AT_MS,
+                0L,
             )
             val usageStatsSync = try {
                 org.json.JSONObject(
@@ -432,7 +434,7 @@ class ForegroundTaskService : Service() {
                 val actualMs = if (intervalConfig != null) {
                     intervalUsageSample?.usedMs ?: 0L
                 } else {
-                    statsMap[pkg]?.totalTimeInForeground ?: 0L
+                    queryUsageEventsForegroundMs(usm, pkg, startOfDay, now)
                 }.coerceAtMost(limitMs)
 
                 val pkgUsed = allUsed.optJSONObject(pkg) ?: org.json.JSONObject()
@@ -452,6 +454,7 @@ class ForegroundTaskService : Service() {
                         mode = if (intervalConfig != null) "interval" else "time_budget",
                         limitMs = limitMs,
                         windowStartMs = windowStartMs,
+                        sessionOpenAtMs = if (staleActiveSession) activeSessionOpenAtMs else 0L,
                     )
                 }
 
@@ -483,8 +486,30 @@ class ForegroundTaskService : Service() {
                     .apply()
             }
         }
-        foregroundAllowanceExpiry?.let { (pkg, expiryMs) ->
-            scheduleAllowanceExpiry(pkg, expiryMs, timeBudgetPkgs[pkg] ?: return@let)
+        foregroundAllowanceExpiry?.let { expiry ->
+            if (expiry.mode != "time_budget") {
+                // Interval allowances are enforced by the AccessibilityService
+                // session deadline and must never inherit a time-budget fallback
+                // timer, including a timer left by a previous config/session.
+                allowanceExpiryRunnable?.let { handler.removeCallbacks(it) }
+                allowanceExpiryRunnable = null
+                return@let
+            }
+            val budgetMs = timeBudgetPkgs[expiry.pkg] ?: return@let
+            // AccessibilityService owns a fresh live session. FTS is only a
+            // fallback after that signal becomes stale, and captures the
+            // session identity so a close/reopen cannot inherit this timer.
+            if (!hasFreshActiveAllowanceSession(expiry.pkg, System.currentTimeMillis())) {
+                scheduleAllowanceExpiry(
+                    expiry.pkg,
+                    expiry.expiryMs,
+                    budgetMs,
+                    expiry.sessionOpenAtMs,
+                )
+            } else {
+                allowanceExpiryRunnable?.let { handler.removeCallbacks(it) }
+                allowanceExpiryRunnable = null
+            }
         } ?: run {
             allowanceExpiryRunnable?.let { handler.removeCallbacks(it) }
             allowanceExpiryRunnable = null
@@ -502,7 +527,25 @@ class ForegroundTaskService : Service() {
         windowStartMs: Long,
         endMs: Long,
     ): Long {
-        if (windowStartMs <= 0L || endMs <= windowStartMs) return 0L
+        return queryUsageEventsForegroundMs(usm, pkg, windowStartMs, endMs)
+    }
+
+    /**
+     * Measures foreground time for one package inside an arbitrary allowance
+     * range. The lookback lets us capture a session that began before the range
+     * boundary; each segment is clipped to [rangeStartMs, endMs].
+     *
+     * A few OEMs omit the target package's pause event when another package is
+     * resumed. Processing every foreground event lets that switch close the
+     * target segment instead of charging it through the remainder of the query.
+     */
+    private fun queryUsageEventsForegroundMs(
+        usm: UsageStatsManager,
+        pkg: String,
+        rangeStartMs: Long,
+        endMs: Long,
+    ): Long {
+        if (rangeStartMs <= 0L || endMs <= rangeStartMs) return 0L
 
         val foregroundType =
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -518,9 +561,9 @@ class ForegroundTaskService : Service() {
             }
         val lookbackMs = maxOf(
             6L * 60 * 60 * 1000L,
-            endMs - windowStartMs,
+            endMs - rangeStartMs,
         )
-        val queryStart = (windowStartMs - lookbackMs).coerceAtLeast(0L)
+        val queryStart = (rangeStartMs - lookbackMs).coerceAtLeast(0L)
 
         return try {
             val events = usm.queryEvents(queryStart, endMs)
@@ -530,21 +573,31 @@ class ForegroundTaskService : Service() {
 
             while (events.hasNextEvent()) {
                 events.getNextEvent(event)
-                if (!event.packageName.equals(pkg, ignoreCase = true)) continue
-
                 when (event.eventType) {
                     foregroundType -> {
-                        // Some devices emit duplicate resume events while the
-                        // same activity remains visible. Keep the first start.
-                        if (segmentStartMs == 0L) {
-                            segmentStartMs = event.timeStamp
+                        if (event.packageName.equals(pkg, ignoreCase = true)) {
+                            // Some devices emit duplicate resume events while the
+                            // same activity remains visible. Keep the first start.
+                            if (segmentStartMs == 0L) {
+                                segmentStartMs = event.timeStamp
+                            }
+                        } else if (segmentStartMs > 0L) {
+                            // Treat another package resuming as an app switch even
+                            // when this OEM omitted the target pause event.
+                            windowTotalMs += (
+                                event.timeStamp.coerceAtMost(endMs) -
+                                    segmentStartMs.coerceAtLeast(rangeStartMs)
+                                ).coerceAtLeast(0L)
+                            segmentStartMs = 0L
                         }
                     }
                     backgroundType -> {
-                        if (segmentStartMs > 0L) {
+                        if (event.packageName.equals(pkg, ignoreCase = true) &&
+                            segmentStartMs > 0L
+                        ) {
                             windowTotalMs += (
                                 event.timeStamp.coerceAtMost(endMs) -
-                                    segmentStartMs.coerceAtLeast(windowStartMs)
+                                    segmentStartMs.coerceAtLeast(rangeStartMs)
                                 ).coerceAtLeast(0L)
                             segmentStartMs = 0L
                         }
@@ -554,7 +607,7 @@ class ForegroundTaskService : Service() {
 
             if (segmentStartMs > 0L) {
                 windowTotalMs += (
-                    endMs - segmentStartMs.coerceAtLeast(windowStartMs)
+                    endMs - segmentStartMs.coerceAtLeast(rangeStartMs)
                 ).coerceAtLeast(0L)
             }
             windowTotalMs
@@ -569,7 +622,12 @@ class ForegroundTaskService : Service() {
      * The callback only promotes the allowance to exhausted after re-checking
      * that the same app is still foreground, then wakes the normal blocker.
      */
-    private fun scheduleAllowanceExpiry(pkg: String, expiryMs: Long, budgetMs: Long) {
+    private fun scheduleAllowanceExpiry(
+        pkg: String,
+        expiryMs: Long,
+        budgetMs: Long,
+        sessionOpenAtMs: Long,
+    ) {
         allowanceExpiryRunnable?.let { handler.removeCallbacks(it) }
         val delayMs = (expiryMs - System.currentTimeMillis()).coerceAtLeast(0L)
         val runnable = Runnable {
@@ -580,6 +638,27 @@ class ForegroundTaskService : Service() {
                 // Re-check after acquiring the same lock used by checkpoints:
                 // a fresh heartbeat may have been written after the first check.
                 if (hasFreshActiveAllowanceSession(pkg, now)) return@Runnable
+                // A timer scheduled for an older session must not exhaust a
+                // newly opened session, and a timer from a closed session must
+                // not promote a partial close/reopen handoff to exhaustion.
+                val activeSessionPkg = blockPrefs.getString(
+                    AppBlockerAccessibilityService.PREF_ACTIVE_SESSION_PKG,
+                    null,
+                )
+                val currentSessionOpenAtMs = blockPrefs.getLong(
+                    AppBlockerAccessibilityService.PREF_ACTIVE_SESSION_OPEN_AT_MS,
+                    0L,
+                )
+                if (activeSessionPkg != null) {
+                    if (!activeSessionPkg.equals(pkg, ignoreCase = true) ||
+                        sessionOpenAtMs == 0L ||
+                        currentSessionOpenAtMs != sessionOpenAtMs
+                    ) {
+                        return@Runnable
+                    }
+                } else if (sessionOpenAtMs > 0L) {
+                    return@Runnable
+                }
                 val usedJson = blockPrefs.getString(
                     AppBlockerAccessibilityService.PREF_DAILY_ALLOWANCE_USED,
                     "{}",

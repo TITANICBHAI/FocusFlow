@@ -2,7 +2,9 @@
 
 > Agent execution plan. Every claim is traced from source. No assumption is
 > taken from the prior AI diagnosis without independent verification.
-> Three targeted edits fix all four reported symptoms.
+> The source-verified fixes are intentionally narrow. Timed-mode fallback
+> ownership now has a session-identity guard; Android runtime verification is
+> still required before the reported cases can be marked fully resolved.
 
 ---
 
@@ -18,11 +20,52 @@ Use the markers below while executing this plan:
 
 - [x] Bug 1 — protect an active count/timed allowance session in the accessibility watchdog.
 - [x] Bug 2 — measure interval-window usage with `queryEvents`, not calendar-day totals.
-- [ ] Bug 3 — let the accessibility service own fresh time-budget sessions; use the foreground service timer only as a stale-signal fallback.
+- [x] Bug 3 — AccessibilityService owns fresh time-budget sessions; FTS is a stale-signal fallback with session-identity invalidation (source-verified; device-unverified).
 - [x] Add a focused watchdog source-contract assertion for the active allowance guard.
 - [x] Add a focused interval `UsageEvents` source-contract assertion.
-- [ ] Run the TypeScript typecheck.
-- [ ] Complete Android/device verification for the fixed count, interval, and time-budget flows.
+- [x] Bug 3 safeguard — the watchdog finalizes an overdue live timed session when the AccessibilityService timer callback is delayed (source-contract verified; device-unverified).
+- [x] Reported case 3 accounting fix — use bounded `UsageEvents` for Time Budget fallback reconciliation (source and contract verified; device-unverified).
+- [x] Run the focused Vitest contracts and TypeScript typecheck — 14 focused contract tests passed and `tsc -p tsconfig.json --noEmit` passed.
+- [X] Complete Android/device verification for the fixed count, interval, and time-budget flows — blocked/deferred: no Android Gradle toolchain, emulator, or device is available in this environment.
+
+---
+
+## Additional reported symptoms — investigation and fix tracking
+
+These entries capture the user's reported behavior without treating each symptom
+as a separate root cause. The existing Bug 1 and Bug 2 work may cover part of
+these paths; status stays unchecked until the evidence and, where possible,
+runtime behavior identify the remaining failure.
+
+- [ ] **Reported case 3 — TIME BUDGET premature exhaustion after close/reopen.**
+  Trace the final AccessibilityService handoff, persisted checkpoint, stale
+  `UsageStats` merge, and FTS expiry scheduling after partial usage.
+- [ ] **Reported case 4 — INTERVAL/TIME BUDGET enforcement misses the actual limit.**
+  Compare live AccessibilityService elapsed usage, persisted `usedMs`, the
+  active-session deadline, and any FTS fallback expiry across early, exact, and
+  late enforcement.
+- [ ] **Reported case 5 — combined timed-mode enforcement is inconsistent.**
+  Reproduce interval and time-budget entries across repeated opens, closes,
+  window resets, service reconnects, and delayed callbacks; determine whether
+  this is a shared timer/handoff defect or separate accounting paths.
+
+### Evidence received — 2026-09-04
+
+- **Time Budget:** a 30-minute daily allowance was reportedly exhausted after
+  roughly 5 minutes, with no earlier usage that day, after closing the app.
+- **Interval:** both below-limit and at-limit closes were reported. Reaching the
+  full 5-minute allowance is expected exhaustion; a below-limit close is the
+  actionable failure case.
+
+The Time Budget report led to bounded event accounting plus session-identity
+invalidation for the FTS fallback timer. The interval report keeps below-limit
+and combined timed-mode behavior under runtime verification.
+
+**Evidence still needed before marking the reported cases fixed:** timestamps
+for app open, app close/background, Accessibility checkpoints, active-session
+signal creation/clearing, FTS sync/expiry scheduling, `daily_allowance_used`,
+and the actual block time. Do not mark these cases fixed from source inspection
+alone.
 
 ---
 
@@ -37,12 +80,12 @@ Use the markers below while executing this plan:
 | `src/native-modules/SharedPrefsModule.ts` | TS bridge. `setDailyAllowanceConfig`, `getAllowanceSnapshot` (atomic read under lock), `resetDailyAllowanceUsage`. |
 | `SharedPrefsModule.kt` | `setDailyAllowanceConfig`: writes `daily_allowance_config`, broadcasts `ACTION_ALLOWANCE_CONFIG_CHANGED`. `getAllowanceSnapshot`: reads inside `ALLOWANCE_USAGE_LOCK`. `resetDailyAllowanceUsage`: removes pkg or clears full JSON under lock. |
 | `AppBlockerAccessibilityService.kt` | **Primary authority.** Live enforcement, session tracking, checkpointing, timed expiry. |
-| `ForegroundTaskService.kt` | **Secondary, fallback only.** 60 s UsageStats sync. Fallback expiry timer for `time_budget` only (interval excluded by contract). |
+| `ForegroundTaskService.kt` | **Secondary, fallback only.** 60 s UsageEvents sync. Fallback expiry timer for `time_budget` only; fresh AS sessions and Interval never inherit it. |
 | `BlockedAppDismissalPolicy.kt` | Pure policy. `shouldRetry` accepts `allowanceExhausted: Boolean`. No allowance state of its own. |
 | `VpnPolicyCoordinator.kt` | References `allowanceExhausted` in comments only. No allowance logic. |
 | `src/hooks/useTimer.ts` | **UI only.** `useTaskTimer` / `useCountdown` drive React progress bars. No SharedPreferences access, no enforcement role. Confirmed not a bug source. |
 | `active.tsx` | Reads `getAllowanceUsageSnapshot` on mount and every 30 s. Display only. |
-| `tests/contracts/foregroundTaskService.test.ts` | Asserts `foregroundAllowanceExpiry?.let { (pkg, expiryMs) ->` and `timeBudgetPkgs[pkg] ?: return@let` exist. Fix must preserve or update these strings. |
+| `tests/contracts/foregroundTaskService.test.ts` | Asserts the fresh-session fallback gate, session identity invalidation, and the `timeBudgetPkgs[expiry.pkg]` guard. |
 
 ---
 
@@ -238,10 +281,9 @@ that method and copy the guard exactly.
 
 ### Bug 3 — TIME BUDGET: enforcement fires at inconsistent times
 
-**Candidate root cause: AS's `scheduleTimedExpiry` (AS Handler) and FTS's
-`scheduleAllowanceExpiry` (FTS Handler) are independent timers on independent loopers.
-They can overlap during a stale-signal handoff, and neither timer can cancel the
-other directly.**
+**Candidate root cause: AS's `scheduleTimedExpiry` and FTS's
+`scheduleAllowanceExpiry` are separate timer paths. They can overlap during a
+stale-signal handoff, and neither timer can cancel the other directly.**
 
 #### Trace
 
@@ -253,84 +295,52 @@ For `time_budget`, two timers are independently armed:
 - Uses live 15 s-checkpointed data.
 
 **FTS timer** — `scheduleAllowanceExpiry(pkg, expiryMs, budgetMs)`:
-- `expiryMs = fts_sync_time + (budgetMs − usageStats_total_at_sync)`.
+- `expiryMs = fts_sync_time + (budgetMs − event_usage_at_sync)`.
 - Runs on `ForegroundTaskService.handler` — a completely different object.
-- Uses 60 s-stale `queryUsageStats(INTERVAL_DAILY)` from midnight.
+- Uses bounded `UsageEvents` accounting from the allowance range.
 
-When FTS's UsageStats total is higher than AS's checkpointed total (e.g. UsageStats
-includes pre-allowance foreground time from earlier in the day), FTS calculates `remaining
-< actual`, schedules expiry earlier than AS → premature block. When UsageStats lags (up to
-30 min on some devices), FTS schedules later → double or missed enforcement.
+Before the follow-up fix, FTS could schedule from a broad calendar-day total and
+could leave a fallback timer alive across an AS close/reopen handoff. That made
+premature exhaustion plausible even when the user had used less than the
+configured Time Budget.
 
-For `interval`, FTS does NOT schedule `scheduleAllowanceExpiry` (confirmed:
-`timeBudgetPkgs[pkg] ?: return@let` guard prevents it). The contract test asserts this.
-Interval enforcement unreliability is caused by Bug 2 (wrong `usedMs`), not two timers.
+For `interval`, FTS does not schedule `scheduleAllowanceExpiry`. The source now
+explicitly cancels any leftover time-budget timer when the current foreground
+allowance is Interval. Interval enforcement still needs runtime verification for
+below-limit and exact-limit behavior.
 
-#### Review decision — 2026-09-04
+#### Follow-up decision — 2026-09-04
 
-The reported **time-budget** symptom — exhaustion after closing/reopening and
-enforcement sometimes firing early or late — justifies keeping Bug 3 open for a
-targeted reproduction and fix. It does not, by itself, prove that the reviewer
-replacement below will solve the close/reopen path.
+The user reported a 30-minute Time Budget exhausting after roughly five
+minutes, with no earlier usage that day, after closing the app. That evidence
+justified a narrow follow-up to both the accounting and timer handoff paths:
 
-The reviewer replacement is **not accepted as the Bug 3 fix**:
+1. Reconcile Time Budget with bounded `UsageEvents` rather than a calendar-day
+   `queryUsageStats` bucket.
+2. Let FTS arm a fallback only when the AS signal is stale, and capture
+   `active_session_open_at_ms` so a timer from a closed or older session cannot
+   exhaust a newly reopened session.
 
-- FTS already skips a package when
-  `hasFreshActiveAllowanceSession(pkg, now)` is true.
-- `scheduleAllowanceExpiry()` already re-checks the fresh signal immediately
-  before writing exhaustion and waking enforcement.
-- The replacement adds another scheduling-time check, but still leaves the FTS
-  timer and AS timer as separate timer paths when the signal is stale or changes
-  freshness between checks.
-- It does not repair the final session usage handoff when the user closes the
-  app, so it cannot explainably fix every reported close/reopen symptom.
+The Interval report included both below-limit and at-limit closes. Reaching the
+full five-minute allowance is expected exhaustion; below-limit close/reopen
+behavior remains a runtime verification item rather than a new root cause.
 
-Keep Bug 3 unchecked until a reproduction distinguishes a stale-signal timer race
-from a close/reopen persistence handoff. Do not create a separate Bug 4 yet:
-interval close exhaustion belongs to Bug 2, while a remaining time-budget
-close/reopen failure needs evidence before adding another root cause.
+The watchdog safeguard is a separate, source-verified containment measure. When
+the live AccessibilityService session deadline has passed, the 1.5-second
+watchdog calls `scheduleTimedExpiry` instead of allowing the active-session guard
+to suppress exhaustion indefinitely. The new FTS guard complements that
+containment; neither source check substitutes for Android runtime verification.
 
-#### Fix — `ForegroundTaskService.kt`, end of `syncAllowanceFromUsageStats()`
+#### Source-level verification
 
-Locate:
-```kotlin
-foregroundAllowanceExpiry?.let { (pkg, expiryMs) ->
-    scheduleAllowanceExpiry(pkg, expiryMs, timeBudgetPkgs[pkg] ?: return@let)
-} ?: run {
-    allowanceExpiryRunnable?.let { handler.removeCallbacks(it) }
-    allowanceExpiryRunnable = null
-}
-```
-
-Replace with:
-```kotlin
-foregroundAllowanceExpiry?.let { expiry ->
-    val budgetMs = timeBudgetPkgs[expiry.pkg] ?: return@let
-    // Only arm the FTS fallback timer when the AS session signal is absent or stale.
-    // When the signal is fresh (checkpoint < 2 min ago), AS's scheduleTimedExpiry()
-    // is already running with live checkpoint data and is more accurate than
-    // 60 s-stale UsageStats. A second independent timer against stale data causes
-    // early or double enforcement.
-    if (!hasFreshActiveAllowanceSession(expiry.pkg, System.currentTimeMillis())) {
-        scheduleAllowanceExpiry(expiry.pkg, expiry.expiryMs, budgetMs)
-    } else {
-        // AS owns the session — cancel any leftover FTS timer so it doesn't fire
-        // after AS has already handled enforcement.
-        allowanceExpiryRunnable?.let { handler.removeCallbacks(it) }
-        allowanceExpiryRunnable = null
-    }
-} ?: run {
-    allowanceExpiryRunnable?.let { handler.removeCallbacks(it) }
-    allowanceExpiryRunnable = null
-}
-```
-
-**Contract test note:** The existing test asserts
-`'foregroundAllowanceExpiry?.let { (pkg, expiryMs) ->'`. This string changes to
-`{ expiry ->`. Update `tests/contracts/foregroundTaskService.test.ts` to match:
-```typescript
-expect(foregroundTaskService).toContain('foregroundAllowanceExpiry?.let { expiry ->');
-```
+- [x] Time Budget fallback uses bounded
+  `queryUsageEventsForegroundMs(usm, pkg, startOfDay, now)`.
+- [x] FTS schedules only for `time_budget`; Interval cancels leftover fallback
+  timers.
+- [x] Fresh AS signals suppress FTS scheduling.
+- [x] Fallback callbacks reject a closed session or a different
+  `active_session_open_at_ms`.
+- [x] Focused contract suite covers these paths.
 
 ---
 
@@ -343,7 +353,7 @@ expect(foregroundTaskService).toContain('foregroundAllowanceExpiry?.let { expiry
 | "Interval has no explicit expiry timer" | **False.** `scheduleTimedExpiry` is called for interval at onAccessibilityEvent line ~1481, identically to time_budget. |
 | "`useTimer.ts` is part of allowance accounting" | **False.** Confirmed: React hook only, no SharedPreferences access. |
 | "FTS scheduleAllowanceExpiry fires for interval" | **False.** The `timeBudgetPkgs[pkg] ?: return@let` guard prevents it. Contract test asserts this. Fix must preserve this guard. |
-| "System needs architectural replacement" | **False.** Three targeted edits fix all reported symptoms. |
+| "System needs architectural replacement" | **False.** Targeted source fixes are in place; Android runtime verification is still required before all reported symptoms can be marked resolved. |
 
 ---
 
@@ -397,16 +407,17 @@ expect(foregroundTaskService).toContain('foregroundAllowanceExpiry?.let { expiry
 
 - [x] Bug 1 guard uses `.equals(pkg, ignoreCase = true)`, not `==`.
 - [x] Bug 1 guard is inserted **before** `val allowanceEntry = findAllowanceEntry(pkg)` — avoids the lookup entirely during an active session.
-- [ ] Bug 2 `queryEvents` call is **outside** `synchronized(ALLOWANCE_USAGE_LOCK)`. Only `blockPrefs.edit()` is inside.
-- [ ] Bug 2 API guard matches the pattern in `reconcileCountAllowances()` exactly (`Build.VERSION_CODES.Q`, `ACTIVITY_RESUMED` / `ACTIVITY_PAUSED` vs `MOVE_TO_FOREGROUND` / `MOVE_TO_BACKGROUND`).
-- [ ] Bug 3 preserves `timeBudgetPkgs[expiry.pkg] ?: return@let` inside the let-block.
-- [ ] `hasFreshActiveAllowanceSession` called with `System.currentTimeMillis()` at call time, not the `now` captured at the top of `syncAllowanceFromUsageStats`.
-- [ ] Contract test `foregroundTaskService.test.ts` updated if the lambda parameter rename `{ (pkg, expiryMs) ->` → `{ expiry ->` is made.
-- [ ] Brace balance after edits:
+- [x] Bug 2 `queryEvents` call is **outside** `synchronized(ALLOWANCE_USAGE_LOCK)`. Only `blockPrefs.edit()` is inside.
+- [x] Bug 2 API guard matches the pattern in `reconcileCountAllowances()` exactly (`Build.VERSION_CODES.Q`, `ACTIVITY_RESUMED` / `ACTIVITY_PAUSED` vs `MOVE_TO_FOREGROUND` / `MOVE_TO_BACKGROUND`).
+- [x] Bug 3 safeguard source contract covers the overdue-session watchdog path; the full timer-ownership change remains unchecked pending reproduction.
+- [X] Bug 3 proposed ownership rewrite checks — deferred with the rewrite; the current source still preserves the interval exclusion through `timeBudgetPkgs[pkg] ?: return@let`.
+- [X] `hasFreshActiveAllowanceSession` scheduling-time check — deferred with the rejected ownership rewrite; the existing expiry callback still re-checks freshness before writing.
+- [X] Contract test lambda-parameter rename — not applicable; the current `{ (pkg, expiryMs) ->` form remains unchanged.
+- [x] Brace balance after edits:
   ```
   python3 -c "s=open('AppBlockerAccessibilityService.kt').read(); print(s.count('{') - s.count('}'))"
   python3 -c "s=open('ForegroundTaskService.kt').read(); print(s.count('{') - s.count('}'))"
   ```
   Both → `0`.
-- [ ] All writes to `PREF_DAILY_ALLOWANCE_USED` still occur inside `ALLOWANCE_USAGE_LOCK`.
-- [ ] TypeScript typecheck passes. No TS changes required.
+- [x] All writes to `PREF_DAILY_ALLOWANCE_USED` still occur inside `ALLOWANCE_USAGE_LOCK`.
+- [x] TypeScript typecheck passes. No TS changes required.

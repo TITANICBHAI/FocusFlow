@@ -42,9 +42,12 @@ describe('blocked-app system interaction contract', () => {
 
   it('uses BACK, BACK, HOME, BACK for a normal blocked app and preserves installer safety', () => {
     const dismissStart = accessibilityService.indexOf(
-      'private fun dismissPackage(blockedPackage: String, blockReason: String? = null)',
+      'private fun dismissPackage(',
     );
-    const dismissEnd = accessibilityService.indexOf('\n    }', dismissStart);
+    const dismissEnd = accessibilityService.indexOf(
+      '\n    private fun postHomeScreenReminder()',
+      dismissStart,
+    );
     const dismissSource = accessibilityService.slice(dismissStart, dismissEnd);
     const policy = readFileSync(
       path.join(nativeRoot, 'services/BlockedAppDismissalPolicy.kt'),
@@ -148,7 +151,7 @@ describe('blocked-app system interaction contract', () => {
     );
   });
 
-  it('keeps watchdog foreground and cooldown state aligned with accessibility events', () => {
+  it('keeps watchdog state aligned and finalizes overdue timed allowance sessions', () => {
     const watchdogStart = accessibilityService.indexOf(
       'private fun checkForegroundNow(lookbackMs: Long = 3_000L)',
     );
@@ -206,11 +209,26 @@ describe('blocked-app system interaction contract', () => {
     expect(watchdogSource).toContain(
       'currentTimedSessionEndMs > 0L',
     );
-    expect(watchdogSource).toContain(
-      'now >= currentTimedSessionEndMs',
+    const overdueSessionGuard = watchdogSource.indexOf(
+      'if (currentTimedSessionEndMs > 0L',
+      activeAllowanceGuard,
     );
-    expect(watchdogSource).toContain(
+    const overdueSessionGuardEnd = watchdogSource.indexOf(
+      '\n            }',
+      overdueSessionGuard,
+    );
+    const overdueSessionSource = watchdogSource.slice(
+      overdueSessionGuard,
+      overdueSessionGuardEnd,
+    );
+    expect(overdueSessionSource).toContain('now >= currentTimedSessionEndMs');
+    expect(overdueSessionSource).toContain(
       'scheduleTimedExpiry(pkg, currentTimedSessionEndMs)',
+    );
+    expect(
+      overdueSessionSource.indexOf('scheduleTimedExpiry(pkg, currentTimedSessionEndMs)'),
+    ).toBeGreaterThan(
+      overdueSessionSource.indexOf('now >= currentTimedSessionEndMs'),
     );
     expect(watchdogSource).toContain('lastBlockedPkg = null');
     expect(watchdogSource).toContain('lastBlockedAtMs = 0L');

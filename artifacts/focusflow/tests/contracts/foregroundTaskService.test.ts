@@ -19,7 +19,7 @@ describe('ForegroundTaskService allowance expiry contract', () => {
       'foregroundAllowanceExpiry = AllowanceExpiry(',
     );
     expect(foregroundTaskService).toContain(
-      'foregroundAllowanceExpiry?.let { (pkg, expiryMs) ->',
+      'foregroundAllowanceExpiry?.let { expiry ->',
     );
     expect(foregroundTaskService).not.toContain('foregroundBudgetExpiry');
   });
@@ -35,7 +35,19 @@ describe('ForegroundTaskService allowance expiry contract', () => {
     const scheduleSource = foregroundTaskService.slice(scheduleStart, scheduleEnd);
 
     expect(scheduleSource).toContain(
-      'timeBudgetPkgs[pkg] ?: return@let',
+      'timeBudgetPkgs[expiry.pkg] ?: return@let',
+    );
+    expect(scheduleSource).toContain(
+      'if (expiry.mode != "time_budget")',
+    );
+    expect(scheduleSource).toContain(
+      'Interval allowances are enforced by the AccessibilityService',
+    );
+    expect(scheduleSource).toContain(
+      'if (!hasFreshActiveAllowanceSession(expiry.pkg, System.currentTimeMillis()))',
+    );
+    expect(scheduleSource).toContain(
+      'expiry.sessionOpenAtMs',
     );
     expect(scheduleSource).not.toContain('intervalPkgs[pkg]');
   });
@@ -58,6 +70,30 @@ describe('ForegroundTaskService allowance expiry contract', () => {
     );
     expect(foregroundTaskService).not.toContain(
       'UsageStatsManager.INTERVAL_DAILY,\n                            windowStartMs',
+    );
+  });
+
+  it('uses window-scoped UsageEvents for time-budget fallback accounting', () => {
+    expect(foregroundTaskService).toContain(
+      'queryUsageEventsForegroundMs(usm, pkg, startOfDay, now)',
+    );
+    expect(foregroundTaskService).not.toContain(
+      'statsMap[pkg]?.totalTimeInForeground',
+    );
+    expect(foregroundTaskService).toContain(
+      'Treat another package resuming as an app switch',
+    );
+  });
+
+  it('invalidates a stale fallback timer when the allowance session changes', () => {
+    expect(foregroundTaskService).toContain(
+      'currentSessionOpenAtMs != sessionOpenAtMs',
+    );
+    expect(foregroundTaskService).toContain(
+      'else if (sessionOpenAtMs > 0L)',
+    );
+    expect(foregroundTaskService).toContain(
+      'A timer scheduled for an older session must not exhaust',
     );
   });
 });
