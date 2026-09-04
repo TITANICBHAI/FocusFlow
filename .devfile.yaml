@@ -1,0 +1,11 @@
+schemaVersion: 2.2.0
+metadata:
+  name: gitlab-duo-workspace
+components:
+  - name: tooling-container
+    container:
+      image: registry.gitlab.com/gitlab-org/dev-environments/developer-sandbox:latest
+      memoryRequest: 4Gi
+      memoryLimit: 8Gi
+      cpuRequest: 2000m
+      cpuLimit: 4000m
