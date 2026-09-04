@@ -6,26 +6,6 @@
 
 ---
 
-## Status tracking
-
-Use the markers below while executing this plan:
-
-- `[ ]` — not started or not yet verified
-- `[x]` — completed and verified
-- `[X]` — blocked, deferred, or not applicable (add a short note)
-
-### Implementation status
-
-- [x] Bug 1 — protect an active count/timed allowance session in the accessibility watchdog.
-- [x] Bug 2 — measure interval-window usage with `queryEvents`, not calendar-day totals.
-- [ ] Bug 3 — let the accessibility service own fresh time-budget sessions; use the foreground service timer only as a stale-signal fallback.
-- [x] Add a focused watchdog source-contract assertion for the active allowance guard.
-- [x] Add a focused interval `UsageEvents` source-contract assertion.
-- [ ] Run the TypeScript typecheck.
-- [ ] Complete Android/device verification for the fixed count, interval, and time-budget flows.
-
----
-
 ## Full system map — every file that touches allowance
 
 | File | Role |
@@ -238,10 +218,9 @@ that method and copy the guard exactly.
 
 ### Bug 3 — TIME BUDGET: enforcement fires at inconsistent times
 
-**Candidate root cause: AS's `scheduleTimedExpiry` (AS Handler) and FTS's
+**Root cause: AS's `scheduleTimedExpiry` (AS Handler) and FTS's
 `scheduleAllowanceExpiry` (FTS Handler) are independent timers on independent loopers.
-They can overlap during a stale-signal handoff, and neither timer can cancel the
-other directly.**
+Neither can cancel the other.**
 
 #### Trace
 
@@ -265,30 +244,6 @@ includes pre-allowance foreground time from earlier in the day), FTS calculates 
 For `interval`, FTS does NOT schedule `scheduleAllowanceExpiry` (confirmed:
 `timeBudgetPkgs[pkg] ?: return@let` guard prevents it). The contract test asserts this.
 Interval enforcement unreliability is caused by Bug 2 (wrong `usedMs`), not two timers.
-
-#### Review decision — 2026-09-04
-
-The reported **time-budget** symptom — exhaustion after closing/reopening and
-enforcement sometimes firing early or late — justifies keeping Bug 3 open for a
-targeted reproduction and fix. It does not, by itself, prove that the reviewer
-replacement below will solve the close/reopen path.
-
-The reviewer replacement is **not accepted as the Bug 3 fix**:
-
-- FTS already skips a package when
-  `hasFreshActiveAllowanceSession(pkg, now)` is true.
-- `scheduleAllowanceExpiry()` already re-checks the fresh signal immediately
-  before writing exhaustion and waking enforcement.
-- The replacement adds another scheduling-time check, but still leaves the FTS
-  timer and AS timer as separate timer paths when the signal is stale or changes
-  freshness between checks.
-- It does not repair the final session usage handoff when the user closes the
-  app, so it cannot explainably fix every reported close/reopen symptom.
-
-Keep Bug 3 unchecked until a reproduction distinguishes a stale-signal timer race
-from a close/reopen persistence handoff. Do not create a separate Bug 4 yet:
-interval close exhaustion belongs to Bug 2, while a remaining time-budget
-close/reopen failure needs evidence before adding another root cause.
 
 #### Fix — `ForegroundTaskService.kt`, end of `syncAllowanceFromUsageStats()`
 
@@ -374,29 +329,29 @@ expect(foregroundTaskService).toContain('foregroundAllowanceExpiry?.let { expiry
 ## Regression tests to add
 
 ### Count
-- [ ] 1. With `currentTimedPkg = pkg`, `checkForegroundNow` must not call `handleBlockedApp`.
-- [ ] 2. With countPerDay = 1, after switching away (currentTimedPkg cleared), next open must block.
-- [ ] 3. With countPerDay = 2, two opens + two switch-aways, third open must block immediately.
+1. With `currentTimedPkg = pkg`, `checkForegroundNow` must not call `handleBlockedApp`.
+2. With countPerDay = 1, after switching away (currentTimedPkg cleared), next open must block.
+3. With countPerDay = 2, two opens + two switch-aways, third open must block immediately.
 
 ### Interval
-- [ ] 4. FTS sync with mock UsageEvents showing 4 min in `[windowStartMs, now]` must write `usedMs = 4`, not 10 (capped full-day), even if `totalTimeInForeground` = 12 min.
-- [ ] 5. Two separate interval windows (8 min + 4 min used) — sync during second window must write `usedMs = 4`.
-- [ ] 6. `now > windowStartMs + windowMs` (expired window) — FTS must skip the pkg; `usedMs` unchanged.
+4. FTS sync with mock UsageEvents showing 4 min in `[windowStartMs, now]` must write `usedMs = 4`, not 10 (capped full-day), even if `totalTimeInForeground` = 12 min.
+5. Two separate interval windows (8 min + 4 min used) — sync during second window must write `usedMs = 4`.
+6. `now > windowStartMs + windowMs` (expired window) — FTS must skip the pkg; `usedMs` unchanged.
 
 ### Time Budget timer coordination
-- [ ] 7. When `hasFreshActiveAllowanceSession(pkg) = true`, `syncAllowanceFromUsageStats` must NOT call `scheduleAllowanceExpiry`. Assert `allowanceExpiryRunnable` remains null.
-- [ ] 8. When signal is stale and app is foreground, FTS must call `scheduleAllowanceExpiry`. Assert `allowanceExpiryRunnable` is non-null.
+7. When `hasFreshActiveAllowanceSession(pkg) = true`, `syncAllowanceFromUsageStats` must NOT call `scheduleAllowanceExpiry`. Assert `allowanceExpiryRunnable` remains null.
+8. When signal is stale and app is foreground, FTS must call `scheduleAllowanceExpiry`. Assert `allowanceExpiryRunnable` is non-null.
 
 ### General
-- [ ] 9. `BlockedAppDismissalPolicy.shouldRetry` with `allowanceExhausted=true` and `lastSeenPackage=blockedPackage` returns true. (Guard against regression.)
-- [ ] 10. `recoverForegroundAllowanceSession` with a count-mode app foreground must NOT set `currentTimedPkg` (count is excluded from recovery path).
+9. `BlockedAppDismissalPolicy.shouldRetry` with `allowanceExhausted=true` and `lastSeenPackage=blockedPackage` returns true. (Guard against regression.)
+10. `recoverForegroundAllowanceSession` with a count-mode app foreground must NOT set `currentTimedPkg` (count is excluded from recovery path).
 
 ---
 
 ## Validation checklist for agent
 
-- [x] Bug 1 guard uses `.equals(pkg, ignoreCase = true)`, not `==`.
-- [x] Bug 1 guard is inserted **before** `val allowanceEntry = findAllowanceEntry(pkg)` — avoids the lookup entirely during an active session.
+- [ ] Bug 1 guard uses `.equals(pkg, ignoreCase = true)`, not `==`.
+- [ ] Bug 1 guard is inserted **before** `val allowanceEntry = findAllowanceEntry(pkg)` — avoids the lookup entirely during an active session.
 - [ ] Bug 2 `queryEvents` call is **outside** `synchronized(ALLOWANCE_USAGE_LOCK)`. Only `blockPrefs.edit()` is inside.
 - [ ] Bug 2 API guard matches the pattern in `reconcileCountAllowances()` exactly (`Build.VERSION_CODES.Q`, `ACTIVITY_RESUMED` / `ACTIVITY_PAUSED` vs `MOVE_TO_FOREGROUND` / `MOVE_TO_BACKGROUND`).
 - [ ] Bug 3 preserves `timeBudgetPkgs[expiry.pkg] ?: return@let` inside the let-block.

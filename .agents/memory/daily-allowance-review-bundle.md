@@ -9,10 +9,10 @@ The confirmed fix set is intentionally narrow:
 
 1. In the accessibility watchdog, skip exhaustion checks while `currentTimedPkg` matches the foreground package. This is necessary because count-mode recording increments usage before the session ends, making availability false during a valid active session.
 2. In the foreground service, calculate interval-mode usage from `UsageEvents` inside the current allowance window. `queryUsageStats(INTERVAL_DAILY, ...)` is calendar-day scoped and can import usage from an earlier window.
-3. For time-budget expiry, arm the foreground-service timer only when the accessibility session signal is absent or stale. A fresh signal means the accessibility service's live timer owns enforcement.
+3. Time-budget timing remains an investigation: the current code already skips FTS sync for fresh AccessibilityService signals and re-checks freshness before fallback expiry. A proposed extra scheduling-time guard is not a complete fix; reproduce stale-timer versus close/reopen handoff behavior before changing ownership.
 
 Preserve the surrounding contracts while applying these fixes: all usage writes remain under `ALLOWANCE_USAGE_LOCK`, the Android Q event-type guard must match count reconciliation, interval mode must not gain the time-budget fallback timer, and count-mode apps remain excluded from foreground-session recovery.
 
-**Why:** The review contains source-pinned findings and an explicit priority order, so future work should not rediscover or reinterpret the same allowance behavior.
+**Why:** The review contains source-pinned findings and an explicit priority order, while the remaining time-budget symptom is not explained well enough to justify a timer rewrite or a new Bug 4.
 
 **How to apply:** Read both documents before changing Daily Allowance. Keep the technical checklist status and source references current, use `[ ]` for unstarted work, `[x]` only after verification, and `[X]` only for blocked/deferred/not-applicable items with a note.

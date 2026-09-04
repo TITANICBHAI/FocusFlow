@@ -203,6 +203,15 @@ describe('blocked-app system interaction contract', () => {
     );
     expect(activeAllowanceGuard).toBeGreaterThan(explicitCheck);
     expect(activeAllowanceGuard).toBeLessThan(allowanceCheck);
+    expect(watchdogSource).toContain(
+      'currentTimedSessionEndMs > 0L',
+    );
+    expect(watchdogSource).toContain(
+      'now >= currentTimedSessionEndMs',
+    );
+    expect(watchdogSource).toContain(
+      'scheduleTimedExpiry(pkg, currentTimedSessionEndMs)',
+    );
     expect(watchdogSource).toContain('lastBlockedPkg = null');
     expect(watchdogSource).toContain('lastBlockedAtMs = 0L');
 

@@ -687,6 +687,17 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         // session is still valid. Timed modes can also briefly report exhaustion
         // before their next checkpoint is persisted.
         if (currentTimedPkg?.equals(pkg, ignoreCase = true) == true) {
+            if (currentTimedSessionEndMs > 0L &&
+                currentTimedOpenAtMs > 0L &&
+                now >= currentTimedSessionEndMs
+            ) {
+                // The Handler expiry callback can be delayed by device load or
+                // Doze. Let the watchdog finalize an overdue live timed session
+                // instead of allowing the app indefinitely while currentTimedPkg
+                // suppresses the normal exhaustion check.
+                scheduleTimedExpiry(pkg, currentTimedSessionEndMs)
+                return
+            }
             lastBlockedPkg = null
             lastBlockedAtMs = 0L
             return
