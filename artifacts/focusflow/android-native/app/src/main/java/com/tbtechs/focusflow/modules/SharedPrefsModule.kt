@@ -11,6 +11,14 @@ import com.tbtechs.focusflow.services.AppBlockerAccessibilityService
 import com.tbtechs.focusflow.services.NetworkBlockerVpnService
 import com.tbtechs.focusflow.widget.FocusFlowWidget
 
+private fun ReadableArray.toJsonArrayString(): String {
+    val array = org.json.JSONArray()
+    for (i in 0 until size()) {
+        array.put(getString(i))
+    }
+    return array.toString()
+}
+
 /**
  * SharedPrefsModule
  *
@@ -40,6 +48,22 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
         AppBlockerAccessibilityService.PREFS_NAME, android.content.Context.MODE_PRIVATE
     )
 
+    private fun rejectIfInvalidSessionPin(
+        pinHash: String?,
+        message: String,
+        promise: Promise,
+    ): Boolean {
+        val storedHash = prefs().getString(
+            com.tbtechs.focusflow.modules.SessionPinModule.PREF_PIN_HASH, null
+        )
+        if (storedHash.isNullOrBlank()) return false
+        if (pinHash.isNullOrBlank() || !storedHash.equals(pinHash.lowercase(), ignoreCase = true)) {
+            promise.reject("PIN_REQUIRED", message)
+            return true
+        }
+        return false
+    }
+
     /**
      * Tells the AccessibilityService and BootReceiver whether task focus mode is active.
      *
@@ -53,15 +77,12 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
     @ReactMethod
     fun setFocusActive(active: Boolean, pinHash: String?, promise: Promise) {
         if (!active) {
-            val storedHash = prefs().getString(
-                com.tbtechs.focusflow.modules.SessionPinModule.PREF_PIN_HASH, null
-            )
-            if (!storedHash.isNullOrBlank()) {
-                if (pinHash.isNullOrBlank() ||
-                    !storedHash.equals(pinHash.lowercase(), ignoreCase = true)) {
-                    promise.reject("PIN_REQUIRED", "A session PIN is set — supply the correct PIN hash to end the session")
-                    return
-                }
+            if (rejectIfInvalidSessionPin(
+                    pinHash,
+                    "A session PIN is set — supply the correct PIN hash to end the session",
+                    promise,
+                )) {
+                return
             }
         }
         prefs().edit().putBoolean("focus_active", active).apply()
@@ -108,8 +129,7 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
      */
     @ReactMethod
     fun setAllowedPackages(packages: ReadableArray, promise: Promise) {
-        val list = (0 until packages.size()).map { "\"${packages.getString(it)}\"" }
-        val json = "[${list.joinToString(",")}]"
+        val json = packages.toJsonArrayString()
         prefs().edit().putString("allowed_packages", json).apply()
         NetworkBlockerVpnService.requestSync(reactContext)
         promise.resolve(null)
@@ -224,6 +244,81 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
     }
 
     /**
+     * Atomically publishes the complete focus state used by the accessibility
+     * service, VPN policy mirror, widget, and boot recovery.
+     *
+     * A failed commit rejects the JS command and does not trigger any
+     * downstream state refresh. The inactive branch removes every focus task
+     * field so readers cannot observe a partially cleared session.
+     */
+    @ReactMethod
+    fun publishFocusSnapshot(
+        active: Boolean,
+        taskId: String?,
+        taskName: String?,
+        taskEndMs: Double,
+        taskColor: String?,
+        allowedPackages: ReadableArray?,
+        nextTaskName: String?,
+        pinHash: String?,
+        promise: Promise,
+    ) {
+        try {
+            if (!active && rejectIfInvalidSessionPin(
+                    pinHash,
+                    "A session PIN is set — supply the correct PIN hash to end the session",
+                    promise,
+                )) {
+                return
+            }
+
+            val now = System.currentTimeMillis()
+            val editor = prefs().edit()
+            if (active && taskId != null) {
+                val endEpoch = taskEndMs.toLong()
+                editor
+                    .putBoolean("focus_active", true)
+                    .putString("task_id", taskId)
+                    .putString("task_name", taskName ?: "")
+                    .putLong("task_end_ms", endEpoch)
+                    .putString("task_color", taskColor ?: "")
+                    .putString("allowed_packages", allowedPackages?.toJsonArrayString() ?: "[]")
+                    .putString("next_task_name", nextTaskName?.takeIf { it.isNotBlank() })
+                    .putLong("task_duration_ms", (endEpoch - now).coerceAtLeast(0L))
+                    .putLong("task_last_written_ms", now)
+            } else {
+                editor
+                    .putBoolean("focus_active", false)
+                    .remove("task_id")
+                    .remove("task_name")
+                    .remove("task_end_ms")
+                    .remove("task_color")
+                    .remove("allowed_packages")
+                    .remove("next_task_name")
+                    .remove("task_duration_ms")
+                    .remove("task_start_ms")
+                    .remove("task_last_written_ms")
+            }
+
+            if (!editor.commit()) {
+                android.util.Log.e(
+                    "FocusFlow",
+                    "[NATIVE_PREFS_COMMIT_FAILED] publishFocusSnapshot: commit returned false",
+                )
+                promise.reject("PREFS_WRITE_FAILED", "commit() returned false")
+                return
+            }
+
+            android.util.Log.d("FocusFlow", "[NATIVE_PREFS_OK] publishFocusSnapshot active=$active")
+            NetworkBlockerVpnService.requestSync(reactContext)
+            FocusFlowWidget.pushWidgetUpdate(reactContext)
+            promise.resolve(null)
+        } catch (e: Exception) {
+            promise.reject("PREFS_ERROR", e.message, e)
+        }
+    }
+
+    /**
      * Forces a widget redraw using whatever is currently in SharedPreferences.
      * Called by the JS layer after standalone block changes, task add/edit/delete,
      * task completion, etc.
@@ -259,20 +354,16 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
             val currentUntil = prefs().getLong("standalone_block_until_ms", 0L)
             if (currentUntil > System.currentTimeMillis()) {
                 // User is cancelling an active (not-yet-expired) standalone session — require PIN.
-                val storedHash = prefs().getString(
-                    com.tbtechs.focusflow.modules.SessionPinModule.PREF_PIN_HASH, null
-                )
-                if (!storedHash.isNullOrBlank()) {
-                    if (pinHash.isNullOrBlank() ||
-                        !storedHash.equals(pinHash.lowercase(), ignoreCase = true)) {
-                        promise.reject("PIN_REQUIRED", "A session PIN is set — supply the correct PIN hash to end the standalone block early")
-                        return
-                    }
+                if (rejectIfInvalidSessionPin(
+                        pinHash,
+                        "A session PIN is set — supply the correct PIN hash to end the standalone block early",
+                        promise,
+                    )) {
+                    return
                 }
             }
         }
-        val list = (0 until packages.size()).map { "\"${packages.getString(it)}\"" }
-        val json = "[${list.joinToString(",")}]"
+        val json = packages.toJsonArrayString()
         prefs().edit()
             .putBoolean("standalone_block_active", active)
             .putString("standalone_blocked_packages", json)
@@ -283,6 +374,64 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
         // needs an explicit nudge to re-read prefs and switch render mode.
         FocusFlowWidget.pushWidgetUpdate(reactContext)
         promise.resolve(null)
+    }
+
+    /**
+     * Atomically publishes standalone blocking state. Inactive snapshots
+     * clear the package list and expiry so native readers see one complete
+     * inactive state after the commit.
+     */
+    @ReactMethod
+    fun publishStandaloneSnapshot(
+        active: Boolean,
+        packages: ReadableArray,
+        untilMs: Double,
+        pinHash: String?,
+        promise: Promise,
+    ) {
+        try {
+            if (!active) {
+                val currentUntil = prefs().getLong("standalone_block_until_ms", 0L)
+                if (currentUntil > System.currentTimeMillis() &&
+                    rejectIfInvalidSessionPin(
+                        pinHash,
+                        "A session PIN is set — supply the correct PIN hash to end the standalone block early",
+                        promise,
+                    )
+                ) {
+                    return
+                }
+            }
+
+            val editor = prefs().edit()
+            if (active) {
+                editor
+                    .putBoolean("standalone_block_active", true)
+                    .putString("standalone_blocked_packages", packages.toJsonArrayString())
+                    .putLong("standalone_block_until_ms", untilMs.toLong())
+            } else {
+                editor
+                    .putBoolean("standalone_block_active", false)
+                    .putString("standalone_blocked_packages", "[]")
+                    .putLong("standalone_block_until_ms", 0L)
+            }
+
+            if (!editor.commit()) {
+                android.util.Log.e(
+                    "FocusFlow",
+                    "[NATIVE_PREFS_COMMIT_FAILED] publishStandaloneSnapshot: commit returned false",
+                )
+                promise.reject("PREFS_WRITE_FAILED", "commit() returned false")
+                return
+            }
+
+            android.util.Log.d("FocusFlow", "[NATIVE_PREFS_OK] publishStandaloneSnapshot active=$active")
+            NetworkBlockerVpnService.requestSync(reactContext)
+            FocusFlowWidget.pushWidgetUpdate(reactContext)
+            promise.resolve(null)
+        } catch (e: Exception) {
+            promise.reject("PREFS_ERROR", e.message, e)
+        }
     }
 
     /**
@@ -301,8 +450,7 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
      */
     @ReactMethod
     fun setAlwaysBlockActive(active: Boolean, packages: ReadableArray, promise: Promise) {
-        val list = (0 until packages.size()).map { "\"${packages.getString(it)}\"" }
-        val json = "[${list.joinToString(",")}]"
+        val json = packages.toJsonArrayString()
         prefs().edit()
             .putBoolean(AppBlockerAccessibilityService.PREF_ALWAYS_BLOCK, active)
             .putString(AppBlockerAccessibilityService.PREF_ALWAYS_BLOCK_PKGS, json)
@@ -323,8 +471,7 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
      */
     @ReactMethod
     fun setDailyAllowancePackages(packages: ReadableArray, promise: Promise) {
-        val list = (0 until packages.size()).map { "\"${packages.getString(it)}\"" }
-        val json = "[${list.joinToString(",")}]"
+        val json = packages.toJsonArrayString()
         prefs().edit()
             .putString(AppBlockerAccessibilityService.PREF_DAILY_ALLOWANCE_PKGS, json)
             .apply()
@@ -343,8 +490,7 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
      */
     @ReactMethod
     fun setBlockedWords(words: ReadableArray, promise: Promise) {
-        val list = (0 until words.size()).map { "\"${words.getString(it)}\"" }
-        val json = "[${list.joinToString(",")}]"
+        val json = words.toJsonArrayString()
         prefs().edit()
             .putString(AppBlockerAccessibilityService.PREF_BLOCKED_WORDS, json)
             .apply()

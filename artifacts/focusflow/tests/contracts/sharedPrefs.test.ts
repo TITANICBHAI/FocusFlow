@@ -11,7 +11,9 @@ const { nativePrefs } = vi.hoisted(() => ({
     setActiveTaskColor: vi.fn(),
     setActiveTaskStartMs: vi.fn(),
     clearActiveTask: vi.fn(),
+    publishFocusSnapshot: vi.fn(),
     setStandaloneBlock: vi.fn(),
+    publishStandaloneSnapshot: vi.fn(),
     setAlwaysBlockActive: vi.fn(),
     setDailyAllowanceConfig: vi.fn(),
     setBlockedWords: vi.fn(),
@@ -60,6 +62,42 @@ describe('SharedPrefs JS↔Kotlin serialization contract', () => {
     ]);
   });
 
+  it('exposes atomic focus and standalone snapshot calls with complete state', async () => {
+    await SharedPrefsModule.publishFocusSnapshot(
+      true,
+      'task-1',
+      'Deep work',
+      1_756_045_200_000,
+      '#6366f1',
+      ['com.example.allowed'],
+      'Email',
+      null,
+    );
+    await SharedPrefsModule.publishStandaloneSnapshot(
+      true,
+      ['com.example.blocked'],
+      1_756_045_300_000,
+      null,
+    );
+
+    expect(nativePrefs.publishFocusSnapshot).toHaveBeenCalledWith(
+      true,
+      'task-1',
+      'Deep work',
+      1_756_045_200_000,
+      '#6366f1',
+      ['com.example.allowed'],
+      'Email',
+      null,
+    );
+    expect(nativePrefs.publishStandaloneSnapshot).toHaveBeenCalledWith(
+      true,
+      ['com.example.blocked'],
+      1_756_045_300_000,
+      null,
+    );
+  });
+
   it('serializes allowance entries as the exact JSON consumed by native enforcement', async () => {
     const entries = [{
       packageName: 'com.example.social',
@@ -100,5 +138,17 @@ describe('SharedPrefs JS↔Kotlin serialization contract', () => {
 
     await expect(SharedPrefsModule.getFocusBreakUntilMs()).resolves.toBe(0);
     await expect(SharedPrefsModule.setFocusActive(false)).resolves.toBeUndefined();
+  });
+
+  it('does not swallow atomic snapshot failures', async () => {
+    nativePrefs.publishFocusSnapshot.mockRejectedValue(new Error('commit failed'));
+    nativePrefs.publishStandaloneSnapshot.mockRejectedValue(new Error('commit failed'));
+
+    await expect(
+      SharedPrefsModule.publishFocusSnapshot(true, 'task-1', 'Deep work', 100, '#6366f1', [], null, null),
+    ).rejects.toThrow('commit failed');
+    await expect(
+      SharedPrefsModule.publishStandaloneSnapshot(true, ['com.example.blocked'], 200, null),
+    ).rejects.toThrow('commit failed');
   });
 });

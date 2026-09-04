@@ -26,10 +26,10 @@ execution plan for persistence reliability.
 
 ## Phase 3 — Native enforcement atomicity
 
-- [ ] 3.1 Replace unsafe JSON string interpolation in `SharedPrefsModule.kt`.
-- [ ] 3.2 Add atomic focus and standalone snapshot publishing.
-- [ ] Expose the snapshot methods through the TypeScript native module.
-- [ ] Replace separate focus-service writes with the atomic snapshot calls.
+- [x] 3.1 Replace unsafe JSON string interpolation in `SharedPrefsModule.kt`.
+- [x] 3.2 Add atomic focus and standalone snapshot publishing.
+- [x] Expose the snapshot methods through the TypeScript native module.
+- [x] Replace separate focus-service writes with the atomic snapshot calls.
 - [ ] Verify forced-kill/restart behavior never leaves a partial state.
 
 ## Phase 4 — Long-term Room migration
@@ -40,9 +40,16 @@ execution plan for persistence reliability.
 
 ## Tracking notes
 
-- Status: Phase 1 items 1.1 and 1.4 are implemented; Phase 2 retry behavior is implemented.
-- Database Phase 1 pass: critical reads now propagate DB-unavailable failures, and
-  primary-open failures latch `DB_UNAVAILABLE` without substituting a recovery DB.
+- Status: Phase 1 implementation is complete; Phase 2 retry behavior is also
+  implemented. Device verification gates remain open.
+- Repository audit: Phase 1.1–1.4 are present in the current source. Critical
+  reads propagate DB-unavailable failures, primary-open failures latch
+  `DB_UNAVAILABLE` without substituting a recovery DB, and the schedule screen
+  preserves the existing task snapshot while showing an explicit unavailable
+  state.
+- Phase 3 implementation: native package lists now use `JSONArray`; focus and
+  standalone state transitions use strict single-commit snapshots; source and
+  contract checks cover escaping, atomicity, and VPN isolation.
 - Do not duplicate or replace the VPN coordinator work; the plan explicitly treats VPN as already handled.
 - API 30/API 31 device verification remains pending because no Android devices are available in this workspace.
 - Update this checklist as implementation lands and device gates are verified.

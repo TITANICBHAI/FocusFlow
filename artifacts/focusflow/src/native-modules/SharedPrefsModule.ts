@@ -32,6 +32,20 @@ async function callNative<T>(methodName: string, fn: () => Promise<T>): Promise<
   }
 }
 
+/**
+ * Critical state transitions must not look successful when native commit()
+ * rejected. Keep the legacy best-effort wrapper for optional/cosmetic writes,
+ * but let atomic snapshot failures reach the caller.
+ */
+async function callNativeStrict<T>(methodName: string, fn: () => Promise<T>): Promise<T | undefined> {
+  try {
+    return await fn();
+  } catch (e) {
+    void logger.error('SharedPrefsModule', `${methodName} threw: ${String(e)}`);
+    throw e;
+  }
+}
+
 export const isSharedPrefsAvailable = Platform.OS === 'android' && SharedPrefs != null;
 
 function hasSharedPrefsMethod(name: string): boolean {
@@ -114,6 +128,33 @@ export const SharedPrefsModule = {
   },
 
   /**
+   * Atomically publishes all focus state needed by native enforcement and
+   * boot recovery. A rejected native commit is propagated to the caller.
+   */
+  async publishFocusSnapshot(
+    active: boolean,
+    taskId: string | null,
+    taskName: string | null,
+    taskEndMs: number,
+    taskColor: string | null,
+    allowedPackages: string[] | null,
+    nextTaskName: string | null,
+    pinHash: string | null = null,
+  ): Promise<void> {
+    if (!hasSharedPrefsMethod('publishFocusSnapshot')) return;
+    await callNativeStrict('publishFocusSnapshot', () => SharedPrefs.publishFocusSnapshot(
+      active,
+      taskId,
+      taskName,
+      taskEndMs,
+      taskColor,
+      allowedPackages,
+      nextTaskName,
+      pinHash,
+    ));
+  },
+
+  /**
    * Forces a redraw of any home-screen widgets using whatever is currently in
    * SharedPreferences. Use after standalone-block / task state changes that
    * happen outside a focus session (where ForegroundTaskService would have
@@ -135,6 +176,25 @@ export const SharedPrefsModule = {
   async setStandaloneBlock(active: boolean, packages: string[], untilMs: number, pinHash: string | null = null): Promise<void> {
     if (!hasSharedPrefsMethod('setStandaloneBlock')) return;
     await callNative('setStandaloneBlock', () => SharedPrefs.setStandaloneBlock(active, packages, untilMs, pinHash));
+  },
+
+  /**
+   * Atomically publishes standalone block state. A rejected native commit is
+   * propagated so the caller cannot treat a failed state transition as done.
+   */
+  async publishStandaloneSnapshot(
+    active: boolean,
+    packages: string[],
+    untilMs: number,
+    pinHash: string | null = null,
+  ): Promise<void> {
+    if (!hasSharedPrefsMethod('publishStandaloneSnapshot')) return;
+    await callNativeStrict('publishStandaloneSnapshot', () => SharedPrefs.publishStandaloneSnapshot(
+      active,
+      packages,
+      untilMs,
+      pinHash,
+    ));
   },
 
   /**

@@ -15,6 +15,7 @@
 - [VPN validation boundary](vpn-validation-boundary.md) — source contracts can run here, but real Kotlin/Gradle/device verification requires a generated Android project and toolchain.
 - [Receiver recovery dispatch](vpn-receiver-recovery-dispatch.md) — boot and watchdog VPN recovery must dispatch before a BroadcastReceiver returns, not only through a delayed handler.
 - [Android backup privacy](android-backup-privacy.md) — keep Android automatic backup disabled; user data moves only through explicit FocusFlow export/import.
+- [Native state snapshots](native-state-snapshots.md) — critical focus and standalone transitions must publish complete state in one strict synchronous commit.
 - [Accessibility restricted recovery](accessibility-restricted-recovery.md) — keep the retry UI after restricted settings unlock until Accessibility is actually granted.
 - [Daily Allowance review bundle](daily-allowance-review-bundle.md) — read the paired plain-English helper and source-pinned technical checklist before allowance work.
 - [Deferred enforcement fire-time checks](deferred-enforcement-fire-time.md) — handler callbacks must re-check the policy that scheduled them before navigation or dismissal actions.

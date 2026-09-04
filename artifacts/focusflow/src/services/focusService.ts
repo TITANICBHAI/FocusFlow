@@ -37,10 +37,6 @@ export async function startFocusMode(
 
   if (focusActive) await stopFocusMode();
 
-  focusActive = true;
-  currentTask = task;
-  onFocusViolation = onViolation ?? null;
-
   const session: FocusSession = {
     taskId: task.id,
     startedAt: new Date().toISOString(),
@@ -63,26 +59,28 @@ export async function startFocusMode(
     await ForegroundLaunchModule.goHome();
   }
 
-  // Write state to SharedPreferences so:
-  //   • AppBlockerAccessibilityService knows focus is on and which apps to block
-  //   • BootReceiver can restart the service after a reboot
-  await SharedPrefsModule.setActiveTask(task.id, task.title, endMs, nextTask?.title ?? null);
-  // Tint the home-screen widget with the task's accent color.
-  await SharedPrefsModule.setActiveTaskColor(task.color ?? '');
-  // Write the allowed-list so the AccessibilityService knows which apps to permit.
+  // Publish the complete native state in one commit so the
+  // AccessibilityService and BootReceiver never observe a partial session.
   // An empty whitelist means "block all during focus" — we pass a sentinel package
   // name that will never be installed so the Kotlin service denies all foreground apps.
   const filteredAllowed = session.allowedPackages.filter((p) => p.includes('.'));
-  await SharedPrefsModule.setAllowedPackages(
+  await SharedPrefsModule.publishFocusSnapshot(
+    true,
+    task.id,
+    task.title,
+    endMs,
+    task.color ?? '',
     filteredAllowed.length > 0 ? filteredAllowed : ['com.focusflow.internal.blockall'],
+    nextTask?.title ?? null,
+    null,
   );
-  // Set the active flag after the allow-list so native focus-to-VPN mirroring
-  // computes the correct effective target set on its first restart.
-  await SharedPrefsModule.setFocusActive(true);
 
   // App blocking is handled entirely by AppBlockerAccessibilityService (Kotlin).
-  // It reads focus_active and allowed_packages from SharedPreferences (written
-  // above) and intercepts window changes at the OS level — no JS poll needed.
+  // It reads the atomically published focus_active/task/allowed state from
+  // SharedPreferences and intercepts window changes at the OS level.
+  focusActive = true;
+  currentTask = task;
+  onFocusViolation = onViolation ?? null;
 
   appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
 }
@@ -104,9 +102,7 @@ export async function stopFocusMode(pinHash: string | null = null): Promise<void
   // Always clear Kotlin-side state so the AccessibilityService stops blocking
   // even if the JS module was freshly initialised (cold-start recovery).
   await ForegroundServiceModule.stopService(pinHash).catch(() => {});
-  await SharedPrefsModule.setFocusActive(false, pinHash).catch(() => {});
-  await SharedPrefsModule.setAllowedPackages([]).catch(() => {});
-  await SharedPrefsModule.clearActiveTask().catch(() => {});
+  await SharedPrefsModule.publishFocusSnapshot(false, null, null, 0, null, [], null, pinHash).catch(() => {});
 
   // Only hit the DB if we had a real session — avoids a spurious DB write on
   // cold-start cleanup where there is no matching open session row.

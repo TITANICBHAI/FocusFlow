@@ -7,11 +7,7 @@ const {
   stopService,
   requestBatteryOptimizationExemption,
   goHome,
-  setFocusActive,
-  setActiveTask,
-  setActiveTaskColor,
-  setAllowedPackages,
-  clearActiveTask,
+  publishFocusSnapshot,
   dismissPersistentNotification,
   addEventListener,
   remove,
@@ -24,11 +20,7 @@ const {
     stopService: vi.fn(),
     requestBatteryOptimizationExemption: vi.fn(),
     goHome: vi.fn(),
-    setFocusActive: vi.fn(),
-    setActiveTask: vi.fn(),
-    setActiveTaskColor: vi.fn(),
-    setAllowedPackages: vi.fn(),
-    clearActiveTask: vi.fn(),
+    publishFocusSnapshot: vi.fn(),
     dismissPersistentNotification: vi.fn(),
     addEventListener: vi.fn(() => ({ remove })),
     remove,
@@ -58,11 +50,7 @@ vi.mock('@/native-modules/ForegroundLaunchModule', () => ({
 
 vi.mock('@/native-modules/SharedPrefsModule', () => ({
   SharedPrefsModule: {
-    setFocusActive,
-    setActiveTask,
-    setActiveTaskColor,
-    setAllowedPackages,
-    clearActiveTask,
+    publishFocusSnapshot,
   },
 }));
 
@@ -102,11 +90,7 @@ describe('focusService orchestration', () => {
       stopService,
       requestBatteryOptimizationExemption,
       goHome,
-      setFocusActive,
-      setActiveTask,
-      setActiveTaskColor,
-      setAllowedPackages,
-      clearActiveTask,
+      publishFocusSnapshot,
       dismissPersistentNotification,
     ]) {
       mock.mockResolvedValue(undefined);
@@ -144,18 +128,19 @@ describe('focusService orchestration', () => {
     );
     expect(requestBatteryOptimizationExemption).toHaveBeenCalledOnce();
     expect(goHome).toHaveBeenCalledOnce();
-    expect(setFocusActive).toHaveBeenCalledWith(true);
-    expect(setActiveTask).toHaveBeenCalledWith(
+    expect(publishFocusSnapshot).toHaveBeenCalledWith(
+      true,
       'focus-1',
       'Deep work',
       new Date(activeTask.endTime).getTime(),
+      '#6366f1',
+      [
+        'com.android.dialer',
+        'com.example.allowed',
+      ],
       'Email',
+      null,
     );
-    expect(setActiveTaskColor).toHaveBeenCalledWith('#6366f1');
-    expect(setAllowedPackages).toHaveBeenCalledWith([
-      'com.android.dialer',
-      'com.example.allowed',
-    ]);
     expect(addEventListener).toHaveBeenCalledWith('change', expect.any(Function));
     expect(isFocusActive()).toBe(true);
     expect(getCurrentFocusTask()).toBe(activeTask);
@@ -164,7 +149,16 @@ describe('focusService orchestration', () => {
   it('uses the block-all sentinel and can skip home navigation', async () => {
     await startFocusMode(activeTask, ['invalid'], undefined, { skipGoHome: true });
 
-    expect(setAllowedPackages).toHaveBeenCalledWith(['com.focusflow.internal.blockall']);
+    expect(publishFocusSnapshot).toHaveBeenCalledWith(
+      true,
+      'focus-1',
+      'Deep work',
+      new Date(activeTask.endTime).getTime(),
+      '#6366f1',
+      ['com.focusflow.internal.blockall'],
+      null,
+      null,
+    );
     expect(goHome).not.toHaveBeenCalled();
   });
 
@@ -175,9 +169,16 @@ describe('focusService orchestration', () => {
     await stopFocusMode();
 
     expect(stopService).toHaveBeenCalledWith(null);
-    expect(setFocusActive).toHaveBeenCalledWith(false, null);
-    expect(setAllowedPackages).toHaveBeenCalledWith([]);
-    expect(clearActiveTask).toHaveBeenCalledOnce();
+    expect(publishFocusSnapshot).toHaveBeenCalledWith(
+      false,
+      null,
+      null,
+      0,
+      null,
+      [],
+      null,
+      null,
+    );
     expect(dbEndFocusSession).toHaveBeenCalledWith('focus-1');
     expect(dismissPersistentNotification).toHaveBeenCalledOnce();
     expect(remove).toHaveBeenCalledOnce();
@@ -189,9 +190,16 @@ describe('focusService orchestration', () => {
     await stopFocusMode('hashed-pin');
 
     expect(stopService).toHaveBeenCalledWith('hashed-pin');
-    expect(setFocusActive).toHaveBeenCalledWith(false, 'hashed-pin');
-    expect(setAllowedPackages).toHaveBeenCalledWith([]);
-    expect(clearActiveTask).toHaveBeenCalledOnce();
+    expect(publishFocusSnapshot).toHaveBeenCalledWith(
+      false,
+      null,
+      null,
+      0,
+      null,
+      [],
+      null,
+      'hashed-pin',
+    );
     expect(dbEndFocusSession).not.toHaveBeenCalled();
     expect(dismissPersistentNotification).not.toHaveBeenCalled();
   });

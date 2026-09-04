@@ -829,7 +829,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const packages = standaloneBlockPackages ?? [];
     if (packages.length === 0 || !standaloneBlockUntil) {
       try {
-        await SharedPrefsModule.setStandaloneBlock(false, [], 0);
+        await SharedPrefsModule.publishStandaloneSnapshot(false, [], 0);
       } catch (e) {
         void logger.warn('AppContext', `standalone block clear failed: ${String(e)}`);
       }
@@ -843,7 +843,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // cleanup done in setStandaloneBlock / setStandaloneBlockAndAllowance
       // (Bug 3 fix) so the expiry path is consistent with the manual clear path.
       try {
-        await SharedPrefsModule.setStandaloneBlock(false, packages, 0);
+        await SharedPrefsModule.publishStandaloneSnapshot(false, packages, 0);
       } catch (e) {
         void logger.warn('AppContext', `expired standalone block clear failed: ${String(e)}`);
       }
@@ -869,7 +869,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       dispatch({ type: 'SET_SETTINGS', payload: cleared });
     } else {
       try {
-        await SharedPrefsModule.setStandaloneBlock(true, packages, untilMs);
+        await SharedPrefsModule.publishStandaloneSnapshot(true, packages, untilMs);
       } catch (e) {
         void logger.warn('AppContext', `standalone block sync failed: ${String(e)}`);
       }
@@ -1646,8 +1646,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       /* already stopped */
     }
     try {
-      await SharedPrefsModule.setFocusActive(false, pinHash);
-      await SharedPrefsModule.setAllowedPackages([]);
+      await SharedPrefsModule.publishFocusSnapshot(false, null, null, 0, null, [], null, pinHash);
     } catch {
       /* best-effort */
     }
@@ -1802,7 +1801,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
       dispatch({ type: 'SET_SETTINGS', payload: newSettings });
       const active = packages.length > 0 && untilMs !== null && untilMs > Date.now();
-      await SharedPrefsModule.setStandaloneBlock(active, packages, untilMs ?? 0, pinHash);
+      await SharedPrefsModule.publishStandaloneSnapshot(active, packages, untilMs ?? 0, pinHash);
       const vpnPkgs = getExplicitVpnPackages(newSettings);
       if ((newSettings.vpnBlockEnabled ?? false) && active && vpnPkgs.length > 0) {
         void NetworkBlockModule.startNetworkBlock(JSON.stringify(vpnPkgs)).catch(
@@ -1850,7 +1849,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         void logger.warn('AppContext', `setQuickBlockTemporary: dbSaveSettings non-fatal: ${String(e)}`);
       }
       dispatch({ type: 'SET_SETTINGS', payload: newSettings });
-      await SharedPrefsModule.setStandaloneBlock(true, packages, untilMs);
+      await SharedPrefsModule.publishStandaloneSnapshot(true, packages, untilMs);
       const allowanceEntries = newSettings.dailyAllowanceEntries ?? [];
       const alwaysOnActive =
         newSettings.alwaysOnEnforcementEnabled !== false &&
@@ -1917,7 +1916,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
       dispatch({ type: 'SET_SETTINGS', payload: newSettings });
       const active = packages.length > 0 && untilMs !== null && untilMs > Date.now();
-      await SharedPrefsModule.setStandaloneBlock(active, packages, untilMs ?? 0, pinHash);
+      await SharedPrefsModule.publishStandaloneSnapshot(active, packages, untilMs ?? 0, pinHash);
       await SharedPrefsModule.setDailyAllowanceConfig(allowanceEntries);
       await NetworkBlockModule.setNetworkBlockSettings({
         enabled: newSettings.vpnBlockEnabled ?? false,

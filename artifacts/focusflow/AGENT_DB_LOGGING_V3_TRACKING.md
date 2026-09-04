@@ -38,6 +38,8 @@ paths.
 
 ## Tracking notes
 
-- Status: database logging implementation is complete in `src/data/database.ts`; device verification remains pending.
+- Status: database logging implementation is complete in `src/data/database.ts`;
+  the dependent Phase 1 persistence behavior is present; device verification
+  remains pending.
 - Keep the original logging plan unchanged as the detailed reference.
 - API 30/API 31 log-sequence verification was not claimed because no Android devices are available in this workspace.
