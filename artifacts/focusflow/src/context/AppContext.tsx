@@ -1402,8 +1402,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         await dbUpdateTasksBatch(changedTasks);
         await cancelTaskRemindersBatch([taskId]);
         await scheduleTaskRemindersBatch(shifted);
-        // Dismiss the full-screen task-end alarm if it is currently ringing
-        // for this task — keeps the alarm UI in sync with in-app resolution.
+        // Cancel the OS alarm first so it cannot launch at the original end
+        // time after an early completion. Then dismiss any currently visible UI.
+        await TaskAlarmModule.cancelAlarm(taskId);
         void TaskAlarmModule.dismissAlarm(taskId);
         dispatch({ type: 'SET_TASKS', payload: compressed });
 
@@ -1475,9 +1476,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
         await dbUpdateTasksBatch(changedTasks);
         await cancelTaskRemindersBatch([taskId]);
+        // Cancel the OS alarm first so it cannot launch at the original end
+        // time after a skip. Then dismiss any currently visible alarm UI.
+        await TaskAlarmModule.cancelAlarm(taskId);
         void TaskAlarmModule.dismissAlarm(taskId);
         await scheduleTaskRemindersBatch(shifted);
         dispatch({ type: 'SET_TASKS', payload: compressed });
+        // Skip is an explicit move-on action. Unlike early completion, it
+        // never inherits keepFocusActiveUntilTaskEnd.
+        if (stateRef.current.focusSession?.taskId === taskId) {
+          await stopFocusMode();
+        }
       } catch (e) {
         void logger.error('AppContext', `skipTask failed: ${String(e)}`);
         throw e;

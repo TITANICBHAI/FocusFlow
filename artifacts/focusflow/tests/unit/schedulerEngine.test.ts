@@ -60,7 +60,7 @@ describe('schedulerEngine', () => {
     expect(result.shifted).toEqual([]);
   });
 
-  it('protects critical tasks and shifts high-priority tasks after an overrun', () => {
+  it('protects critical anchors without cascading the shift past them', () => {
     vi.setSystemTime(new Date('2026-08-24T08:00:00.000Z'));
     const overrun = typedTask('overrun', '2026-08-24T09:00:00.000Z', '2026-08-24T10:00:00.000Z', 'high');
     const critical = typedTask('critical', '2026-08-24T10:00:00.000Z', '2026-08-24T11:00:00.000Z', 'critical');
@@ -69,11 +69,8 @@ describe('schedulerEngine', () => {
     const result = rebalanceAfterOverrun(overrun, 20, [overrun, critical, high]);
 
     expect(result.needsUserConfirm.map(({ id }) => id)).toEqual(['critical']);
-    expect(result.shifted[0]).toMatchObject({
-      id: 'high',
-      startTime: '2026-08-24T11:20:00.000Z',
-      endTime: '2026-08-24T12:20:00.000Z',
-    });
+    expect(result.shifted).toEqual([]);
+    expect(result.updatedSchedule).toEqual([critical, high]);
   });
 
   it('does not change the schedule for zero or negative overruns', () => {

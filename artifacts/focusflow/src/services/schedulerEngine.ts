@@ -156,6 +156,9 @@ export function rebalanceAfterOverrun(
       // Never auto-skip critical tasks — ask user
       needsUserConfirm.push(task);
       updatedSchedule.push(task); // keep in place for now
+      // A critical task is an anchor. Do not carry this overrun through its
+      // time slot and create new conflicts with tasks after the anchor.
+      cumulativeShift = 0;
       continue;
     }
 
