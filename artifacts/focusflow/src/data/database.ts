@@ -26,15 +26,12 @@ let _openingPromise: Promise<SQLite.SQLiteDatabase | null> | null = null;
 let _writeTail: Promise<void> = Promise.resolve();
 
 /**
- * Latched after all three open attempts (primary × 2 + recovery) have failed.
- * Once true, getDb() returns null immediately instead of re-entering the
- * 3-attempt cycle — preventing the cascade of repeated DB_UNRECOVERABLE
- * log events caused by background tasks and React components each starting
- * their own retry cycle after the first unrecoverable failure.
+ * Latched after the primary database cannot be opened. Once true, getDb()
+ * returns null immediately instead of re-entering the retry cycle — preventing
+ * repeated unavailable events from background tasks and React components.
  *
- * resetDb() clears this flag so that the dead-handle recovery path in
- * runWithDb() can still attempt a fresh open after a previously-working
- * handle is invalidated by the OS.
+ * resetDb() clears this flag so a user-triggered retry or dead-handle recovery
+ * can attempt a fresh primary open.
  */
 let _dbUnrecoverable = false;
 let _usingRecoveryDb = false;
@@ -56,6 +53,17 @@ export function resetDb(): void {
   db = null;
   _dbUnrecoverable = false;
   _usingRecoveryDb = false;
+}
+
+function markUnrecoverable(reason: string, context: string): void {
+  if (_dbUnrecoverable) return;
+  _dbUnrecoverable = true;
+  _usingRecoveryDb = false;
+  void logger.error(
+    'database',
+    `[DB_UNAVAILABLE] reason=${reason} context=${context} ` +
+    `api=${Platform.Version} in_flight=${_openInFlight}`,
+  );
 }
 
 export function isDbUnrecoverable(): boolean {
@@ -122,9 +130,8 @@ function isDeadHandleError(e: unknown): boolean {
  *
  * Retrying with the same filename hits the same dead cached state and always
  * fails (confirmed by both attempts failing in ~35ms with identical stacks).
- * Retrying with a DIFFERENT filename works because it creates a fresh C++
- * object. We use this to skip the futile same-name retry and go straight to
- * the recovery DB, saving ~365ms of wasted recovery time.
+ * Retrying with a different filename would create a fresh empty database, so
+ * the JSI fast path surfaces the unavailable state without using one live.
  */
 function isJsiConstructorNpe(e: unknown): boolean {
   const m = fullErr(e);
@@ -189,28 +196,25 @@ async function runWithDbOr<T>(opName: string, fallback: T, op: DbOp<T>): Promise
 }
 
 /**
- * Returns the open database, opening it if needed.
- * Retry strategy (3 attempts, never throws):
+ * Returns the open primary database, opening it if needed.
+ * Retry strategy (2 attempts, never throws):
  *   1. Open PRIMARY_DB_NAME; if OK, return.
  *   2. Reset singleton, wait 300ms, retry PRIMARY_DB_NAME; if OK, return.
- *   3. Assume corruption — open RECOVERY_DB_NAME (always a fresh file).
- *      Logs [DB_CORRUPTION_RECOVERY] to the startup logger.
- *      If even this fails, return null.
+ *      If the primary still cannot open, mark the DB unavailable and return
+ *      null. A newly created database is never used as a live fallback.
  */
-/** Extracts the most useful error string including cause chain and stack snippet. */
+/** Extracts a bounded error string without persisting stack traces. */
 function fullErr(e: unknown): string {
-  const err = e as { message?: string; cause?: unknown; stack?: string } | null | undefined;
+  const err = e as { message?: string; cause?: unknown } | null | undefined;
   const msg = String(err?.message ?? e).slice(0, 200);
   const cause = err?.cause ? ` | cause: ${String((err.cause as { message?: string })?.message ?? err.cause).slice(0, 120)}` : '';
-  const stack = err?.stack ? ` | stack: ${err.stack.split('\n').slice(1, 4).join(' ').trim()}` : '';
-  return msg + cause + stack;
+  return msg + cause;
 }
 
 export async function getDb(): Promise<SQLite.SQLiteDatabase | null> {
-  // Fast-fail after all three open attempts have been exhausted. Prevents
-  // background tasks and React components from each kicking off a fresh
-  // 3-attempt cycle and flooding the logs with repeated DB_UNRECOVERABLE
-  // events. resetDb() clears this flag so dead-handle recovery still works.
+  // Fast-fail after the primary open attempts have been exhausted. Prevents
+  // background tasks and React components from each kicking off a fresh retry
+  // cycle and flooding the logs with repeated unavailable events.
   if (_dbUnrecoverable) return null;
   if (db) return db;
 
@@ -241,22 +245,12 @@ export async function getDb(): Promise<SQLite.SQLiteDatabase | null> {
       // an identical NPE ("at construct (native)"). The 300ms wait + retry is
       // therefore completely futile for this error class.
       //
-      // A DIFFERENT filename always works because it creates a fresh C++ object.
-      // So we skip straight to the recovery DB, saving ~365ms of downtime.
+      // A different filename would create a fresh empty database, so do not
+      // use it as a live fallback. Surface the unavailable state instead.
       if (isJsiConstructorNpe(firstErr)) {
-        void logger.warn('database', `open/init: JSI constructor NPE detected — skipping same-name retry, opening recovery DB immediately (saves ~${300 + ms1}ms)`);
-        try {
-          db = await openAndInit(RECOVERY_DB_NAME);
-          _usingRecoveryDb = true;
-          void logger.error('database', `[DB_CORRUPTION_RECOVERY] opened recovery DB in ${Date.now() - t0}ms total (JSI fast-path)`);
-          return db;
-        } catch (recoveryErr) {
-          const ms3 = Date.now() - t0;
-          console.error('[database] recovery DB also failed (JSI fast-path) — giving up:', recoveryErr);
-          void logger.error('database', `[DB_UNRECOVERABLE] recovery DB failed (${ms3}ms total, JSI fast-path, in-flight: ${_openInFlight}, API: ${Platform.Version}): ${fullErr(recoveryErr)}`);
-          _dbUnrecoverable = true;
-          return null;
-        }
+        void logger.warn('database', 'open/init: JSI constructor NPE detected — skipping same-name retry');
+        markUnrecoverable('JSI_NPE', 'getDb_fast_path');
+        return null;
       }
 
       // ── Standard retry (non-JSI errors: schema migration, file locks, etc.) ──
@@ -269,24 +263,10 @@ export async function getDb(): Promise<SQLite.SQLiteDatabase | null> {
         return db;
       } catch (secondErr) {
         const ms2 = Date.now() - t0;
-        console.error('[database] open/init failed (attempt 2 — trying recovery DB):', secondErr);
-        void logger.error('database', `open/init attempt 2 failed (${ms2}ms, in-flight: ${_openInFlight}, API: ${Platform.Version}): ${fullErr(secondErr)} — switching to recovery DB`);
-        try {
-          db = await openAndInit(RECOVERY_DB_NAME);
-          _usingRecoveryDb = true;
-          void logger.error('database', `[DB_CORRUPTION_RECOVERY] opened recovery DB in ${Date.now() - t0}ms total — primary may be corrupted`);
-          return db;
-        } catch (recoveryErr) {
-          const ms3 = Date.now() - t0;
-          console.error('[database] recovery DB also failed — giving up:', recoveryErr);
-          void logger.error('database', `[DB_UNRECOVERABLE] recovery DB failed (${ms3}ms total, in-flight: ${_openInFlight}, API: ${Platform.Version}): ${fullErr(recoveryErr)}`);
-          // Latch the flag so every subsequent getDb() call fast-fails with null
-          // instead of restarting the 3-attempt cycle. This stops the cascade of
-          // repeated DB_UNRECOVERABLE events caused by background tasks and React
-          // components each triggering their own retry cycle after this point.
-          _dbUnrecoverable = true;
-          return null;
-        }
+        console.error('[database] open/init failed (attempt 2 — primary):', secondErr);
+        void logger.error('database', `open/init attempt 2 failed (${ms2}ms, in-flight: ${_openInFlight}, API: ${Platform.Version}): ${fullErr(secondErr)}`);
+        markUnrecoverable('OPEN_FAILED', 'getDb_retry');
+        return null;
       }
     } finally {
       _openInFlight--;
@@ -468,7 +448,7 @@ async function initSchema(db: SQLite.SQLiteDatabase): Promise<void> {
 // ─── Tasks ────────────────────────────────────────────────────────────────────
 
 export async function dbGetAllTasks(): Promise<Task[]> {
-  return runWithDbOr('dbGetAllTasks', [], async (database) => {
+  return runWithDb('dbGetAllTasks', async (database) => {
     const rows = await database.getAllAsync<Record<string, unknown>>('SELECT * FROM tasks ORDER BY start_time ASC');
     return rows.map(rowToTask);
   });
@@ -483,7 +463,7 @@ export async function dbGetAllTasks(): Promise<Task[]> {
  * resolve them when a new task or block session starts.
  */
 export async function dbGetRecentUnresolvedTasks(): Promise<Task[]> {
-  return runWithDbOr('dbGetRecentUnresolvedTasks', [], async (database) => {
+  return runWithDb('dbGetRecentUnresolvedTasks', async (database) => {
     const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const now = new Date().toISOString();
     const rows = await database.getAllAsync<Record<string, unknown>>(
@@ -522,7 +502,7 @@ export async function dbGetTasksInDateRange(startDateISO: string, endDateISO: st
 }
 
 export async function dbGetTasksForDate(dateISO: string): Promise<Task[]> {
-  return runWithDbOr('dbGetTasksForDate', [], async (database) => {
+  return runWithDb('dbGetTasksForDate', async (database) => {
     // Use the local calendar date — tasks are displayed in local time so queries
     // must match local date, not UTC. We pass a YYYY-MM-DD string derived from
     // a local Date so that users in UTC-X timezones see evening tasks correctly.
@@ -658,7 +638,7 @@ function rowToTask(row: Record<string, unknown>): Task {
 // ─── Settings ────────────────────────────────────────────────────────────────
 
 export async function dbGetSettings(): Promise<AppSettings> {
-  return runWithDbOr('dbGetSettings', DEFAULT_SETTINGS, async (database) => {
+  return runWithDb('dbGetSettings', async (database) => {
     const row = await database.getFirstAsync<{ value: string }>(
       `SELECT value FROM settings WHERE key = 'app_settings'`,
     );
@@ -679,7 +659,7 @@ export async function dbGetSettings(): Promise<AppSettings> {
       }
       return { ...DEFAULT_SETTINGS, ...parsed };
     } catch {
-      return DEFAULT_SETTINGS;
+      throw new Error('dbGetSettings: invalid settings payload');
     }
   });
 }
@@ -708,7 +688,7 @@ export async function dbEndFocusSession(taskId: string): Promise<void> {
 }
 
 export async function dbGetActiveFocusSession(): Promise<FocusSession | null> {
-  return runWithDbOr('dbGetActiveFocusSession', null, async (database) => {
+  return runWithDb('dbGetActiveFocusSession', async (database) => {
     const row = await database.getFirstAsync<Record<string, unknown>>(
       `SELECT * FROM focus_sessions WHERE is_active = 1 ORDER BY id DESC LIMIT 1`,
     );
@@ -723,7 +703,7 @@ export async function dbGetActiveFocusSession(): Promise<FocusSession | null> {
 }
 
 export async function dbGetTodayFocusMinutes(): Promise<number> {
-  return runWithDbOr('dbGetTodayFocusMinutes', 0, async (database) => {
+  return runWithDb('dbGetTodayFocusMinutes', async (database) => {
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
     const rows = await database.getAllAsync<{ started_at: string; ended_at: string | null }>(
@@ -854,7 +834,7 @@ function parseLocalDate(dateStr: string): Date {
 }
 
 export async function dbGetStreak(): Promise<number> {
-  return runWithDbOr('dbGetStreak', 0, async (database) => {
+  return runWithDb('dbGetStreak', async (database) => {
     const rows = await database.getAllAsync<{ date: string; completed: number; total: number }>(
       `SELECT date, completed, total FROM daily_completions ORDER BY date DESC LIMIT 60`,
     );

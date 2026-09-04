@@ -6,6 +6,8 @@ import {
   Text,
   FlatList,
   TouchableOpacity,
+  Pressable,
+  ActivityIndicator,
   StyleSheet,
   Alert,
   RefreshControl,
@@ -26,11 +28,12 @@ import { useTheme } from '@/hooks/useTheme';
 import type { Task } from '@/data/types';
 import { formatTime, isAwaitingDecision } from '@/services/taskService';
 import { analyzeScheduleHealth } from '@/services/schedulerEngine';
+import { resetDb } from '@/data/database';
 
 function ScheduleScreen() {
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
-  const { state, todayTasks, activeTask, currentTask, addTask, updateTask, deleteTask, completeTask, skipTask, extendTaskTime, startFocusMode, refreshTasks } = useApp();
+  const { state, todayTasks, activeTask, currentTask, addTask, updateTask, deleteTask, completeTask, skipTask, extendTaskTime, startFocusMode, refreshTasks, init } = useApp();
   const bannerTask = activeTask ?? currentTask;
   const bannerAwaitingDecision = bannerTask ? isAwaitingDecision(bannerTask) : false;
   const [showAddModal, setShowAddModal] = useState(false);
@@ -83,6 +86,56 @@ function ScheduleScreen() {
     : scheduleHealth.overloadedHours.length > 0
       ? COLORS.orange
       : COLORS.green;
+  const [retrying, setRetrying] = useState(false);
+
+  if (state.isDbUnrecoverable) {
+    return (
+      <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
+        <View style={styles.dbStatus}>
+          <Ionicons name="cloud-offline-outline" size={56} color={COLORS.red} />
+          <Text style={[styles.dbStatusTitle, { color: theme.text }]}>Your schedule is unavailable</Text>
+          <Text style={[styles.dbStatusText, { color: theme.textSecondary }]}>
+            Your tasks are safe. FocusFlow could not open its local database.
+            Tap retry to try again.
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Retry opening the database"
+            style={({ pressed }) => [
+              styles.retryButton,
+              { backgroundColor: COLORS.primary, opacity: pressed ? 0.8 : 1 },
+            ]}
+            disabled={retrying}
+            onPress={() => {
+              setRetrying(true);
+              resetDb();
+              void init().finally(() => setRetrying(false));
+            }}
+          >
+            {retrying ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.retryButtonText}>Retry</Text>
+            )}
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!state.isDbReady && state.isLoading) {
+    return (
+      <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
+        <View style={styles.dbStatus}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+          <Text style={[styles.dbStatusTitle, { color: theme.text }]}>Loading your schedule</Text>
+          <Text style={[styles.dbStatusText, { color: theme.textSecondary }]}>
+            Opening your local FocusFlow database…
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
@@ -233,6 +286,38 @@ function ScheduleScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.background },
+  dbStatus: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: SPACING.xxl,
+    gap: SPACING.md,
+  },
+  dbStatusTitle: {
+    fontSize: FONT.xl,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  dbStatusText: {
+    fontSize: FONT.md,
+    lineHeight: FONT.md * 1.5,
+    textAlign: 'center',
+    maxWidth: 360,
+  },
+  retryButton: {
+    minWidth: 132,
+    minHeight: 48,
+    borderRadius: RADIUS.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: SPACING.xl,
+    marginTop: SPACING.sm,
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontSize: FONT.md,
+    fontWeight: '800',
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

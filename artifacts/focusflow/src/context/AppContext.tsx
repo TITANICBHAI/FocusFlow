@@ -30,7 +30,6 @@ import {
   dbPruneOldData,
   resetDb,
   isDbUnrecoverable,
-  isUsingRecoveryDb,
   logDbDiagnostics,
   probeDbHealth,
 } from '@/data/database';
@@ -107,7 +106,11 @@ function reducer(state: AppState, action: AppAction): AppState {
     case 'SET_DB_READY':
       return { ...state, isDbReady: true };
     case 'SET_DB_UNRECOVERABLE':
-      return { ...state, isDbUnrecoverable: action.payload };
+      return {
+        ...state,
+        isDbReady: action.payload ? false : state.isDbReady,
+        isDbUnrecoverable: action.payload,
+      };
     case 'SET_TASKS':
       return { ...state, tasks: action.payload };
     case 'ADD_TASK':
@@ -140,9 +143,9 @@ const initialState: AppState = {
   isDbUnrecoverable: false,
 };
 
-function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
-  return new Promise((resolve) => {
-    const timer = setTimeout(() => resolve(fallback), ms);
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`Operation timed out after ${ms}ms`)), ms);
     promise
       .then((value) => {
         clearTimeout(timer);
@@ -150,8 +153,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T
       })
       .catch((e) => {
         clearTimeout(timer);
-        console.error('[AppContext] timed operation failed', e);
-        resolve(fallback);
+        reject(e);
       });
   });
 }
@@ -217,6 +219,7 @@ interface AppContextValue {
   setBlockedWords: (words: string[]) => Promise<void>;
   setRecurringBlockSchedules: (schedules: RecurringBlockSchedule[]) => Promise<void>;
   refreshTasks: () => Promise<void>;
+  init: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -245,18 +248,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.isDbReady]);
 
-  // ── 12-second splash watchdog ─────────────────────────────────────────────
-  // If SET_DB_READY hasn't fired within 12 s, force the app past the splash
-  // screen so it is never permanently stuck.
+  // ── 20-second DB watchdog ─────────────────────────────────────────────────
+  // If initialization has not resolved within 20 s, surface an explicit
+  // unavailable state instead of claiming the database is ready.
 
   useEffect(() => {
     watchdogRef.current = setTimeout(() => {
       if (!state.isDbReady) {
-        void logger.error('AppContext', '[WATCHDOG_TRIGGERED] isDbReady still false after 12 s — forcing ready');
-        dispatch({ type: 'SET_DB_READY' });
+        void logger.error('AppContext', '[WATCHDOG] DB still loading after 20s — marking unavailable');
+        dispatch({ type: 'SET_DB_UNRECOVERABLE', payload: true });
         dispatch({ type: 'SET_LOADING', payload: false });
       }
-    }, 12000);
+    }, 20000);
     return () => {
       if (watchdogRef.current) clearTimeout(watchdogRef.current);
     };
@@ -425,9 +428,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       // ── Database / settings ────────────────────────────────────────────────
       void logger.info('AppContext', 'Loading settings from DB (timeout=8000ms)');
-      const rawSettings = await withTimeout(dbGetSettings(), 8000, DEFAULT_SETTINGS);
+      const rawSettings = await withTimeout(dbGetSettings(), 8000);
       const dbWasUnrecoverable = isDbUnrecoverable();
-      const dbWasRecovered = isUsingRecoveryDb();
       dispatch({ type: 'SET_DB_UNRECOVERABLE', payload: dbWasUnrecoverable });
       void logger.info('AppContext', 'Settings loaded from DB');
       // Fire-and-forget: writes one [DB_DIAG] INFO line per session with
@@ -436,9 +438,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       void logDbDiagnostics();
 
       // If critical first-run state is missing or stale (e.g. because the app
-      // fell back to the recovery DB after OEM memory management wiped the
-      // primary DB file), cross-check the non-SQLite backups before concluding
-      // the user needs to re-accept privacy or redo onboarding.
+      // SQLite cannot supply the setup row, cross-check the non-SQLite backups
+      // before concluding the user needs to re-accept privacy or redo
+      // onboarding.
       let settings = rawSettings;
       let restoredFromBackup = false;
       try {
@@ -551,7 +553,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         await _syncSystemGuard(
           settings,
           null,
-          rawSettings === DEFAULT_SETTINGS || dbWasRecovered || dbWasUnrecoverable,
+           rawSettings === DEFAULT_SETTINGS || dbWasUnrecoverable,
         );
         void logger.info('AppContext', 'System guard synced');
       } catch (e) {
@@ -597,7 +599,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       void logger.info('AppContext', '[STARTUP_COMPLETE] init() finished successfully');
     } catch (e) {
       void logger.error('AppContext', `[STARTUP_ERROR] Unhandled init error: ${String(e)}`);
-        dispatch({ type: 'SET_DB_UNRECOVERABLE', payload: isDbUnrecoverable() });
       // Even if a non-critical startup step fails before the DB path completes,
       // recover the first-run markers before showing the app. Otherwise a
       // returning user could be sent back through privacy/onboarding merely
@@ -616,7 +617,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // Keep the safe defaults if backup reads are also unavailable.
       }
       dispatch({ type: 'SET_SETTINGS', payload: recoveredSettings });
-      dispatch({ type: 'SET_DB_READY' });
+      dispatch({ type: 'SET_DB_UNRECOVERABLE', payload: true });
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
       void logger.info('AppContext', 'SET_LOADING: false dispatched');
@@ -733,7 +734,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   async function _syncSystemGuard(
     settings: AppSettings,
     defensePinHash: string | null = null,
-    preserveVpnDuringDbRecovery = false,
+    preserveVpnDuringDbUnavailable = false,
   ): Promise<void> {
     try {
       await SharedPrefsModule.setSystemGuardEnabled(settings.systemGuardEnabled ?? false);
@@ -754,7 +755,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const vpnDisableRequested =
       !(settings.vpnBlockEnabled ?? false) || explicitVpnPkgs.length === 0;
     const preserveActiveVpn =
-      preserveVpnDuringDbRecovery || isUsingRecoveryDb() || isDbUnrecoverable();
+      preserveVpnDuringDbUnavailable || isDbUnrecoverable();
 
     if (!(preserveActiveVpn && vpnDisableRequested)) {
       try {
@@ -1303,7 +1304,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         taskSnapshotRef.current = merged;
         dispatch({ type: 'SET_TASKS', payload: merged });
       } catch (e) {
-        void logger.warn('AppContext', `refreshTasks failed: ${String(e)}`);
+        void logger.error('AppContext', `refreshTasks failed: ${String(e)}`);
+        if (isDbUnrecoverable() || String(e).includes('DB unavailable')) {
+          dispatch({ type: 'SET_DB_UNRECOVERABLE', payload: true });
+        }
       }
     });
   }, []);
@@ -1732,8 +1736,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // serially before the dispatch, which made every Switch feel laggy.
     dispatch({ type: 'SET_SETTINGS', payload: settings });
     try {
-      // Keep critical setup state recoverable even if SQLite is later wiped
-      // or replaced by the recovery database.
+      // Keep critical setup state recoverable even if SQLite is unavailable.
       await Promise.all([
         dbSaveSettings(settings),
         persistSetupBackups(settings),
@@ -1756,7 +1759,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         _syncSystemGuard(
           settings,
           options.defensePinHash ?? null,
-          state.isDbUnrecoverable || isUsingRecoveryDb(),
+           state.isDbUnrecoverable,
         ),
       ]);
     } catch (e) {
@@ -2002,12 +2005,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setBlockedWords,
     setRecurringBlockSchedules,
     refreshTasks,
+    init,
   }), [
     state, todayTasks, activeTask, currentTask, activeTasks,
     addTask, updateTask, deleteTask, completeTask, skipTask,
     extendTaskTime, startFocusMode, stopFocusMode, updateSettings,
     setStandaloneBlock, setQuickBlockTemporary, setStandaloneBlockAndAllowance, setDailyAllowanceEntries,
     setBlockedWords, setRecurringBlockSchedules, refreshTasks,
+    init,
   ]);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

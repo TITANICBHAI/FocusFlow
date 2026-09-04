@@ -12,8 +12,8 @@ execution plan for persistence reliability.
 ## Phase 1 — Persistence correctness
 
 - [ ] 1.1 Fix DB state transitions without introducing a status enum.
-- [ ] 1.2 Remove the recovery database as a live fallback.
-- [ ] 1.3 Make critical `runWithDb` reads throw instead of masking failures.
+- [x] 1.2 Remove the recovery database as a live fallback.
+- [x] 1.3 Make critical `runWithDb` reads throw instead of masking failures.
 - [ ] 1.4 Add explicit DB-unavailable loading/error/retry UI to the schedule screen.
 - [ ] Verify Phase 1 on API 30 and API 31 devices.
 
@@ -41,5 +41,7 @@ execution plan for persistence reliability.
 ## Tracking notes
 
 - Status: captured from the attached plan; implementation not started.
+- Database Phase 1 pass: critical reads now propagate DB-unavailable failures, and
+  primary-open failures latch `DB_UNAVAILABLE` without substituting a recovery DB.
 - Do not duplicate or replace the VPN coordinator work; the plan explicitly treats VPN as already handled.
 - Update this checklist as implementation lands and device gates are verified.
