@@ -10,7 +10,7 @@
  */
 
 import React, { useMemo, useEffect, useState, useCallback } from 'react';
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { ActiveHeaderButton } from '@/components/ActiveHeaderButton';
 import { withScreenErrorBoundary } from '@/components/withScreenErrorBoundary';
 import {
@@ -19,7 +19,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import dayjs from 'dayjs';
+import dayjs, { type Dayjs } from 'dayjs';
 import { useApp } from '@/context/AppContext';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 import { useTheme } from '@/hooks/useTheme';
@@ -37,6 +37,7 @@ import {
 import { GreyoutModule, TemptationEntry } from '@/native-modules/GreyoutModule';
 import { UsageInsights } from '@/components/UsageInsights';
 import { QuickBlockSheet } from '@/components/QuickBlockSheet';
+import { InsightsPanel } from '@/components/InsightsPanel';
 import type { UsageApp } from '@/native-modules/UsageStatsModule';
 import type { Task } from '@/data/types';
 import { getWeekEnd, getWeekStart } from '@/utils/weekUtils';
@@ -257,6 +258,21 @@ function StatsScreen() {
   const maxWeekCompleted = Math.max(...weeklyDays.map((d) => d.completed), 1);
   const maxWeekFocus     = Math.max(...weeklyDays.map((d) => d.focusMinutes), 1);
 
+  const weekTaskWindows = useMemo(() => {
+    const start = getWeekStart(state.settings.weekStartDay ?? 0);
+    const end = getWeekEnd(start);
+    const previousStart = start.subtract(7, 'day');
+    const previousEnd = start.subtract(1, 'day').endOf('day');
+    const inRange = (task: Task, from: Dayjs, to: Dayjs) => {
+      const timestamp = dayjs(task.startTime);
+      return timestamp.isAfter(from.subtract(1, 'millisecond')) && timestamp.isBefore(to.add(1, 'millisecond'));
+    };
+    return {
+      current: tasks.filter((task) => inRange(task, start, end)),
+      previous: tasks.filter((task) => inRange(task, previousStart, previousEnd)),
+    };
+  }, [state.settings.weekStartDay, tasks]);
+
   const usageWindow = useMemo(() => {
     const now = dayjs();
     if (filter === 'yesterday') {
@@ -467,6 +483,22 @@ function StatsScreen() {
           <ScrollView style={styles.scroll}
             contentContainerStyle={[styles.content, { paddingBottom: 60 + insets.bottom + 24 }]}
             showsVerticalScrollIndicator={false}>
+
+            <TouchableOpacity
+              style={[styles.reportLink, { backgroundColor: COLORS.primary + '12', borderColor: COLORS.primary + '35' }]}
+              onPress={() => router.push({ pathname: '/report', params: { type: 'day', date: dayjs().subtract(1, 'day').format('YYYY-MM-DD') } })}
+              accessibilityRole="button"
+              accessibilityLabel="Open yesterday's report"
+            >
+              <View style={styles.reportLinkIcon}>
+                <Ionicons name="sparkles-outline" size={19} color={COLORS.primary} />
+              </View>
+              <View style={{ flex: 1, gap: 2 }}>
+                <Text style={[styles.reportLinkTitle, { color: theme.text }]}>Yesterday's Report</Text>
+                <Text style={[styles.reportLinkSub, { color: theme.muted }]}>A narrative summary of your day</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={19} color={COLORS.primary} />
+            </TouchableOpacity>
 
             {/* Streak banner */}
             {streak > 0 && (
@@ -748,6 +780,19 @@ function StatsScreen() {
             showsVerticalScrollIndicator={false}>
 
              <SectionLabel label="TASK PRODUCTIVITY" theme={theme} />
+             {weekSummary.total < 3 ? (
+               <View style={[styles.lockedCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                 <Ionicons name="lock-closed-outline" size={20} color={theme.muted} />
+                 <View style={{ flex: 1, gap: 2 }}>
+                   <Text style={[styles.cardTitle, { color: theme.text }]}>Weekly insights unlock soon</Text>
+                   <Text style={[styles.lockedText, { color: theme.muted }]}>
+                     Complete at least 3 tasks this calendar week to reveal patterns.
+                   </Text>
+                 </View>
+               </View>
+             ) : (
+               <InsightsPanel tasks={weekTaskWindows.current} previousTasks={weekTaskWindows.previous} />
+             )}
              <Text style={[styles.weekRangeNote, { color: theme.muted }]}>
                {`${getWeekStart(state.settings.weekStartDay ?? 0).format('MMM D')} – ${getWeekEnd(getWeekStart(state.settings.weekStartDay ?? 0)).format('MMM D')} · `}
                {weekSummary.total === 0
@@ -1181,6 +1226,12 @@ const styles = StyleSheet.create({
   cardBadge: { fontSize: FONT.xs, fontWeight: '700', paddingHorizontal: 8, paddingVertical: 3, borderRadius: RADIUS.full, overflow: 'hidden' },
   sectionLabel: { fontSize: FONT.xs, fontWeight: '700', letterSpacing: 0.8, paddingLeft: SPACING.xs },
   weekRangeNote: { fontSize: FONT.xs, lineHeight: 17, paddingHorizontal: SPACING.xs, marginTop: -SPACING.xs },
+  lockedCard: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, borderRadius: RADIUS.lg, borderWidth: 1, padding: SPACING.md },
+  lockedText: { fontSize: FONT.xs, lineHeight: 17 },
+  reportLink: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, borderRadius: RADIUS.lg, borderWidth: 1, padding: SPACING.md },
+  reportLinkIcon: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.primary + '18' },
+  reportLinkTitle: { fontSize: FONT.sm, fontWeight: '800' },
+  reportLinkSub: { fontSize: FONT.xs },
   divider: { height: StyleSheet.hairlineWidth },
 
   // Hero card
