@@ -163,6 +163,29 @@ describe('VPN effective-policy recovery contract', () => {
     expect(coordinator).toContain('.map { arr.optString(it).trim() }');
   });
 
+  it('keeps VPN sources additive and isolates inactive or empty sources', () => {
+    expect(coordinator).toContain('val explicitCandidates = parsePackageJson(');
+    expect(coordinator).toContain('val standaloneCandidates = if (isStandaloneBlockActive(prefs))');
+    expect(coordinator).toContain('net_block_schedule_vpn_pkgs');
+    expect(coordinator).toContain(
+      'prefs.getBoolean(PREF_FOCUS_MIRROR, false) &&',
+    );
+    expect(coordinator).toContain('distinct()');
+    expect(coordinator).toContain('isStandaloneBlockActive(prefs)');
+    expect(coordinator).toContain('System.currentTimeMillis() < until');
+    expect(coordinator).toContain('ACTION_STOP');
+    expect(coordinator).toContain('ACTION_START');
+  });
+
+  it('persists standalone and schedule snapshots independently from focus state', () => {
+    expect(networkBlockModule).toContain('publishStandaloneVpnSnapshot');
+    expect(appContext).toContain('syncScheduleVpn');
+    expect(appContext).toContain('syncStandaloneVpn');
+    expect(coordinator).toContain('PREF_FOCUS_MIRROR');
+    expect(coordinator).toContain('net_block_schedule_vpn_pkgs');
+    expect(coordinator).toContain('PREF_STANDALONE_VPN_PKGS');
+  });
+
   it('clears the canonical snapshot before handling an empty effective policy', () => {
     const snapshotWrite = coordinator.indexOf('.putString("net_block_packages", packagesJson)');
     const emptyPolicyCheck = coordinator.indexOf('!global && parsePackageJson(packagesJson).isEmpty()');

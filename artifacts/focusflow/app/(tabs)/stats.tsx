@@ -257,6 +257,7 @@ function StatsScreen() {
 
   const maxWeekCompleted = Math.max(...weeklyDays.map((d) => d.completed), 1);
   const maxWeekFocus     = Math.max(...weeklyDays.map((d) => d.focusMinutes), 1);
+  const daysWithDataThisWeek = weeklyDays.filter((day) => day.total > 0).length;
 
   const weekTaskWindows = useMemo(() => {
     const start = getWeekStart(state.settings.weekStartDay ?? 0);
@@ -486,7 +487,7 @@ function StatsScreen() {
 
             <TouchableOpacity
               style={[styles.reportLink, { backgroundColor: COLORS.primary + '12', borderColor: COLORS.primary + '35' }]}
-              onPress={() => router.push({ pathname: '/report', params: { type: 'day', date: dayjs().subtract(1, 'day').format('YYYY-MM-DD') } })}
+              onPress={() => router.push({ pathname: '/report', params: { type: 'day', refDate: dayjs().subtract(1, 'day').format('YYYY-MM-DD') } })}
               accessibilityRole="button"
               accessibilityLabel="Open yesterday's report"
             >
@@ -780,13 +781,13 @@ function StatsScreen() {
             showsVerticalScrollIndicator={false}>
 
              <SectionLabel label="TASK PRODUCTIVITY" theme={theme} />
-             {weekSummary.total < 3 ? (
+             {daysWithDataThisWeek < 3 ? (
                <View style={[styles.lockedCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
                  <Ionicons name="lock-closed-outline" size={20} color={theme.muted} />
                  <View style={{ flex: 1, gap: 2 }}>
                    <Text style={[styles.cardTitle, { color: theme.text }]}>Weekly insights unlock soon</Text>
                    <Text style={[styles.lockedText, { color: theme.muted }]}>
-                     Complete at least 3 tasks this calendar week to reveal patterns.
+                     Log {3 - daysWithDataThisWeek} more day{3 - daysWithDataThisWeek === 1 ? '' : 's'} of tasks this calendar week to reveal patterns.
                    </Text>
                  </View>
                </View>

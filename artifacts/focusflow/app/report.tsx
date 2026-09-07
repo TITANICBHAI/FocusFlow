@@ -36,9 +36,9 @@ function paramValue(value: string | string[] | undefined): string | undefined {
 function ReportScreen() {
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
-  const params = useLocalSearchParams<{ type?: string; date?: string }>();
+  const params = useLocalSearchParams<{ type?: string; date?: string; refDate?: string }>();
   const type: ReportType = paramValue(params.type) === 'week' ? 'week' : 'day';
-  const requestedDate = paramValue(params.date);
+  const requestedDate = paramValue(params.refDate) ?? paramValue(params.date);
   const anchor = useMemo(() => {
     const parsed = requestedDate ? dayjs(requestedDate) : dayjs().subtract(1, 'day');
     return parsed.isValid() ? parsed : dayjs().subtract(1, 'day');
@@ -73,6 +73,7 @@ function ReportScreen() {
   const [loading, setLoading] = useState(true);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [baselineTasks, setBaselineTasks] = useState<Task[]>([]);
+  const [weekNotes, setWeekNotes] = useState<Record<string, string>>({});
   const [note, setNote] = useState('');
   const [savedNote, setSavedNote] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -82,18 +83,20 @@ function ReportScreen() {
     setLoading(true);
     setError(null);
     try {
-      const [reportTasks, comparisonTasks, existingNote] = await Promise.all([
+      const [reportTasks, comparisonTasks, existingNote, existingWeekNote] = await Promise.all([
         dbGetTasksInDateRange(range.start.toISOString(), range.end.toISOString()),
         dbGetTasksInDateRange(baseline.start.toISOString(), baseline.end.toISOString()),
         type === 'week'
           ? dbGetWeekReportNotes(refDate)
           : dbGetReportNote(refDate, 'day'),
+        type === 'week' ? dbGetReportNote(refDate, 'week') : Promise.resolve(null),
       ]);
       setTasks(reportTasks);
       setBaselineTasks(comparisonTasks);
       const text = type === 'week'
-        ? Object.entries(existingNote as Record<string, string>).sort(([a], [b]) => a.localeCompare(b)).map(([, value]) => value).filter(Boolean).join('\n\n')
+        ? (existingWeekNote as string | null) ?? ''
         : (existingNote as string | null) ?? '';
+      setWeekNotes(type === 'week' ? existingNote as Record<string, string> : {});
       setNote(text);
       setSavedNote(text);
     } catch (loadError) {
@@ -115,6 +118,18 @@ function ReportScreen() {
   const completed = tasks.filter((task) => task.status === 'completed');
   const skipped = tasks.filter((task) => task.status === 'skipped');
   const focusMinutes = completed.filter((task) => task.focusMode).reduce((sum, task) => sum + task.durationMinutes, 0);
+  const completionRate = tasks.length > 0 ? Math.round((completed.length / tasks.length) * 100) : 0;
+  const bestDay = useMemo(() => {
+    if (type !== 'week') return null;
+    const rows = buildTimeline(range.start, range.end, tasks);
+    return rows
+      .filter((row) => row.tasks.length > 0)
+      .map((row) => ({
+        date: row.date,
+        rate: row.tasks.filter((task) => task.status === 'completed').length / row.tasks.length,
+      }))
+      .sort((a, b) => b.rate - a.rate || a.date.valueOf() - b.date.valueOf())[0]?.date ?? null;
+  }, [range.start, tasks, type]);
   const saveNote = useCallback(async () => {
     const trimmed = note.trim();
     if (trimmed === savedNote) return;
@@ -123,16 +138,7 @@ function ReportScreen() {
   }, [note, refDate, savedNote, type]);
 
   const timeline = useMemo(() => {
-    if (type === 'day') return [{ date: range.start, tasks }];
-    const rows: Array<{ date: Dayjs; tasks: Task[] }> = [];
-    for (let offset = 0; offset < 7; offset++) {
-      const date = range.start.add(offset, 'day');
-      rows.push({
-        date,
-        tasks: tasks.filter((task) => dayjs(task.startTime).format('YYYY-MM-DD') === date.format('YYYY-MM-DD')),
-      });
-    }
-    return rows;
+    return buildTimeline(range.start, range.end, tasks);
   }, [range.start, tasks, type]);
 
   return (
@@ -170,9 +176,19 @@ function ReportScreen() {
               <Text style={[styles.headline, { color: theme.text }]}>{analysis.headline}</Text>
               <View style={styles.summaryRow}>
                 <SummaryStat value={String(tasks.length)} label="tasks" color={COLORS.blue} theme={theme} />
-                <SummaryStat value={String(completed.length)} label="done" color={COLORS.green} theme={theme} />
-                <SummaryStat value={String(skipped.length)} label="skipped" color={COLORS.orange} theme={theme} />
-                <SummaryStat value={`${focusMinutes}m`} label="focus" color={COLORS.primary} theme={theme} />
+                {type === 'week' ? (
+                  <>
+                    <SummaryStat value={`${completionRate}%`} label="complete" color={COLORS.green} theme={theme} />
+                    <SummaryStat value={`${focusMinutes}m`} label="focus" color={COLORS.primary} theme={theme} />
+                    {bestDay && <SummaryStat value={bestDay.format('ddd')} label="best day" color={COLORS.orange} theme={theme} />}
+                  </>
+                ) : (
+                  <>
+                    <SummaryStat value={String(completed.length)} label="done" color={COLORS.green} theme={theme} />
+                    <SummaryStat value={String(skipped.length)} label="skipped" color={COLORS.orange} theme={theme} />
+                    <SummaryStat value={`${focusMinutes}m`} label="focus" color={COLORS.primary} theme={theme} />
+                  </>
+                )}
               </View>
             </View>
 
@@ -180,7 +196,7 @@ function ReportScreen() {
               <Text style={[styles.sectionTitle, { color: theme.text }]}>What stands out</Text>
               {analysis.insights.length === 0 ? (
                 <Text style={[styles.emptyText, { color: theme.muted }]}>
-                  Keep logging tasks and focus sessions. More patterns will appear here as your history grows.
+                  Not enough variation today to call out a specific pattern — steady as it goes.
                 </Text>
               ) : analysis.insights.map((insight) => (
                 <View key={insight.id} style={styles.insightRow}>
@@ -206,10 +222,24 @@ function ReportScreen() {
             </View>
 
             <View style={[styles.card, { backgroundColor: theme.card }]}>
-              <Text style={[styles.sectionTitle, { color: theme.text }]}>{type === 'week' ? 'Task timeline' : 'Task timeline'}</Text>
+              <Text style={[styles.sectionTitle, { color: theme.text }]}>Task timeline</Text>
               {timeline.map((row) => (
                 <View key={row.date.format('YYYY-MM-DD')} style={styles.dayBlock}>
-                  {type === 'week' && <Text style={[styles.dayHeading, { color: theme.muted }]}>{row.date.format('ddd, MMM D')}</Text>}
+                  {type === 'week' && (
+                    <View style={styles.daySummary}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.dayHeading, { color: theme.text }]}>{row.date.format('ddd, MMM D')}</Text>
+                        <Text style={[styles.dayMeta, { color: theme.muted }]}>
+                          {row.tasks.filter((task) => task.status === 'completed').length}/{row.tasks.length} complete · {row.tasks.filter((task) => task.status === 'completed' && task.focusMode).reduce((sum, task) => sum + task.durationMinutes, 0)}m focus
+                        </Text>
+                      </View>
+                      {weekNotes[row.date.format('YYYY-MM-DD')] && (
+                        <Text style={[styles.dailyNote, { color: theme.muted }]}>
+                          {weekNotes[row.date.format('YYYY-MM-DD')]}
+                        </Text>
+                      )}
+                    </View>
+                  )}
                   {row.tasks.length === 0 ? (
                     <Text style={[styles.emptyText, { color: theme.muted }]}>No tasks scheduled.</Text>
                   ) : row.tasks.map((task) => <TaskTimelineRow key={task.id} task={task} theme={theme} />)}
@@ -221,6 +251,21 @@ function ReportScreen() {
       )}
     </SafeAreaView>
   );
+}
+
+function buildTimeline(start: Dayjs, end: Dayjs, tasks: Task[]): Array<{ date: Dayjs; tasks: Task[] }> {
+  if (start.isSame(end, 'day')) return [{ date: start, tasks }];
+  const rows: Array<{ date: Dayjs; tasks: Task[] }> = [];
+  const isCurrentWeek = start.isBefore(dayjs().endOf('day')) && end.isAfter(dayjs().startOf('day'));
+  const lastOffset = isCurrentWeek ? Math.min(6, Math.max(0, dayjs().startOf('day').diff(start, 'day'))) : 6;
+  for (let offset = 0; offset <= lastOffset; offset++) {
+    const date = start.add(offset, 'day');
+    rows.push({
+      date,
+      tasks: tasks.filter((task) => dayjs(task.startTime).format('YYYY-MM-DD') === date.format('YYYY-MM-DD')),
+    });
+  }
+  return rows;
 }
 
 function SummaryStat({ value, label, color, theme }: { value: string; label: string; color: string; theme: any }) {
@@ -278,7 +323,10 @@ const styles = StyleSheet.create({
   noteHint: { fontSize: FONT.xs },
   noteInput: { minHeight: 88, borderWidth: 1, borderRadius: RADIUS.md, padding: SPACING.sm, fontSize: FONT.sm, lineHeight: 20 },
   dayBlock: { gap: SPACING.xs },
-  dayHeading: { fontSize: FONT.xs, fontWeight: '800', marginTop: SPACING.sm },
+  daySummary: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm, marginTop: SPACING.sm },
+  dayHeading: { fontSize: FONT.sm, fontWeight: '800' },
+  dayMeta: { fontSize: FONT.xs, marginTop: 2 },
+  dailyNote: { flex: 1, fontSize: FONT.xs, fontStyle: 'italic', lineHeight: 17, textAlign: 'right' },
   taskRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, paddingVertical: SPACING.sm, borderBottomWidth: StyleSheet.hairlineWidth },
   taskCopy: { flex: 1, gap: 2 },
   taskTitle: { fontSize: FONT.sm, fontWeight: '600' },
