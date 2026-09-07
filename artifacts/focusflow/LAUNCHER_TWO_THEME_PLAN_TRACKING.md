@@ -33,7 +33,9 @@ validation advances.
   and solid 56dp bottom icons.
 - Notes: Matches the Classic reference's flat black canvas, thin large clock,
   compact pill, and independent solid circles. The native font remains the
-  platform sans font; no bundled reference font was available.
+  platform sans font; no bundled reference font was available. The FocusFlow
+  shortcut now renders the official installed app icon in its fixed bottom
+  action.
 
 ### 3. Glassy home
 
@@ -42,6 +44,8 @@ validation advances.
 - Notes: Matches the Glassy reference's wallpaper/scrim, frosted cards, full
   allowance sentences, and separated bottom actions. Android blur is represented
   by the existing translucent glass tokens because no new blur dependency was added.
+  The FocusFlow shortcut uses the same official app icon as Classic, inside the
+  existing frosted circular touch target.
 
 ### 4. Launcher configuration screen
 
