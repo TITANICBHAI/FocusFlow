@@ -187,6 +187,7 @@ export const SharedPrefsModule = {
     packages: string[],
     untilMs: number,
     pinHash: string | null = null,
+    vpnPackages: string[] = [],
   ): Promise<void> {
     if (!hasSharedPrefsMethod('publishStandaloneSnapshot')) return;
     await callNativeStrict('publishStandaloneSnapshot', () => SharedPrefs.publishStandaloneSnapshot(
@@ -194,7 +195,15 @@ export const SharedPrefsModule = {
       packages,
       untilMs,
       pinHash,
+      vpnPackages,
     ));
+  },
+
+  async publishScheduleVpnSnapshot(packagesJson: string): Promise<void> {
+    if (!hasSharedPrefsMethod('publishScheduleVpnSnapshot')) return;
+    await callNativeStrict('publishScheduleVpnSnapshot', () =>
+      SharedPrefs.publishScheduleVpnSnapshot(packagesJson),
+    );
   },
 
   /**

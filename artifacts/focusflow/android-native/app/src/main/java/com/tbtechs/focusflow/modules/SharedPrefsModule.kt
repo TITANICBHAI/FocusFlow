@@ -9,6 +9,7 @@ import com.facebook.react.bridge.ReadableArray
 import com.facebook.react.bridge.WritableNativeMap
 import com.tbtechs.focusflow.services.AppBlockerAccessibilityService
 import com.tbtechs.focusflow.services.NetworkBlockerVpnService
+import com.tbtechs.focusflow.services.VpnPolicyCoordinator
 import com.tbtechs.focusflow.widget.FocusFlowWidget
 
 private fun ReadableArray.toJsonArrayString(): String {
@@ -387,6 +388,7 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
         packages: ReadableArray,
         untilMs: Double,
         pinHash: String?,
+        vpnPackages: ReadableArray?,
         promise: Promise,
     ) {
         try {
@@ -409,11 +411,16 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
                     .putBoolean("standalone_block_active", true)
                     .putString("standalone_blocked_packages", packages.toJsonArrayString())
                     .putLong("standalone_block_until_ms", untilMs.toLong())
+                .putString(
+                    "net_block_standalone_vpn_packages",
+                    vpnPackages?.toJsonArrayString() ?: "[]",
+                )
             } else {
                 editor
                     .putBoolean("standalone_block_active", false)
                     .putString("standalone_blocked_packages", "[]")
                     .putLong("standalone_block_until_ms", 0L)
+                .putString("net_block_standalone_vpn_packages", "[]")
             }
 
             if (!editor.commit()) {
@@ -456,6 +463,23 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
             .putString(AppBlockerAccessibilityService.PREF_ALWAYS_BLOCK_PKGS, json)
             .apply()
         promise.resolve(null)
+    }
+
+    @ReactMethod
+    fun publishScheduleVpnSnapshot(packagesJson: String, promise: Promise) {
+        try {
+            val ok = prefs().edit()
+                .putString("net_block_schedule_vpn_pkgs", packagesJson)
+                .commit()
+            if (!ok) {
+                promise.reject("WRITE_FAILED", "commit() returned false")
+                return
+            }
+            VpnPolicyCoordinator.requestSync(reactContext)
+            promise.resolve(null)
+        } catch (e: Exception) {
+            promise.reject("PREFS_ERROR", e.message, e)
+        }
     }
 
     /**

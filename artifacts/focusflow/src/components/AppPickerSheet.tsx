@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { InstalledAppsModule, type InstalledApp } from '@/native-modules/InstalledAppsModule';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 import type { AllowedAppPreset } from '@/data/types';
+import { useTheme } from '@/hooks/useTheme';
 
 // ─── Sensitive-app advisory list ──────────────────────────────────────────────
 // These apps CAN be blocked, but the user is warned first because blocking them
@@ -168,6 +169,8 @@ export function AppPickerSheet({
   onDeletePreset,
   onClose,
 }: Props) {
+  const { theme } = useTheme();
+  const softPrimary = COLORS.primary + (theme.isDark ? '30' : '18');
   const [apps, setApps] = useState<InstalledApp[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
@@ -371,7 +374,7 @@ export function AppPickerSheet({
     const sensitive = SENSITIVE_APPS.get(item.packageName);
     return (
       <TouchableOpacity
-        style={styles.row}
+        style={[styles.row, { backgroundColor: theme.card }]}
         onPress={() => toggle(item.packageName)}
         activeOpacity={0.7}
       >
@@ -381,25 +384,25 @@ export function AppPickerSheet({
             style={styles.icon}
           />
         ) : (
-          <View style={styles.iconPlaceholder}>
+          <View style={[styles.iconPlaceholder, { backgroundColor: theme.surface }]}>
             <Ionicons name="apps-outline" size={22} color={COLORS.muted} />
           </View>
         )}
         <View style={styles.appInfo}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <Text style={styles.appName} numberOfLines={1}>{item.appName}</Text>
+            <Text style={[styles.appName, { color: theme.text }]} numberOfLines={1}>{item.appName}</Text>
             {sensitive && (
-              <View style={styles.systemBadge}>
+              <View style={[styles.systemBadge, { backgroundColor: softPrimary }]}>
                 <Ionicons name="alert-circle-outline" size={10} color={COLORS.primary} />
                 <Text style={styles.systemBadgeText}>Sensitive</Text>
               </View>
             )}
           </View>
-          <Text style={styles.pkgName} numberOfLines={1}>
+          <Text style={[styles.pkgName, { color: theme.muted }]} numberOfLines={1}>
             {sensitive ? `${sensitive.category} · ${item.packageName}` : item.packageName}
           </Text>
         </View>
-        <View style={[styles.checkbox, checked && styles.checkboxOn]}>
+         <View style={[styles.checkbox, { backgroundColor: theme.surface, borderColor: theme.border }, checked && styles.checkboxOn]}>
           {checked && <Ionicons name="checkmark" size={14} color="#fff" />}
         </View>
       </TouchableOpacity>
@@ -411,10 +414,10 @@ export function AppPickerSheet({
       {/* Presets section */}
       <View style={styles.presetsSection}>
         <View style={styles.presetsTitleRow}>
-          <Text style={styles.sectionLabel}>PRESETS</Text>
+          <Text style={[styles.sectionLabel, { color: theme.muted }]}>PRESETS</Text>
           {!showPresetInput && (
             <TouchableOpacity
-              style={styles.savePresetBtn}
+              style={[styles.savePresetBtn, { backgroundColor: softPrimary }]}
               onPress={() => setShowPresetInput(true)}
               activeOpacity={0.7}
             >
@@ -426,10 +429,10 @@ export function AppPickerSheet({
 
         {showPresetInput ? (
           <View style={styles.presetInputRow}>
-            <TextInput
-              style={styles.presetInput}
+             <TextInput
+               style={[styles.presetInput, { backgroundColor: theme.card, color: theme.text }]}
               placeholder="Preset name…"
-              placeholderTextColor={COLORS.muted}
+              placeholderTextColor={theme.muted}
               value={presetName}
               onChangeText={setPresetName}
               autoFocus
@@ -438,7 +441,11 @@ export function AppPickerSheet({
               maxLength={32}
             />
             <TouchableOpacity
-              style={[styles.presetInputBtn, !presetName.trim() && styles.presetInputBtnDim]}
+              style={[
+                styles.presetInputBtn,
+                !presetName.trim() && styles.presetInputBtnDim,
+                !presetName.trim() && { backgroundColor: softPrimary },
+              ]}
               onPress={handleSavePreset}
               disabled={!presetName.trim()}
             >
@@ -452,7 +459,7 @@ export function AppPickerSheet({
             </TouchableOpacity>
           </View>
         ) : presets.length === 0 ? (
-          <Text style={styles.presetEmpty}>
+          <Text style={[styles.presetEmpty, { color: theme.muted }]}>
             No presets yet — save the current selection as a named preset.
           </Text>
         ) : null}
@@ -467,7 +474,7 @@ export function AppPickerSheet({
               {presets.map((preset) => (
                 <TouchableOpacity
                   key={preset.id}
-                  style={styles.presetChip}
+                 style={[styles.presetChip, { backgroundColor: softPrimary }]}
                   onPress={() => applyPreset(preset)}
                   onLongPress={() => confirmDeletePreset(preset)}
                   activeOpacity={0.7}
@@ -484,7 +491,7 @@ export function AppPickerSheet({
                 </TouchableOpacity>
               ))}
             </ScrollView>
-            <Text style={styles.presetHint}>Tap to apply · Long-press to delete</Text>
+            <Text style={[styles.presetHint, { color: theme.muted }]}>Tap to apply · Long-press to delete</Text>
           </>
         )}
       </View>
@@ -493,7 +500,7 @@ export function AppPickerSheet({
           visible so the user can jump from any state to "allow all" or
           "block all" in a single tap (no more two-tap toggle dance). */}
       <View style={styles.controlRow}>
-        <Text style={styles.countText}>
+         <Text style={[styles.countText, { color: theme.textSecondary }]}>
           {allChecked
             ? `All ${apps.length} apps allowed`
             : noneSelected
@@ -503,7 +510,7 @@ export function AppPickerSheet({
         <View style={styles.controlBtnRow}>
           <TouchableOpacity
             onPress={selectAll}
-            style={[styles.selectAllBtn, allChecked && styles.selectAllBtnDisabled]}
+             style={[styles.selectAllBtn, { backgroundColor: theme.surface, borderColor: theme.border }, allChecked && styles.selectAllBtnDisabled]}
             disabled={allChecked}
           >
             <Text style={[styles.selectAllText, allChecked && styles.selectAllTextDisabled]}>
@@ -512,7 +519,7 @@ export function AppPickerSheet({
           </TouchableOpacity>
           <TouchableOpacity
             onPress={deselectAll}
-            style={[styles.selectAllBtn, noneSelected && styles.selectAllBtnDisabled]}
+             style={[styles.selectAllBtn, { backgroundColor: theme.surface, borderColor: theme.border }, noneSelected && styles.selectAllBtnDisabled]}
             disabled={noneSelected}
           >
             <Text style={[styles.selectAllText, noneSelected && styles.selectAllTextDisabled]}>
@@ -523,7 +530,7 @@ export function AppPickerSheet({
       </View>
 
       {/* Search bar */}
-      <View style={styles.searchBar}>
+       <View style={[styles.searchBar, { backgroundColor: theme.card, borderColor: theme.border }]}>
         <Ionicons
           name="search"
           size={16}
@@ -531,9 +538,9 @@ export function AppPickerSheet({
           style={{ marginRight: SPACING.xs }}
         />
         <TextInput
-          style={styles.searchInput}
+           style={[styles.searchInput, { color: theme.text }]}
           placeholder="Search by name or package…"
-          placeholderTextColor={COLORS.muted}
+           placeholderTextColor={theme.muted}
           value={search}
           onChangeText={setSearch}
           autoCorrect={false}
@@ -541,7 +548,7 @@ export function AppPickerSheet({
         />
       </View>
 
-      <Text style={styles.hint}>
+      <Text style={[styles.hint, { color: theme.muted }]}>
         Checked apps are allowed during Focus. The &quot;Sensitive&quot; tag means an app
         can be blocked but will warn first (e.g. Settings, Wallet). Truly
         protected apps — your phone dialer, home launcher and WhatsApp — are
@@ -551,26 +558,26 @@ export function AppPickerSheet({
       {loading && (
         <View style={styles.loadingRow}>
           <ActivityIndicator size="small" color={COLORS.primary} />
-          <Text style={styles.loadingText}>Loading installed apps…</Text>
+          <Text style={[styles.loadingText, { color: theme.muted }]}>Loading installed apps…</Text>
         </View>
       )}
     </>
   );
 
-  return (
+   return (
     <Modal
       visible={visible}
       animationType="slide"
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <SafeAreaView style={styles.container}>
+       <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
         {/* Header */}
-        <View style={styles.header}>
+        <View style={[styles.header, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
           <TouchableOpacity onPress={onClose} style={styles.headerBtn}>
-            <Text style={styles.cancelText}>Cancel</Text>
+            <Text style={[styles.cancelText, { color: theme.muted }]}>Cancel</Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>{title}</Text>
+           <Text style={[styles.headerTitle, { color: theme.text }]}>{title}</Text>
           <TouchableOpacity onPress={handleSave} style={styles.headerBtn}>
             <Text style={styles.saveText}>Save</Text>
           </TouchableOpacity>
@@ -587,7 +594,7 @@ export function AppPickerSheet({
           ListEmptyComponent={
             !loading ? (
               <View style={styles.empty}>
-                <Text style={styles.emptyText}>
+                <Text style={[styles.emptyText, { color: theme.muted }]}>
                   {search ? 'No apps match your search.' : 'No installed apps found.'}
                 </Text>
               </View>

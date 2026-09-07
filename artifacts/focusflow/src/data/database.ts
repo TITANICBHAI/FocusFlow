@@ -1,6 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 import type { SQLiteBindParams } from 'expo-sqlite';
 import { Platform } from 'react-native';
+import dayjs from 'dayjs';
 import type { Task, AppSettings, FocusSession, DailyAllowanceEntry } from './types';
 import { logger } from '@/services/startupLogger';
 import { DEFAULT_SETTINGS } from './defaultSettings';
@@ -538,6 +539,16 @@ async function initSchema(db: SQLite.SQLiteDatabase): Promise<void> {
     )
   `);
 
+  await db.runAsync(`
+    CREATE TABLE IF NOT EXISTS report_notes (
+      ref_date TEXT NOT NULL,
+      type TEXT NOT NULL CHECK(type IN ('day', 'week')),
+      note TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (ref_date, type)
+    )
+  `);
+
   // ── Migration: add focus_allowed_packages column ─────────────────────────
   // ALTER TABLE ADD COLUMN is idempotent via try/catch — safe to run every time.
   const migrationStart = Date.now();
@@ -618,6 +629,51 @@ export async function dbGetTasksInDateRange(startDateISO: string, endDateISO: st
       [start, end],
     );
     return rows.map(rowToTask);
+  });
+}
+
+/** Saves a non-empty optional note attached to a day or calendar week. */
+export async function dbSaveReportNote(
+  refDate: string,
+  type: 'day' | 'week',
+  note: string,
+): Promise<void> {
+  const trimmed = note.trim();
+  if (!trimmed) return;
+  return runWithDbWrite('dbSaveReportNote', async (database) => {
+    await database.runAsync(
+      `INSERT INTO report_notes (ref_date, type, note, updated_at)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT(ref_date, type) DO UPDATE
+         SET note = excluded.note, updated_at = excluded.updated_at`,
+      [refDate, type, trimmed, new Date().toISOString()],
+    );
+  });
+}
+
+export async function dbGetReportNote(
+  refDate: string,
+  type: 'day' | 'week',
+): Promise<string | null> {
+  return runWithDbOr('dbGetReportNote', null, async (database) => {
+    const row = await database.getFirstAsync<{ note: string }>(
+      'SELECT note FROM report_notes WHERE ref_date = ? AND type = ?',
+      [refDate, type],
+    );
+    return row?.note ?? null;
+  });
+}
+
+export async function dbGetWeekReportNotes(
+  sundayDate: string,
+): Promise<Record<string, string>> {
+  return runWithDbOr('dbGetWeekReportNotes', {}, async (database) => {
+    const rows = await database.getAllAsync<{ ref_date: string; note: string }>(
+      `SELECT ref_date, note FROM report_notes
+       WHERE type = 'day' AND ref_date >= ? AND ref_date <= date(?, '+6 days')`,
+      [sundayDate, sundayDate],
+    );
+    return Object.fromEntries(rows.map((row) => [row.ref_date, row.note]));
   });
 }
 
@@ -1109,6 +1165,14 @@ export async function dbPruneOldData(daysToKeep = 90): Promise<void> {
       const cutoffDate = cutoffIso.slice(0, 10);
       await database.runAsync(`DELETE FROM focus_sessions WHERE is_active = 0 AND ended_at IS NOT NULL AND ended_at < ?`, [cutoffIso]);
       await database.runAsync(`DELETE FROM daily_completions WHERE date < ?`, [cutoffDate]);
+      await database.runAsync(
+        `DELETE FROM report_notes WHERE type = 'day' AND ref_date < ?`,
+        [dayjs().subtract(8, 'day').format('YYYY-MM-DD')],
+      );
+      await database.runAsync(
+        `DELETE FROM report_notes WHERE type = 'week' AND ref_date < ?`,
+        [dayjs().subtract(14, 'day').format('YYYY-MM-DD')],
+      );
       // Tasks are kept for a full year so the "All Time" task log stays meaningful.
       // Each row is small (~500 bytes), so 365 days of tasks is well under 10 MB.
       const taskCutoff = new Date();

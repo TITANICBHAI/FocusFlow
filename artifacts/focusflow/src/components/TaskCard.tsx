@@ -10,6 +10,7 @@ import type { Task } from '@/data/types';
 import { formatTime, formatDuration, getTimeUntilStart } from '@/services/taskService';
 import { useTaskTimer } from '@/hooks/useTimer';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
+import { useTheme } from '@/hooks/useTheme';
 
 interface Props {
   task: Task;
@@ -31,6 +32,7 @@ export default function TaskCard({
   onStartFocus,
 }: Props) {
   const timer = useTaskTimer(task.startTime, task.endTime);
+  const { theme } = useTheme();
 
   const handleExtend = useCallback(() => {
     onExtend?.(task.id);
@@ -52,6 +54,7 @@ export default function TaskCard({
       style={[
         styles.card,
         isActive && styles.cardActive,
+        { backgroundColor: theme.card },
         { opacity: statusOpacity },
       ]}
     >
@@ -70,6 +73,7 @@ export default function TaskCard({
               style={[
                 styles.title,
                 task.status === 'completed' && styles.titleDone,
+                { color: task.status === 'completed' ? theme.muted : theme.text },
               ]}
               numberOfLines={1}
             >
@@ -84,7 +88,7 @@ export default function TaskCard({
         </View>
 
         {/* Time */}
-        <Text style={styles.timeText}>
+        <Text style={[styles.timeText, { color: theme.muted }]}>
           {formatTime(task.startTime)} – {formatTime(task.endTime)} · {formatDuration(task.durationMinutes)}
         </Text>
 
@@ -92,8 +96,8 @@ export default function TaskCard({
         {task.tags.length > 0 && (
           <View style={styles.tagsRow}>
             {task.tags.map((tag) => (
-              <View key={tag} style={styles.tag}>
-                <Text style={styles.tagText}>#{tag}</Text>
+              <View key={tag} style={[styles.tag, { backgroundColor: theme.surface }]}>
+                <Text style={[styles.tagText, { color: theme.muted }]}>#{tag}</Text>
               </View>
             ))}
           </View>
@@ -102,7 +106,7 @@ export default function TaskCard({
         {/* Active task: progress bar + timer */}
         {isActive && (
           <View style={styles.progressContainer}>
-            <View style={styles.progressTrack}>
+                <View style={[styles.progressTrack, { backgroundColor: theme.border }]}>
               <View
                 style={[
                   styles.progressFill,
@@ -110,7 +114,7 @@ export default function TaskCard({
                 ]}
               />
             </View>
-            <Text style={styles.timerText}>
+            <Text style={[styles.timerText, { color: theme.textSecondary }]}>
               {timer.isOverdue
                 ? `Overdue by ${Math.floor(-timer.remaining / 60)}m`
                 : `${Math.floor(timer.remaining / 60)}m remaining`}
@@ -120,7 +124,7 @@ export default function TaskCard({
 
         {/* Scheduled: time until start */}
         {task.status === 'scheduled' && !isActive && (
-          <Text style={styles.untilText}>{getTimeUntilStart(task.startTime)}</Text>
+           <Text style={[styles.untilText, { color: theme.textSecondary }]}>{getTimeUntilStart(task.startTime)}</Text>
         )}
 
         {/* Completed / skipped label */}
@@ -131,7 +135,7 @@ export default function TaskCard({
               size={14}
               color={task.status === 'completed' ? COLORS.green : COLORS.muted}
             />
-            <Text style={styles.doneText}>
+            <Text style={[styles.doneText, { color: theme.muted }]}>
               {task.status === 'completed' ? 'Completed' : 'Skipped'}
             </Text>
           </View>

@@ -10,6 +10,7 @@ import {
   Alert,
   ActivityIndicator,
   Image,
+  Switch,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
@@ -47,6 +48,7 @@ const BLANK_WINDOW: GreyoutWindow = {
   endHour: 18,
   endMin: 0,
   days: [2, 3, 4, 5, 6],
+  vpnEnabled: false,
 };
 
 type SelectedApp = { pkg: string; name: string };
@@ -87,6 +89,7 @@ export function GreyoutScheduleModal({
   const [localWindows, setLocalWindows] = useState<GreyoutWindow[]>([]);
   const [mode, setMode] = useState<Mode>('list');
   const [draft, setDraft] = useState<GreyoutWindow>(BLANK_WINDOW);
+  const [vpnEnabled, setVpnEnabled] = useState(false);
   const [editIndex, setEditIndex] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [originalWindow, setOriginalWindow] = useState<GreyoutWindow | null>(null);
@@ -103,6 +106,7 @@ export function GreyoutScheduleModal({
     setLocalWindows(windows);
     setMode('list');
     setDraft(BLANK_WINDOW);
+    setVpnEnabled(false);
     setEditIndex(null);
     setOriginalWindow(null);
     setSelectedApps([]);
@@ -185,6 +189,7 @@ export function GreyoutScheduleModal({
 
   const openAdd = () => {
     setDraft(BLANK_WINDOW);
+    setVpnEnabled(false);
     setSelectedApps([]);
     setAppSearch('');
     setEditIndex(null);
@@ -197,6 +202,7 @@ export function GreyoutScheduleModal({
     const selApps = pkgs.map((pkg) => ({ pkg, name: pkgToName.get(pkg) ?? pkg }));
     setSelectedApps(selApps);
     setDraft({ ...w });
+    setVpnEnabled(w.vpnEnabled ?? false);
     setEditIndex(idx);
     setOriginalWindow({ ...w });
     setAppSearch('');
@@ -226,7 +232,7 @@ export function GreyoutScheduleModal({
     const pkgs = selectedApps.map((a) => a.pkg);
     const doCommit = () => {
       const updated = [...localWindows];
-      const window: GreyoutWindow = { ...draft, pkg: pkgs[0], pkgs };
+      const window: GreyoutWindow = { ...draft, pkg: pkgs[0], pkgs, vpnEnabled };
       if (editIndex !== null) {
         updated[editIndex] = window;
       } else {
@@ -572,6 +578,33 @@ export function GreyoutScheduleModal({
                     </TouchableOpacity>
                   );
                 })}
+              </View>
+
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  borderTopWidth: StyleSheet.hairlineWidth,
+                  borderTopColor: theme.border,
+                  marginTop: SPACING.lg,
+                  paddingTop: SPACING.md,
+                }}
+              >
+                <View style={{ flex: 1, paddingRight: SPACING.md }}>
+                  <Text style={{ color: theme.text, fontSize: FONT.md, fontWeight: '600' }}>
+                    Block network (VPN)
+                  </Text>
+                  <Text style={{ color: theme.muted, fontSize: FONT.xs, marginTop: 3 }}>
+                    Cut internet access for these apps during this window
+                  </Text>
+                </View>
+                <Switch
+                  value={vpnEnabled}
+                  onValueChange={setVpnEnabled}
+                  trackColor={{ true: COLORS.primary, false: theme.border }}
+                  thumbColor={theme.card}
+                />
               </View>
 
               <View style={{ flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.lg }}>

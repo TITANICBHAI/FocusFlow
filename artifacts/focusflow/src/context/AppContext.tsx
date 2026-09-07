@@ -349,6 +349,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // crash or interrupted settings save cannot leave stale windows active.
       try {
         await GreyoutModule.setSchedule(_recurringSchedulesToGreyoutWindows(stateRef.current.settings));
+        await syncScheduleVpn();
       } catch (e) {
         void logger.warn('AppContext', `foreground resume greyout sync failed: ${String(e)}`);
       }
@@ -547,6 +548,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         void logger.info('AppContext', 'Syncing greyout schedule + recurring block schedules');
         const combined = _recurringSchedulesToGreyoutWindows(settings);
         await GreyoutModule.setSchedule(combined);
+        await syncScheduleVpn(settings);
         void logger.info('AppContext', 'Greyout schedule synced');
       } catch (e) {
         void logger.warn('AppContext', `Greyout schedule sync failed: ${String(e)}`);
@@ -725,6 +727,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           days: sched.days,
           scheduleId: sched.id,
           scheduleName: sched.name,
+          vpnEnabled: sched.vpnEnabled ?? false,
         });
       }
     }
@@ -846,7 +849,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const packages = standaloneBlockPackages ?? [];
     if (packages.length === 0 || !standaloneBlockUntil) {
       try {
-        await SharedPrefsModule.publishStandaloneSnapshot(false, [], 0);
+        await SharedPrefsModule.publishStandaloneSnapshot(
+          false,
+          [],
+          0,
+          null,
+          settings.standaloneVpnPackages ?? [],
+        );
       } catch (e) {
         void logger.warn('AppContext', `standalone block clear failed: ${String(e)}`);
       }
@@ -860,7 +869,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // cleanup done in setStandaloneBlock / setStandaloneBlockAndAllowance
       // (Bug 3 fix) so the expiry path is consistent with the manual clear path.
       try {
-        await SharedPrefsModule.publishStandaloneSnapshot(false, packages, 0);
+        await SharedPrefsModule.publishStandaloneSnapshot(false, packages, 0, null, []);
       } catch (e) {
         void logger.warn('AppContext', `expired standalone block clear failed: ${String(e)}`);
       }
@@ -886,7 +895,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       dispatch({ type: 'SET_SETTINGS', payload: cleared });
     } else {
       try {
-        await SharedPrefsModule.publishStandaloneSnapshot(true, packages, untilMs);
+        await SharedPrefsModule.publishStandaloneSnapshot(
+          true,
+          packages,
+          untilMs,
+          null,
+          settings.standaloneVpnPackages ?? [],
+        );
       } catch (e) {
         void logger.warn('AppContext', `standalone block sync failed: ${String(e)}`);
       }
@@ -896,6 +911,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // ── Keep a ref to latest state so the tick interval never needs to re-create ─
   // (fixes NEW-021: setInterval restarting on every task/settings change)
   const stateRef = useRef(state);
+  const lastScheduleVpnRef = useRef('[]');
   // React dispatch is asynchronous. Task operations queued back-to-back must
   // see the previous operation's task result immediately, before the next
   // render updates stateRef.
@@ -926,6 +942,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (s.settings.standaloneBlockUntil) {
         void _syncStandaloneBlock(s.settings);
       }
+      void syncScheduleVpn();
       // Refresh the home-screen widget so its time-remaining counter and
       // standalone-block expiry stay in sync without waiting for the next
       // user action. Cheap: it's a single SharedPrefs read + RemoteViews push.
@@ -944,6 +961,44 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (tickRef.current) clearInterval(tickRef.current);
     };
   }, [state.isDbReady]);
+
+  /**
+   * Publish the currently active schedule-VPN packages as an independent
+   * native source. The coordinator unions this snapshot with explicit,
+   * standalone, and focus sources.
+   */
+  async function syncScheduleVpn(settingsOverride?: AppSettings): Promise<void> {
+    const settings = settingsOverride ?? stateRef.current.settings;
+    const now = new Date();
+    const nowDay = now.getDay() + 1;
+    const previousDay = nowDay === 1 ? 7 : nowDay - 1;
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+    const active = new Set<string>();
+
+    for (const window of _recurringSchedulesToGreyoutWindows(settings)) {
+      if (!window.vpnEnabled) continue;
+      const packages = window.pkgs ?? (window.pkg ? [window.pkg] : []);
+      if (packages.length === 0) continue;
+
+      const start = window.startHour * 60 + window.startMin;
+      const end = window.endHour * 60 + window.endMin;
+      const isActive = end > start
+        ? window.days.includes(nowDay) && nowMinutes >= start && nowMinutes < end
+        : end < start
+          ? (window.days.includes(nowDay) && nowMinutes >= start) ||
+            (window.days.includes(previousDay) && nowMinutes < end)
+          : false;
+
+      if (isActive) packages.forEach((pkg) => active.add(pkg));
+    }
+
+    const json = JSON.stringify([...active].sort());
+    if (json === lastScheduleVpnRef.current) return;
+    lastScheduleVpnRef.current = json;
+    await SharedPrefsModule.publishScheduleVpnSnapshot(json).catch((e) => {
+      void logger.warn('AppContext', `schedule VPN sync failed: ${String(e)}`);
+    });
+  }
 
   /**
    * Pushes the current "active task" snapshot to SharedPreferences for the
@@ -1611,6 +1666,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const allowedPackages = task.focusAllowedPackages !== undefined ? task.focusAllowedPackages : state.settings.allowedInFocus;
 
       try {
+        // A deliberate user-started session establishes a new occurrence and
+        // may reuse a task that was previously stopped after a restart.
+        dismissedFocusTaskIdRef.current = null;
+        await withTimeout(
+          SharedPrefsModule.putString('focus_dismissed_task_id', ''),
+          2000,
+          'clear dismissed focus task',
+        ).catch(() => {});
         await _startFocusMode(
           task,
           allowedPackages,
@@ -1718,6 +1781,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           GreyoutModule.setSchedule(_recurringSchedulesToGreyoutWindows(settings)).catch(
             (e) => void logger.warn('AppContext', `greyout sync failed: ${String(e)}`),
           ),
+          syncScheduleVpn(settings),
           _syncSystemGuard(settings, options.defensePinHash ?? null, state.isDbUnrecoverable),
         ]);
       } catch (e) {
@@ -1796,6 +1860,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       await GreyoutModule.setSchedule(combined).catch(
         (e) => void logger.warn('AppContext', `greyout sync (recurring) failed: ${String(e)}`),
       );
+      await syncScheduleVpn(newSettings);
       // eslint-disable-next-line react-hooks/exhaustive-deps
     },
     [state.settings],
@@ -1837,7 +1902,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
       dispatch({ type: 'SET_SETTINGS', payload: newSettings });
       const active = packages.length > 0 && untilMs !== null && untilMs > Date.now();
-      await SharedPrefsModule.publishStandaloneSnapshot(active, packages, untilMs ?? 0, pinHash);
+      await SharedPrefsModule.publishStandaloneSnapshot(
+        active,
+        packages,
+        untilMs ?? 0,
+        pinHash,
+        newSettings.standaloneVpnPackages ?? [],
+      );
       const vpnPkgs = getExplicitVpnPackages(newSettings);
       if ((newSettings.vpnBlockEnabled ?? false) && active && vpnPkgs.length > 0) {
         void NetworkBlockModule.startNetworkBlock(JSON.stringify(vpnPkgs)).catch(
@@ -1885,7 +1956,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         void logger.warn('AppContext', `setQuickBlockTemporary: dbSaveSettings non-fatal: ${String(e)}`);
       }
       dispatch({ type: 'SET_SETTINGS', payload: newSettings });
-      await SharedPrefsModule.publishStandaloneSnapshot(true, packages, untilMs);
+      await SharedPrefsModule.publishStandaloneSnapshot(
+        true,
+        packages,
+        untilMs,
+        null,
+        state.settings.standaloneVpnPackages ?? [],
+      );
       const allowanceEntries = newSettings.dailyAllowanceEntries ?? [];
       const alwaysOnActive =
         newSettings.alwaysOnEnforcementEnabled !== false &&
@@ -1952,7 +2029,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
       dispatch({ type: 'SET_SETTINGS', payload: newSettings });
       const active = packages.length > 0 && untilMs !== null && untilMs > Date.now();
-      await SharedPrefsModule.publishStandaloneSnapshot(active, packages, untilMs ?? 0, pinHash);
+      await SharedPrefsModule.publishStandaloneSnapshot(
+        active,
+        packages,
+        untilMs ?? 0,
+        pinHash,
+        resolvedVpnPackages,
+      );
       await SharedPrefsModule.setDailyAllowanceConfig(allowanceEntries);
       await NetworkBlockModule.setNetworkBlockSettings({
         enabled: newSettings.vpnBlockEnabled ?? false,

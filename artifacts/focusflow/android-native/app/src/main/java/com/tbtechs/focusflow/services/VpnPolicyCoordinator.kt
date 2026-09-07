@@ -87,6 +87,10 @@ object VpnPolicyCoordinator {
                 prefs.getString(PREF_STANDALONE_VPN_PKGS, "[]") ?: "[]",
             ).isNotEmpty()
         ) return true
+        if (parsePackageJson(
+                prefs.getString("net_block_schedule_vpn_pkgs", "[]") ?: "[]",
+            ).isNotEmpty()
+        ) return true
 
         return parsePackageJson(
             prefs.getString(PREF_EXPLICIT_PKGS, null)
@@ -289,6 +293,9 @@ object VpnPolicyCoordinator {
         } else {
             emptyList()
         }
+        val scheduleCandidates = parsePackageJson(
+            prefs.getString("net_block_schedule_vpn_pkgs", "[]") ?: "[]",
+        )
 
         val focusTargets = if (
             prefs.getBoolean(PREF_FOCUS_MIRROR, false) &&
@@ -306,7 +313,7 @@ object VpnPolicyCoordinator {
             emptyList()
         }
 
-        val sourcePackages = (explicitCandidates + standaloneCandidates + focusTargets)
+        val sourcePackages = (explicitCandidates + standaloneCandidates + scheduleCandidates + focusTargets)
             .filterNot { isExcludedPackage(it, context.packageName) }
             .distinct()
             .sorted()
@@ -376,6 +383,12 @@ object VpnPolicyCoordinator {
 
         addReasons(policy.explicit, "explicit_vpn")
         addReasons(policy.standalone, "standalone_vpn")
+        addReasons(
+            parsePackageJson(
+                prefs.getString("net_block_schedule_vpn_pkgs", "[]") ?: "[]",
+            ),
+            "schedule_vpn",
+        )
         addReasons(policy.focus, "focus_blocked")
         addReasons(policy.invalid, "invalid_package")
 

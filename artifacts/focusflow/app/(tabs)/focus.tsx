@@ -413,8 +413,14 @@ function FocusScreen() {
                   : taskTimer.isOverdue ? 'Task ended — choose next action' : 'Task scheduled'}
               </Text>
             </View>
-            <View style={[styles.taskPanel, { backgroundColor: theme.card, borderColor: task.color + '66' }]}>
-              <View style={[styles.timerPanel, { backgroundColor: task.color + '18' }]}>
+            <View style={[
+              styles.taskPanel,
+              {
+                backgroundColor: theme.card,
+                borderColor: task.color + (theme.isDark ? '88' : '66'),
+              },
+            ]}>
+              <View style={[styles.timerPanel, { backgroundColor: theme.isDark ? theme.surface : task.color + '18' }]}>
                 <TimerDisplay timer={taskTimer} color={task.color} />
               </View>
               <Text style={[styles.taskTitle, { color: theme.text }]} numberOfLines={2}>{task.title}</Text>

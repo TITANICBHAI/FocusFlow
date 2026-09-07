@@ -229,9 +229,9 @@ function StatsScreen() {
   const focusHero = fmtMinsLong(focusMinutes);
   const rateColor = todayStats.rate >= 80 ? COLORS.green : todayStats.rate >= 50 ? COLORS.orange : COLORS.primary;
 
-  // ── WEEK computed stats (calendar week, Sunday–Saturday) ───────────────
+  // ── WEEK computed stats (calendar week, configured anchor) ─────────────
   const weeklyDays = useMemo<WeekDay[]>(() => {
-    const weekStart = getWeekStart(0);
+    const weekStart = getWeekStart(state.settings.weekStartDay ?? 0);
     const days: WeekDay[] = [];
     for (let i = 0; i < 7; i++) {
       const d        = weekStart.add(i, 'day');
@@ -245,7 +245,7 @@ function StatsScreen() {
       });
     }
     return days;
-  }, [tasks]);
+  }, [state.settings.weekStartDay, tasks]);
 
   const weekSummary = useMemo(() => {
     const total     = weeklyDays.reduce((s, d) => s + d.total, 0);
@@ -266,18 +266,18 @@ function StatsScreen() {
     if (filter === 'today') {
       return { startMs: now.startOf('day').valueOf(), endMs: now.endOf('day').valueOf() };
     }
-    const start = getWeekStart(0);
+    const start = getWeekStart(state.settings.weekStartDay ?? 0);
     return { startMs: start.valueOf(), endMs: getWeekEnd(start).valueOf() };
-  }, [filter]);
+  }, [filter, state.settings.weekStartDay]);
 
   const weeklyFocusByDate = useMemo<Record<string, number>>(() => {
-    const weekStart = getWeekStart(0);
+    const weekStart = getWeekStart(state.settings.weekStartDay ?? 0);
     const map: Record<string, number> = {};
     weeklyDays.forEach((day, index) => {
       map[weekStart.add(index, 'day').format('YYYY-MM-DD')] = day.focusMinutes;
     });
     return map;
-  }, [weeklyDays]);
+  }, [state.settings.weekStartDay, weeklyDays]);
 
   // ── TEMPTATION LOG (yesterday + week view + all-time) ─────────────────────────────
   const [weekLoading,    setWeekLoading]    = useState(false);
@@ -290,18 +290,19 @@ function StatsScreen() {
 
   const loadWeekly = useCallback(async () => {
     setWeekLoading(true);
-    try { processWeeklyData(await GreyoutModule.getTemptationLog()); }
-    catch { processWeeklyData([]); }
+    const weekStartDay = state.settings.weekStartDay ?? 0;
+    try { processWeeklyData(await GreyoutModule.getTemptationLog(), weekStartDay); }
+    catch { processWeeklyData([], weekStartDay); }
     finally { setWeekLoading(false); }
-  }, []);
+  }, [state.settings.weekStartDay]);
 
   useEffect(() => {
     if (filter === 'yesterday' || filter === 'week' || filter === 'alltime') void loadWeekly();
   }, [filter, loadWeekly]);
 
-  function processWeeklyData(log: TemptationEntry[]) {
+  function processWeeklyData(log: TemptationEntry[], weekStartDay = 0) {
     setAllTemptations(log);
-    const weekStart = getWeekStart(0);
+    const weekStart = getWeekStart(weekStartDay);
     const weekEnd = getWeekEnd(weekStart);
     const thisWeek = log.filter((e) => e.timestamp >= weekStart.valueOf() && e.timestamp <= weekEnd.valueOf());
     setTotalThisWeek(thisWeek.length);
@@ -414,7 +415,7 @@ function StatsScreen() {
           <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
             {filter === 'yesterday' ? dayjs().subtract(1, 'day').format('ddd, MMM D')
            : filter === 'today'    ? dayjs().format('MMMM D, YYYY')
-           : filter === 'week'     ? `${dayjs().subtract(6, 'day').format('MMM D')} – ${dayjs().format('MMM D')}`
+           : filter === 'week'     ? `${getWeekStart(state.settings.weekStartDay ?? 0).format('MMM D')} – ${getWeekEnd(getWeekStart(state.settings.weekStartDay ?? 0)).format('MMM D')}`
            :                         'All time'}
           </Text>
         </View>
@@ -747,6 +748,12 @@ function StatsScreen() {
             showsVerticalScrollIndicator={false}>
 
              <SectionLabel label="TASK PRODUCTIVITY" theme={theme} />
+             <Text style={[styles.weekRangeNote, { color: theme.muted }]}>
+               {`${getWeekStart(state.settings.weekStartDay ?? 0).format('MMM D')} – ${getWeekEnd(getWeekStart(state.settings.weekStartDay ?? 0)).format('MMM D')} · `}
+               {weekSummary.total === 0
+                 ? 'Just getting started — your week will build here.'
+                 : 'Calendar-week totals, anchored to your settings.'}
+             </Text>
 
              <UsageInsights
                startMs={usageWindow.startMs}
@@ -1173,6 +1180,7 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: FONT.md, fontWeight: '700' },
   cardBadge: { fontSize: FONT.xs, fontWeight: '700', paddingHorizontal: 8, paddingVertical: 3, borderRadius: RADIUS.full, overflow: 'hidden' },
   sectionLabel: { fontSize: FONT.xs, fontWeight: '700', letterSpacing: 0.8, paddingLeft: SPACING.xs },
+  weekRangeNote: { fontSize: FONT.xs, lineHeight: 17, paddingHorizontal: SPACING.xs, marginTop: -SPACING.xs },
   divider: { height: StyleSheet.hairlineWidth },
 
   // Hero card

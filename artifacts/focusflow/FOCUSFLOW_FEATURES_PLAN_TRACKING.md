@@ -48,14 +48,14 @@ device/emulator validation.
 
 ### 1. Dark mode
 
-- [ ] `TaskCard.tsx` obtains theme colors inline rather than hard-coded light
+- [x] `TaskCard.tsx` obtains theme colors inline rather than hard-coded light
   colors in renderable color positions.
-- [ ] `AppPickerSheet.tsx` obtains theme colors inline, including the modal
+- [x] `AppPickerSheet.tsx` obtains theme colors inline, including the modal
   safe-area/background gap and search controls.
-- [ ] Focus tab active-task tint is reduced in dark mode and moved to the
+- [x] Focus tab active-task tint is reduced in dark mode and moved to the
   panel border.
-- Notes: source audit found the named hard-coded color entries still present;
-  verify each render path before changing shared theme constants.
+- Notes: renderable backgrounds/text now consume `useTheme()` values; semantic
+  accent colors remain shared constants.
 
 ### 2. `.focusflow` file association and import
 
@@ -120,23 +120,23 @@ device/emulator validation.
 
 ### 6. Calendar-anchored week stats
 
-- [ ] Add `weekStartDay: 0` to settings/defaults.
-- [ ] Add the shared week-start/week-end utility.
-- [ ] Replace the rolling `weeklyDays` calculation with the configured
+- [x] Add `weekStartDay: 0` to settings/defaults.
+- [x] Add the shared week-start/week-end utility.
+- [x] Replace the rolling `weeklyDays` calculation with the configured
   calendar anchor and add the date-range/just-started messaging.
-- [ ] Confirm the existing bounded historical fetch covers the anchor without
+- [x] Confirm the existing bounded historical fetch covers the anchor without
   introducing a full-table query.
 
 ### 7. Focus-session lifecycle and recovery
 
-- [ ] Add one shared timeout helper and bound every native stop call.
-- [ ] Close the DB focus row before native calls that may hang.
-- [ ] Persist an explicit stop so auto-start cannot immediately restart the
+- [x] Add one shared timeout helper and bound every native stop call.
+- [x] Close the DB focus row before native calls that may hang.
+- [x] Persist an explicit stop so auto-start cannot immediately restart the
   same task occurrence.
-- [ ] Keep Stop Focus available when the session's task is orphaned.
-- [ ] Add 30-second reconciliation with a five-minute end-time grace period.
-- [ ] Cap a single open session's contribution to today's focus total.
-- [ ] Add tests for hangs, rejected native calls, orphaned tasks, completed or
+- [x] Keep Stop Focus available when the session's task is orphaned.
+- [x] Add 30-second reconciliation with a five-minute end-time grace period.
+- [x] Cap a single open session's contribution to today's focus total.
+- [-] Add tests for hangs, rejected native calls, orphaned tasks, completed or
   skipped linked tasks, expiry, and repeated stop calls.
 
 ## Guardrails for implementation
