@@ -834,22 +834,33 @@ class LauncherActivity : Activity() {
             gravity = Gravity.CENTER
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         }
-        val circle = object : View(this) {
-            private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = if (isFocusFlow && theme == LauncherTheme.GLASSY) wallpaperAccent else Color.WHITE
-                textAlign = Paint.Align.CENTER
-                typeface = Typeface.DEFAULT_BOLD
-            }
-
-            override fun onDraw(canvas: Canvas) {
-                super.onDraw(canvas)
-                paint.color = if (isFocusFlow && theme == LauncherTheme.GLASSY) wallpaperAccent else Color.WHITE
-                if (isFocusFlow) {
-                    paint.textSize = dp(24).toFloat()
-                    val bounds = android.graphics.Rect()
-                    paint.getTextBounds("F", 0, 1, bounds)
-                    canvas.drawText("F", width / 2f, height / 2f - bounds.exactCenterY(), paint)
+        val circle = if (isFocusFlow) {
+            ImageView(this).apply {
+                layoutParams = LinearLayout.LayoutParams(dp(56), dp(56))
+                scaleType = ImageView.ScaleType.CENTER_INSIDE
+                setPadding(dp(10), dp(10), dp(10), dp(10))
+                setImageDrawable(packageManager.getApplicationIcon(OWN_PACKAGE))
+                background = if (theme == LauncherTheme.CLASSIC) {
+                    ovalBackground(CLASSIC_STATUS)
                 } else {
+                    ovalBackground(GLASS_MID, GLASS_BORDER_BRIGHT)
+                }
+                contentDescription = label
+                isClickable = true
+                isFocusable = true
+                setOnClickListener { openFocusFlow() }
+                foreground = rippleForeground(999)
+            }
+        } else {
+            object : View(this) {
+                private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = Color.WHITE
+                    textAlign = Paint.Align.CENTER
+                    typeface = Typeface.DEFAULT_BOLD
+                }
+
+                override fun onDraw(canvas: Canvas) {
+                    super.onDraw(canvas)
                     val dotR = dp(2.5f).toFloat()
                     val gap = dp(6).toFloat()
                     for (r in 0..2) for (c in 0..2) {
@@ -861,19 +872,19 @@ class LauncherActivity : Activity() {
                         )
                     }
                 }
+            }.apply {
+                layoutParams = LinearLayout.LayoutParams(dp(56), dp(56))
+                background = if (theme == LauncherTheme.CLASSIC) {
+                    ovalBackground(CLASSIC_STATUS)
+                } else {
+                    ovalBackground(GLASS_MID, GLASS_BORDER_BRIGHT)
+                }
+                contentDescription = label
+                isClickable = true
+                isFocusable = true
+                setOnClickListener { openDrawer() }
+                foreground = rippleForeground(999)
             }
-        }.apply {
-            layoutParams = LinearLayout.LayoutParams(dp(56), dp(56))
-            background = if (theme == LauncherTheme.CLASSIC) {
-                ovalBackground(CLASSIC_STATUS)
-            } else {
-                ovalBackground(GLASS_MID, GLASS_BORDER_BRIGHT)
-            }
-            contentDescription = label
-            isClickable = true
-            isFocusable = true
-            setOnClickListener { if (isFocusFlow) openFocusFlow() else openDrawer() }
-            foreground = rippleForeground(999)
         }
         group.addView(circle)
         group.addView(TextView(this).apply {

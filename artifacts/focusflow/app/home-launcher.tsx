@@ -33,6 +33,8 @@ import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
 import { InstalledAppsModule, InstalledApp } from '@/native-modules/InstalledAppsModule';
 import { NativeImagePickerModule } from '@/native-modules/NativeImagePickerModule';
 
+const FOCUSFLOW_ICON = require('../assets/images/icon.png');
+
 export default function HomeLauncherScreen() {
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
@@ -435,7 +437,9 @@ function ThemePreviewCard({
         <View style={styles.themeMiniCard}><Text style={styles.themeMiniCardHeading}>Today's Limits</Text><Text style={styles.themeMiniCardText}>YouTube · 12m used</Text></View>
         <View style={styles.themeMiniActions}>
           <View style={[styles.themeMiniCircle, !isGlassy && styles.themeMiniCircleClassic]}><Text style={styles.themeMiniDots}>•••</Text></View>
-          <View style={[styles.themeMiniCircle, { backgroundColor: isGlassy ? '#6366F1' : '#1E1E1E' }]}><Text style={styles.themeMiniF}>F</Text></View>
+          <View style={[styles.themeMiniCircle, { backgroundColor: isGlassy ? '#6366F1' : '#1E1E1E' }]}>
+            <Image source={FOCUSFLOW_ICON} style={styles.themeMiniFocusIcon} />
+          </View>
         </View>
       </View>
     </TouchableOpacity>
@@ -652,7 +656,7 @@ const styles = StyleSheet.create({
   },
   themeMiniCircleClassic: { backgroundColor: '#1E1E1E' },
   themeMiniDots: { color: '#FFFFFF', fontSize: 7, letterSpacing: 1 },
-  themeMiniF: { color: '#FFFFFF', fontSize: 12, fontWeight: '800' },
+  themeMiniFocusIcon: { width: 17, height: 17, borderRadius: 5 },
   previewCard: { borderRadius: RADIUS.md, borderWidth: 1, padding: SPACING.md, gap: SPACING.sm },
   previewHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   layoutTitle: { color: '#fff', fontSize: FONT.sm, fontWeight: '700' },
