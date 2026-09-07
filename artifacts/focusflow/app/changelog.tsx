@@ -14,9 +14,32 @@ type Entry = {
 
 const CHANGELOG: Entry[] = [
   {
-    version: '1.1.2',
+    version: '1.1.3',
     date: 'September 2026',
     sections: [
+      {
+        heading: 'Home Launcher',
+        icon: 'home-outline',
+        items: [
+          'Added Classic and Glassy launcher themes with wallpaper-aware styling, a focused home layout, and configurable app-drawer controls',
+          'Updated the fixed FocusFlow launcher shortcut to use the official FocusFlow app icon in both themes and their configuration previews',
+        ],
+      },
+      {
+        heading: 'Focus Session Reliability',
+        icon: 'shield-checkmark-outline',
+        items: [
+          'Fixed stale Focus Mode and timed standalone state lingering after a session expired or the device restarted, so old sessions no longer keep apps blocked',
+          'Deferred enforcement actions now re-check the current session state before redirecting or dismissing screens, preventing delayed callbacks from acting on an ended focus session',
+        ],
+      },
+      {
+        heading: 'Release Metadata',
+        icon: 'information-circle-outline',
+        items: [
+          'Updated FocusFlow to v1.1.3 (build 14)',
+        ],
+      },
       {
         heading: 'Protect System Controls',
         icon: 'settings-outline',
