@@ -20,8 +20,16 @@ describe('generated reporting contracts', () => {
   it('uses bounded report queries and saves optional notes on blur', () => {
     expect(report).toContain('range.start.toISOString()');
     expect(report).toContain('range.end.toISOString()');
+    expect(report).toContain('getWeekStart(weekStartDay, anchor)');
     expect(report).toContain('onBlur={() => { void saveNote(); }}');
     expect(report).toContain("dbSaveReportNote(refDate, type, trimmed)");
+  });
+
+  it('renders the narrative before the summary card', () => {
+    const analysisIndex = report.indexOf('THE TAKEAWAY');
+    const summaryIndex = report.indexOf('>Summary<');
+    expect(analysisIndex).toBeGreaterThanOrEqual(0);
+    expect(summaryIndex).toBeGreaterThan(analysisIndex);
   });
 
   it('prunes old day and week notes with separate retention windows', () => {

@@ -52,6 +52,10 @@ describe('Phase 3 native persistence contracts', () => {
     expect(body).toContain('val editor = prefs().edit()');
     expect(body).toContain('.putBoolean("standalone_block_active", true)');
     expect(body).toContain('.putBoolean("standalone_block_active", false)');
+    expect(body).toContain('vpnPackages: ReadableArray?');
+    expect(body).toContain('"net_block_standalone_vpn_packages"');
+    expect(body).toContain('vpnPackages?.toJsonArrayString() ?: "[]"');
+    expect(body).toContain('.putString("net_block_standalone_vpn_packages", "[]")');
     expect(body).toContain('if (!editor.commit())');
     expect(body).not.toContain('.apply()');
     expect(sharedPrefsTs).toContain('publishStandaloneSnapshot(');

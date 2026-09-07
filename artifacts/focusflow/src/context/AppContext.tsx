@@ -53,6 +53,7 @@ import {
   updateCurrentFocusTask as _updateCurrentFocusTask,
 } from '@/services/focusService';
 import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
+import { getActiveScheduleVpnPackages } from '@/utils/recurringScheduleUtils';
 import { ForegroundServiceModule } from '@/native-modules/ForegroundServiceModule';
 import { TaskAlarmModule } from '@/native-modules/TaskAlarmModule';
 import { EventBridge } from '@/services/eventBridge';
@@ -969,30 +970,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
    */
   async function syncScheduleVpn(settingsOverride?: AppSettings): Promise<void> {
     const settings = settingsOverride ?? stateRef.current.settings;
-    const now = new Date();
-    const nowDay = now.getDay() + 1;
-    const previousDay = nowDay === 1 ? 7 : nowDay - 1;
-    const nowMinutes = now.getHours() * 60 + now.getMinutes();
-    const active = new Set<string>();
-
-    for (const window of _recurringSchedulesToGreyoutWindows(settings)) {
-      if (!window.vpnEnabled) continue;
-      const packages = window.pkgs ?? (window.pkg ? [window.pkg] : []);
-      if (packages.length === 0) continue;
-
-      const start = window.startHour * 60 + window.startMin;
-      const end = window.endHour * 60 + window.endMin;
-      const isActive = end > start
-        ? window.days.includes(nowDay) && nowMinutes >= start && nowMinutes < end
-        : end < start
-          ? (window.days.includes(nowDay) && nowMinutes >= start) ||
-            (window.days.includes(previousDay) && nowMinutes < end)
-          : false;
-
-      if (isActive) packages.forEach((pkg) => active.add(pkg));
-    }
-
-    const json = JSON.stringify([...active].sort());
+    const json = JSON.stringify(
+      getActiveScheduleVpnPackages(settings.recurringBlockSchedules ?? []),
+    );
     if (json === lastScheduleVpnRef.current) return;
     lastScheduleVpnRef.current = json;
     await SharedPrefsModule.publishScheduleVpnSnapshot(json).catch((e) => {

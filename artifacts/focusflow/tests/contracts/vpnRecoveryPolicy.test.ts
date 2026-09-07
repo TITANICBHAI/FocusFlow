@@ -180,6 +180,8 @@ describe('VPN effective-policy recovery contract', () => {
   it('persists standalone and schedule snapshots independently from focus state', () => {
     expect(networkBlockModule).toContain('publishStandaloneVpnSnapshot');
     expect(appContext).toContain('syncScheduleVpn');
+    expect(appContext).toContain('getActiveScheduleVpnPackages');
+    expect(appContext).toContain('lastScheduleVpnRef');
     expect(appContext).toContain('syncStandaloneVpn');
     expect(coordinator).toContain('PREF_FOCUS_MIRROR');
     expect(coordinator).toContain('net_block_schedule_vpn_pkgs');

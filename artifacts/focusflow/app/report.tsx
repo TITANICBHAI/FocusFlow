@@ -25,6 +25,7 @@ import {
 } from '@/data/database';
 import { computeDailyAnalysis, computeWeeklyAnalysis } from '@/services/insightEngine';
 import { getWeekEnd, getWeekStart } from '@/utils/weekUtils';
+import { useApp } from '@/context/AppContext';
 import type { Task } from '@/data/types';
 
 type ReportType = 'day' | 'week';
@@ -36,8 +37,10 @@ function paramValue(value: string | string[] | undefined): string | undefined {
 function ReportScreen() {
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
+  const { state } = useApp();
   const params = useLocalSearchParams<{ type?: string; date?: string; refDate?: string }>();
   const type: ReportType = paramValue(params.type) === 'week' ? 'week' : 'day';
+  const weekStartDay = state.settings.weekStartDay ?? 0;
   const requestedDate = paramValue(params.refDate) ?? paramValue(params.date);
   const anchor = useMemo(() => {
     const parsed = requestedDate ? dayjs(requestedDate) : dayjs().subtract(1, 'day');
@@ -46,7 +49,7 @@ function ReportScreen() {
 
   const range = useMemo(() => {
     if (type === 'week') {
-      const start = getWeekStart(0, anchor);
+      const start = getWeekStart(weekStartDay, anchor);
       const end = getWeekEnd(start);
       return { start, end, label: `${start.format('MMM D')} – ${end.format('MMM D, YYYY')}` };
     }
@@ -55,7 +58,7 @@ function ReportScreen() {
       end: anchor.endOf('day'),
       label: anchor.format('dddd, MMMM D, YYYY'),
     };
-  }, [anchor, type]);
+  }, [anchor, type, weekStartDay]);
 
   const baseline = useMemo(() => {
     if (type === 'week') {
@@ -129,7 +132,7 @@ function ReportScreen() {
         rate: row.tasks.filter((task) => task.status === 'completed').length / row.tasks.length,
       }))
       .sort((a, b) => b.rate - a.rate || a.date.valueOf() - b.date.valueOf())[0]?.date ?? null;
-  }, [range.start, tasks, type]);
+  }, [range.end, range.start, tasks, type]);
   const saveNote = useCallback(async () => {
     const trimmed = note.trim();
     if (trimmed === savedNote) return;
@@ -171,9 +174,22 @@ function ReportScreen() {
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-            <View style={[styles.hero, { backgroundColor: theme.card, borderColor: COLORS.primary + '30' }]}>
+            <View style={styles.analysisSection}>
               <Text style={[styles.heroLabel, { color: theme.muted }]}>THE TAKEAWAY</Text>
               <Text style={[styles.headline, { color: theme.text }]}>{analysis.headline}</Text>
+              {analysis.insights.length === 0 ? (
+                <Text style={[styles.insightText, { color: theme.muted }]}>
+                  Not enough variation today to call out a specific pattern — steady as it goes.
+                </Text>
+              ) : analysis.insights.map((insight) => (
+                <Text key={insight.id} style={[styles.insightText, { color: theme.text }]}>
+                  {insight.text}
+                </Text>
+              ))}
+            </View>
+
+            <View style={[styles.card, { backgroundColor: theme.card }]}>
+              <Text style={[styles.sectionTitle, { color: theme.text }]}>Summary</Text>
               <View style={styles.summaryRow}>
                 <SummaryStat value={String(tasks.length)} label="tasks" color={COLORS.blue} theme={theme} />
                 {type === 'week' ? (
@@ -190,20 +206,6 @@ function ReportScreen() {
                   </>
                 )}
               </View>
-            </View>
-
-            <View style={[styles.card, { backgroundColor: theme.card }]}>
-              <Text style={[styles.sectionTitle, { color: theme.text }]}>What stands out</Text>
-              {analysis.insights.length === 0 ? (
-                <Text style={[styles.emptyText, { color: theme.muted }]}>
-                  Not enough variation today to call out a specific pattern — steady as it goes.
-                </Text>
-              ) : analysis.insights.map((insight) => (
-                <View key={insight.id} style={styles.insightRow}>
-                  <View style={[styles.insightDot, { backgroundColor: COLORS.primary }]} />
-                  <Text style={[styles.insightText, { color: theme.text }]}>{insight.text}</Text>
-                </View>
-              ))}
             </View>
 
             <View style={[styles.card, { backgroundColor: theme.card }]}>
@@ -308,6 +310,7 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: FONT.sm, fontWeight: '700' },
   content: { padding: SPACING.md, gap: SPACING.md },
   hero: { borderRadius: RADIUS.xl, borderWidth: 1.5, padding: SPACING.lg, gap: SPACING.md },
+  analysisSection: { paddingHorizontal: SPACING.xs, gap: SPACING.sm },
   heroLabel: { fontSize: FONT.xs, fontWeight: '800', letterSpacing: 1, textAlign: 'center' },
   headline: { fontSize: FONT.xl, fontWeight: '900', lineHeight: 29, textAlign: 'center' },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-around' },

@@ -16,7 +16,7 @@ mean Android device validation has passed.
 
 ## Current audit
 
-The plan was compared with the FocusFlow artifact on 2026-09-07. This is a
+The plan was compared with the FocusFlow artifact on 2026-09-08. This is a
 source audit only; no generated `android/` project, Gradle build, APK, or
 physical Android device is available in this checkout.
 
@@ -87,36 +87,41 @@ device/emulator validation.
 
 ### 3. Group schedule VPN
 
-- [-] `RecurringBlockSchedule` already has optional VPN fields.
-- [ ] Add `vpnEnabled` to `GreyoutWindow` and preserve it in both conversion
-  directions.
-- [ ] Add the single schedule-level VPN toggle and edit-state hydration.
-- [ ] Add the schedule VPN SharedPrefs snapshot bridge and AppContext sync
-  deduplication.
-- [ ] Add the schedule source to the VPN coordinator without refactoring its
-  existing source-union architecture.
-- [ ] Add source-isolation and schedule-boundary contract coverage.
+- [x] `RecurringBlockSchedule` and `GreyoutWindow` have optional VPN fields.
+- [x] The schedule-level VPN toggle is present, including edit-state hydration.
+- [x] Enabled schedules preserve `vpnEnabled` when converted to greyout windows.
+- [x] The schedule VPN SharedPrefs bridge, AppContext sync, and write
+  deduplication are present.
+- [x] The coordinator reads schedule VPN packages as an independent policy
+  source.
+- [-] Source-isolation and schedule-boundary coverage exists at contract/unit
+  level, but still needs the full native/device validation boundary.
+- Notes: active schedule VPN resolution now honors non-empty `vpnPackages` and
+  falls back to `packages`, including overnight windows and VPN-only schedules.
 
 ### 4. Standalone block VPN
 
-- [ ] Confirm and fix the fifth `vpnPackages` argument end-to-end in Kotlin,
-  the TypeScript bridge, and `setStandaloneBlockAndAllowance`.
-- [ ] Verify active and inactive snapshots write separate source keys and
-  preserve isolation from explicit and schedule VPN sources.
-- [ ] Add contract coverage for start, expiry, manual stop, overlapping
-  sources, and empty VPN package lists.
+- [x] The fifth `vpnPackages` argument is wired through Kotlin, the TypeScript
+  bridge, and `setStandaloneBlockAndAllowance`.
+- [x] Active and inactive snapshots write separate standalone VPN source state,
+  isolated from explicit and schedule VPN sources.
+- [-] Contract coverage now checks the bridge/source shape, but start, expiry,
+  manual stop, overlap, and empty-list behavior still need broader coverage.
 
 ### 5. Auto-generated reports
 
-- [ ] Add the pure on-device insight engine with thresholded detectors.
-- [ ] Add bounded report-note persistence and pruning.
-- [ ] Add the day/week report screen and optional note fields.
-- [ ] Add passive Stats entry points and data-availability gating without
-  reviving the old review-writing requirement.
-- [ ] Keep the Stats summary component separate from report narrative
+- [x] The pure on-device insight engine with thresholded detectors exists.
+- [x] Bounded report-note persistence and pruning exist.
+- [x] The day/week report screen and optional note fields exist.
+- [x] Stats has passive report entry points and data-availability gating without
+  a review-writing requirement.
+- [x] The Stats summary component remains separate from report narrative
   generation.
-- [ ] Add deterministic tests for detector thresholds, ranking, empty data,
-  week boundaries, note pruning, and no-network behavior.
+- [-] Deterministic detector, ranking, empty-data, week-boundary, report-order,
+  and note-retention coverage exists, but the full planned matrix is not yet
+  complete.
+- Notes: report weeks now use `settings.weekStartDay`, and report narrative is
+  rendered before the summary card.
 
 ### 6. Calendar-anchored week stats
 
@@ -137,7 +142,9 @@ device/emulator validation.
 - [x] Add 30-second reconciliation with a five-minute end-time grace period.
 - [x] Cap a single open session's contribution to today's focus total.
 - [-] Add tests for hangs, rejected native calls, orphaned tasks, completed or
-  skipped linked tasks, expiry, and repeated stop calls.
+  skipped linked tasks, expiry, and repeated stop calls. Source contracts now
+  cover orphan stop access, dismissal persistence, and the defensive cap, but
+  the complete behavior matrix is still open.
 
 ## Guardrails for implementation
 

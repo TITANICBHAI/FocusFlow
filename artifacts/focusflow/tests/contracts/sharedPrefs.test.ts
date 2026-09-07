@@ -78,6 +78,7 @@ describe('SharedPrefs JS↔Kotlin serialization contract', () => {
       ['com.example.blocked'],
       1_756_045_300_000,
       null,
+      ['com.example.network'],
     );
 
     expect(nativePrefs.publishFocusSnapshot).toHaveBeenCalledWith(
@@ -95,6 +96,7 @@ describe('SharedPrefs JS↔Kotlin serialization contract', () => {
       ['com.example.blocked'],
       1_756_045_300_000,
       null,
+      ['com.example.network'],
     );
   });
 
