@@ -61,6 +61,7 @@ import { GreyoutModule } from '@/native-modules/GreyoutModule';
 import { NetworkBlockModule } from '@/native-modules/NetworkBlockModule';
 import { logBootMarker, logger } from '@/services/startupLogger';
 import { persistSetupBackups, readSetupBackups } from '@/services/setupPersistence';
+import { withTimeout } from '@/utils/withTimeout';
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
@@ -133,21 +134,6 @@ const initialState: AppState = {
   isDbUnrecoverable: false,
 };
 
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`Operation timed out after ${ms}ms`)), ms);
-    promise
-      .then((value) => {
-        clearTimeout(timer);
-        resolve(value);
-      })
-      .catch((e) => {
-        clearTimeout(timer);
-        reject(e);
-      });
-  });
-}
-
 function getExplicitVpnPackages(settings: AppSettings): string[] {
   return Array.from(new Set([...(settings.alwaysOnVpnPackages ?? []), ...(settings.standaloneVpnPackages ?? [])]));
 }
@@ -162,6 +148,25 @@ function getNativeFocusAllowedPackages(settings: AppSettings, focusSession: Focu
   const allowedPackages = focusSession?.allowedPackages ?? settings.allowedInFocus;
   const filteredAllowed = allowedPackages.filter((p) => p.includes('.'));
   return filteredAllowed.length > 0 ? filteredAllowed : [FOCUS_BLOCK_ALL_SENTINEL];
+}
+
+function shouldForceClearSession(s: AppState): boolean {
+  const session = s.focusSession;
+  if (!session?.isActive) return false;
+
+  const linkedTask = s.tasks.find((task) => task.id === session.taskId);
+  if (!linkedTask) return true;
+
+  const endMs = new Date(linkedTask.endTime).getTime();
+  const isResolved = linkedTask.status === 'completed' || linkedTask.status === 'skipped';
+  const withinIntentionalOverrun =
+    s.settings.keepFocusActiveUntilTaskEnd === true && Date.now() <= endMs;
+
+  // Keep the existing intentional "focus until task end" behavior, but clear
+  // resolved sessions once that window (plus the reconciliation grace period)
+  // is over. Orphaned sessions are always unsafe to retain.
+  if (isResolved && !withinIntentionalOverrun) return true;
+  return Date.now() > endMs + 5 * 60 * 1000;
 }
 
 // ─── Context ──────────────────────────────────────────────────────────────────
@@ -230,6 +235,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // when a pending action is replayed on host resume. Ignore only the same
   // task/action pair within a short window; later user taps remain valid.
   const recentNotifActionsRef = useRef<Map<string, number>>(new Map());
+  const dismissedFocusTaskIdRef = useRef<string | null>(null);
 
   // ── Prune old data once per session after DB is ready ────────────────────
   useEffect(() => {
@@ -414,6 +420,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // ── Database / settings ────────────────────────────────────────────────
       void logger.info('AppContext', 'Loading settings from DB (timeout=8000ms)');
       const rawSettings = await withTimeout(dbGetSettings(), 8000);
+      dismissedFocusTaskIdRef.current = await SharedPrefsModule.getString('focus_dismissed_task_id').catch(() => null);
       const dbWasUnrecoverable = isDbUnrecoverable();
       dispatch({ type: 'SET_DB_UNRECOVERABLE', payload: dbWasUnrecoverable });
       void logger.info('AppContext', 'Settings loaded from DB');
@@ -926,22 +933,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // Safety net: if the precise focus-mode timer was cleared by an unmount
       // or a hot-reload, the tick still catches the activation within 30 s.
       tryAutoStartFocusRef.current?.();
-      // "Keep focus active until task end" enforcement —
-      // when the user completed (or skipped) a task BEFORE its scheduled end
-      // and chose to keep focus running, we don't stop focus inside completeTask.
-      // Instead this tick stops it once we cross task.endTime. Robust across
-      // app restarts because the focus session and tasks both live in the DB.
-      if (s.focusSession) {
-        const linkedTask = s.tasks.find((t) => t.id === s.focusSession?.taskId);
-        if (
-          linkedTask &&
-          (linkedTask.status === 'completed' || linkedTask.status === 'skipped') &&
-          new Date(linkedTask.endTime).getTime() <= Date.now()
-        ) {
-          void stopFocusMode().catch((e) => {
-            void logger.warn('AppContext', `tick stopFocusMode failed: ${String(e)}`);
-          });
-        }
+      if (shouldForceClearSession(s)) {
+        void logger.warn('AppContext', 'tick: force-clearing an orphaned focus session');
+        void stopFocusMode().catch((e) => {
+          void logger.warn('AppContext', `reconcile stopFocusMode failed: ${String(e)}`);
+        });
       }
     }, 30000);
     return () => {
@@ -1089,6 +1085,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (isFocusActive()) return;
     const active = getActiveTask(s.tasks);
     if (!active || !active.focusMode) return;
+    if (active.id === dismissedFocusTaskIdRef.current) return;
 
     // Task-specific allowed packages take priority over the global list.
     const autoAllowed = active.focusAllowedPackages !== undefined ? active.focusAllowedPackages : s.settings.allowedInFocus;
@@ -1641,29 +1638,58 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
 
   const stopFocusMode = useCallback(async (pinHash: string | null = null) => {
+    const dismissedTaskId = stateRef.current.focusSession?.taskId ?? null;
+
+    // Close the known session row before native teardown. This also covers an
+    // orphan restored from SQLite where focusService has no currentTask.
+    if (dismissedTaskId) {
+      try {
+        await withTimeout(dbEndFocusSession(dismissedTaskId), 5000, 'dbEndFocusSession');
+      } catch (e) {
+        void logger.warn('AppContext', `dbEndFocusSession failed: ${String(e)}`);
+      }
+    }
+
     // Always attempt native teardown directly — _stopFocusMode() short-circuits
     // when focusActive is false (e.g. after a cold app restart), so we call
     // the native layer unconditionally here to guarantee the foreground service
     // and SharedPrefs are cleared regardless of JS module state.
     try {
-      await _stopFocusMode(pinHash);
+      await withTimeout(_stopFocusMode(pinHash), 5000, '_stopFocusMode');
     } catch (e) {
       void logger.warn('AppContext', `stopFocusMode JS-layer failed: ${String(e)}`);
     }
     try {
-      await ForegroundServiceModule.stopService(pinHash);
-    } catch {
-      /* already stopped */
+      await withTimeout(
+        ForegroundServiceModule.stopService(pinHash),
+        5000,
+        'ForegroundServiceModule.stopService',
+      );
+    } catch (e) {
+      void logger.warn('AppContext', `stopService failed: ${String(e)}`);
     }
     try {
-      await SharedPrefsModule.publishFocusSnapshot(false, null, null, 0, null, [], null, pinHash);
-    } catch {
-      /* best-effort */
+      await withTimeout(
+        SharedPrefsModule.publishFocusSnapshot(false, null, null, 0, null, [], null, pinHash),
+        5000,
+        'publishFocusSnapshot',
+      );
+    } catch (e) {
+      void logger.warn('AppContext', `publishFocusSnapshot failed: ${String(e)}`);
     }
     try {
-      await NetworkBlockModule.stopNetworkBlock(pinHash);
-    } catch {
-      /* best-effort — VPN may already be stopped */
+      await withTimeout(NetworkBlockModule.stopNetworkBlock(pinHash), 5000, 'stopNetworkBlock');
+    } catch (e) {
+      void logger.warn('AppContext', `stopNetworkBlock failed: ${String(e)}`);
+    }
+
+    if (dismissedTaskId) {
+      dismissedFocusTaskIdRef.current = dismissedTaskId;
+      try {
+        await SharedPrefsModule.putString('focus_dismissed_task_id', dismissedTaskId);
+      } catch (e) {
+        void logger.warn('AppContext', `dismissed focus task persistence failed: ${String(e)}`);
+      }
     }
     dispatch({ type: 'SET_FOCUS_SESSION', payload: null });
   }, []);

@@ -34,6 +34,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   aversionVibrateEnabled: false,
   aversionSoundEnabled: false,
   weeklyReportEnabled: false,
+  weekStartDay: 0,
   greyoutSchedule: [],
   systemGuardEnabled: false,
   blockInstallActionsEnabled: false,

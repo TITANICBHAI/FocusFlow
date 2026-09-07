@@ -306,6 +306,35 @@ function FocusScreen() {
       )}
       {!task && standaloneActive ? (
         standalonePanel
+      ) : !task && isFocusing ? (
+        <ScrollView
+          contentContainerStyle={[styles.panelContent, { paddingBottom: 60 + insets.bottom + 20 }]}
+          showsVerticalScrollIndicator={false}
+        >
+          <Ionicons name="warning-outline" size={54} color={COLORS.orange} />
+          <Text style={[styles.panelTitle, { color: theme.text }]}>Focus session needs attention</Text>
+          <Text style={[styles.panelSubtitle, { color: theme.muted }]}>
+            A focus session is active, but its task is no longer available.
+            Stop the session here to clear blocking safely.
+          </Text>
+          <TouchableOpacity
+            style={[styles.primaryBtn, { backgroundColor: COLORS.red }]}
+            onPress={async () => {
+              if (await SessionPinModule.isPinSet().catch(() => false)) {
+                setFocusStopPinVisible(true);
+              } else {
+                Alert.alert('Stop Focus', 'End the orphaned focus session?', [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Stop', style: 'destructive', onPress: () => { void stopFocusMode(); } },
+                ]);
+              }
+            }}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="stop-circle-outline" size={20} color="#fff" />
+            <Text style={styles.primaryBtnText}>Stop Focus</Text>
+          </TouchableOpacity>
+        </ScrollView>
       ) : !task ? (
         <ScrollView
           contentContainerStyle={[styles.panelContent, { paddingBottom: 60 + insets.bottom + 20 }]}

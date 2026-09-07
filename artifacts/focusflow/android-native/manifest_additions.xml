@@ -188,6 +188,44 @@
     </activity>
 
     <!--
+      MainActivity .focusflow import association.
+
+      Keep each MIME/path combination in a separate VIEW filter. Android
+      document providers may report application/octet-stream or a provider-
+      specific MIME type, so the content:// */* filter is intentionally broad.
+      FileImportHost validates the FocusFlowBackupV1 envelope before import.
+      The incoming URI grant is read through ContentResolver.
+    -->
+    <activity android:name="...MainActivity" android:exported="true">
+        <intent-filter>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.DEFAULT" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="content" android:mimeType="application/octet-stream" />
+        </intent-filter>
+        <intent-filter>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.DEFAULT" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="content" android:mimeType="*/*" />
+        </intent-filter>
+        <intent-filter>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.DEFAULT" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="file" android:mimeType="application/octet-stream"
+                android:pathPattern=".*\.focusflow" />
+        </intent-filter>
+        <intent-filter>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.DEFAULT" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="file" android:mimeType="*/*"
+                android:pathPattern=".*\.focusflow" />
+        </intent-filter>
+    </activity>
+
+    <!--
       NetworkBlockerVpnService — null-routing VPN tunnel that drops all packets
       for blocked apps. The BIND_VPN_SERVICE permission is required for all VPN
       services; android:permission ensures only the system can bind to it.

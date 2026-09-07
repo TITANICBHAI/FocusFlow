@@ -351,6 +351,23 @@ export interface RestoreCallbacks {
   currentFocusSession?: FocusSession | null;
 }
 
+export type RestoreCallbackInputs = Omit<RestoreCallbacks, 'replaceTasks'>;
+
+/**
+ * Builds the callback object used by both Settings picker imports and the
+ * incoming-file confirmation route. Keeping the shape in one place prevents
+ * one import entry point from silently dropping a safety callback.
+ */
+export function buildRestoreCallbacks(
+  inputs: RestoreCallbackInputs,
+  replaceTasks = false,
+): RestoreCallbacks {
+  return {
+    ...inputs,
+    replaceTasks,
+  };
+}
+
 export async function pickAndImportBackup(
   cb: RestoreCallbacks,
 ): Promise<ImportSummary | { error: string }> {

@@ -24,7 +24,6 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Notifications from 'expo-notifications';
-import * as FileSystem from 'expo-file-system/legacy';
 import { Alert, Linking, StyleSheet, View, Text, Animated, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, FONT, SPACING } from '@/styles/theme';
@@ -39,8 +38,9 @@ import { VpnPermissionLostBanner } from '@/components/VpnPermissionLostBanner';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { ErrorAlertBanner } from '@/components/ErrorAlertBanner';
 import { logger } from '@/services/startupLogger';
-import { scheduleTaskRemindersBatch } from '@/services/notificationService';
-import { parseBackupJson, restoreFromJson, type ImportSummary } from '@/services/backupService';
+import { parseBackupJson } from '@/services/backupService';
+import { NativeFilePickerModule } from '@/native-modules/NativeFilePickerModule';
+import { stageBackupImport } from '@/services/pendingBackupImport';
 import { navPush } from '@/utils/nav';
 
 // ─── Deferred notification action store ──────────────────────────────────────
@@ -365,9 +365,9 @@ function VpnPermissionHost() {
 
 // ─── Incoming .focusflow backup host ───────────────────────────────────────────
 // Handles files opened from Android file managers and cloud-storage apps.
-// Import is always merge-only and requires confirmation after validation.
+// The native bridge reads provider-backed URIs, then the confirmation route
+// performs the user-selected merge/replace restore.
 function FileImportHost() {
-  const { state, addTask, deleteTask, updateSettings, refreshTasks } = useApp();
   const handledUris = useRef(new Set<string>());
 
   useEffect(() => {
@@ -379,76 +379,30 @@ function FileImportHost() {
       return lower.startsWith('file://') && lower.split('?')[0].endsWith('.focusflow');
     };
 
-    const showImportResult = (summary: ImportSummary) => {
-      const warningText = summary.warnings.length > 0
-        ? `\n\nWarnings:\n${summary.warnings.join('\n')}`
-        : '';
-      Alert.alert(
-        'Backup imported',
-        `${summary.tasksImported} task${summary.tasksImported === 1 ? '' : 's'} added. ` +
-        `${summary.tasksSkipped} skipped.${warningText}`,
-      );
-    };
-
     const handleUri = async (uri: string) => {
       if (!mounted || !isSupportedUri(uri) || handledUris.current.has(uri)) return;
       handledUris.current.add(uri);
 
-      let text: string;
       try {
-        text = await FileSystem.readAsStringAsync(uri, {
-          encoding: FileSystem.EncodingType.UTF8,
-        });
+        const text = await NativeFilePickerModule.readUri(uri);
+        if (!text) throw new Error('The file provider returned no readable content.');
+
+        const parsed = parseBackupJson(text);
+        if (!parsed.ok) {
+          Alert.alert('Invalid backup file', parsed.error);
+          handledUris.current.delete(uri);
+          return;
+        }
+
+        const importId = stageBackupImport(text);
+        router.push({ pathname: '/import-confirm', params: { id: importId } });
       } catch (error) {
-        Alert.alert('Could not read backup', `FocusFlow could not read this file.\n\n${String(error)}`);
-        return;
+        handledUris.current.delete(uri);
+        Alert.alert(
+          'Could not read backup',
+          `FocusFlow could not read this file.\n\n${String(error)}`,
+        );
       }
-
-      const parsed = parseBackupJson(text);
-      if (!parsed.ok) {
-        Alert.alert('Invalid backup file', parsed.error);
-        return;
-      }
-
-      const { envelope } = parsed;
-      const taskCount = envelope.summary?.taskCount ?? envelope.tasks.length;
-      const blockedWordCount = envelope.summary?.blockedWordCount ?? envelope.settings.blockedWords?.length ?? 0;
-      const message =
-        `This backup contains ${taskCount} task${taskCount === 1 ? '' : 's'} and ` +
-        `${blockedWordCount} blocked word${blockedWordCount === 1 ? '' : 's'}.\n\n` +
-        'Importing will merge new tasks and settings with your current FocusFlow data. ' +
-        'Existing tasks and settings will not be deleted.';
-
-      Alert.alert('Import FocusFlow backup?', message, [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Import',
-          onPress: () => {
-            void (async () => {
-              try {
-                const result = await restoreFromJson(text, {
-                  updateSettings,
-                  addTask,
-                  scheduleTasks: scheduleTaskRemindersBatch,
-                  deleteTask,
-                  refreshTasks,
-                  replaceTasks: false,
-                  currentTasks: state.tasks,
-                  currentSettings: state.settings,
-                  currentFocusSession: state.focusSession,
-                });
-                if ('error' in result) {
-                  Alert.alert('Import failed', result.error);
-                } else {
-                  showImportResult(result);
-                }
-              } catch (error) {
-                Alert.alert('Import failed', String(error));
-              }
-            })();
-          },
-        },
-      ]);
     };
 
     const subscription = Linking.addEventListener('url', ({ url }) => {
@@ -465,7 +419,7 @@ function FileImportHost() {
       mounted = false;
       subscription.remove();
     };
-  }, [addTask, deleteTask, refreshTasks, state.settings, state.tasks, updateSettings]);
+  }, []);
 
   return null;
 }
@@ -519,6 +473,7 @@ export default function RootLayout() {
               <Stack.Screen name="privacy-policy" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
               <Stack.Screen name="onboarding" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
               <Stack.Screen name="permissions" options={{ headerShown: false }} />
+              <Stack.Screen name="import-confirm" options={{ headerShown: false, presentation: 'modal' }} />
               <Stack.Screen name="active" options={{ headerShown: false, presentation: 'card' }} />
               <Stack.Screen name="block-defense" options={{ headerShown: false, presentation: 'card' }} />
               <Stack.Screen name="keyword-blocker" options={{ headerShown: false, presentation: 'card' }} />

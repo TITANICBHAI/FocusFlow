@@ -216,6 +216,8 @@ export interface AppSettings {
   aversionSoundEnabled: boolean;    // alert sound the moment the blocked app opens
   // Temptation report
   weeklyReportEnabled: boolean;     // Sunday notification with blocked-app attempt counts
+  /** Calendar anchor for weekly statistics: 0=Sunday … 6=Saturday. */
+  weekStartDay: number;
   // Greyout schedule — time-window blocks independent of any focus session
   greyoutSchedule: GreyoutWindow[];
   systemGuardEnabled: boolean;

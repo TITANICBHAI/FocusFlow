@@ -298,10 +298,16 @@ function ActiveScreen() {
         </View>
 
         <StatusCard icon="hourglass-outline" color={focusActive ? COLORS.primary : theme.muted} title="Focus Session" status={focusActive ? 'Active' : 'Not active'} theme={theme}>
-          {focusActive && focusTask ? (
+          {focusActive ? (
             <>
-              <DetailRow label="Task" value={focusTask.title} theme={theme} />
-              <DetailRow label="Ends at" value={dayjs(focusTask.endTime).format('HH:mm')} theme={theme} />
+              {focusTask ? (
+                <>
+                  <DetailRow label="Task" value={focusTask.title} theme={theme} />
+                  <DetailRow label="Ends at" value={dayjs(focusTask.endTime).format('HH:mm')} theme={theme} />
+                </>
+              ) : (
+                <EmptyText text="A focus session is active, but its task could not be found." theme={theme} />
+              )}
               <TouchableOpacity style={[styles.action, { borderColor: COLORS.red + '55', backgroundColor: COLORS.red + '12' }]} onPress={stopFocus}>
                 <Ionicons name="stop-circle-outline" size={16} color={COLORS.red} />
                 <Text style={[styles.actionText, { color: COLORS.red }]}>Stop Focus</Text>

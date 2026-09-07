@@ -851,10 +851,11 @@ export async function dbGetTodayFocusMinutes(): Promise<number> {
     }>(`SELECT started_at, ended_at FROM focus_sessions WHERE started_at >= ? ORDER BY id DESC`, [startOfDay.toISOString()]);
     let totalMs = 0;
     const now = Date.now();
+    const MAX_SESSION_MS = 6 * 60 * 60 * 1000;
     for (const row of rows) {
       const start = new Date(row.started_at).getTime();
       const end = row.ended_at ? new Date(row.ended_at).getTime() : now;
-      totalMs += Math.max(0, end - start);
+      totalMs += Math.min(Math.max(0, end - start), MAX_SESSION_MS);
     }
     return Math.floor(totalMs / 60000);
   });

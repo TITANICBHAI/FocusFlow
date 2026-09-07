@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
+import java.io.FileInputStream
 import com.facebook.react.bridge.ActivityEventListener
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
@@ -29,6 +30,11 @@ import com.facebook.react.bridge.ReactMethod
  *       → Promise<String | null>
  *         Resolves with the content URI string on success, null if cancelled.
  *         Opens ACTION_CREATE_DOCUMENT so the user picks where to save.
+     *
+     *   readUri(uriString: String)
+     *       → Promise<String>
+     *         Reads a URI delivered by an ACTION_VIEW file-open intent through
+     *         Android's ContentResolver.
  *
  * Usage:
  *   pickFile("application/json")  — shows only JSON files
@@ -124,6 +130,37 @@ class NativeFilePickerModule(private val ctx: ReactApplicationContext) :
 
         @Suppress("DEPRECATION")
         activity.startActivityForResult(intent, REQUEST_SAVE_FILE)
+    }
+
+    /**
+     * Reads a URI delivered by Android when the user opens a .focusflow file
+     * from Downloads, Files, Drive, or another document provider.
+     *
+     * Expo FileSystem cannot treat these content:// URIs as app-local paths.
+     * Read through the resolver instead so provider-backed documents work.
+     */
+    @ReactMethod
+    fun readUri(uriString: String, promise: Promise) {
+        try {
+            val uri = Uri.parse(uriString)
+            val content = when (uri.scheme?.lowercase()) {
+                "file" -> uri.path?.let { path ->
+                    FileInputStream(path).bufferedReader(Charsets.UTF_8).use { it.readText() }
+                }
+                "content" -> ctx.contentResolver.openInputStream(uri)
+                    ?.bufferedReader(Charsets.UTF_8)
+                    ?.use { it.readText() }
+                else -> null
+            }
+
+            if (content == null) {
+                promise.reject("E_READ_FAILED", "Unsupported or unreadable URI")
+                return
+            }
+            promise.resolve(content)
+        } catch (e: Exception) {
+            promise.reject("E_READ_FAILED", e.message ?: "Could not read URI", e)
+        }
     }
 
     private fun handlePickResult(resultCode: Int, data: Intent?) {

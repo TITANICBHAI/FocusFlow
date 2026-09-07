@@ -24,7 +24,7 @@ import {
   requestPermissions,
   scheduleTaskRemindersBatch,
 } from '@/services/notificationService';
-import { exportBackup, pickAndImportBackup } from '@/services/backupService';
+import { buildRestoreCallbacks, exportBackup, pickAndImportBackup } from '@/services/backupService';
 import { formatDuration } from '@/services/taskService';
 import { AllowedAppsModal } from '@/components/AllowedAppsModal';
 import { OverlayAppearanceModal } from '@/components/OverlayAppearanceModal';
@@ -129,16 +129,16 @@ function SettingsScreen() {
     if (backupBusy) return;
     setBackupBusy(true);
     try {
-      const result = await pickAndImportBackup({
+      const result = await pickAndImportBackup(buildRestoreCallbacks({
         updateSettings,
         addTask,
         scheduleTasks: scheduleTaskRemindersBatch,
         deleteTask,
         refreshTasks,
-        replaceTasks,
         currentTasks: state.tasks,
         currentSettings: settings,
-      });
+        currentFocusSession: state.focusSession,
+      }, replaceTasks));
       if ('error' in result) {
         Alert.alert('Import failed', result.error);
         return;

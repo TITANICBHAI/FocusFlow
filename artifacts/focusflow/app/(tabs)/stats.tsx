@@ -39,6 +39,7 @@ import { UsageInsights } from '@/components/UsageInsights';
 import { QuickBlockSheet } from '@/components/QuickBlockSheet';
 import type { UsageApp } from '@/native-modules/UsageStatsModule';
 import type { Task } from '@/data/types';
+import { getWeekEnd, getWeekStart } from '@/utils/weekUtils';
 
 type Filter = 'yesterday' | 'today' | 'week' | 'alltime';
 const FILTER_PILL_ORDER: Filter[] = ['today', 'yesterday', 'week', 'alltime'];
@@ -228,16 +229,17 @@ function StatsScreen() {
   const focusHero = fmtMinsLong(focusMinutes);
   const rateColor = todayStats.rate >= 80 ? COLORS.green : todayStats.rate >= 50 ? COLORS.orange : COLORS.primary;
 
-  // ── WEEK computed stats (from state.tasks) ─────────────────────────────
+  // ── WEEK computed stats (calendar week, Sunday–Saturday) ───────────────
   const weeklyDays = useMemo<WeekDay[]>(() => {
+    const weekStart = getWeekStart(0);
     const days: WeekDay[] = [];
-    for (let i = 6; i >= 0; i--) {
-      const d        = dayjs().subtract(i, 'day');
+    for (let i = 0; i < 7; i++) {
+      const d        = weekStart.add(i, 'day');
       const dStr     = d.format('YYYY-MM-DD');
       const dayTasks = tasks.filter((t) => dayjs(t.startTime).format('YYYY-MM-DD') === dStr);
       const done     = dayTasks.filter((t) => t.status === 'completed');
       days.push({
-        day: d.format('ddd'), date: d.format('MMM D'), isToday: i === 0,
+        day: d.format('ddd'), date: d.format('MMM D'), isToday: d.isSame(dayjs(), 'day'),
         total: dayTasks.length, completed: done.length,
         focusMinutes: done.filter((t) => t.focusMode).reduce((s, t) => s + t.durationMinutes, 0),
       });
@@ -264,14 +266,15 @@ function StatsScreen() {
     if (filter === 'today') {
       return { startMs: now.startOf('day').valueOf(), endMs: now.endOf('day').valueOf() };
     }
-    const start = now.subtract(6, 'day');
-    return { startMs: start.startOf('day').valueOf(), endMs: now.endOf('day').valueOf() };
+    const start = getWeekStart(0);
+    return { startMs: start.valueOf(), endMs: getWeekEnd(start).valueOf() };
   }, [filter]);
 
   const weeklyFocusByDate = useMemo<Record<string, number>>(() => {
+    const weekStart = getWeekStart(0);
     const map: Record<string, number> = {};
     weeklyDays.forEach((day, index) => {
-      map[dayjs().subtract(6 - index, 'day').format('YYYY-MM-DD')] = day.focusMinutes;
+      map[weekStart.add(index, 'day').format('YYYY-MM-DD')] = day.focusMinutes;
     });
     return map;
   }, [weeklyDays]);
@@ -298,8 +301,9 @@ function StatsScreen() {
 
   function processWeeklyData(log: TemptationEntry[]) {
     setAllTemptations(log);
-    const cutoff   = Date.now() - 7 * 24 * 60 * 60 * 1000;
-    const thisWeek = log.filter((e) => e.timestamp >= cutoff);
+    const weekStart = getWeekStart(0);
+    const weekEnd = getWeekEnd(weekStart);
+    const thisWeek = log.filter((e) => e.timestamp >= weekStart.valueOf() && e.timestamp <= weekEnd.valueOf());
     setTotalThisWeek(thisWeek.length);
     setTotalAllTime(log.length);
     const appMap = new Map<string, AppStat>();
@@ -309,8 +313,8 @@ function StatsScreen() {
     }
     setAppStats(Array.from(appMap.values()).sort((a, b) => b.count - a.count));
     const days: DayStat[] = [];
-    for (let i = 6; i >= 0; i--) {
-      const d = dayjs().subtract(i, 'day');
+    for (let i = 0; i < 7; i++) {
+      const d = weekStart.add(i, 'day');
       days.push({ day: d.format('ddd'), date: d.format('MMM D'),
         count: log.filter((e) => e.timestamp >= d.startOf('day').valueOf() && e.timestamp <= d.endOf('day').valueOf()).length });
     }

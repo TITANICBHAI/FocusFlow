@@ -4,6 +4,7 @@ const { NativeFilePicker } = NativeModules as {
   NativeFilePicker: {
     pickFile(mimeType: string): Promise<{ name: string; content: string } | null>;
     saveFile(content: string, fileName: string, mimeType: string): Promise<string | null>;
+    readUri(uri: string): Promise<string | null>;
   };
 };
 
@@ -43,5 +44,17 @@ export const NativeFilePickerModule = {
     if (Platform.OS !== 'android') return null;
     if (!NativeFilePicker?.saveFile) return null;
     return NativeFilePicker.saveFile(content, fileName, mimeType);
+  },
+
+  /**
+   * Reads an Android content:// or file:// URI delivered by an ACTION_VIEW
+   * intent. This must use the native ContentResolver path rather than
+   * expo-file-system, because provider-backed documents are not app-local
+   * filesystem paths.
+   */
+  async readUri(uri: string): Promise<string | null> {
+    if (Platform.OS !== 'android') return null;
+    if (!NativeFilePicker?.readUri) return null;
+    return NativeFilePicker.readUri(uri);
   },
 };

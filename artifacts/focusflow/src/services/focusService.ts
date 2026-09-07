@@ -13,6 +13,7 @@ import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
 import { ForegroundLaunchModule } from '@/native-modules/ForegroundLaunchModule';
 import { getUpcomingTask } from './taskService';
 import type { Task, FocusSession } from '@/data/types';
+import { withTimeout } from '@/utils/withTimeout';
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
@@ -99,16 +100,28 @@ export async function stopFocusMode(pinHash: string | null = null): Promise<void
   appStateSubscription?.remove();
   appStateSubscription = null;
 
-  // Always clear Kotlin-side state so the AccessibilityService stops blocking
-  // even if the JS module was freshly initialised (cold-start recovery).
-  await ForegroundServiceModule.stopService(pinHash).catch(() => {});
-  await SharedPrefsModule.publishFocusSnapshot(false, null, null, 0, null, [], null, pinHash).catch(() => {});
-
-  // Only hit the DB if we had a real session — avoids a spurious DB write on
-  // cold-start cleanup where there is no matching open session row.
+  // Close the DB row before any native call that can hang. This keeps an
+  // interrupted native teardown from turning today's focus total into an
+  // ever-growing open session.
   if (hadActiveSession && task) {
-    await dbEndFocusSession(task.id);
-    await dismissPersistentNotification();
+    await withTimeout(dbEndFocusSession(task.id), 5000, 'dbEndFocusSession').catch(() => {});
+  }
+
+  // Always clear Kotlin-side state so the AccessibilityService stops blocking,
+  // including cold-start recovery where the JS singleton has no task object.
+  await withTimeout(
+    ForegroundServiceModule.stopService(pinHash),
+    5000,
+    'ForegroundServiceModule.stopService',
+  ).catch(() => {});
+  await withTimeout(
+    SharedPrefsModule.publishFocusSnapshot(false, null, null, 0, null, [], null, pinHash),
+    5000,
+    'publishFocusSnapshot',
+  ).catch(() => {});
+
+  if (hadActiveSession && task) {
+    await dismissPersistentNotification().catch(() => {});
   }
 }
 

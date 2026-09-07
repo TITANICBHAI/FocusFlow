@@ -23,3 +23,4 @@
 - [Accessibility service liveness](accessibility-service-liveness.md) — enabled state is authorization, not proof the service is bound; use a heartbeat before trusting primary enforcement.
 - [GitHub push serialization](github-push-serialization.md) — serialize same-branch API push workflows to avoid stale-ref fast-forward failures.
 - [FocusFlow launcher two-theme system](focusflow-launcher-redesign.md) — Classic + Glassy plan is authoritative; use its separate tracker for implementation status.
+- [FocusFlow features plan](focusflow-features-plan.md) — audit the imported feature plan against the current artifact; content:// backup opening is only partially implemented.

@@ -943,30 +943,39 @@ function withFocusFlowFileAssociation(config) {
       { $: { 'android:name': 'android.intent.category.BROWSABLE' } },
     ];
 
-    if (!hasFileAssociationFilter('content', 'application/octet-stream')) {
-      filters.push({
-        action: viewActions,
-        category: browsableCategories,
-        data: [{
-          $: {
-            'android:scheme': 'content',
-            'android:mimeType': 'application/octet-stream',
-          },
-        }],
-      });
-    }
+    // Document providers are inconsistent about the MIME type they report for
+    // an extension they do not own. Keep the narrow octet-stream filters, but
+    // also accept provider-backed content with */* and validate the envelope
+    // before showing the import screen. Each MIME/path combination gets its
+    // own filter so Android does not combine unrelated <data> declarations.
+    const associations = [
+      { scheme: 'content', mimeType: 'application/octet-stream' },
+      { scheme: 'content', mimeType: '*/*' },
+      { scheme: 'file', mimeType: 'application/octet-stream', pathPattern: '.*\\.focusflow' },
+      { scheme: 'file', mimeType: '*/*', pathPattern: '.*\\.focusflow' },
+    ];
 
-    if (!hasFileAssociationFilter('file', 'application/octet-stream', '.*\\.focusflow')) {
+    for (const association of associations) {
+      if (hasFileAssociationFilter(
+        association.scheme,
+        association.mimeType,
+        association.pathPattern,
+      )) continue;
+
+      const data = {
+        $: {
+          'android:scheme': association.scheme,
+          'android:mimeType': association.mimeType,
+        },
+      };
+      if (association.pathPattern) {
+        data.$['android:pathPattern'] = association.pathPattern;
+      }
+
       filters.push({
         action: viewActions,
         category: browsableCategories,
-        data: [{
-          $: {
-            'android:scheme': 'file',
-            'android:mimeType': 'application/octet-stream',
-            'android:pathPattern': '.*\\.focusflow',
-          },
-        }],
+        data: [data],
       });
     }
 

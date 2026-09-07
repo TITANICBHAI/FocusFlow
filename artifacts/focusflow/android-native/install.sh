@@ -407,6 +407,79 @@ else
   echo "   ✓ LauncherActivity already registered"
 fi
 
+# ── .focusflow MainActivity file association fallback ─────────────────────────
+# The config plugin is authoritative during Expo prebuild. This patch keeps
+# manually regenerated Android projects aligned when install.sh is run after
+# prebuild. The broad content MIME filter is safe because the JS host parses
+# and validates the FocusFlowBackupV1 envelope before importing.
+
+if ! grep -q "focusflow-file-association" "$MANIFEST" \
+  && ! grep -Fq 'android:mimeType="*/*"' "$MANIFEST"; then
+  MANIFEST="$MANIFEST" python3 - <<'PY'
+import os
+import re
+import sys
+
+manifest_path = os.environ["MANIFEST"]
+with open(manifest_path, "r", encoding="utf-8") as handle:
+    text = handle.read()
+
+match = re.search(
+    r'(?P<open><activity\b(?=[^>]*android:name="[^"]*MainActivity")[^>]*>)'
+    r'(?P<body>.*?)'
+    r'(?P<close></activity>)',
+    text,
+    flags=re.DOTALL,
+)
+if not match:
+    print("❌  MainActivity not found; cannot patch .focusflow association.", file=sys.stderr)
+    sys.exit(1)
+
+filters = r'''
+        <!-- focusflow-file-association -->
+        <intent-filter>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.DEFAULT" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="content" android:mimeType="application/octet-stream" />
+        </intent-filter>
+        <intent-filter>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.DEFAULT" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="content" android:mimeType="*/*" />
+        </intent-filter>
+        <intent-filter>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.DEFAULT" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="file" android:mimeType="application/octet-stream"
+                android:pathPattern=".*\.focusflow" />
+        </intent-filter>
+        <intent-filter>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.DEFAULT" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="file" android:mimeType="*/*"
+                android:pathPattern=".*\.focusflow" />
+        </intent-filter>
+'''
+
+replacement = (
+    match.group("open")
+    + match.group("body")
+    + filters
+    + match.group("close")
+)
+text = text[:match.start()] + replacement + text[match.end():]
+with open(manifest_path, "w", encoding="utf-8") as handle:
+    handle.write(text)
+PY
+  echo "   ✓ .focusflow VIEW filters added to MainActivity"
+else
+  echo "   ✓ .focusflow VIEW filters already registered"
+fi
+
 echo ""
 echo "✅  All native files installed and manifest patched."
 echo ""
