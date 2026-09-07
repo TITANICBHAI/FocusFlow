@@ -4,7 +4,7 @@
  * In-app guide that walks users through FocusFlow's core features.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import {
   View,
   Text,
@@ -29,77 +29,75 @@ interface GuideSection {
 
 const GUIDE: GuideSection[] = [
   {
-    icon: 'calendar-outline',
-    title: 'Schedule Your Focus',
+    icon: 'layers-outline',
+    title: 'All Modes',
     color: COLORS.primary,
     steps: [
-      { heading: 'Add a task', body: 'Tap the + button on the Schedule tab. Give it a name, pick a start time and duration. Tap Save.' },
-      { heading: 'Set priority', body: 'Tasks are colour-coded by priority — critical (red), high (orange), medium (indigo), low (grey). Higher-priority tasks surface first.' },
-      { heading: 'Start focusing', body: 'When a task is active, the Focus tab lights up. Tap "Start Focus Mode" to activate app blocking.' },
-    ],
-  },
-  {
-    icon: 'ban-outline',
-    title: 'Block Apps',
-    color: COLORS.red,
-    steps: [
-      { heading: 'Standalone block (no task needed)', body: 'Swipe open the side menu → Standalone Block. Pick apps and choose how long to block them. The block survives reboots.' },
-      { heading: 'Quick presets', body: 'Save groups of apps as presets (e.g. "Social Media") for one-tap blocking.' },
-      { heading: 'Daily Allowance', body: 'Let apps through, but only N times per day, N total minutes, or N minutes every X hours.' },
+      { heading: 'Focus Mode', body: 'Focus Mode is connected to a task. Start a task from the Focus tab, choose the apps allowed during that session, and start Focus Mode when you are ready to work.' },
+      { heading: 'Standalone Block', body: 'Standalone Block does not need a task. Open it from the Focus tab, choose the apps you want blocked, and set how long the block should last. It is the best choice when you want a timed block right now.' },
+      { heading: 'Keyword Blocker', body: 'Keyword Blocker watches visible text, searches, and URLs for words you add. When a blocked word appears, FocusFlow sends the current app home. It works independently of an app list or focus session.' },
+      { heading: 'VPN Network Protection', body: 'VPN protection cuts internet access for the apps you select. Use the VPN list for always-on network blocking, or add VPN protection to a standalone block or group schedule when that block is running.' },
+      { heading: 'Group Schedules', body: 'Group schedules are recurring block windows. Add several apps to one window, choose the days and times, and let the same group run automatically every week. A schedule can also include VPN protection.' },
+      { heading: 'Home Launcher', body: 'Home Launcher replaces your home screen with a focused launcher. Choose Classic or Glassy, select the apps shown in the drawer, and use launcher protections to make switching away harder during a standalone block.' },
     ],
   },
   {
     icon: 'shield-checkmark-outline',
-    title: 'Enforce the Block',
+    title: 'Absolute Blocking',
+    color: COLORS.red,
+    steps: [
+      { heading: 'Start with Standalone Block', body: 'Go to the Focus tab, choose Standalone Block, select every app you want blocked, and set the time. This works without creating a task and stays active until the timer ends.' },
+      { heading: 'Grant the important permissions first', body: 'Open Settings → Permissions and grant Accessibility and Usage Access so FocusFlow can detect and stop blocked apps. Grant Device Admin as an additional layer before starting a serious standalone block; it adds resistance to force-stop and uninstall escape paths, but it is not a magic guarantee by itself.' },
+      { heading: 'Turn on Protect system controls', body: 'In the Defense tab, enable Protect system controls before the block starts. This protects system screens and navigation paths that could otherwise be used to weaken an active block.' },
+      { heading: 'Add the extra layers you need', body: 'From the Defense tab, enable Network Protection, launcher protections, aversion deterrents, Shorts/Reels blocking, or other safeguards. These layers work alongside the app block instead of replacing it.' },
+      { heading: 'Know what absolute means', body: 'FocusFlow blocks the apps and escape routes you configured. Keep emergency, phone, launcher, and other protected system apps available, and do not treat any Android protection as a substitute for emergency access.' },
+    ],
+  },
+  {
+    icon: 'lock-closed-outline',
+    title: 'What Can and Cannot Change',
     color: COLORS.orange,
     steps: [
-      { heading: 'What\'s blocking right now', body: 'The top of the Block Enforcement screen shows three lights: Focus session, Timed Standalone Block, and Always-on enforcement. Glance there any time you\'re unsure why an app is blocked.' },
-      { heading: 'Always-on enforcement', body: 'Any app left in your Standalone Block list (or any Daily Allowance rule) is enforced 24/7 — no timer needed. To turn it off, empty the list (Side menu → Standalone Block).' },
-      { heading: 'Keyword Blocker', body: 'Add words to the Keyword Blocker (side menu → Block Enforcement). If any of those words appear on screen, FocusFlow redirects you home immediately.' },
-      { heading: 'Aversion Deterrents', body: 'Turn on Vibration Harassment, Screen Dimmer, or Sound Alert. Each one applies the instant a blocked app opens — building a negative reflex over time.' },
-      { heading: 'System Protection', body: 'Prevents power-menu tricks, install bypasses, and YouTube Shorts / Instagram Reels from sneaking through.' },
-      { heading: 'Keep focus running for full duration', body: 'In Block Enforcement → Focus Session Behaviour. Off by default — completing a task ends the focus session right away. Turn it on if you want app-blocking to stay on until the task\'s original end time even when you finish early.' },
+      { heading: 'Always-On and VPN lists', body: 'You can add more apps to the Always-On list or VPN list while protection is running. Removing apps from either list is locked during an active Focus Mode or Standalone Block so the block cannot be weakened halfway through.' },
+      { heading: 'Keyword Blocker', body: 'You can add keywords without a password. Removing keywords or clearing the list is protected, and an active standalone block can lock those removals completely.' },
+      { heading: 'Group schedules', body: 'You can add, edit, or remove apps and windows in a group schedule when it is not locked. Schedule management is more heavily protected: edits, removals, shortening a window, or deleting a schedule can require the Defense PIN, and active standalone protection can prevent destructive changes.' },
+      { heading: 'Why FocusFlow locks changes', body: 'A protection tool is only useful if it cannot be quietly weakened after it starts. FocusFlow allows safer additions, but guards removals, shorter windows, disabled toggles, and other changes that reduce protection.' },
     ],
   },
   {
-    icon: 'time-outline',
-    title: 'Scheduled Blocks',
+    icon: 'key-outline',
+    title: 'PIN System',
     color: COLORS.purple,
     steps: [
-      { heading: 'Block Schedules', body: 'Create one or more time-window batches — pick apps and the hours/days they should be blocked (e.g. no Instagram 9–17 Mon–Fri). Each batch runs independently. Set once, runs forever.' },
-      { heading: 'Focus Mode tied to tasks', body: 'Enable "Auto-enable Focus Mode" in Settings so blocking starts and stops automatically with each task.' },
+      { heading: 'Focus Session PIN', body: 'The Focus Session PIN guards ending an active Focus Mode session. It is the lock used when you try to stop focus early, so starting a session can mean committing to its full duration.' },
+      { heading: 'Defense PIN', body: 'The Defense PIN guards actions that weaken protection: disabling protected Defense toggles, removing apps from Always-On or VPN lists, removing keywords, and changing protected settings.' },
+      { heading: 'Group schedules are guarded more heavily', body: 'Adding, editing, shortening, or deleting a group schedule can require the Defense PIN. This prevents a recurring block from being quietly reduced or removed.' },
+      { heading: 'Adding is intentionally easier in three lists', body: 'Adding apps to Always-On, adding apps to the VPN list, and adding keywords do not normally require a PIN. The protection is focused on preventing removal or weakening, not on stopping you from adding another safeguard.' },
+      { heading: 'Set both passwords before a serious block', body: 'Open Defense → PIN Protection to configure the Focus Session PIN and Defense PIN. Keep them somewhere safe; forgetting them can leave a protection active until its normal expiry or until the correct recovery path is used.' },
     ],
   },
   {
-    icon: 'bar-chart-outline',
-    title: 'Track Progress',
+    icon: 'options-outline',
+    title: 'Other Toggles',
     color: COLORS.green,
     steps: [
-      { heading: 'Stats tab', body: 'Daily and weekly charts of focus time, completed tasks, and blocked app attempts.' },
-      { heading: 'Stats screen', body: "Yesterday's digest, today's focus time, weekly charts, all-time heatmap and milestones. Yesterday tab is your morning summary — tasks done vs scheduled, on-time/late/early, and distractions. Open via the bottom tabs or the side menu." },
-      { heading: 'Weekly Report notification', body: 'Enable in Settings → Backup & Data to get a Sunday recap in your notification tray.' },
-    ],
-  },
-  {
-    icon: 'menu-outline',
-    title: 'Side Menu',
-    color: COLORS.blue,
-    steps: [
-      { heading: 'Open it', body: 'Swipe right from the left edge of the screen, or tap the › tab on the left side of the screen (just above the bottom nav bar).' },
-      { heading: 'Quick access', body: 'The menu gives you direct access to every blocking tool, enforcement layer, and your focus reports without digging through Settings.' },
-      { heading: 'Profile', body: 'Tap your profile card at the top of the menu to update your name, occupation, daily goal, or chronotype.' },
+      { heading: 'Protect system controls', body: 'Blocks or redirects sensitive system-control paths such as power-menu, Settings, and other escape routes. It cannot be turned off while Focus Mode or Standalone Block is active.' },
+      { heading: 'Network Protection and self-heal', body: 'Network Protection uses the local VPN to cut internet access for selected apps. Self-heal watches the VPN and helps restore it if Android disconnects it. Android VPN permission is required.' },
+      { heading: 'Launcher protections', body: 'Home Launcher protections can lock the default launcher choice, protect against uninstall attempts, and keep FocusFlow in control during a standalone block. Configure them from Home Launcher or the Defense tab.' },
+      { heading: 'Aversion deterrents', body: 'Vibration, screen dimming, and sound alerts react when a blocked app opens. They are optional deterrents that reinforce the block; they do not replace Accessibility, Usage Access, or the block list.' },
+      { heading: 'Content and Focus settings', body: 'Shorts/Reels blocking, Auto-enable Focus Mode, and keeping focus active for the full task duration change how enforcement behaves. Enable only the layers that match your routine, then test them before starting a long block.' },
     ],
   },
 ];
 
 export default function HowToUseScreen() {
   const insets = useSafeAreaInsets();
-  const { theme, isDark } = useTheme();
+  const { theme } = useTheme();
   const params = useLocalSearchParams<{ onboarding?: string }>();
   // When opened as part of the first-run flow, hide the back arrow and show
   // a prominent "Get Started" CTA at the bottom that drops the user on Focus.
   const isOnboarding = params.onboarding === '1';
-  const [expanded, setExpanded] = useState<number | null>(0);
+  const [expanded, setExpanded] = React.useState<number | null>(0);
 
   const toggle = (i: number) => setExpanded((prev) => (prev === i ? null : i));
 
@@ -143,20 +141,10 @@ export default function HowToUseScreen() {
       </View>
 
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 40 + insets.bottom }]}>
-        {/* Info banner */}
-        <View style={[styles.noticeBanner, { backgroundColor: `${COLORS.primary}12`, borderColor: `${COLORS.primary}28` }]}>
-          <Ionicons name="information-circle-outline" size={16} color={COLORS.primary} style={{ flexShrink: 0, marginTop: 1 }} />
-          <Text style={[styles.noticeText, { color: theme.text }]}>
-            These guide sections are fixed — they cannot be changed or removed. You can always{' '}
-            <Text style={{ fontWeight: '700' }}>add more</Text>
-            {' '}tasks, blocked apps, block schedules, and presets from the main app.
-          </Text>
-        </View>
-
         {GUIDE.map((section, i) => {
           const isOpen = expanded === i;
           return (
-            <View key={i} style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <View key={section.title} style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
               <TouchableOpacity
                 style={styles.cardHeader}
                 onPress={() => toggle(i)}
@@ -177,10 +165,13 @@ export default function HowToUseScreen() {
                 <View style={[styles.steps, { borderTopColor: theme.border }]}>
                   {section.steps.map((step, j) => (
                     <View
-                      key={j}
+                      key={step.heading}
                       style={[
                         styles.step,
-                        j < section.steps.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.border },
+                        j < section.steps.length - 1 && {
+                          borderBottomWidth: StyleSheet.hairlineWidth,
+                          borderBottomColor: theme.border,
+                        },
                       ]}
                     >
                       <View style={[styles.stepBullet, { backgroundColor: section.color }]}>
@@ -197,10 +188,6 @@ export default function HowToUseScreen() {
             </View>
           );
         })}
-
-        <Text style={[styles.tip, { color: theme.muted }]}>
-          All data stays on your device — nothing is sent to any server.
-        </Text>
 
         {isOnboarding && (
           <TouchableOpacity
@@ -267,24 +254,6 @@ const styles = StyleSheet.create({
   stepNum: { color: '#fff', fontSize: 11, fontWeight: '700' },
   stepHeading: { fontSize: FONT.sm, fontWeight: '600' },
   stepBody: { fontSize: FONT.xs, lineHeight: 18 },
-  tip: {
-    textAlign: 'center',
-    fontSize: FONT.xs,
-    paddingVertical: SPACING.md,
-  },
-  noticeBanner: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: SPACING.xs,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: RADIUS.md,
-    padding: SPACING.sm,
-  },
-  noticeText: {
-    flex: 1,
-    fontSize: FONT.xs,
-    lineHeight: 18,
-  },
   skipLink: { paddingHorizontal: SPACING.sm, paddingVertical: 4 },
   skipText: { fontSize: FONT.sm, fontWeight: '600' },
   ctaBtn: {
