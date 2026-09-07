@@ -37,6 +37,7 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.SeekBar
+import android.widget.ScrollView
 import android.widget.TextView
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.ItemTouchHelper
@@ -973,7 +974,7 @@ class LauncherActivity : Activity() {
             setHintTextColor(if (theme == LauncherTheme.CLASSIC) CLASSIC_MUTED else TEXT_MUTED)
             setTextColor(TEXT_PRIMARY)
             textSize = SIZE_SEARCH_HINT
-            singleLine = true
+            setSingleLine(true)
             background = if (theme == LauncherTheme.CLASSIC) {
                 roundedBackground(Color.TRANSPARENT, CLASSIC_BORDER, 22)
             } else {
