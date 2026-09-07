@@ -1,20 +1,30 @@
 ---
-name: FocusFlow launcher redesign
-description: Preserved original launcher redesign brief and the required mutable implementation tracker.
+name: FocusFlow launcher two-theme system
+description: The current launcher authority is the Classic + Glassy two-theme plan with a separate mutable tracker.
 ---
 
-The original launcher redesign brief is preserved unchanged at
-`artifacts/FocusFlow/focusflow-launcher-redesign_1788501989882.md`.
+The authoritative launcher plan is preserved unchanged at
+`artifacts/focusflow/LAUNCHER_TWO_THEME_PLAN_1788803550916.md`.
 
 The mutable implementation tracker is at
-`artifacts/FocusFlow/focusflow-launcher-redesign_TRACKING.md`.
+`artifacts/focusflow/LAUNCHER_TWO_THEME_PLAN_TRACKING.md`.
 
-**Rule:** Future agents working on the launcher redesign must update the tracker
-after implementation or validation progress and must not edit the original brief.
+The Glassy visual references and their plan mapping are at
+`artifacts/focusflow/GLASSY_LAUNCHER_VISUAL_REVIEW.md`.
 
-**Why:** The user requested both an untouched source reference and a
-trackable execution record so design requirements remain auditable across agents.
+The Classic visual references and their plan mapping are at
+`artifacts/focusflow/CLASSIC_LAUNCHER_VISUAL_REVIEW.md`.
 
-**How to apply:** Read the original before launcher work, use the tracker for
-checklist/status updates, and keep launcher redesign changes separate from
-Daily Allowance enforcement work.
+**Rule:** Future agents working on the launcher must read the authoritative plan
+before implementation and update the tracker after implementation or validation
+progress. Do not edit the authoritative plan to record status.
+
+**Why:** The newer plan explicitly supersedes the earlier launcher redesign and
+defines two complete visual modes, shared data/filtering behavior, and the
+Classic/Glassy drawer differences. A separate tracker keeps that source brief
+auditable while allowing implementation state to change.
+
+**How to apply:** Treat the plan as the source of requirements, use the tracker
+for status and validation notes, use the visual reviews only to understand the
+intended Classic and Glassy presentations, and preserve the existing native/RN
+file boundaries described in the plan.
