@@ -715,7 +715,31 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
      */
     @ReactMethod
     fun setLauncherHiddenPackages(packagesJson: String, promise: Promise) {
-        prefs().edit().putString("launcher_hidden_packages", packagesJson).apply()
+        prefs().edit()
+            .putString("launcher_hidden_packages", packagesJson)
+            .putString("drawer_hidden_packages", packagesJson)
+            .apply()
+        promise.resolve(null)
+    }
+
+    /**
+     * Writes the whole visual theme for the native FocusFlow launcher.
+     * Invalid values intentionally fall back to the richer Glassy theme.
+     */
+    @ReactMethod
+    fun setLauncherTheme(theme: String, promise: Promise) {
+        val normalized = if (theme == "classic") "classic" else "glassy"
+        prefs().edit().putString("launcher_theme", normalized).apply()
+        promise.resolve(null)
+    }
+
+    /**
+     * Writes the package whitelist used by the launcher drawer's Focus Tools
+     * filter.
+     */
+    @ReactMethod
+    fun setFocusToolPackages(packagesJson: String, promise: Promise) {
+        prefs().edit().putString("focus_tool_packages", packagesJson).apply()
         promise.resolve(null)
     }
 

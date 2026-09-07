@@ -71,6 +71,8 @@ const settings = {
   launcherEnabled: true,
   keepFocusActiveUntilTaskEnd: false,
   recurringBlockSchedules: [],
+  launcherTheme: 'glassy',
+  focusToolPackages: [],
 } as AppSettings;
 
 describe('backupService contracts', () => {

@@ -6,23 +6,21 @@ import android.app.WallpaperManager
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
-import android.content.pm.PackageManager
-import android.content.pm.ResolveInfo
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Typeface
-import android.graphics.BitmapFactory
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.LayerDrawable
 import android.graphics.drawable.RippleDrawable
 import android.content.res.ColorStateList
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.net.Uri
 import android.text.Editable
 import android.text.TextUtils
 import android.text.TextWatcher
@@ -36,16 +34,14 @@ import android.view.animation.AccelerateInterpolator
 import android.view.animation.DecelerateInterpolator
 import android.widget.EditText
 import android.widget.FrameLayout
-import android.widget.GridLayout
-import android.widget.HorizontalScrollView
 import android.widget.ImageView
 import android.widget.LinearLayout
-import android.widget.ScrollView
+import android.widget.SeekBar
 import android.widget.TextView
 import androidx.recyclerview.widget.GridLayoutManager
+import androidx.recyclerview.widget.ItemTouchHelper
+import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import androidx.dynamicanimation.animation.DynamicAnimation
-import androidx.dynamicanimation.animation.FlingAnimation
 import org.json.JSONArray
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -54,101 +50,75 @@ import java.util.Locale
 /**
  * LauncherActivity — FocusFlow's full home-screen replacement.
  *
- * Layout (top → bottom):
- *   ┌─────────────────────────────────┐
- *   │  Date (small, muted)            │
- *   │  Clock (large, bold)            │
- *   │  AM/PM + day-of-week            │
- *   │                                 │
- *   │  ┌── Home screen grid ───────┐  │
- *   │  │  4-column icon grid of    │  │
- *   │  │  home-screen shortcuts    │  │
- *   │  └───────────────────────────┘  │
- *   │                                 │
- *   │  ─── ─── ─── (divider) ─── ─── │
- *   │  [ dock: up to 5 apps ]         │
- *   └─────────────────────────────────┘
+ * The home screen intentionally has one shared structure for both visual
+ * themes: clock, status pill, current task, today's limits, search, and two
+ * independent bottom actions. Classic is flat and performance-first; Glassy
+ * reuses the existing wallpaper and frosted surface tokens.
  *
- * Swipe UP → opens full-screen app drawer (bottom-sheet style, animated).
- * App drawer has: search bar + alphabetical sections + 5-column grid.
- * Long-press home icon → Remove / Add to Dock / App Info.
- * Long-press dock icon → Remove from Dock / App Info.
- * Long-press empty space → Add Apps to Home Screen dialog.
- * Long-press drawer icon → Add to Home / Add to Dock / App Info.
+ * Swipe up opens the app drawer. The drawer shares functional filter chips
+ * across both themes, while Classic is a dense list and Glassy is an editable
+ * grid.
  */
 class LauncherActivity : Activity() {
 
     companion object {
-        private const val PREFS_NAME            = AppBlockerAccessibilityService.PREFS_NAME
-        private const val PREF_LAUNCHER_HIDDEN  = "launcher_hidden_packages"
-        private const val PREF_LAUNCHER_PINNED  = "launcher_pinned_packages"
-        private const val PREF_LAUNCHER_DOCK    = "launcher_dock_packages"
+        private const val PREFS_NAME = AppBlockerAccessibilityService.PREFS_NAME
+        private const val PREF_LAUNCHER_HIDDEN = "launcher_hidden_packages"
+        private const val PREF_LAUNCHER_PINNED = "launcher_pinned_packages"
+        private const val PREF_LAUNCHER_DOCK = "launcher_dock_packages"
         private const val PREF_LAUNCHER_WALLPAPER = "launcher_wallpaper"
-        private const val PREF_SA_ACTIVE        = AppBlockerAccessibilityService.PREF_SA_ACTIVE
-        private const val PREF_SA_PKGS          = AppBlockerAccessibilityService.PREF_SA_PKGS
-        private const val PREF_SA_UNTIL         = AppBlockerAccessibilityService.PREF_SA_UNTIL
-        private const val PREF_ALWAYS_BLOCK     = AppBlockerAccessibilityService.PREF_ALWAYS_BLOCK
+        private const val PREF_LAUNCHER_THEME = "launcher_theme"
+        private const val PREF_FOCUS_TOOLS = "focus_tool_packages"
+        private const val PREF_DRAWER_HIDDEN = "drawer_hidden_packages"
+        private const val PREF_DRAWER_ORDER = "drawer_custom_order"
+        private const val PREF_DRAWER_SCALE = "drawer_icon_scale"
+        private const val PREF_DRAWER_COLUMNS = "drawer_grid_columns"
+        private const val PREF_SA_ACTIVE = AppBlockerAccessibilityService.PREF_SA_ACTIVE
+        private const val PREF_SA_PKGS = AppBlockerAccessibilityService.PREF_SA_PKGS
+        private const val PREF_SA_UNTIL = AppBlockerAccessibilityService.PREF_SA_UNTIL
+        private const val PREF_ALWAYS_BLOCK = AppBlockerAccessibilityService.PREF_ALWAYS_BLOCK
         private const val PREF_ALWAYS_BLOCK_PKGS = AppBlockerAccessibilityService.PREF_ALWAYS_BLOCK_PKGS
-        private const val OWN_PACKAGE           = "com.tbtechs.focusflow"
-        private const val DRAWER_TYPE_HEADER   = 0
-        private const val DRAWER_TYPE_APP      = 1
+        private const val OWN_PACKAGE = "com.tbtechs.focusflow"
 
-        // ── Typography scale ─────────────────────────────────────────────────
-        private const val SIZE_CLOCK_MAIN  = 86f
-        private const val SIZE_CLOCK_AMPM  = 18f
-        private const val SIZE_DATE        = 13f
-        private const val SIZE_LABEL_HOME  = 11.5f
-        private const val SIZE_LABEL_DOCK  = 10.5f
-        private const val SIZE_SEARCH_HINT = 14f
-        private const val SIZE_SECTION_HDR = 11f
-
-        // ── Spacing unit — 8-point grid ──────────────────────────────────────
+        private const val SIZE_CLOCK = 72f
+        private const val SIZE_DATE = 13f
+        private const val SIZE_SEARCH_HINT = 13f
+        private const val SIZE_HOME_LABEL = 13f
         private const val UNIT = 8
 
-        // ── Icon sizes ───────────────────────────────────────────────────────
-        private const val ICON_HOME        = 54
-        private const val ICON_DOCK        = 52
-        private const val ICON_CELL_FRAME  = 62
-        private const val ICON_DOCK_FRAME  = 60
-
-        // ── Glass surfaces ───────────────────────────────────────────────────
-        private val GLASS_ULTRA         = Color.parseColor("#0FFFFFFF")
-        private val GLASS_LIGHT         = Color.parseColor("#1AFFFFFF")
-        private val GLASS_MID           = Color.parseColor("#2AFFFFFF")
-        private val GLASS_HEAVY         = Color.parseColor("#3CFFFFFF")
-        private val GLASS_BORDER        = Color.parseColor("#20FFFFFF")
+        // Existing Glassy design tokens.
+        private val GLASS_ULTRA = Color.parseColor("#0FFFFFFF")
+        private val GLASS_LIGHT = Color.parseColor("#1AFFFFFF")
+        private val GLASS_MID = Color.parseColor("#2AFFFFFF")
+        private val GLASS_HEAVY = Color.parseColor("#3CFFFFFF")
+        private val GLASS_BORDER = Color.parseColor("#20FFFFFF")
         private val GLASS_BORDER_BRIGHT = Color.parseColor("#35FFFFFF")
+        private val ACCENT = Color.parseColor("#6366F1")
+        private val ACCENT_TEXT = Color.parseColor("#818CF8")
+        private val ACCENT_DIM = Color.parseColor("#406366F1")
 
-        // ── Brand ────────────────────────────────────────────────────────────
-        private val ACCENT         = Color.parseColor("#6366f1")
-        private val ACCENT_TEXT    = Color.parseColor("#818CF8")
-        private val ACCENT_DIM     = Color.parseColor("#406366f1")
-        private val ACCENT_GLOW    = Color.parseColor("#1A6366f1")
-        private val ACCENT_SURFACE = Color.parseColor("#226366f1")
+        // Classic exact surfaces.
+        private val CLASSIC_BACKGROUND = Color.parseColor("#0E0E0E")
+        private val CLASSIC_STATUS = Color.parseColor("#1E1E1E")
+        private val CLASSIC_CARD = Color.parseColor("#18181A")
+        private val CLASSIC_BORDER = Color.parseColor("#252525")
+        private val CLASSIC_MUTED = Color.parseColor("#8B92A5")
+        private val CLASSIC_TEAL = Color.parseColor("#2DD4BF")
+        private val CLASSIC_GREEN = Color.parseColor("#22C55E")
 
-        // ── Text ─────────────────────────────────────────────────────────────
         private val TEXT_PRIMARY = Color.WHITE
-        private val TEXT_DIM     = Color.parseColor("#CCF0F4FF")
-        private val TEXT_MUTED   = Color.parseColor("#B3AAB8CC")
-        private val TEXT_BLOCKED = Color.parseColor("#55FFFFFF")
-
-        // ── Status ───────────────────────────────────────────────────────────
-        private val RED_BLOCK     = Color.parseColor("#EF4444")
-        private val RED_BLOCK_DIM = Color.parseColor("#99EF4444")
-        private val AMBER_WARN    = Color.parseColor("#F59E0B")
-
-        // ── Scrim ─────────────────────────────────────────────────────────────
-        private val SCRIM_FULL_TOP = Color.parseColor("#26000000")
-        private val SCRIM_FULL_BTM = Color.parseColor("#BF000000")
-        private val SCRIM_DOCK_BTM = Color.parseColor("#F0000000")
-
-        private val DRAWER_BG = Color.parseColor("#F0111827")
+        private val TEXT_DIM = Color.parseColor("#CCF0F4FF")
+        private val TEXT_MUTED = Color.parseColor("#B3AAB8CC")
+        private val RED_BLOCK = Color.parseColor("#EF4444")
     }
+
+    private enum class LauncherTheme { CLASSIC, GLASSY }
+    private enum class DrawerFilter { ALL, FOCUS_TOOLS, LIMITED_TODAY, BLOCKED }
 
     private data class AllowanceCardData(
         val pkg: String,
         val label: String,
-        val icon: android.graphics.drawable.Drawable?,
+        val icon: Drawable?,
         val used: Long,
         val total: Long,
         val remaining: Long,
@@ -157,208 +127,277 @@ class LauncherActivity : Activity() {
         val fraction: Float,
     )
 
+    private sealed class DrawerItem {
+        data class App(val packageName: String, val label: String) : DrawerItem()
+    }
+
     private lateinit var prefs: SharedPreferences
     private val handler = Handler(Looper.getMainLooper())
     private var clockRunnable: Runnable? = null
 
     private lateinit var rootFrame: FrameLayout
+    private var renderedTheme: LauncherTheme? = null
     private var clockView: TextView? = null
-    private var minuteView: TextView? = null
-    private var colonView: TextView? = null
-    private var ampmView: TextView? = null
     private var dateView: TextView? = null
-    private var analogClockView: AnalogClockView? = null
-    private var digitalTimeRow: LinearLayout? = null
     private var focusCard: LinearLayout? = null
     private var focusTitleView: TextView? = null
     private var focusSubtitleView: TextView? = null
-    private var allowanceStripContainer: LinearLayout? = null
-    private var allowanceTickCount = 0
+    private var focusProgressTrack: FrameLayout? = null
+    private var focusProgressFill: View? = null
+    private var allowanceContainer: LinearLayout? = null
     private var customWallpaperView: ImageView? = null
-    private var homeGrid: GridLayout? = null
-    private var dockRow: LinearLayout? = null
-    private var productivityStrip: LinearLayout? = null
     private var wallpaperAccent: Int = ACCENT
-    private var dockFocusButton: View? = null
+
     private var drawerOverlay: FrameLayout? = null
+    private var drawerSheet: LinearLayout? = null
+    private var drawerHeader: LinearLayout? = null
+    private var drawerChipRow: LinearLayout? = null
     private var drawerRecycler: RecyclerView? = null
     private var drawerSearchInput: EditText? = null
+    private var drawerCustomizeSheet: LinearLayout? = null
+    private var drawerAdapter: DrawerAdapter? = null
+    private var drawerAllApps: List<DrawerItem.App> = emptyList()
+    private var drawerFilter = DrawerFilter.ALL
+    private var drawerBlockedCount = 0
     private var isDrawerOpen = false
+    private var isEditMode = false
+    private var editDraftScale = 1f
+    private var editDraftColumns = 4
+    private var focusedDrawerPackage: String? = null
     private var swipeTouchStartY = 0f
     private var swipeVelocityTracker: VelocityTracker? = null
 
-    private sealed class DrawerItem {
-        data class Header(val letter: String) : DrawerItem()
-        data class App(val packageName: String, val label: String) : DrawerItem()
-    }
-
     private inner class DrawerAdapter(
-        private val blockedPackages: Set<String>,
+        private val theme: LauncherTheme,
     ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
-        private var items: List<DrawerItem> = emptyList()
+        private var items: MutableList<DrawerItem.App> = mutableListOf()
+        private var iconScale = 1f
 
-        fun setItems(next: List<DrawerItem>) {
-            items = next
+        fun setItems(next: List<DrawerItem.App>) {
+            items = next.toMutableList()
             notifyDataSetChanged()
+        }
+
+        fun currentItems(): List<DrawerItem.App> = items.toList()
+
+        fun setIconScale(scale: Float) {
+            iconScale = scale.coerceIn(0.8f, 1.2f)
+            notifyDataSetChanged()
+        }
+
+        fun moveItem(from: Int, to: Int): Boolean {
+            if (from !in items.indices || to !in items.indices) return false
+            val item = items.removeAt(from)
+            items.add(to, item)
+            notifyItemMoved(from, to)
+            return true
         }
 
         override fun getItemCount(): Int = items.size
 
-        override fun getItemViewType(position: Int): Int = when (items[position]) {
-            is DrawerItem.Header -> DRAWER_TYPE_HEADER
-            is DrawerItem.App -> DRAWER_TYPE_APP
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
+            return if (theme == LauncherTheme.CLASSIC) {
+                createClassicHolder(parent)
+            } else {
+                createGlassyHolder(parent)
+            }
         }
 
-        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
-            if (viewType == DRAWER_TYPE_HEADER) {
-                val header = TextView(parent.context).apply {
-                    textSize = SIZE_SECTION_HDR
-                    typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-                    setTextColor(ACCENT_TEXT)
-                    letterSpacing = 0.12f
-                    setPadding(dp(16), dp(10), dp(16), dp(4))
-                    layoutParams = RecyclerView.LayoutParams(
-                        RecyclerView.LayoutParams.MATCH_PARENT,
-                        RecyclerView.LayoutParams.WRAP_CONTENT,
-                    )
-                }
-                return HeaderViewHolder(header)
-            }
-
-            val item = LinearLayout(parent.context).apply {
-                orientation = LinearLayout.VERTICAL
-                gravity = Gravity.CENTER
+        private fun createClassicHolder(parent: ViewGroup): RecyclerView.ViewHolder {
+            val row = LinearLayout(parent.context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                minimumHeight = dp(52)
+                setPadding(dp(24), 0, dp(24), 0)
                 layoutParams = RecyclerView.LayoutParams(
                     RecyclerView.LayoutParams.MATCH_PARENT,
-                    RecyclerView.LayoutParams.WRAP_CONTENT,
+                    dp(52),
                 )
-                setPadding(dp(4), dp(8), dp(4), dp(2))
-                isClickable = true
-                isFocusable = true
             }
-            val iconFrame = FrameLayout(parent.context).apply {
-                layoutParams = LinearLayout.LayoutParams(dp(62), dp(62)).also {
-                    it.gravity = Gravity.CENTER_HORIZONTAL
-                }
-                background = GradientDrawable().apply {
-                    shape = GradientDrawable.RECTANGLE
-                    cornerRadius = dp(12).toFloat()
-                    setColor(GLASS_ULTRA)
-                }
+            val icon = ImageView(parent.context).apply {
+                layoutParams = LinearLayout.LayoutParams(dp(36), dp(36))
+                scaleType = ImageView.ScaleType.FIT_CENTER
             }
-            val iconView = ImageView(parent.context).apply {
-                layoutParams = FrameLayout.LayoutParams(dp(52), dp(52)).also {
-                    it.gravity = Gravity.CENTER
-                }
+            val label = TextView(parent.context).apply {
+                textSize = 16f
+                setTextColor(TEXT_PRIMARY)
+                maxLines = 1
+                ellipsize = TextUtils.TruncateAt.END
+                layoutParams = LinearLayout.LayoutParams(
+                    0,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    1f,
+                ).also { it.leftMargin = dp(16) }
             }
-            val labelView = TextView(parent.context).apply {
-                textSize = SIZE_LABEL_HOME
+            row.addView(icon)
+            row.addView(label)
+            row.addView(View(parent.context).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    1,
+                ).also {
+                    it.gravity = Gravity.BOTTOM
+                    it.leftMargin = -dp(52)
+                }
+                setBackgroundColor(CLASSIC_BORDER)
+            })
+            return ClassicDrawerHolder(row, icon, label)
+        }
+
+        private fun createGlassyHolder(parent: ViewGroup): RecyclerView.ViewHolder {
+            val cell = FrameLayout(parent.context).apply {
+                layoutParams = RecyclerView.LayoutParams(
+                    RecyclerView.LayoutParams.MATCH_PARENT,
+                    dp(92),
+                )
+                setPadding(dp(4), dp(2), dp(4), dp(2))
+            }
+            val icon = ImageView(parent.context).apply {
+                layoutParams = FrameLayout.LayoutParams(dp(42), dp(42)).also {
+                    it.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+                }
+                scaleType = ImageView.ScaleType.FIT_CENTER
+            }
+            val label = TextView(parent.context).apply {
+                textSize = SIZE_HOME_LABEL
                 setTextColor(TEXT_DIM)
                 gravity = Gravity.CENTER
                 maxLines = 1
                 ellipsize = TextUtils.TruncateAt.END
-                setShadowLayer(2f, 0f, 1f, Color.parseColor("#CC000000"))
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                ).also { it.topMargin = dp(6) }
+                layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.WRAP_CONTENT,
+                ).also {
+                    it.gravity = Gravity.BOTTOM
+                    it.bottomMargin = dp(2)
+                }
             }
-            iconFrame.addView(iconView)
-            item.addView(iconFrame)
-            item.addView(labelView)
-            item.foreground = rippleForeground(12)
-            addPressAnimation(item)
-            return AppViewHolder(item, iconView, labelView)
+            val badge = TextView(parent.context).apply {
+                text = "≡"
+                textSize = 11f
+                gravity = Gravity.CENTER
+                setTextColor(TEXT_DIM)
+                background = ovalBackground(Color.parseColor("#663D4658"))
+                visibility = View.GONE
+                layoutParams = FrameLayout.LayoutParams(dp(18), dp(18)).also {
+                    it.gravity = Gravity.TOP or Gravity.END
+                    it.topMargin = dp(1)
+                    it.rightMargin = dp(3)
+                }
+            }
+            cell.addView(icon)
+            cell.addView(label)
+            cell.addView(badge)
+            return GlassyDrawerHolder(cell, icon, label, badge)
         }
 
         override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
-            when (val item = items[position]) {
-                is DrawerItem.Header -> (holder as HeaderViewHolder).view.text = item.letter
-                is DrawerItem.App -> {
-                    val appHolder = holder as AppViewHolder
-                    val isBlocked = blockedPackages.contains(item.packageName)
-                    appHolder.icon.setImageDrawable(
-                        try {
-                            packageManager.getApplicationIcon(item.packageName)
-                        } catch (_: Exception) {
-                            null
-                        },
-                    )
-                    appHolder.icon.alpha = if (isBlocked) 0.28f else 1f
-                    appHolder.label.text = item.label
-                    appHolder.label.setTextColor(if (isBlocked) TEXT_MUTED else TEXT_DIM)
-                    appHolder.itemView.contentDescription =
-                        if (isBlocked) "${item.label}, blocked" else item.label
-                    appHolder.itemView.setOnClickListener {
+            val item = items[position]
+            val blocked = getBlockedPackages().contains(item.packageName)
+            when (holder) {
+                is ClassicDrawerHolder -> {
+                    holder.icon.setImageDrawable(getAppIcon(item.packageName))
+                    holder.icon.alpha = if (blocked) 0.42f else 1f
+                    holder.label.text = item.label
+                    holder.label.setTextColor(if (blocked) TEXT_MUTED else TEXT_PRIMARY)
+                    holder.itemView.contentDescription =
+                        if (blocked) "${item.label}, blocked" else item.label
+                    holder.itemView.setOnClickListener {
                         closeDrawer()
-                        if (isBlocked) launchBlockOverlay(item.packageName)
-                        else launchApp(item.packageName)
+                        if (blocked) launchBlockOverlay(item.packageName) else launchApp(item.packageName)
                     }
-                    appHolder.itemView.setOnLongClickListener {
+                    holder.itemView.setOnLongClickListener {
                         showDrawerIconMenu(item.packageName, item.label)
                         true
+                    }
+                }
+                is GlassyDrawerHolder -> {
+                    val size = (42f * iconScale).toInt()
+                    holder.icon.layoutParams = (holder.icon.layoutParams as FrameLayout.LayoutParams).also {
+                        it.width = dp(size)
+                        it.height = dp(size)
+                    }
+                    holder.icon.setImageDrawable(getAppIcon(item.packageName))
+                    holder.icon.alpha = if (blocked) 0.45f else 1f
+                    holder.label.text = item.label
+                    holder.label.setTextColor(if (blocked) TEXT_MUTED else TEXT_DIM)
+                    holder.badge.visibility = if (isEditMode) View.VISIBLE else View.GONE
+                    holder.itemView.contentDescription =
+                        if (blocked) "${item.label}, blocked" else item.label
+                    holder.itemView.setOnClickListener {
+                        if (!isEditMode) {
+                            closeDrawer()
+                            if (blocked) launchBlockOverlay(item.packageName) else launchApp(item.packageName)
+                        }
+                    }
+                    holder.itemView.setOnLongClickListener {
+                        focusedDrawerPackage = item.packageName
+                        if (isEditMode) false else {
+                            showDrawerIconMenu(item.packageName, item.label)
+                            true
+                        }
                     }
                 }
             }
         }
     }
 
-    private class HeaderViewHolder(val view: TextView) : RecyclerView.ViewHolder(view)
-
-    private class AppViewHolder(
+    private class ClassicDrawerHolder(
         view: View,
         val icon: ImageView,
         val label: TextView,
     ) : RecyclerView.ViewHolder(view)
 
+    private class GlassyDrawerHolder(
+        view: View,
+        val icon: ImageView,
+        val label: TextView,
+        val badge: TextView,
+    ) : RecyclerView.ViewHolder(view)
+
     private val preferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-        if (key == PREF_LAUNCHER_PINNED ||
-            key == PREF_LAUNCHER_DOCK ||
+        if (key == PREF_LAUNCHER_THEME ||
+            key == PREF_LAUNCHER_WALLPAPER ||
+            key == PREF_DRAWER_HIDDEN ||
             key == PREF_LAUNCHER_HIDDEN ||
+            key == PREF_FOCUS_TOOLS ||
             key == PREF_SA_ACTIVE ||
             key == PREF_SA_PKGS ||
             key == PREF_SA_UNTIL ||
             key == PREF_ALWAYS_BLOCK ||
             key == PREF_ALWAYS_BLOCK_PKGS ||
-            key == PREF_LAUNCHER_WALLPAPER ||
-            key == "launcher_clock_style" ||
-            key == "next_task_name"
+            key == "focus_active" ||
+            key == "task_name" ||
+            key == "task_end_ms" ||
+            key == "task_start_ms" ||
+            key == "daily_allowance_config" ||
+            key == AppBlockerAccessibilityService.PREF_DAILY_ALLOWANCE_USED
         ) {
             runOnUiThread {
-                refreshHomeGrid()
-                refreshDock()
-                updateClockText()
-                refreshProductivityStrip()
-                loadCustomWallpaper()
-                applyWallpaperTint()
+                if (key == PREF_LAUNCHER_THEME || key == PREF_LAUNCHER_WALLPAPER) {
+                    buildHomeLayout()
+                } else {
+                    refreshHomeContent()
+                    if (isDrawerOpen) refreshDrawerItems()
+                }
             }
         }
     }
-
-    // ── Lifecycle ─────────────────────────────────────────────────────────────
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
         prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-
         rootFrame = FrameLayout(this)
         setContentView(rootFrame)
-
         buildHomeLayout()
-        applyWallpaperTint()
         startClock()
     }
 
     override fun onResume() {
         super.onResume()
         prefs.registerOnSharedPreferenceChangeListener(preferenceListener)
-        refreshHomeGrid()
-        refreshDock()
-        refreshAllowanceStrip()
-        refreshProductivityStrip()
-        loadCustomWallpaper()
-        applyWallpaperTint()
+        if (renderedTheme != currentTheme()) buildHomeLayout() else refreshHomeContent()
     }
 
     override fun onPause() {
@@ -368,165 +407,91 @@ class LauncherActivity : Activity() {
 
     override fun onDestroy() {
         prefs.unregisterOnSharedPreferenceChangeListener(preferenceListener)
-        super.onDestroy()
         clockRunnable?.let { handler.removeCallbacks(it) }
+        super.onDestroy()
     }
 
     override fun onBackPressed() {
         if (isDrawerOpen) closeDrawer()
-        // Intentionally swallow back — no parent activity on home screen
     }
 
-    // ── Home layout ───────────────────────────────────────────────────────────
+    // ── Shared home structure ──────────────────────────────────────────────────
+
+    private fun currentTheme(): LauncherTheme =
+        if (prefs.getString(PREF_LAUNCHER_THEME, "glassy") == "classic") {
+            LauncherTheme.CLASSIC
+        } else {
+            LauncherTheme.GLASSY
+        }
 
     private fun buildHomeLayout() {
-        // A selected launcher wallpaper sits above the system wallpaper but
-        // below the scrim and all launcher controls. Empty means use the
-        // device's normal wallpaper via FLAG_SHOW_WALLPAPER.
-        customWallpaperView = ImageView(this).apply {
-            scaleType = ImageView.ScaleType.CENTER_CROP
-            visibility = View.GONE
+        val theme = currentTheme()
+        renderedTheme = theme
+        rootFrame.removeAllViews()
+        rootFrame.setBackgroundColor(
+            if (theme == LauncherTheme.CLASSIC) CLASSIC_BACKGROUND else Color.TRANSPARENT,
+        )
+        clockView = null
+        dateView = null
+        focusCard = null
+        allowanceContainer = null
+
+        if (theme == LauncherTheme.GLASSY) {
+            customWallpaperView = ImageView(this).apply {
+                scaleType = ImageView.ScaleType.CENTER_CROP
+                layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                )
+            }
+            rootFrame.addView(customWallpaperView)
+            loadCustomWallpaper()
+            rootFrame.addView(View(this).apply {
+                background = GradientDrawable(
+                    GradientDrawable.Orientation.TOP_BOTTOM,
+                    intArrayOf(Color.parseColor("#26000000"), Color.parseColor("#88000000")),
+                )
+                layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                )
+            })
+        } else {
+            customWallpaperView = null
+        }
+
+        val scroll = ScrollView(this).apply {
+            isVerticalScrollBarEnabled = false
             layoutParams = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT
-            )
-        }
-        rootFrame.addView(customWallpaperView)
-        loadCustomWallpaper()
-
-        // Wallpaper scrim — light translucent overlay so the user's wallpaper
-        // stays visible. FLAG_SHOW_WALLPAPER composites it behind the window.
-        val scrim = View(this).apply {
-            background = GradientDrawable(
-                GradientDrawable.Orientation.TOP_BOTTOM,
-                intArrayOf(SCRIM_FULL_TOP, SCRIM_FULL_BTM)
-            )
-            layoutParams = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT
             )
         }
-        rootFrame.addView(scrim)
-
-        val gradDock = View(this).apply {
-            background = GradientDrawable(
-                GradientDrawable.Orientation.TOP_BOTTOM,
-                intArrayOf(Color.TRANSPARENT, SCRIM_DOCK_BTM)
-            )
-            layoutParams = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT, dp(240)
-            ).also { it.gravity = Gravity.BOTTOM }
-        }
-        rootFrame.addView(gradDock)
-
-        val gradTop = View(this).apply {
-            background = GradientDrawable(
-                GradientDrawable.Orientation.BOTTOM_TOP,
-                intArrayOf(Color.parseColor("#44000000"), Color.TRANSPARENT)
-            )
-            layoutParams = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT, dp(180)
-            ).also { it.gravity = Gravity.TOP }
-        }
-        rootFrame.addView(gradTop)
-
-        // Root column
         val column = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            layoutParams = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT
-            )
-        }
-
-        // ── Clock widget ──────────────────────────────────────────────────────
-        val clockWidget = buildClockWidget()
-        column.addView(clockWidget)
-
-        // ── Active focus session ──────────────────────────────────────────────
-        column.addView(buildFocusSessionCard())
-
-        // ── Productivity summary ──────────────────────────────────────────────
-        column.addView(buildProductivityStrip())
-
-        // ── Daily allowance strip ─────────────────────────────────────────────
-        column.addView(buildAllowanceStrip())
-
-        // ── Home screen grid (scrollable) ─────────────────────────────────────
-        val gridScroll = ScrollView(this).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f
-            )
-            isVerticalScrollBarEnabled = false
-        }
-
-        homeGrid = GridLayout(this).apply {
-            columnCount = 4
+            setPadding(dp(20), dp(18), dp(20), dp(24))
             layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
+                ViewGroup.LayoutParams.WRAP_CONTENT,
             )
-            setPadding(dp(12), dp(16), dp(12), dp(16))
         }
-        gridScroll.addView(homeGrid)
-
-        // Long-press on scroll area (empty space) → add apps dialog
-        gridScroll.setOnLongClickListener {
-            showAddToHomeDialog()
-            true
-        }
-
-        column.addView(gridScroll)
-
-        // ── Search shortcut ────────────────────────────────────────────────────
+        column.addView(buildClockWidget())
+        column.addView(buildStatusPill())
+        column.addView(buildFocusSessionCard())
+        column.addView(buildTodaysLimits())
         column.addView(buildSearchBar())
-
-        // ── Dock area ─────────────────────────────────────────────────────────
-        column.addView(buildDockArea())
-
-        rootFrame.addView(column)
-
-        refreshHomeGrid()
-        refreshDock()
-        refreshProductivityStrip()
-    }
-
-    /**
-     * Preserve the launcher's global swipe gestures without making the root view
-     * consume taps destined for child controls.
-     */
-    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
-        when (ev.actionMasked) {
-            MotionEvent.ACTION_DOWN -> {
-                swipeTouchStartY = ev.rawY
-                swipeVelocityTracker?.recycle()
-                swipeVelocityTracker = VelocityTracker.obtain().also { it.addMovement(ev) }
-            }
-            MotionEvent.ACTION_MOVE -> swipeVelocityTracker?.addMovement(ev)
-            MotionEvent.ACTION_UP -> {
-                swipeVelocityTracker?.addMovement(ev)
-                swipeVelocityTracker?.computeCurrentVelocity(1000)
-                val velocityY = swipeVelocityTracker?.yVelocity ?: 0f
-                swipeVelocityTracker?.recycle()
-                swipeVelocityTracker = null
-                val dy = swipeTouchStartY - ev.rawY
-                when {
-                    dy > dp(60) && velocityY < -250f && !isDrawerOpen -> {
-                        openDrawer()
-                        return true
-                    }
-                    dy < -dp(80) && velocityY > 250f -> {
-                        expandNotificationsPanel()
-                        return true
-                    }
-                }
-            }
-            MotionEvent.ACTION_CANCEL -> {
-                swipeVelocityTracker?.recycle()
-                swipeVelocityTracker = null
-            }
-        }
-        return super.dispatchTouchEvent(ev)
+        column.addView(View(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                0,
+                1f,
+            )
+        })
+        column.addView(buildTwoIconRow())
+        scroll.addView(column)
+        rootFrame.addView(scroll)
+        refreshHomeContent()
+        applyWallpaperTint()
     }
 
     private fun buildClockWidget(): LinearLayout {
@@ -535,306 +500,161 @@ class LauncherActivity : Activity() {
             gravity = Gravity.CENTER_HORIZONTAL
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).also { it.topMargin = dp(UNIT * 2); it.bottomMargin = dp(UNIT) }
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).also { it.bottomMargin = dp(16) }
         }
-
         dateView = TextView(this).apply {
             textSize = SIZE_DATE
-            setTextColor(TEXT_MUTED)
+            setTextColor(if (currentTheme() == LauncherTheme.CLASSIC) Color.parseColor("#6F6F73") else TEXT_MUTED)
             gravity = Gravity.CENTER
-            letterSpacing = 0.14f
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).also { it.bottomMargin = dp(10) }
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).also { it.bottomMargin = dp(8) }
+        }
+        clockView = TextView(this).apply {
+            textSize = SIZE_CLOCK
+            setTextColor(if (currentTheme() == LauncherTheme.CLASSIC) TEXT_PRIMARY else TEXT_DIM)
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+            gravity = Gravity.CENTER
+            includeFontPadding = true
         }
         wrap.addView(dateView)
-
-        val timeRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL or Gravity.CENTER_HORIZONTAL
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).also { it.topMargin = dp(4) }
-        }
-
-        clockView = TextView(this).apply {
-            textSize = SIZE_CLOCK_MAIN
-            setTextColor(TEXT_DIM)
-            gravity = Gravity.CENTER
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-        }
-
-        colonView = TextView(this).apply {
-            text = ":"
-            textSize = SIZE_CLOCK_MAIN * 0.85f
-            setTextColor(TEXT_DIM)
-            gravity = Gravity.CENTER
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).also { it.bottomMargin = dp(10) }
-        }
-
-        minuteView = TextView(this).apply {
-            textSize = SIZE_CLOCK_MAIN
-            setTextColor(TEXT_PRIMARY)
-            gravity = Gravity.CENTER
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-        }
-
-        ampmView = TextView(this).apply {
-            textSize = SIZE_CLOCK_AMPM
-            setTextColor(wallpaperAccent)
-            gravity = Gravity.BOTTOM
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).also { it.bottomMargin = dp(22); it.leftMargin = dp(UNIT) }
-        }
-
-        timeRow.addView(clockView)
-        timeRow.addView(colonView)
-        timeRow.addView(minuteView)
-        timeRow.addView(ampmView)
-        digitalTimeRow = timeRow
-        wrap.addView(timeRow)
-
-        // Analog clock — shown instead of the digital row when style = "analog"
-        analogClockView = AnalogClockView(this).apply {
-            layoutParams = LinearLayout.LayoutParams(dp(200), dp(200)).also {
-                it.gravity = Gravity.CENTER_HORIZONTAL
-                it.topMargin = dp(4)
-            }
-            visibility = View.GONE
-        }
-        wrap.addView(analogClockView)
-
+        wrap.addView(clockView)
         updateClockText()
         return wrap
     }
 
-    private fun buildSearchBar(): View {
-        val searchBar = LinearLayout(this).apply {
+    private fun buildStatusPill(): View {
+        val theme = currentTheme()
+        return LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.RECTANGLE
-                cornerRadius = dp(24).toFloat()
-                setColor(GLASS_MID)
-                setStroke(dp(1), GLASS_BORDER_BRIGHT)
-            }
+            gravity = Gravity.CENTER
+            background = roundedBackground(
+                if (theme == LauncherTheme.CLASSIC) CLASSIC_STATUS else GLASS_LIGHT,
+                if (theme == LauncherTheme.CLASSIC) Color.parseColor("#2A2A2A") else GLASS_BORDER,
+                32,
+            )
             layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(48)
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                dp(32),
             ).also {
-                it.setMargins(dp(UNIT * 2), dp(UNIT * 2), dp(UNIT * 2), dp(UNIT))
+                it.gravity = Gravity.CENTER_HORIZONTAL
+                it.bottomMargin = dp(16)
             }
-            setPadding(dp(18), 0, dp(18), 0)
-            contentDescription = "Search apps — opens app drawer"
-            isClickable = true
-            isFocusable = true
-        }
-
-        val searchIcon = object : View(this) {
-            private val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = TEXT_MUTED
-                style = Paint.Style.STROKE
-                strokeWidth = dp(2).toFloat()
-                strokeCap = Paint.Cap.ROUND
+            setPadding(dp(13), 0, dp(13), 0)
+            val icon = TextView(this@LauncherActivity).apply {
+                text = "♢"
+                textSize = 15f
+                setTextColor(if (theme == LauncherTheme.CLASSIC) CLASSIC_MUTED else TEXT_DIM)
             }
-
-            override fun onDraw(canvas: Canvas) {
-                val radius = dp(6).toFloat()
-                val centerX = dp(8).toFloat()
-                val centerY = height / 2f - dp(1).toFloat()
-                canvas.drawCircle(centerX, centerY, radius, iconPaint)
-                canvas.drawLine(
-                    centerX + dp(4).toFloat(),
-                    centerY + dp(4).toFloat(),
-                    centerX + dp(9).toFloat(),
-                    centerY + dp(9).toFloat(),
-                    iconPaint
-                )
+            val text = TextView(this@LauncherActivity).apply {
+                textSize = 13f
+                setTextColor(if (theme == LauncherTheme.CLASSIC) CLASSIC_MUTED else TEXT_DIM)
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).also { it.leftMargin = dp(6) }
             }
-        }.apply {
-            layoutParams = LinearLayout.LayoutParams(dp(20), dp(20))
-            contentDescription = "Search"
+            addView(icon)
+            addView(text)
+            tag = text
+            text.text = "${getBlockedPackages().size} blocked • ${statusLabel()}"
         }
+    }
 
-        val hint = TextView(this).apply {
-            text = "Search apps"
-            textSize = SIZE_SEARCH_HINT
-            setTextColor(TEXT_MUTED)
-            letterSpacing = 0.01f
-            layoutParams = LinearLayout.LayoutParams(
-                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f
-            ).also { it.leftMargin = dp(12) }
-        }
+    private fun refreshStatusPillChildren() {
+        val column = (rootFrame.getChildAt(0) as? ScrollView)?.getChildAt(0) as? LinearLayout ?: return
+        val pill = column.getChildAt(1) as? LinearLayout ?: return
+        val text = pill.tag as? TextView ?: return
+        val blockedCount = getBlockedPackages().size
+        text.text = "$blockedCount blocked • ${statusLabel()}"
+    }
 
-        val micIcon = object : View(this) {
-            private val micPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = TEXT_MUTED
-                style = Paint.Style.STROKE
-                strokeWidth = dp(1.8f).toFloat()
-                strokeCap = Paint.Cap.ROUND
+    private fun statusLabel(): String {
+        return when {
+            prefs.getBoolean(PREF_ALWAYS_BLOCK, false) -> "Always-On"
+            prefs.getBoolean(PREF_SA_ACTIVE, false) -> "Focus Mode"
+            prefs.getString("next_task_name", null)?.takeIf { it.isNotBlank() } != null -> {
+                "Next: ${prefs.getString("next_task_name", "")}"
             }
-
-            override fun onDraw(canvas: Canvas) {
-                val cx = width / 2f
-                val bodyPath = android.graphics.Path().apply {
-                    addRoundRect(
-                        cx - dp(2.5f), dp(2).toFloat(),
-                        cx + dp(2.5f), dp(10).toFloat(),
-                        dp(2).toFloat(), dp(2).toFloat(),
-                        android.graphics.Path.Direction.CW
-                    )
-                }
-                canvas.drawPath(bodyPath, micPaint)
-                val curve = android.graphics.Path().apply {
-                    moveTo(cx - dp(6).toFloat(), dp(9).toFloat())
-                    cubicTo(
-                        cx - dp(6).toFloat(), dp(16).toFloat(),
-                        cx + dp(6).toFloat(), dp(16).toFloat(),
-                        cx + dp(6).toFloat(), dp(9).toFloat()
-                    )
-                    moveTo(cx, dp(16).toFloat())
-                    lineTo(cx, dp(19).toFloat())
-                    moveTo(cx - dp(4).toFloat(), dp(19).toFloat())
-                    lineTo(cx + dp(4).toFloat(), dp(19).toFloat())
-                }
-                canvas.drawPath(curve, micPaint)
-            }
-        }.apply {
-            layoutParams = LinearLayout.LayoutParams(dp(20), dp(20))
-            contentDescription = "Voice search"
+            else -> "Ready"
         }
-
-        searchBar.addView(searchIcon)
-        searchBar.addView(hint)
-        searchBar.addView(micIcon)
-        searchBar.setOnClickListener {
-            openDrawer()
-            handler.postDelayed({ drawerSearchInput?.requestFocus() }, 150L)
-        }
-        searchBar.foreground = rippleForeground(24)
-        return searchBar
     }
 
     private fun buildFocusSessionCard(): LinearLayout {
+        val theme = currentTheme()
         val card = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
+            orientation = LinearLayout.VERTICAL
             visibility = View.GONE
+            background = if (theme == LauncherTheme.CLASSIC) {
+                roundedBackground(CLASSIC_CARD, CLASSIC_BORDER, 20)
+            } else {
+                layeredGlassBackground(20)
+            }
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).also { it.setMargins(dp(20), dp(UNIT), dp(20), dp(UNIT)) }
-            setPadding(dp(16), dp(14), dp(16), dp(14))
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).also { it.bottomMargin = dp(16) }
+            setPadding(dp(20), dp(16), dp(20), dp(16))
             isClickable = true
             isFocusable = true
+            setOnClickListener { openFocusFlow() }
         }
-        val layer0 = GradientDrawable(
-            GradientDrawable.Orientation.LEFT_RIGHT,
-            intArrayOf(Color.parseColor("#1A6366f1"), Color.parseColor("#0A000000"))
-        ).apply { cornerRadius = dp(18).toFloat() }
-        val layer1 = GradientDrawable().apply {
-            shape = GradientDrawable.RECTANGLE
-            cornerRadius = dp(18).toFloat()
-            setStroke(dp(1.5f), Color.parseColor("#4D6366f1"))
-        }
-        card.background = LayerDrawable(arrayOf(layer0, layer1))
-
-        val iconFrame = FrameLayout(this).apply {
-            layoutParams = LinearLayout.LayoutParams(dp(40), dp(40))
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(ACCENT_SURFACE)
-                setStroke(dp(1), ACCENT_DIM)
-            }
-        }
-        val iconView = TextView(this).apply {
-            text = "⏱"
-            textSize = 17f
-            gravity = Gravity.CENTER
-            layoutParams = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT
-            )
-            contentDescription = "Active focus session"
-        }
-        iconFrame.addView(iconView)
-
-        val labels = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-                .also { it.leftMargin = dp(12) }
+        val header = TextView(this).apply {
+            text = "Current Task"
+            textSize = 16f
+            setTextColor(if (theme == LauncherTheme.CLASSIC) Color.parseColor("#B8B8BC") else TEXT_DIM)
         }
         val title = TextView(this).apply {
-            textSize = 14f
-            setTextColor(TEXT_PRIMARY)
+            textSize = 20f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            maxLines = 1
-            ellipsize = TextUtils.TruncateAt.END
-        }
-        val subtitle = TextView(this).apply {
-            textSize = 12f
-            setTextColor(TEXT_MUTED)
-            maxLines = 1
+            setTextColor(TEXT_PRIMARY)
+            maxLines = 2
             ellipsize = TextUtils.TruncateAt.END
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).also { it.topMargin = dp(3) }
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).also { it.topMargin = dp(10) }
         }
-        labels.addView(title)
-        labels.addView(subtitle)
-
-        val chevron = TextView(this).apply {
-            text = "›"
-            textSize = 26f
-            setTextColor(wallpaperAccent)
-            gravity = Gravity.CENTER
-            contentDescription = "Open active focus session"
+        val track = FrameLayout(this).apply {
+            background = roundedBackground(
+                if (theme == LauncherTheme.CLASSIC) CLASSIC_BORDER else Color.parseColor("#66FFFFFF"),
+                Color.TRANSPARENT,
+                4,
+            )
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(4),
+            ).also { it.topMargin = dp(16) }
         }
-        card.addView(iconFrame)
-        card.addView(labels)
-        card.addView(chevron)
+        val fill = View(this).apply {
+            background = roundedBackground(
+                if (theme == LauncherTheme.CLASSIC) CLASSIC_GREEN else Color.parseColor("#D9E1F2"),
+                Color.TRANSPARENT,
+                4,
+            )
+            layoutParams = FrameLayout.LayoutParams(0, dp(4))
+        }
+        track.addView(fill)
+        val subtitle = TextView(this).apply {
+            textSize = 13f
+            setTextColor(if (theme == LauncherTheme.CLASSIC) Color.parseColor("#B8B8BC") else TEXT_MUTED)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).also { it.topMargin = dp(12) }
+        }
+        card.addView(header)
+        card.addView(title)
+        card.addView(track)
+        card.addView(subtitle)
         focusCard = card
         focusTitleView = title
         focusSubtitleView = subtitle
-        card.setOnClickListener { openFocusFlow() }
-        card.setOnTouchListener { v, ev ->
-            when (ev.actionMasked) {
-                MotionEvent.ACTION_DOWN -> if (animationsEnabled()) {
-                    v.animate().scaleX(0.97f).scaleY(0.97f).setDuration(80)
-                        .setInterpolator(DecelerateInterpolator()).start()
-                }
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    if (animationsEnabled()) {
-                        v.animate().scaleX(1f).scaleY(1f).setDuration(150)
-                            .setInterpolator(android.view.animation.OvershootInterpolator(1.5f)).start()
-                    } else {
-                        v.scaleX = 1f
-                        v.scaleY = 1f
-                    }
-                }
-            }
-            false
-        }
-        card.foreground = rippleForeground(18)
+        focusProgressTrack = track
+        focusProgressFill = fill
+        card.foreground = rippleForeground(20)
         return card
     }
 
@@ -847,16 +667,832 @@ class LauncherActivity : Activity() {
             return
         }
         val endMs = prefs.getLong("task_end_ms", 0L)
+        val startMs = prefs.getLong("task_start_ms", 0L)
         val remaining = (endMs - System.currentTimeMillis()).coerceAtLeast(0L)
-        val minutes = remaining / 60_000L
-        val seconds = (remaining / 1_000L) % 60L
+        val total = if (startMs > 0L && endMs > startMs) endMs - startMs
+        else prefs.getLong("task_duration_ms", 0L).coerceAtLeast(1L)
+        val elapsed = (total - remaining).coerceIn(0L, total)
+        val fraction = if (total > 0L) elapsed.toFloat() / total.toFloat() else 0.35f
         focusTitleView?.text = taskName
-        focusSubtitleView?.text = if (endMs > 0L) {
-            "Focused · %02d:%02d remaining".format(Locale.getDefault(), minutes, seconds)
-        } else {
-            "Focus session active"
-        }
+        focusSubtitleView?.text = "Due today • ${formatDuration(remaining)} left"
         card.visibility = View.VISIBLE
+        focusProgressTrack?.post {
+            val track = focusProgressTrack ?: return@post
+            val fill = focusProgressFill ?: return@post
+            fill.layoutParams = (fill.layoutParams as FrameLayout.LayoutParams).also {
+                it.width = (track.width * fraction.coerceIn(0.02f, 1f)).toInt()
+            }
+            fill.requestLayout()
+        }
+    }
+
+    private fun buildTodaysLimits(): LinearLayout {
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            visibility = View.GONE
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).also { it.bottomMargin = dp(16) }
+        }
+        allowanceContainer = container
+        return container
+    }
+
+    private fun refreshTodaysLimits() {
+        val container = allowanceContainer ?: return
+        container.removeAllViews()
+        val cards = loadAllowanceCardData()
+        if (cards.isEmpty()) {
+            container.visibility = View.GONE
+            return
+        }
+        val theme = currentTheme()
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = if (theme == LauncherTheme.CLASSIC) {
+                roundedBackground(CLASSIC_CARD, CLASSIC_BORDER, 20)
+            } else {
+                layeredGlassBackground(20)
+            }
+            setPadding(dp(20), dp(16), dp(20), dp(14))
+        }
+        card.addView(TextView(this).apply {
+            text = "Today's Limits"
+            textSize = 18f
+            setTextColor(if (theme == LauncherTheme.CLASSIC) Color.parseColor("#B8B8BC") else TEXT_DIM)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).also { it.bottomMargin = dp(12) }
+        })
+        cards.forEachIndexed { index, allowance ->
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                minimumHeight = dp(52)
+                if (index > 0) setPadding(0, dp(8), 0, 0)
+            }
+            val icon = ImageView(this).apply {
+                layoutParams = LinearLayout.LayoutParams(dp(40), dp(40))
+                scaleType = ImageView.ScaleType.FIT_CENTER
+                allowance.icon?.let { setImageDrawable(it) }
+            }
+            val name = TextView(this).apply {
+                text = allowance.label
+                textSize = 15f
+                setTextColor(TEXT_PRIMARY)
+                maxLines = 1
+                ellipsize = TextUtils.TruncateAt.END
+                layoutParams = LinearLayout.LayoutParams(
+                    0,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    1f,
+                ).also { it.leftMargin = dp(12) }
+            }
+            val value = TextView(this).apply {
+                text = if (theme == LauncherTheme.CLASSIC) {
+                    formatUsedTerse(allowance)
+                } else {
+                    formatUsedFull(allowance)
+                }
+                textSize = 13f
+                setTextColor(if (theme == LauncherTheme.CLASSIC) CLASSIC_MUTED else TEXT_DIM)
+                gravity = Gravity.RIGHT
+                maxLines = 2
+                ellipsize = TextUtils.TruncateAt.END
+            }
+            row.addView(icon)
+            row.addView(name)
+            row.addView(value)
+            card.addView(row)
+        }
+        container.addView(card)
+        container.visibility = View.VISIBLE
+    }
+
+    private fun buildSearchBar(): View {
+        val theme = currentTheme()
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            background = if (theme == LauncherTheme.CLASSIC) {
+                roundedBackground(Color.TRANSPARENT, CLASSIC_BORDER, 22)
+            } else {
+                roundedBackground(GLASS_MID, GLASS_BORDER_BRIGHT, 22)
+            }
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(44),
+            ).also { it.bottomMargin = dp(16) }
+            setPadding(dp(16), 0, dp(16), 0)
+            addView(searchGlyph(if (theme == LauncherTheme.CLASSIC) CLASSIC_MUTED else TEXT_MUTED))
+            addView(TextView(this@LauncherActivity).apply {
+                text = "Search apps"
+                textSize = SIZE_SEARCH_HINT
+                setTextColor(if (theme == LauncherTheme.CLASSIC) CLASSIC_MUTED else TEXT_MUTED)
+                layoutParams = LinearLayout.LayoutParams(
+                    0,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    1f,
+                ).also { it.leftMargin = dp(12) }
+            })
+            isClickable = true
+            isFocusable = true
+            contentDescription = "Search apps — opens app drawer"
+            setOnClickListener {
+                openDrawer()
+                handler.postDelayed({ drawerSearchInput?.requestFocus() }, 150L)
+            }
+            foreground = rippleForeground(22)
+        }
+    }
+
+    private fun buildTwoIconRow(): LinearLayout {
+        val theme = currentTheme()
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).also { it.topMargin = dp(12) }
+        }
+        row.addView(buildBottomAction("All Apps", false, theme))
+        row.addView(buildBottomAction("FocusFlow", true, theme))
+        return row
+    }
+
+    private fun buildBottomAction(
+        label: String,
+        isFocusFlow: Boolean,
+        theme: LauncherTheme,
+    ): View {
+        val group = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        val circle = object : View(this) {
+            private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = if (isFocusFlow && theme == LauncherTheme.GLASSY) wallpaperAccent else Color.WHITE
+                textAlign = Paint.Align.CENTER
+                typeface = Typeface.DEFAULT_BOLD
+            }
+
+            override fun onDraw(canvas: Canvas) {
+                super.onDraw(canvas)
+                paint.color = if (isFocusFlow && theme == LauncherTheme.GLASSY) wallpaperAccent else Color.WHITE
+                if (isFocusFlow) {
+                    paint.textSize = dp(24).toFloat()
+                    val bounds = android.graphics.Rect()
+                    paint.getTextBounds("F", 0, 1, bounds)
+                    canvas.drawText("F", width / 2f, height / 2f - bounds.exactCenterY(), paint)
+                } else {
+                    val dotR = dp(2.5f).toFloat()
+                    val gap = dp(6).toFloat()
+                    for (r in 0..2) for (c in 0..2) {
+                        canvas.drawCircle(
+                            width / 2f + (c - 1) * gap,
+                            height / 2f + (r - 1) * gap,
+                            dotR,
+                            paint,
+                        )
+                    }
+                }
+            }
+        }.apply {
+            layoutParams = LinearLayout.LayoutParams(dp(56), dp(56))
+            background = if (theme == LauncherTheme.CLASSIC) {
+                ovalBackground(CLASSIC_STATUS)
+            } else {
+                ovalBackground(GLASS_MID, GLASS_BORDER_BRIGHT)
+            }
+            contentDescription = label
+            isClickable = true
+            isFocusable = true
+            setOnClickListener { if (isFocusFlow) openFocusFlow() else openDrawer() }
+            foreground = rippleForeground(999)
+        }
+        group.addView(circle)
+        group.addView(TextView(this).apply {
+            text = label
+            textSize = SIZE_HOME_LABEL
+            setTextColor(if (theme == LauncherTheme.CLASSIC) Color.parseColor("#818187") else TEXT_DIM)
+            gravity = Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).also { it.topMargin = dp(8) }
+        })
+        group.setOnClickListener { if (isFocusFlow) openFocusFlow() else openDrawer() }
+        return group
+    }
+
+    private fun refreshHomeContent() {
+        if (!::rootFrame.isInitialized) return
+        refreshStatusPillChildren()
+        refreshFocusCard()
+        refreshTodaysLimits()
+        updateClockText()
+        if (currentTheme() == LauncherTheme.GLASSY) {
+            loadCustomWallpaper()
+            applyWallpaperTint()
+        }
+    }
+
+    // ── App drawer ─────────────────────────────────────────────────────────────
+
+    private fun openDrawer() {
+        if (isDrawerOpen) return
+        isDrawerOpen = true
+        drawerFilter = DrawerFilter.ALL
+        isEditMode = false
+        focusedDrawerPackage = null
+        drawerBlockedCount = getBlockedPackages().size
+
+        val theme = currentTheme()
+        val overlay = FrameLayout(this).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT,
+            )
+            alpha = if (animationsEnabled()) 0f else 1f
+        }
+        if (theme == LauncherTheme.GLASSY) {
+            val wallpaper = ImageView(this).apply {
+                scaleType = ImageView.ScaleType.CENTER_CROP
+                layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                )
+            }
+            loadWallpaperInto(wallpaper)
+            overlay.addView(wallpaper)
+            overlay.addView(View(this).apply {
+                setBackgroundColor(Color.parseColor("#66000000"))
+                layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                )
+            })
+        } else {
+            overlay.setBackgroundColor(CLASSIC_BACKGROUND)
+        }
+
+        val sheet = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = if (theme == LauncherTheme.CLASSIC) {
+                GradientDrawable().apply { setColor(CLASSIC_BACKGROUND) }
+            } else {
+                GradientDrawable().apply { setColor(Color.parseColor("#220E1422")) }
+            }
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT,
+            )
+            setPadding(dp(24), dp(if (theme == LauncherTheme.CLASSIC) 56 else 20), dp(24), dp(12))
+        }
+        drawerSheet = sheet
+        if (theme == LauncherTheme.GLASSY) {
+            sheet.addView(buildDrawerHandle())
+        }
+        drawerHeader = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(44),
+            ).also { it.bottomMargin = dp(12) }
+        }
+        sheet.addView(drawerHeader)
+        renderDrawerHeader()
+
+        val search = EditText(this).apply {
+            hint = if (theme == LauncherTheme.CLASSIC) "Search apps" else "Search FocusFlow"
+            setHintTextColor(if (theme == LauncherTheme.CLASSIC) CLASSIC_MUTED else TEXT_MUTED)
+            setTextColor(TEXT_PRIMARY)
+            textSize = SIZE_SEARCH_HINT
+            singleLine = true
+            background = if (theme == LauncherTheme.CLASSIC) {
+                roundedBackground(Color.TRANSPARENT, CLASSIC_BORDER, 22)
+            } else {
+                roundedBackground(GLASS_MID, CLASSIC_TEAL, 22)
+            }
+            setPadding(dp(18), 0, dp(18), 0)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(44),
+            ).also { it.bottomMargin = dp(12) }
+        }
+        drawerSearchInput = search
+        sheet.addView(search)
+
+        drawerChipRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(40),
+            ).also { it.bottomMargin = dp(16) }
+        }
+        sheet.addView(drawerChipRow)
+        renderDrawerChips()
+
+        drawerAllApps = loadDrawerApps(packageManager, drawerHiddenPackages())
+        val adapter = DrawerAdapter(theme)
+        drawerAdapter = adapter
+        val recycler = RecyclerView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                0,
+                1f,
+            )
+            isVerticalScrollBarEnabled = false
+            setPadding(0, 0, 0, dp(18))
+            clipToPadding = false
+        }
+        drawerRecycler = recycler
+        if (theme == LauncherTheme.CLASSIC) {
+            recycler.layoutManager = LinearLayoutManager(this)
+        } else {
+            val columns = prefs.getInt(PREF_DRAWER_COLUMNS, 4).coerceIn(4, 5)
+            recycler.layoutManager = GridLayoutManager(this, columns)
+            attachDrawerDragSupport(recycler, adapter)
+        }
+        recycler.adapter = adapter
+        sheet.addView(recycler)
+        overlay.addView(sheet)
+        if (theme == LauncherTheme.GLASSY) {
+            drawerCustomizeSheet = buildCustomizeDrawerSheet()
+            overlay.addView(drawerCustomizeSheet)
+        }
+        drawerOverlay = overlay
+        rootFrame.addView(overlay)
+        refreshDrawerItems()
+
+        search.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                refreshDrawerItems()
+            }
+            override fun afterTextChanged(s: Editable?) = Unit
+        })
+
+        if (animationsEnabled()) {
+            overlay.animate().alpha(1f).setDuration(240).start()
+        }
+    }
+
+    private fun buildDrawerHandle(): View {
+        return View(this).apply {
+            background = roundedBackground(Color.parseColor("#66FFFFFF"), Color.TRANSPARENT, 3)
+            layoutParams = LinearLayout.LayoutParams(dp(36), dp(4)).also {
+                it.gravity = Gravity.CENTER_HORIZONTAL
+                it.bottomMargin = dp(16)
+            }
+        }
+    }
+
+    private fun renderDrawerHeader() {
+        val header = drawerHeader ?: return
+        header.removeAllViews()
+        val theme = currentTheme()
+        val title = TextView(this).apply {
+            text = if (isEditMode) "Edit Mode" else if (theme == LauncherTheme.GLASSY) "FocusFlow" else ""
+            textSize = if (isEditMode) 26f else 22f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            setTextColor(TEXT_PRIMARY)
+            layoutParams = LinearLayout.LayoutParams(
+                0,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                1f,
+            )
+        }
+        header.addView(title)
+        if (theme == LauncherTheme.GLASSY && isEditMode) {
+            header.addView(drawerHeaderButton("Cancel") { cancelEditMode() })
+            header.addView(drawerHeaderButton("Done") { finishEditMode() })
+        } else if (theme == LauncherTheme.GLASSY) {
+            header.addView(drawerHeaderButton("✎") { enterEditMode() })
+            header.addView(drawerHeaderButton("⋮") { closeDrawer() })
+        }
+    }
+
+    private fun drawerHeaderButton(label: String, onClick: () -> Unit): View {
+        return TextView(this).apply {
+            text = label
+            textSize = if (label.length > 1) 13f else 22f
+            gravity = Gravity.CENTER
+            setTextColor(TEXT_PRIMARY)
+            background = roundedBackground(GLASS_LIGHT, GLASS_BORDER_BRIGHT, 18)
+            setPadding(dp(12), 0, dp(12), 0)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                dp(36),
+            ).also { it.leftMargin = dp(8) }
+            setOnClickListener { onClick() }
+            foreground = rippleForeground(18)
+        }
+    }
+
+    private fun renderDrawerChips() {
+        val row = drawerChipRow ?: return
+        row.removeAllViews()
+        val labels = listOf(
+            DrawerFilter.ALL to "ALL APPS",
+            DrawerFilter.FOCUS_TOOLS to "FOCUS TOOLS",
+            DrawerFilter.LIMITED_TODAY to "LIMITED TODAY",
+            DrawerFilter.BLOCKED to "BLOCKED ($drawerBlockedCount)",
+        )
+        val theme = currentTheme()
+        labels.forEach { (filter, label) ->
+            val active = filter == drawerFilter
+            row.addView(TextView(this).apply {
+                text = label
+                textSize = 12f
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                gravity = Gravity.CENTER
+                setTextColor(
+                    if (active && theme == LauncherTheme.CLASSIC) CLASSIC_BACKGROUND
+                    else if (active) Color.WHITE else TEXT_DIM,
+                )
+                background = if (active) {
+                    roundedBackground(
+                        if (theme == LauncherTheme.CLASSIC) CLASSIC_TEAL else ACCENT,
+                        Color.TRANSPARENT,
+                        18,
+                    )
+                } else {
+                    roundedBackground(
+                        if (theme == LauncherTheme.CLASSIC) Color.parseColor("#181818") else GLASS_LIGHT,
+                        if (theme == LauncherTheme.CLASSIC) CLASSIC_BORDER else GLASS_BORDER,
+                        18,
+                    )
+                }
+                setPadding(dp(13), 0, dp(13), 0)
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    dp(36),
+                ).also { it.rightMargin = dp(8) }
+                setOnClickListener {
+                    drawerFilter = filter
+                    renderDrawerChips()
+                    refreshDrawerItems()
+                }
+            })
+        }
+    }
+
+    private fun refreshDrawerItems() {
+        val adapter = drawerAdapter ?: return
+        val query = drawerSearchInput?.text?.toString()?.lowercase(Locale.getDefault())?.trim().orEmpty()
+        val filtered = filterDrawerApps(drawerAllApps, drawerFilter).filter {
+            query.isBlank() ||
+                it.label.lowercase(Locale.getDefault()).contains(query) ||
+                it.packageName.lowercase(Locale.getDefault()).contains(query)
+        }
+        adapter.setItems(filtered)
+    }
+
+    private fun filterDrawerApps(
+        all: List<DrawerItem.App>,
+        filter: DrawerFilter,
+    ): List<DrawerItem.App> {
+        return when (filter) {
+            DrawerFilter.ALL -> all
+            DrawerFilter.FOCUS_TOOLS -> {
+                val tools = parseJsonArray(prefs.getString(PREF_FOCUS_TOOLS, "[]") ?: "[]").toSet()
+                all.filter { it.packageName in tools }
+            }
+            DrawerFilter.LIMITED_TODAY -> {
+                val limited = loadAllowanceCardData().map { it.pkg }.toSet()
+                all.filter { it.packageName in limited }
+            }
+            DrawerFilter.BLOCKED -> {
+                val blocked = getBlockedPackages()
+                all.filter { it.packageName in blocked }
+            }
+        }
+    }
+
+    private fun attachDrawerDragSupport(recycler: RecyclerView, adapter: DrawerAdapter) {
+        val callback = object : ItemTouchHelper.Callback() {
+            override fun getMovementFlags(
+                recyclerView: RecyclerView,
+                viewHolder: RecyclerView.ViewHolder,
+            ): Int {
+                return makeMovementFlags(
+                    ItemTouchHelper.UP or ItemTouchHelper.DOWN or
+                        ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT,
+                    0,
+                )
+            }
+
+            override fun onMove(
+                recyclerView: RecyclerView,
+                viewHolder: RecyclerView.ViewHolder,
+                target: RecyclerView.ViewHolder,
+            ): Boolean {
+                focusedDrawerPackage = adapter.currentItems()
+                    .getOrNull(target.bindingAdapterPosition)?.packageName
+                return adapter.moveItem(viewHolder.bindingAdapterPosition, target.bindingAdapterPosition)
+            }
+
+            override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) = Unit
+            override fun isLongPressDragEnabled(): Boolean = isEditMode
+            override fun isItemViewSwipeEnabled(): Boolean = false
+        }
+        ItemTouchHelper(callback).attachToRecyclerView(recycler)
+    }
+
+    private fun enterEditMode() {
+        if (currentTheme() != LauncherTheme.GLASSY || isEditMode) return
+        isEditMode = true
+        drawerFilter = DrawerFilter.ALL
+        renderDrawerChips()
+        editDraftScale = prefs.getFloat(PREF_DRAWER_SCALE, 1f).coerceIn(0.8f, 1.2f)
+        editDraftColumns = prefs.getInt(PREF_DRAWER_COLUMNS, 4).coerceIn(4, 5)
+        drawerAdapter?.setIconScale(editDraftScale)
+        drawerCustomizeSheet?.visibility = View.VISIBLE
+        renderDrawerHeader()
+        drawerAdapter?.notifyDataSetChanged()
+    }
+
+    private fun cancelEditMode() {
+        isEditMode = false
+        focusedDrawerPackage = null
+        drawerAdapter?.setIconScale(prefs.getFloat(PREF_DRAWER_SCALE, 1f))
+        drawerCustomizeSheet?.visibility = View.GONE
+        renderDrawerHeader()
+        refreshDrawerItems()
+    }
+
+    private fun finishEditMode() {
+        val ordered = drawerAdapter?.currentItems()?.map { it.packageName }.orEmpty()
+        saveJsonArray(PREF_DRAWER_ORDER, ordered)
+        prefs.edit()
+            .putFloat(PREF_DRAWER_SCALE, editDraftScale)
+            .putInt(PREF_DRAWER_COLUMNS, editDraftColumns)
+            .apply()
+        (drawerRecycler?.layoutManager as? GridLayoutManager)?.spanCount = editDraftColumns
+        isEditMode = false
+        focusedDrawerPackage = null
+        drawerCustomizeSheet?.visibility = View.GONE
+        renderDrawerHeader()
+        refreshDrawerItems()
+    }
+
+    private fun buildCustomizeDrawerSheet(): LinearLayout {
+        val sheet = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = layeredGlassBackground(28)
+            elevation = dp(12).toFloat()
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                dp(300),
+            ).also {
+                it.gravity = Gravity.BOTTOM
+                it.setMargins(dp(24), 0, dp(24), dp(16))
+            }
+            visibility = View.GONE
+            setPadding(dp(20), dp(12), dp(20), dp(18))
+        }
+        sheet.addView(View(this).apply {
+            background = roundedBackground(Color.parseColor("#88FFFFFF"), Color.TRANSPARENT, 4)
+            layoutParams = LinearLayout.LayoutParams(dp(58), dp(4)).also {
+                it.gravity = Gravity.CENTER_HORIZONTAL
+                it.bottomMargin = dp(12)
+            }
+        })
+        sheet.addView(TextView(this).apply {
+            text = "Customize Drawer"
+            textSize = 22f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            setTextColor(TEXT_PRIMARY)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).also { it.bottomMargin = dp(12) }
+        })
+        val scaleLabel = TextView(this).apply {
+            textSize = 14f
+            setTextColor(TEXT_DIM)
+        }
+        sheet.addView(scaleLabel)
+        val seek = SeekBar(this).apply {
+            max = 40
+            progress = ((editDraftScale - 0.8f) * 100).toInt().coerceIn(0, 40)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(32),
+            )
+        }
+        sheet.addView(seek)
+        fun updateScale(progress: Int) {
+            editDraftScale = (0.8f + progress / 100f).coerceIn(0.8f, 1.2f)
+            scaleLabel.text = "Icon Size                         ${((editDraftScale * 100).toInt())}%"
+            drawerAdapter?.setIconScale(editDraftScale)
+        }
+        seek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(bar: SeekBar?, progress: Int, fromUser: Boolean) {
+                updateScale(progress)
+            }
+            override fun onStartTrackingTouch(bar: SeekBar?) = Unit
+            override fun onStopTrackingTouch(bar: SeekBar?) = Unit
+        })
+        updateScale(seek.progress)
+
+        val gridRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(44),
+            ).also { it.bottomMargin = dp(10) }
+        }
+        val four = customizeButton("4×5") {
+            editDraftColumns = 4
+            (drawerRecycler?.layoutManager as? GridLayoutManager)?.spanCount = 4
+        }
+        val five = customizeButton("5×6") {
+            editDraftColumns = 5
+            (drawerRecycler?.layoutManager as? GridLayoutManager)?.spanCount = 5
+        }
+        gridRow.addView(four)
+        gridRow.addView(five)
+        sheet.addView(gridRow)
+
+        val actionRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(44),
+            )
+        }
+        actionRow.addView(customizeButton("Hide app") {
+            focusedDrawerPackage?.let { toggleDrawerHidden(it) }
+                ?: showNoFocusedAppMessage()
+        })
+        actionRow.addView(customizeButton("Lock app") {
+            focusedDrawerPackage?.let { openAlwaysOnPicker(it) }
+                ?: showNoFocusedAppMessage()
+        })
+        sheet.addView(actionRow)
+        return sheet
+    }
+
+    private fun customizeButton(label: String, onClick: () -> Unit): View {
+        return TextView(this).apply {
+            text = label
+            textSize = 14f
+            gravity = Gravity.CENTER
+            setTextColor(TEXT_PRIMARY)
+            background = roundedBackground(GLASS_HEAVY, GLASS_BORDER_BRIGHT, 18)
+            layoutParams = LinearLayout.LayoutParams(
+                0,
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                1f,
+            ).also { it.leftMargin = dp(4); it.rightMargin = dp(4) }
+            setOnClickListener { onClick() }
+            foreground = rippleForeground(18)
+        }
+    }
+
+    private fun showNoFocusedAppMessage() {
+        AlertDialog.Builder(this)
+            .setTitle("Select an app first")
+            .setMessage("Long-press an app to select it, then use this drawer action.")
+            .setPositiveButton("OK", null)
+            .show()
+    }
+
+    private fun openAlwaysOnPicker(pkg: String) {
+        try {
+            startActivity(
+                Intent(Intent.ACTION_VIEW, Uri.parse("focusflow://always-on?package=${Uri.encode(pkg)}"))
+                    .setPackage(packageName),
+            )
+        } catch (_: Exception) {
+            try {
+                startActivity(Intent(this, com.tbtechs.focusflow.MainActivity::class.java))
+            } catch (_: Exception) {
+            }
+        }
+    }
+
+    private fun closeDrawer() {
+        val overlay = drawerOverlay ?: return
+        isDrawerOpen = false
+        val remove = {
+            rootFrame.removeView(overlay)
+            drawerOverlay = null
+            drawerSheet = null
+            drawerHeader = null
+            drawerChipRow = null
+            drawerRecycler = null
+            drawerSearchInput = null
+            drawerCustomizeSheet = null
+            drawerAdapter = null
+            isEditMode = false
+        }
+        if (animationsEnabled()) {
+            overlay.animate().alpha(0f).setDuration(180).withEndAction(remove).start()
+        } else {
+            remove()
+        }
+    }
+
+    // ── Drawer editing and app actions ─────────────────────────────────────────
+
+    private fun showDrawerIconMenu(pkg: String, label: String) {
+        if (currentTheme() == LauncherTheme.GLASSY) return
+        val hidden = drawerHiddenPackages()
+        val isHidden = pkg in hidden
+        AlertDialog.Builder(this)
+            .setTitle(label)
+            .setItems(
+                arrayOf(if (isHidden) "Unhide from Drawer" else "Hide from Drawer", "App Info"),
+            ) { _, which ->
+                when (which) {
+                    0 -> toggleDrawerHidden(pkg)
+                    1 -> openAppInfo(pkg)
+                }
+            }
+            .create()
+            .show()
+    }
+
+    private fun drawerHiddenPackages(): Set<String> {
+        val current = parseJsonArray(prefs.getString(PREF_DRAWER_HIDDEN, "[]") ?: "[]")
+        val legacy = parseJsonArray(prefs.getString(PREF_LAUNCHER_HIDDEN, "[]") ?: "[]")
+        return (current + legacy).toSet()
+    }
+
+    private fun toggleDrawerHidden(pkg: String) {
+        val hidden = drawerHiddenPackages().toMutableSet()
+        if (hidden.contains(pkg)) {
+            hidden.remove(pkg)
+        } else {
+            if (pkg !in getBlockedPackages()) {
+                AlertDialog.Builder(this)
+                    .setTitle("Only blocked apps can be hidden")
+                    .setMessage("Add this app to Standalone or Always-On before hiding it from the drawer.")
+                    .setPositiveButton("OK", null)
+                    .show()
+                return
+            }
+            hidden.add(pkg)
+        }
+        saveJsonArray(PREF_DRAWER_HIDDEN, hidden.toList())
+        saveJsonArray(PREF_LAUNCHER_HIDDEN, hidden.toList())
+        drawerAllApps = loadDrawerApps(packageManager, hidden)
+        refreshDrawerItems()
+    }
+
+    private fun loadDrawerApps(
+        pm: android.content.pm.PackageManager,
+        hiddenPackages: Set<String>,
+    ): List<DrawerItem.App> {
+        val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+        val apps = pm.queryIntentActivities(intent, 0)
+            .mapNotNull { info ->
+                val pkg = info.activityInfo.packageName
+                if (pkg == OWN_PACKAGE || pkg in hiddenPackages) return@mapNotNull null
+                DrawerItem.App(
+                    pkg,
+                    pm.getApplicationLabel(info.activityInfo.applicationInfo).toString(),
+                )
+            }
+            .distinctBy { it.packageName }
+        val customOrder = parseJsonArray(prefs.getString(PREF_DRAWER_ORDER, "[]") ?: "[]")
+        val positions = customOrder.withIndex().associate { it.value to it.index }
+        return apps.sortedWith(
+            compareBy<DrawerItem.App> { positions[it.packageName] ?: Int.MAX_VALUE }
+                .thenBy { it.label.lowercase(Locale.getDefault()) },
+        )
+    }
+
+    // ── Launch helpers ─────────────────────────────────────────────────────────
+
+    private fun launchApp(pkg: String) {
+        val intent = packageManager.getLaunchIntentForPackage(pkg) ?: return
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        try {
+            startActivity(intent)
+        } catch (_: Exception) {
+        }
+    }
+
+    private fun launchBlockOverlay(pkg: String) {
+        try {
+            startActivity(
+                Intent(this, BlockOverlayActivity::class.java).apply {
+                    putExtra("blocked_package", pkg)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                },
+            )
+        } catch (_: Exception) {
+        }
     }
 
     private fun openFocusFlow() {
@@ -866,1085 +1502,62 @@ class LauncherActivity : Activity() {
         }
     }
 
-    private fun buildProductivityStrip(): LinearLayout {
-        return LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            visibility = View.GONE
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).also { it.setMargins(dp(20), dp(4), dp(20), dp(4)) }
-            productivityStrip = this
-        }
-    }
-
-    private fun buildChip(icon: String, label: String): View {
-        val chip = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            minimumHeight = dp(44)
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.RECTANGLE
-                cornerRadius = dp(12).toFloat()
-                setColor(GLASS_LIGHT)
-                setStroke(dp(1), GLASS_BORDER)
-            }
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT, dp(44)
-            ).also { it.rightMargin = dp(6) }
-            setPadding(dp(10), 0, dp(10), 0)
-            contentDescription = label
-            isClickable = true
-            isFocusable = true
-        }
-        chip.addView(TextView(this).apply {
-            text = icon
-            textSize = 13f
-        })
-        chip.addView(TextView(this).apply {
-            text = label
-            textSize = 12f
-            setTextColor(TEXT_DIM)
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).also { it.leftMargin = dp(5) }
-        })
-        chip.foreground = rippleForeground(12)
-        return chip
-    }
-
-    private fun refreshProductivityStrip() {
-        val strip = productivityStrip ?: return
-        strip.removeAllViews()
-        val chips = mutableListOf<View>()
-        val saActive = prefs.getBoolean(PREF_SA_ACTIVE, false)
-        val alwaysActive = prefs.getBoolean(PREF_ALWAYS_BLOCK, false)
-        val nextTask = prefs.getString("next_task_name", null)?.takeIf { it.isNotBlank() }
-        if (saActive) {
-            val count = parseJsonArray(prefs.getString(PREF_SA_PKGS, "[]") ?: "[]").size
-            if (count > 0) chips += buildChip("🔒", "$count blocked")
-        }
-        if (alwaysActive) chips += buildChip("🛡️", "Always-On")
-        if (nextTask != null) chips += buildChip("⏭", "Next: $nextTask")
-        chips.forEach { strip.addView(it) }
-        strip.visibility = if (chips.isEmpty()) View.GONE else View.VISIBLE
-    }
-
-    private fun buildDockArea(): LinearLayout {
-        val dockWrapper = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-        }
-
-        val quickActions = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).also {
-                it.setMargins(dp(UNIT * 4), dp(12), dp(UNIT * 4), dp(UNIT))
-            }
-        }
-
-        fun circleButton(isFocusFlow: Boolean): View {
-            return object : View(this) {
-                private val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color = TEXT_PRIMARY
-                    style = Paint.Style.FILL
-                    textAlign = Paint.Align.CENTER
-                    typeface = Typeface.DEFAULT_BOLD
-                }
-
-                override fun onDraw(canvas: Canvas) {
-                    super.onDraw(canvas)
-                    iconPaint.color = if (isFocusFlow) wallpaperAccent else TEXT_PRIMARY
-                    if (isFocusFlow) {
-                        iconPaint.textSize = dp(22).toFloat()
-                        val bounds = android.graphics.Rect()
-                        iconPaint.getTextBounds("F", 0, 1, bounds)
-                        val baseline = height / 2f - bounds.exactCenterY()
-                        canvas.drawText("F", width / 2f, baseline, iconPaint)
-                    } else {
-                        val dotR = dp(2.5f).toFloat()
-                        val gap = dp(6)
-                        val start = -gap
-                        for (row in 0..2) for (col in 0..2) {
-                            canvas.drawCircle(
-                                width / 2f + start + col * gap,
-                                height / 2f + start + row * gap,
-                                dotR,
-                                iconPaint
-                            )
-                        }
-                    }
-                }
-            }.apply {
-                background = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    setColor(if (isFocusFlow) ACCENT_SURFACE else GLASS_MID)
-                    setStroke(dp(1.5f), if (isFocusFlow) ACCENT_DIM else GLASS_BORDER_BRIGHT)
-                }
-                layoutParams = LinearLayout.LayoutParams(dp(58), dp(58))
-                contentDescription = if (isFocusFlow) "Open FocusFlow" else "All apps"
-                isClickable = true
-                isFocusable = true
-            }
-        }
-
-        fun actionGroup(label: String, isFocusFlow: Boolean): LinearLayout {
-            val group = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                gravity = Gravity.CENTER
-                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-                contentDescription = label
-                isClickable = true
-                isFocusable = true
-            }
-            val button = circleButton(isFocusFlow)
-            button.setOnClickListener {
-                if (isFocusFlow) openFocusFlow() else openDrawer()
-            }
-            button.foreground = rippleForeground(999)
-            addPressAnimation(button)
-            val labelView = TextView(this).apply {
-                text = label
-                textSize = SIZE_LABEL_HOME
-                setTextColor(TEXT_MUTED)
-                gravity = Gravity.CENTER
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                ).also { it.topMargin = dp(6) }
-            }
-            group.addView(button)
-            group.addView(labelView)
-            group.setOnClickListener {
-                if (isFocusFlow) openFocusFlow() else openDrawer()
-            }
-            group.foreground = rippleForeground(999)
-            addPressAnimation(group)
-            return group
-        }
-
-        quickActions.addView(actionGroup("All Apps", false))
-        val focusGroup = actionGroup("FocusFlow", true)
-        dockFocusButton = focusGroup.getChildAt(0)
-        quickActions.addView(focusGroup)
-        dockWrapper.addView(quickActions)
-
-        val dockCard = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.RECTANGLE
-                cornerRadius = dp(36).toFloat()
-                setColor(GLASS_MID)
-                setStroke(dp(1), GLASS_BORDER_BRIGHT)
-            }
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(100)
-            ).also {
-                it.setMargins(dp(UNIT), dp(UNIT / 2), dp(UNIT), dp(UNIT * 3))
-            }
-            setPadding(dp(UNIT), 0, dp(UNIT), 0)
-            elevation = dp(8).toFloat()
-        }
-
-        dockRow = dockCard
-        dockWrapper.addView(dockCard)
-
-        return dockWrapper
-    }
-
-    // ── Refresh home grid ──────────────────────────────────────────────────────
-
-    private fun refreshHomeGrid() {
-        val grid = homeGrid ?: return
-        grid.removeAllViews()
-
-        val pinnedJson = prefs.getString(PREF_LAUNCHER_PINNED, "[]") ?: "[]"
-        val pinned = parseJsonArray(pinnedJson)
-        val blocked = getBlockedPackages()
-
-        for (pkg in pinned) {
-            addHomeGridIcon(grid, pkg, blocked.contains(pkg))
-        }
-    }
-
-    private fun loadCustomWallpaper() {
-        val view = customWallpaperView ?: return
-        val path = prefs.getString(PREF_LAUNCHER_WALLPAPER, "")?.trim().orEmpty()
-        if (path.isEmpty()) {
-            view.setImageDrawable(null)
-            view.visibility = View.GONE
-            return
-        }
-
-        val bitmap = try {
-            if (path.startsWith("content://")) {
-                contentResolver.openInputStream(Uri.parse(path))?.use(BitmapFactory::decodeStream)
-            } else {
-                BitmapFactory.decodeFile(path.removePrefix("file://"))
-            }
-        } catch (_: Exception) {
-            null
-        }
-
-        if (bitmap != null) {
-            view.setImageBitmap(bitmap)
-            view.visibility = View.VISIBLE
-        } else {
-            view.setImageDrawable(null)
-            view.visibility = View.GONE
-        }
-    }
-
-    private fun addHomeGridIcon(parent: GridLayout, pkg: String, isBlocked: Boolean) {
-        val pm = packageManager
-        val appInfo = try { pm.getApplicationInfo(pkg, 0) } catch (_: Exception) { return }
-        val label = pm.getApplicationLabel(appInfo).toString()
-        val icon  = try { pm.getApplicationIcon(pkg) } catch (_: Exception) { return }
-
-        val colSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f)
-        val item = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            val lp = GridLayout.LayoutParams(colSpec, colSpec)
-            lp.width = 0
-            lp.height = GridLayout.LayoutParams.WRAP_CONTENT
-            lp.setMargins(dp(3), dp(6), dp(3), dp(6))
-            layoutParams = lp
-            contentDescription = if (isBlocked) "$label, blocked" else label
-            isClickable = true
-            isFocusable = true
-        }
-
-        val iconFrame = FrameLayout(this).apply {
-            layoutParams = LinearLayout.LayoutParams(dp(ICON_CELL_FRAME), dp(ICON_CELL_FRAME)).also {
-                it.gravity = Gravity.CENTER_HORIZONTAL
-            }
-        }
-
-        val backdrop = View(this).apply {
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.RECTANGLE
-                cornerRadius = dp(16).toFloat()
-                setColor(if (isBlocked) Color.parseColor("#1AEF4444") else GLASS_ULTRA)
-            }
-            layoutParams = FrameLayout.LayoutParams(
-                dp(ICON_CELL_FRAME), dp(ICON_CELL_FRAME)
-            ).also { it.gravity = Gravity.CENTER }
-        }
-        iconFrame.addView(backdrop)
-
-        val iconView = ImageView(this).apply {
-            setImageDrawable(icon)
-            alpha = if (isBlocked) 0.30f else 1f
-            layoutParams = FrameLayout.LayoutParams(dp(ICON_HOME), dp(ICON_HOME)).also {
-                it.gravity = Gravity.CENTER
-            }
-        }
-        iconFrame.addView(iconView)
-
-        if (isBlocked) {
-            val dot = View(this).apply {
-                background = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    setColor(RED_BLOCK)
-                    setStroke(dp(1.5f), Color.parseColor("#BB000000"))
-                }
-                layoutParams = FrameLayout.LayoutParams(dp(12), dp(12)).also {
-                    it.gravity = Gravity.TOP or Gravity.END
-                    it.topMargin = dp(1)
-                    it.rightMargin = dp(1)
-                }
-            }
-            iconFrame.addView(dot)
-        }
-
-        val labelView = TextView(this).apply {
-            text = label
-            textSize = SIZE_LABEL_HOME
-            setTextColor(if (isBlocked) TEXT_BLOCKED else TEXT_DIM)
-            gravity = Gravity.CENTER
-            maxLines = 1
-            ellipsize = TextUtils.TruncateAt.END
-            setShadowLayer(5f, 0f, 2f, Color.parseColor("#BB000000"))
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).also { it.topMargin = dp(6) }
-        }
-
-        item.addView(iconFrame)
-        item.addView(labelView)
-
-        item.setOnClickListener {
-            if (isBlocked) launchBlockOverlay(pkg) else launchApp(pkg)
-        }
-
-        item.setOnLongClickListener {
-            showHomeIconMenu(pkg, label)
-            true
-        }
-        item.foreground = rippleForeground()
-        addPressAnimation(item)
-
-        parent.addView(item)
-    }
-
-    // ── Refresh dock ──────────────────────────────────────────────────────────
-
-    private fun refreshDock() {
-        val row = dockRow ?: return
-        row.removeAllViews()
-
-        val dockJson = prefs.getString(PREF_LAUNCHER_DOCK, "[]") ?: "[]"
-        val dockPkgs = parseJsonArray(dockJson)
-        val blocked  = getBlockedPackages()
-
-        for (pkg in dockPkgs.take(5)) {
-            addDockIcon(row, pkg, blocked.contains(pkg))
-        }
-    }
-
-    private fun addDockIcon(parent: LinearLayout, pkg: String, isBlocked: Boolean) {
-        val pm = packageManager
-        val appInfo = try { pm.getApplicationInfo(pkg, 0) } catch (_: Exception) { return }
-        val label = pm.getApplicationLabel(appInfo).toString()
-        val icon  = try { pm.getApplicationIcon(pkg) } catch (_: Exception) { return }
-
-        val item = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-            setPadding(dp(4), dp(8), dp(4), dp(6))
-            contentDescription = if (isBlocked) "$label, blocked" else label
-            isClickable = true
-            isFocusable = true
-        }
-
-        val iconFrame = FrameLayout(this).apply {
-            layoutParams = LinearLayout.LayoutParams(dp(ICON_DOCK_FRAME), dp(ICON_DOCK_FRAME)).also {
-                it.gravity = Gravity.CENTER_HORIZONTAL
-            }
-        }
-
-        val backdrop = View(this).apply {
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.RECTANGLE
-                cornerRadius = dp(14).toFloat()
-                setColor(GLASS_ULTRA)
-            }
-            layoutParams = FrameLayout.LayoutParams(
-                dp(ICON_DOCK_FRAME), dp(ICON_DOCK_FRAME)
-            ).also { it.gravity = Gravity.CENTER }
-        }
-        iconFrame.addView(backdrop)
-
-        val iconView = ImageView(this).apply {
-            setImageDrawable(icon)
-            alpha = if (isBlocked) 0.30f else 1f
-            contentDescription = if (isBlocked) "$label, blocked" else label
-            layoutParams = FrameLayout.LayoutParams(dp(ICON_DOCK), dp(ICON_DOCK)).also {
-                it.gravity = Gravity.CENTER
-            }
-        }
-        iconFrame.addView(iconView)
-
-        if (isBlocked) {
-            val dot = View(this).apply {
-                background = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    setColor(RED_BLOCK)
-                    setStroke(dp(1.5f), Color.parseColor("#BB000000"))
-                }
-                layoutParams = FrameLayout.LayoutParams(dp(12), dp(12)).also {
-                    it.gravity = Gravity.TOP or Gravity.END
-                    it.topMargin = dp(1)
-                    it.rightMargin = dp(1)
-                }
-            }
-            iconFrame.addView(dot)
-        }
-
-        val labelView = TextView(this).apply {
-            text = label
-            textSize = SIZE_LABEL_DOCK
-            setTextColor(TEXT_DIM)
-            gravity = Gravity.CENTER
-            maxLines = 1
-            ellipsize = TextUtils.TruncateAt.END
-            setShadowLayer(5f, 0f, 2f, Color.parseColor("#BB000000"))
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).also { it.topMargin = dp(3) }
-        }
-
-        item.addView(iconFrame)
-        item.addView(labelView)
-
-        item.setOnClickListener {
-            if (isBlocked) launchBlockOverlay(pkg) else launchApp(pkg)
-        }
-
-        item.setOnLongClickListener {
-            showDockIconMenu(pkg, label)
-            true
-        }
-        item.foreground = rippleForeground()
-        addPressAnimation(item)
-
-        parent.addView(item)
-    }
-
-    // ── App drawer ────────────────────────────────────────────────────────────
-
-    private fun openDrawer() {
-        if (isDrawerOpen) return
-        isDrawerOpen = true
-
-        val overlay = FrameLayout(this).apply {
-            layoutParams = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT
-            )
-            setBackgroundColor(Color.TRANSPARENT)
-            alpha = 0f
-        }
-
-        val sheet = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(DRAWER_BG)
-            layoutParams = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                (resources.displayMetrics.heightPixels * 0.92).toInt()
-            ).also { it.gravity = Gravity.BOTTOM }
-            translationY = if (animationsEnabled()) {
-                resources.displayMetrics.heightPixels.toFloat()
-            } else {
-                0f
-            }
-        }
-
-        val topBar = View(this).apply {
-            background = GradientDrawable(
-                GradientDrawable.Orientation.TOP_BOTTOM,
-                intArrayOf(Color.parseColor("#40FFFFFF"), Color.TRANSPARENT)
-            )
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(1)
-            )
-        }
-        sheet.addView(topBar)
-
-        // Drag handle
-        val handle = View(this).apply {
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.RECTANGLE
-                cornerRadius = dp(3).toFloat()
-                setColor(Color.parseColor("#55AABBDD"))
-            }
-            layoutParams = LinearLayout.LayoutParams(dp(36), dp(4)).also {
-                it.gravity = Gravity.CENTER_HORIZONTAL
-                it.topMargin = dp(12); it.bottomMargin = dp(14)
-            }
-        }
-        sheet.addView(handle)
-
-        // Drawer title
-        val drawerTitle = TextView(this).apply {
-            text = "All Apps"
-            textSize = 16f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            setTextColor(Color.WHITE)
-            gravity = Gravity.CENTER
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).also { it.bottomMargin = dp(10) }
-        }
-        sheet.addView(drawerTitle)
-
-        // Search bar
-        val searchBar = EditText(this).apply {
-            hint = "Search apps…"
-            setHintTextColor(TEXT_MUTED)
-            setTextColor(TEXT_PRIMARY)
-            textSize = 15f
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.RECTANGLE
-                cornerRadius = dp(22).toFloat()
-                setColor(GLASS_LIGHT)
-                setStroke(dp(1), GLASS_BORDER)
-            }
-            setPadding(dp(18), 0, dp(18), 0)
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(52)
-            ).also { it.setMargins(dp(UNIT * 2), 0, dp(UNIT * 2), dp(UNIT * 2)) }
-        }
-        sheet.addView(searchBar)
-        drawerSearchInput = searchBar
-
-        // One recycled list for the complete drawer. Section headers occupy all
-        // five columns; app cells occupy one. Filtering replaces the adapter's
-        // data instead of walking and hiding already-created child views.
-        val recycler = RecyclerView(this).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f
-            )
-            isVerticalScrollBarEnabled = false
-        }
-
-        val hiddenPkgs = parseJsonArray(prefs.getString(PREF_LAUNCHER_HIDDEN, "[]") ?: "[]").toSet()
-        val blocked    = getBlockedPackages()
-        val pm         = packageManager
-        val allApps = loadDrawerApps(pm, hiddenPkgs)
-        val adapter = DrawerAdapter(blocked)
-        recycler.layoutManager = GridLayoutManager(this, 5).also { layoutManager ->
-            layoutManager.spanSizeLookup = object : GridLayoutManager.SpanSizeLookup() {
-                override fun getSpanSize(position: Int): Int {
-                    return if (adapter.getItemViewType(position) == DRAWER_TYPE_HEADER) 5 else 1
-                }
-            }
-        }
-        recycler.adapter = adapter
-        recycler.setPadding(dp(8), 0, dp(8), dp(24))
-        adapter.setItems(buildDrawerItems(allApps, ""))
-        drawerRecycler = recycler
-        sheet.addView(recycler)
-        overlay.addView(sheet)
-
-        // Search filters the app data and submits a smaller list to the
-        // RecyclerView. This keeps matching behavior correct even with a large
-        // installed-app library and avoids stale hidden child views.
-        searchBar.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-            override fun afterTextChanged(s: Editable?) {
-                val q = s?.toString()?.lowercase(Locale.getDefault())?.trim() ?: ""
-                adapter.setItems(buildDrawerItems(allApps, q))
-            }
-        })
-
-        // Swipe-down to close
-        var swipeDownY = 0f
-        var velocityTracker: VelocityTracker? = null
-        sheet.setOnTouchListener { _, ev ->
-            when (ev.actionMasked) {
-                MotionEvent.ACTION_DOWN -> {
-                    swipeDownY = ev.rawY
-                    velocityTracker?.recycle()
-                    velocityTracker = VelocityTracker.obtain().also { it.addMovement(ev) }
-                    false
-                }
-                MotionEvent.ACTION_MOVE -> {
-                    velocityTracker?.addMovement(ev)
-                    false
-                }
-                MotionEvent.ACTION_UP -> {
-                    velocityTracker?.addMovement(ev)
-                    velocityTracker?.computeCurrentVelocity(1000)
-                    val vy = velocityTracker?.yVelocity ?: 0f
-                    velocityTracker?.recycle()
-                    velocityTracker = null
-                    if (ev.rawY - swipeDownY > dp(80)) {
-                        closeDrawer()
-                        true
-                    } else if (animationsEnabled() && vy > 800f) {
-                        val fling = FlingAnimation(sheet, DynamicAnimation.TRANSLATION_Y).apply {
-                            setStartVelocity(vy)
-                            setMinValue(0f)
-                            setMaxValue(dp(1200).toFloat())
-                            addEndListener { _, _, _, _ ->
-                                if (isDrawerOpen) closeDrawer()
-                            }
-                        }
-                        fling.start()
-                        true
-                    } else {
-                        if (sheet.translationY > dp(200) || vy > 800f) {
-                            closeDrawer()
-                        } else if (animationsEnabled()) {
-                            sheet.animate().translationY(0f).setDuration(200)
-                                .setInterpolator(DecelerateInterpolator(1.5f)).start()
-                        } else {
-                            sheet.translationY = 0f
-                        }
-                        false
-                    }
-                }
-                MotionEvent.ACTION_CANCEL -> {
-                    velocityTracker?.recycle()
-                    velocityTracker = null
-                    false
-                }
-                else -> false
-            }
-        }
-
-        drawerOverlay = overlay
-        rootFrame.addView(overlay)
-
-        if (animationsEnabled()) {
-            overlay.animate().alpha(1f).setDuration(300).start()
-            sheet.animate().translationY(0f).setDuration(380)
-                .setInterpolator(DecelerateInterpolator(2.2f)).start()
-        } else {
-            overlay.alpha = 1f
-            sheet.translationY = 0f
-        }
-    }
-
-    private fun loadDrawerApps(pm: PackageManager, hiddenPackages: Set<String>): List<DrawerItem.App> {
-        val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-        return pm.queryIntentActivities(intent, 0)
-            .mapNotNull { info ->
-                val pkg = info.activityInfo.packageName
-                if (pkg == OWN_PACKAGE || hiddenPackages.contains(pkg)) return@mapNotNull null
-                DrawerItem.App(
-                    packageName = pkg,
-                    label = pm.getApplicationLabel(info.activityInfo.applicationInfo).toString(),
-                )
-            }
-            .distinctBy { it.packageName }
-            .sortedBy { it.label.lowercase(Locale.getDefault()) }
-    }
-
-    private fun buildDrawerItems(
-        apps: List<DrawerItem.App>,
-        query: String,
-    ): List<DrawerItem> {
-        val matching = if (query.isBlank()) apps else apps.filter {
-            it.label.lowercase(Locale.getDefault()).contains(query) ||
-                it.packageName.lowercase(Locale.getDefault()).contains(query)
-        }
-        val sections = matching.groupBy {
-            val first = it.label.firstOrNull()?.uppercaseChar() ?: '#'
-            if (first.isLetter()) first else '#'
-        }.toSortedMap(compareBy { if (it == '#') '\uFFFF' else it })
-
-        return buildList {
-            sections.forEach { (letter, sectionApps) ->
-                add(DrawerItem.Header(letter.toString()))
-                addAll(sectionApps)
-            }
-        }
-    }
-
-    private fun closeDrawer() {
-        val overlay = drawerOverlay ?: return
-        val sheet = overlay.getChildAt(0)
-        isDrawerOpen = false
-
-        if (animationsEnabled() && sheet != null) {
-            val targetY = sheet.height.toFloat().coerceAtLeast(dp(600).toFloat())
-            sheet.animate()
-                .translationY(targetY)
-                .setDuration(280)
-                .setInterpolator(AccelerateInterpolator(1.8f))
-                .withEndAction {
-                    rootFrame.removeView(overlay)
-                    drawerOverlay = null
-                    drawerRecycler = null
-                    drawerSearchInput = null
-                }
-                .start()
-            overlay.animate().alpha(0f).setDuration(240).start()
-        } else {
-            rootFrame.removeView(overlay)
-            drawerOverlay = null
-            drawerRecycler = null
-            drawerSearchInput = null
-        }
-    }
-
-    // ── Long-press context menus ───────────────────────────────────────────────
-
-    private fun showHomeIconMenu(pkg: String, label: String) {
-        AlertDialog.Builder(this)
-            .setTitle(label)
-            .setItems(arrayOf("Remove from Home", "Add to Dock", "App Info")) { _, which ->
-                when (which) {
-                    0 -> removeFromHome(pkg)
-                    1 -> addToDock(pkg)
-                    2 -> openAppInfo(pkg)
-                }
-            }
-            .create()
-            .show()
-    }
-
-    private fun showDockIconMenu(pkg: String, label: String) {
-        AlertDialog.Builder(this)
-            .setTitle(label)
-            .setItems(arrayOf("Remove from Dock", "App Info")) { _, which ->
-                when (which) {
-                    0 -> removeFromDock(pkg)
-                    1 -> openAppInfo(pkg)
-                }
-            }
-            .create()
-            .show()
-    }
-
-    private fun showDrawerIconMenu(pkg: String, label: String) {
-        AlertDialog.Builder(this)
-            .setTitle(label)
-            .setItems(arrayOf("Add to Home Screen", "Add to Dock", "App Info")) { _, which ->
-                when (which) {
-                    0 -> addToHome(pkg)
-                    1 -> addToDock(pkg)
-                    2 -> openAppInfo(pkg)
-                }
-            }
-            .create()
-            .show()
-    }
-
-    private fun showAddToHomeDialog() {
-        val pm     = packageManager
-        val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-        val apps   = pm.queryIntentActivities(intent, 0)
-            .filter { it.activityInfo.packageName != OWN_PACKAGE }
-            .sortedBy { pm.getApplicationLabel(it.activityInfo.applicationInfo).toString() }
-
-        val names = apps.map {
-            pm.getApplicationLabel(it.activityInfo.applicationInfo).toString()
-        }.toTypedArray()
-
-        AlertDialog.Builder(this)
-            .setTitle("Add to Home Screen")
-            .setItems(names) { _, idx ->
-                addToHome(apps[idx].activityInfo.packageName)
-            }
-            .create()
-            .show()
-    }
-
-    // ── Home / Dock management ─────────────────────────────────────────────────
-
-    private fun addToHome(pkg: String) {
-        val json    = prefs.getString(PREF_LAUNCHER_PINNED, "[]") ?: "[]"
-        val current = parseJsonArray(json).toMutableList()
-        if (!current.contains(pkg)) {
-            current.add(pkg)
-            saveJsonArray(PREF_LAUNCHER_PINNED, current)
-            refreshHomeGrid()
-        }
-    }
-
-    private fun removeFromHome(pkg: String) {
-        val json    = prefs.getString(PREF_LAUNCHER_PINNED, "[]") ?: "[]"
-        val updated = parseJsonArray(json).filter { it != pkg }
-        saveJsonArray(PREF_LAUNCHER_PINNED, updated)
-        refreshHomeGrid()
-    }
-
-    private fun addToDock(pkg: String) {
-        val json    = prefs.getString(PREF_LAUNCHER_DOCK, "[]") ?: "[]"
-        val current = parseJsonArray(json).toMutableList()
-        if (!current.contains(pkg) && current.size < 5) {
-            current.add(pkg)
-            saveJsonArray(PREF_LAUNCHER_DOCK, current)
-            refreshDock()
-        } else if (current.size >= 5) {
-            AlertDialog.Builder(this)
-                .setTitle("Dock is full")
-                .setMessage("Remove an existing dock app first (long-press it on the home screen).")
-                .setPositiveButton("OK", null)
-                .show()
-        }
-    }
-
-    private fun removeFromDock(pkg: String) {
-        val json    = prefs.getString(PREF_LAUNCHER_DOCK, "[]") ?: "[]"
-        val updated = parseJsonArray(json).filter { it != pkg }
-        saveJsonArray(PREF_LAUNCHER_DOCK, updated)
-        refreshDock()
-    }
-
     private fun openAppInfo(pkg: String) {
-        val i = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-            data = android.net.Uri.parse("package:$pkg")
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        try {
+            startActivity(
+                Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                    data = Uri.parse("package:$pkg")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                },
+            )
+        } catch (_: Exception) {
         }
-        try { startActivity(i) } catch (_: Exception) {}
     }
 
-    // ── Launch helpers ────────────────────────────────────────────────────────
-
-    private fun launchApp(pkg: String) {
-        val i = packageManager.getLaunchIntentForPackage(pkg) ?: return
-        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        try { startActivity(i) } catch (_: Exception) {}
-    }
-
-    private fun launchBlockOverlay(pkg: String) {
-        val i = Intent(this, BlockOverlayActivity::class.java).apply {
-            putExtra("blocked_package", pkg)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-        }
-        try { startActivity(i) } catch (_: Exception) {}
-    }
-
-    // ── Block-state helpers ───────────────────────────────────────────────────
+    // ── Block and allowance data ────────────────────────────────────────────────
 
     private fun getBlockedPackages(): Set<String> {
-        val now    = System.currentTimeMillis()
         val result = mutableSetOf<String>()
-
-        val saActive = prefs.getBoolean(PREF_SA_ACTIVE, false)
-        if (saActive) {
+        val now = System.currentTimeMillis()
+        if (prefs.getBoolean(PREF_SA_ACTIVE, false)) {
             val until = prefs.getLong(PREF_SA_UNTIL, 0L)
             if (until == 0L || now <= until) {
                 result.addAll(parseJsonArray(prefs.getString(PREF_SA_PKGS, "[]") ?: "[]"))
             }
         }
-
-        val alwaysActive = prefs.getBoolean(PREF_ALWAYS_BLOCK, false)
-        if (alwaysActive) {
+        if (prefs.getBoolean(PREF_ALWAYS_BLOCK, false)) {
             result.addAll(parseJsonArray(prefs.getString(PREF_ALWAYS_BLOCK_PKGS, "[]") ?: "[]"))
         }
-
         return result
     }
 
-    // ── Clock ─────────────────────────────────────────────────────────────────
+    private fun formatUsedTerse(card: AllowanceCardData): String {
+        return when (card.mode) {
+            "count" -> "${card.used}/${card.total}"
+            else -> if (card.used <= 0L) "<1m" else formatDuration(card.used)
+        }
+    }
 
-    private fun startClock() {
-        clockRunnable = object : Runnable {
-            override fun run() {
-                updateClockText()
-                // Update every second for accurate display
-                handler.postDelayed(this, 1_000L)
+    private fun formatUsedFull(card: AllowanceCardData): String {
+        return when (card.mode) {
+            "count" -> {
+                val remaining = card.total - card.used
+                if (remaining <= 0L) "no opens left" else "$remaining of ${card.total} opens left"
             }
-        }
-        handler.post(clockRunnable!!)
-    }
-
-    private fun updateClockText() {
-        val now = Date()
-        val use24h = android.text.format.DateFormat.is24HourFormat(this)
-        val isAnalog = prefs.getString("launcher_clock_style", "digital") == "analog"
-
-        if (isAnalog) {
-            digitalTimeRow?.visibility = View.GONE
-            analogClockView?.visibility = View.VISIBLE
-            analogClockView?.invalidate()
-        } else {
-            digitalTimeRow?.visibility = View.VISIBLE
-            analogClockView?.visibility = View.GONE
-            if (use24h) {
-                clockView?.text = SimpleDateFormat("HH:mm", Locale.getDefault()).format(now)
-                clockView?.setTextColor(TEXT_PRIMARY)
-                colonView?.visibility = View.GONE
-                minuteView?.visibility = View.GONE
-                ampmView?.visibility = View.GONE
-            } else {
-                colonView?.visibility = View.VISIBLE
-                minuteView?.visibility = View.VISIBLE
-                ampmView?.visibility = View.VISIBLE
-                clockView?.setTextColor(TEXT_DIM)
-                clockView?.text = SimpleDateFormat("h", Locale.getDefault()).format(now)
-                colonView?.text = ":"
-                minuteView?.text = SimpleDateFormat("mm", Locale.getDefault()).format(now)
-                ampmView?.text = SimpleDateFormat("a", Locale.getDefault()).format(now)
-                ampmView?.setTextColor(wallpaperAccent)
-            }
-        }
-
-        dateView?.text = SimpleDateFormat("EEE, d MMM", Locale.getDefault()).format(now)
-        refreshFocusCard()
-        allowanceTickCount++
-        if (allowanceTickCount >= 60) {
-            allowanceTickCount = 0
-            refreshAllowanceStrip()
-            refreshProductivityStrip()
+            else -> "${formatDuration(card.used)} used • ${formatDuration(card.total - card.used)} left"
         }
     }
 
-    // ── Notification shade ────────────────────────────────────────────────────
-
-    /**
-     * Expands the notification shade panel on swipe-down.
-     * Requires android.permission.EXPAND_STATUS_BAR in the manifest.
-     */
-    @Suppress("UNCHECKED_CAST")
-    private fun expandNotificationsPanel() {
-        try {
-            val sbService = getSystemService("statusbar")
-            val sbClass   = Class.forName("android.app.StatusBarManager")
-            sbClass.getMethod("expandNotificationsPanel").invoke(sbService)
-        } catch (_: Exception) {}
-    }
-
-    // ── Utilities ─────────────────────────────────────────────────────────────
-
-    private fun parseJsonArray(json: String): List<String> {
-        return try {
-            val arr = JSONArray(json)
-            (0 until arr.length()).map { arr.getString(it) }
-        } catch (_: Exception) { emptyList() }
-    }
-
-    private fun saveJsonArray(key: String, list: List<String>) {
-        val json = "[${list.joinToString(",") { "\"$it\"" }}]"
-        prefs.edit().putString(key, json).apply()
-    }
-
-    // ── Daily Allowance Strip ─────────────────────────────────────────────────
-
-    private fun buildAllowanceStrip(): LinearLayout {
-        val container = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-            visibility = View.GONE
+    private fun formatDuration(ms: Long): String {
+        val minutes = (ms.coerceAtLeast(0L) / 60_000L)
+        val hours = minutes / 60
+        val remainder = minutes % 60
+        return when {
+            hours > 0 && remainder > 0 -> "${hours}h ${remainder}m"
+            hours > 0 -> "${hours}h"
+            minutes > 0 -> "${minutes}m"
+            else -> "0m"
         }
-        allowanceStripContainer = container
-        return container
-    }
-
-    private fun refreshAllowanceStrip() {
-        val container = allowanceStripContainer ?: return
-        container.removeAllViews()
-        val cards = loadAllowanceCardData()
-        if (cards.isEmpty()) {
-            container.visibility = View.GONE
-            return
-        }
-
-        val label = TextView(this).apply {
-            text = "TODAY'S LIMITS"
-            textSize = 10f
-            setTextColor(TEXT_MUTED)
-            letterSpacing = 0.08f
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).also { it.setMargins(dp(16), dp(10), dp(16), dp(4)) }
-        }
-        container.addView(label)
-
-        val scroll = HorizontalScrollView(this).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-            isHorizontalScrollBarEnabled = false
-        }
-        val row = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-            setPadding(dp(12), 0, dp(12), dp(10))
-        }
-        cards.forEach { card -> row.addView(buildAllowanceCard(card)) }
-        scroll.addView(row)
-        container.addView(scroll)
-        container.visibility = View.VISIBLE
-    }
-
-    private fun buildAllowanceCard(card: AllowanceCardData): View {
-        val fillColor = when {
-            card.fraction > 0.5f  -> Color.parseColor("#4CAF50")
-            card.fraction > 0.25f -> Color.parseColor("#FF9800")
-            else                  -> Color.parseColor("#F44336")
-        }
-        val borderColor = when {
-            card.fraction > 0.5f  -> Color.parseColor("#334CAF50")
-            card.fraction > 0.25f -> Color.parseColor("#33FF9800")
-            else                  -> Color.parseColor("#33F44336")
-        }
-
-        val cardView = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_HORIZONTAL
-            layoutParams = LinearLayout.LayoutParams(dp(80), LinearLayout.LayoutParams.WRAP_CONTENT).also {
-                it.setMargins(dp(4), 0, dp(4), 0)
-            }
-            setPadding(dp(6), dp(8), dp(6), dp(8))
-            background = GradientDrawable().apply {
-                cornerRadius = dp(12).toFloat()
-                setColor(Color.parseColor("#1A1F2E"))
-                setStroke(dp(1), borderColor)
-            }
-        }
-
-        val iconView = ImageView(this).apply {
-            layoutParams = LinearLayout.LayoutParams(dp(30), dp(30))
-            scaleType = ImageView.ScaleType.FIT_CENTER
-            card.icon?.let { setImageDrawable(it) }
-        }
-        cardView.addView(iconView)
-
-        val nameView = TextView(this).apply {
-            text = card.label
-            textSize = 10f
-            setTextColor(Color.WHITE)
-            gravity = Gravity.CENTER
-            maxLines = 1
-            ellipsize = TextUtils.TruncateAt.END
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).also { it.topMargin = dp(4) }
-        }
-        cardView.addView(nameView)
-
-        val fraction = card.fraction.coerceIn(0f, 1f)
-        val progressRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(4)
-            ).also { it.topMargin = dp(5) }
-            background = GradientDrawable().apply {
-                cornerRadius = dp(2).toFloat()
-                setColor(Color.parseColor("#22FFFFFF"))
-            }
-        }
-        if (fraction > 0f) {
-            progressRow.addView(View(this).apply {
-                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, fraction)
-                background = GradientDrawable().apply {
-                    cornerRadius = dp(2).toFloat()
-                    setColor(fillColor)
-                }
-            })
-        }
-        if (fraction < 1f) {
-            progressRow.addView(View(this).apply {
-                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f - fraction)
-            })
-        }
-        cardView.addView(progressRow)
-
-        val remainingView = TextView(this).apply {
-            text = card.displayText
-            textSize = 9f
-            setTextColor(TEXT_DIM)
-            gravity = Gravity.CENTER
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).also { it.topMargin = dp(3) }
-        }
-        cardView.addView(remainingView)
-
-        return cardView
     }
 
     private fun loadAllowanceCardData(): List<AllowanceCardData> {
@@ -2022,70 +1635,56 @@ class LauncherActivity : Activity() {
         }
     }
 
-    private fun animationsEnabled(): Boolean {
-        val scale = android.provider.Settings.Global.getFloat(
-            contentResolver,
-            android.provider.Settings.Global.ANIMATOR_DURATION_SCALE,
-            1f
-        )
-        return scale > 0f
-    }
+    // ── Clock, wallpaper, gestures, utilities ──────────────────────────────────
 
-    private fun contrastRatio(fg: Int, bg: Int): Double {
-        fun linearize(c: Double): Double =
-            if (c <= 0.04045) c / 12.92
-            else Math.pow((c + 0.055) / 1.055, 2.2)
-
-        fun luminance(color: Int): Double {
-            val r = linearize(Color.red(color) / 255.0)
-            val g = linearize(Color.green(color) / 255.0)
-            val b = linearize(Color.blue(color) / 255.0)
-            return 0.2126 * r + 0.7152 * g + 0.0722 * b
-        }
-
-        val l1 = luminance(fg)
-        val l2 = luminance(bg)
-        val lighter = maxOf(l1, l2)
-        val darker = minOf(l1, l2)
-        return (lighter + 0.05) / (darker + 0.05)
-    }
-
-    private fun rippleForeground(cornerDp: Int = 16): Drawable {
-        val mask = GradientDrawable().apply {
-            setColor(Color.WHITE)
-            shape = GradientDrawable.RECTANGLE
-            cornerRadius = dp(cornerDp).toFloat()
-        }
-        return RippleDrawable(
-            ColorStateList.valueOf(Color.parseColor("#30FFFFFF")),
-            null,
-            mask
-        )
-    }
-
-    private fun addPressAnimation(view: View) {
-        view.setOnTouchListener { v, ev ->
-            when (ev.actionMasked) {
-                MotionEvent.ACTION_DOWN -> if (animationsEnabled()) {
-                    v.animate().scaleX(0.93f).scaleY(0.93f).setDuration(100)
-                        .setInterpolator(DecelerateInterpolator()).start()
-                }
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    if (animationsEnabled()) {
-                        v.animate().scaleX(1f).scaleY(1f).setDuration(200)
-                            .setInterpolator(android.view.animation.OvershootInterpolator(1.5f)).start()
-                    } else {
-                        v.scaleX = 1f
-                        v.scaleY = 1f
-                    }
-                }
+    private fun startClock() {
+        clockRunnable = object : Runnable {
+            override fun run() {
+                updateClockText()
+                handler.postDelayed(this, 1_000L)
             }
-            false
         }
+        handler.post(clockRunnable!!)
+    }
+
+    private fun updateClockText() {
+        val now = Date()
+        val use24h = android.text.format.DateFormat.is24HourFormat(this)
+        val time = if (use24h) {
+            SimpleDateFormat("HH:mm", Locale.getDefault()).format(now)
+        } else {
+            SimpleDateFormat("h:mm a", Locale.getDefault()).format(now).lowercase(Locale.getDefault())
+        }
+        clockView?.text = time
+        dateView?.text = SimpleDateFormat("EEE, d MMM", Locale.getDefault()).format(now)
+        refreshFocusCard()
+    }
+
+    private fun loadCustomWallpaper() {
+        val view = customWallpaperView ?: return
+        loadWallpaperInto(view)
+    }
+
+    private fun loadWallpaperInto(view: ImageView) {
+        val path = prefs.getString(PREF_LAUNCHER_WALLPAPER, "")?.trim().orEmpty()
+        if (path.isEmpty()) {
+            view.setImageDrawable(null)
+            return
+        }
+        val bitmap = try {
+            if (path.startsWith("content://")) {
+                contentResolver.openInputStream(Uri.parse(path))?.use(BitmapFactory::decodeStream)
+            } else {
+                BitmapFactory.decodeFile(path.removePrefix("file://"))
+            }
+        } catch (_: Exception) {
+            null
+        }
+        view.setImageBitmap(bitmap)
     }
 
     private fun applyWallpaperTint() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O_MR1) return
+        if (currentTheme() != LauncherTheme.GLASSY || Build.VERSION.SDK_INT < Build.VERSION_CODES.O_MR1) return
         try {
             val colors = WallpaperManager.getInstance(this)
                 .getWallpaperColors(WallpaperManager.FLAG_SYSTEM) ?: return
@@ -2093,137 +1692,137 @@ class LauncherActivity : Activity() {
             val r = ((Color.red(dominant) * 0.4f) + (Color.red(ACCENT) * 0.6f)).toInt()
             val g = ((Color.green(dominant) * 0.4f) + (Color.green(ACCENT) * 0.6f)).toInt()
             val b = ((Color.blue(dominant) * 0.4f) + (Color.blue(ACCENT) * 0.6f)).toInt()
-            val candidate = Color.rgb(r, g, b)
-            val darkBg = Color.parseColor("#111827")
-            wallpaperAccent = if (contrastRatio(candidate, darkBg) >= 3.0) candidate else ACCENT
+            wallpaperAccent = Color.rgb(r, g, b)
         } catch (_: Exception) {
             wallpaperAccent = ACCENT
         }
-        ampmView?.setTextColor(wallpaperAccent)
-        dockFocusButton?.invalidate()
     }
 
-    private fun dp(v: Int) = (v * resources.displayMetrics.density + 0.5f).toInt()
-    private fun dp(v: Float) = (v * resources.displayMetrics.density + 0.5f).toInt()
-}
-
-/**
- * AnalogClockView — a Canvas-drawn analog clock face styled to match
- * the FocusFlow launcher's dark aesthetic (white hands, indigo accent,
- * subtle tick marks).
- *
- * Renders the current time each time invalidate() is called (driven by
- * LauncherActivity's 1-second clock tick).
- */
-class AnalogClockView(context: android.content.Context) : android.view.View(context) {
-
-    private val paintFace = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-        color = android.graphics.Color.parseColor("#1A1F2E")
-        style = android.graphics.Paint.Style.FILL
-    }
-    private val paintRim = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-        color = android.graphics.Color.parseColor("#6366f1")
-        style = android.graphics.Paint.Style.STROKE
-        strokeWidth = 3f
-    }
-    private val paintHour = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-        color = android.graphics.Color.WHITE
-        style = android.graphics.Paint.Style.STROKE
-        strokeWidth = 8f
-        strokeCap = android.graphics.Paint.Cap.ROUND
-    }
-    private val paintMinute = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-        color = android.graphics.Color.WHITE
-        style = android.graphics.Paint.Style.STROKE
-        strokeWidth = 5f
-        strokeCap = android.graphics.Paint.Cap.ROUND
-    }
-    private val paintSecond = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-        color = android.graphics.Color.parseColor("#6366f1")
-        style = android.graphics.Paint.Style.STROKE
-        strokeWidth = 2f
-        strokeCap = android.graphics.Paint.Cap.ROUND
-    }
-    private val paintTick = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-        color = android.graphics.Color.parseColor("#55667799")
-        style = android.graphics.Paint.Style.STROKE
-        strokeWidth = 2f
-    }
-    private val paintCenter = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-        color = android.graphics.Color.parseColor("#6366f1")
-        style = android.graphics.Paint.Style.FILL
-    }
-
-    override fun onDraw(canvas: android.graphics.Canvas) {
-        super.onDraw(canvas)
-        val w = width.toFloat()
-        val h = height.toFloat()
-        val cx = w / 2f
-        val cy = h / 2f
-        val radius = minOf(cx, cy) - 6f
-
-        // Face
-        canvas.drawCircle(cx, cy, radius, paintFace)
-        canvas.drawCircle(cx, cy, radius, paintRim)
-
-        // Tick marks (12 hour marks, slightly longer)
-        for (i in 0 until 60) {
-            val angle = Math.toRadians((i * 6 - 90).toDouble())
-            val isHour = i % 5 == 0
-            val outerR = radius - 4f
-            val innerR = if (isHour) radius - 16f else radius - 10f
-            paintTick.strokeWidth = if (isHour) 3f else 1.5f
-            paintTick.color = if (isHour)
-                android.graphics.Color.parseColor("#99AAAACC")
-            else
-                android.graphics.Color.parseColor("#33667799")
-            canvas.drawLine(
-                cx + (innerR * Math.cos(angle)).toFloat(),
-                cy + (innerR * Math.sin(angle)).toFloat(),
-                cx + (outerR * Math.cos(angle)).toFloat(),
-                cy + (outerR * Math.sin(angle)).toFloat(),
-                paintTick
-            )
+    private fun expandNotificationsPanel() {
+        try {
+            val statusBar = getSystemService("statusbar")
+            val cls = Class.forName("android.app.StatusBarManager")
+            cls.getMethod("expandNotificationsPanel").invoke(statusBar)
+        } catch (_: Exception) {
         }
-
-        // Current time
-        val cal = java.util.Calendar.getInstance()
-        val hours   = cal.get(java.util.Calendar.HOUR)
-        val minutes = cal.get(java.util.Calendar.MINUTE)
-        val seconds = cal.get(java.util.Calendar.SECOND)
-
-        // Hour hand (moves smoothly with minutes)
-        val hourAngle = Math.toRadians(((hours * 30 + minutes * 0.5f) - 90).toDouble())
-        val hourLen = radius * 0.5f
-        canvas.drawLine(
-            cx, cy,
-            cx + (hourLen * Math.cos(hourAngle)).toFloat(),
-            cy + (hourLen * Math.sin(hourAngle)).toFloat(),
-            paintHour
-        )
-
-        // Minute hand
-        val minuteAngle = Math.toRadians(((minutes * 6 + seconds * 0.1f) - 90).toDouble())
-        val minuteLen = radius * 0.72f
-        canvas.drawLine(
-            cx, cy,
-            cx + (minuteLen * Math.cos(minuteAngle)).toFloat(),
-            cy + (minuteLen * Math.sin(minuteAngle)).toFloat(),
-            paintMinute
-        )
-
-        // Second hand
-        val secondAngle = Math.toRadians((seconds * 6 - 90).toDouble())
-        val secondLen = radius * 0.80f
-        canvas.drawLine(
-            cx - (secondLen * 0.15f * Math.cos(secondAngle)).toFloat(),
-            cy - (secondLen * 0.15f * Math.sin(secondAngle)).toFloat(),
-            cx + (secondLen * Math.cos(secondAngle)).toFloat(),
-            cy + (secondLen * Math.sin(secondAngle)).toFloat(),
-            paintSecond
-        )
-
-        // Center dot
-        canvas.drawCircle(cx, cy, 6f, paintCenter)
     }
+
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        when (ev.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                swipeTouchStartY = ev.rawY
+                swipeVelocityTracker?.recycle()
+                swipeVelocityTracker = VelocityTracker.obtain().also { it.addMovement(ev) }
+            }
+            MotionEvent.ACTION_MOVE -> swipeVelocityTracker?.addMovement(ev)
+            MotionEvent.ACTION_UP -> {
+                swipeVelocityTracker?.addMovement(ev)
+                swipeVelocityTracker?.computeCurrentVelocity(1000)
+                val velocity = swipeVelocityTracker?.yVelocity ?: 0f
+                swipeVelocityTracker?.recycle()
+                swipeVelocityTracker = null
+                val dy = swipeTouchStartY - ev.rawY
+                if (dy > dp(60) && velocity < -250f && !isDrawerOpen) {
+                    openDrawer()
+                    return true
+                }
+                if (dy < -dp(80) && velocity > 250f) {
+                    expandNotificationsPanel()
+                    return true
+                }
+            }
+            MotionEvent.ACTION_CANCEL -> {
+                swipeVelocityTracker?.recycle()
+                swipeVelocityTracker = null
+            }
+        }
+        return super.dispatchTouchEvent(ev)
+    }
+
+    private fun searchGlyph(color: Int): View {
+        return object : View(this) {
+            private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                this.color = color
+                style = Paint.Style.STROKE
+                strokeWidth = dp(2).toFloat()
+                strokeCap = Paint.Cap.ROUND
+            }
+
+            override fun onDraw(canvas: Canvas) {
+                val r = dp(6).toFloat()
+                val cx = dp(8).toFloat()
+                val cy = height / 2f - dp(1)
+                canvas.drawCircle(cx, cy, r, paint)
+                canvas.drawLine(cx + r * 0.7f, cy + r * 0.7f, cx + dp(13), cy + dp(12), paint)
+            }
+        }.apply {
+            layoutParams = LinearLayout.LayoutParams(dp(20), dp(20))
+            contentDescription = "Search"
+        }
+    }
+
+    private fun getAppIcon(pkg: String): Drawable? =
+        try { packageManager.getApplicationIcon(pkg) } catch (_: Exception) { null }
+
+    private fun parseJsonArray(json: String): List<String> {
+        return try {
+            val arr = JSONArray(json)
+            (0 until arr.length()).map { arr.getString(it) }
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    private fun saveJsonArray(key: String, values: List<String>) {
+        val arr = JSONArray()
+        values.forEach { arr.put(it) }
+        prefs.edit().putString(key, arr.toString()).apply()
+    }
+
+    private fun roundedBackground(fill: Int, stroke: Int, radiusDp: Int): Drawable {
+        return GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = dp(radiusDp).toFloat()
+            setColor(fill)
+            if (stroke != Color.TRANSPARENT) setStroke(dp(1), stroke)
+        }
+    }
+
+    private fun ovalBackground(fill: Int, stroke: Int = Color.TRANSPARENT): Drawable {
+        return GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(fill)
+            if (stroke != Color.TRANSPARENT) setStroke(dp(1), stroke)
+        }
+    }
+
+    private fun layeredGlassBackground(radiusDp: Int): Drawable {
+        val base = roundedBackground(GLASS_MID, Color.TRANSPARENT, radiusDp)
+        val border = roundedBackground(Color.TRANSPARENT, GLASS_BORDER_BRIGHT, radiusDp)
+        return LayerDrawable(arrayOf(base, border))
+    }
+
+    private fun rippleForeground(cornerDp: Int = 16): Drawable {
+        val mask = roundedBackground(Color.WHITE, Color.TRANSPARENT, cornerDp)
+        return RippleDrawable(
+            ColorStateList.valueOf(Color.parseColor("#30FFFFFF")),
+            null,
+            mask,
+        )
+    }
+
+    private fun animationsEnabled(): Boolean {
+        val scale = android.provider.Settings.Global.getFloat(
+            contentResolver,
+            android.provider.Settings.Global.ANIMATOR_DURATION_SCALE,
+            1f,
+        )
+        return scale > 0f
+    }
+
+    private fun dp(value: Int): Int =
+        (value * resources.displayMetrics.density + 0.5f).toInt()
+
+    private fun dp(value: Float): Int =
+        (value * resources.displayMetrics.density + 0.5f).toInt()
 }

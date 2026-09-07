@@ -794,6 +794,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       void logger.warn('AppContext', `launcher hidden packages sync failed: ${String(e)}`);
     }
     try {
+      await SharedPrefsModule.setLauncherTheme(settings.launcherTheme ?? 'glassy');
+    } catch (e) {
+      void logger.warn('AppContext', `launcher theme sync failed: ${String(e)}`);
+    }
+    try {
+      await SharedPrefsModule.setFocusToolPackages(settings.focusToolPackages ?? []);
+    } catch (e) {
+      void logger.warn('AppContext', `focus tools sync failed: ${String(e)}`);
+    }
+    try {
       await SharedPrefsModule.setLauncherDockPackages(settings.launcherDockPackages ?? []);
     } catch (e) {
       void logger.warn('AppContext', `launcher dock packages sync failed: ${String(e)}`);

@@ -284,6 +284,24 @@ export const SharedPrefsModule = {
   },
 
   /**
+   * Writes the whole visual theme used by the native home launcher.
+   * Theme changes take effect the next time LauncherActivity resumes.
+   */
+  async setLauncherTheme(theme: 'classic' | 'glassy'): Promise<void> {
+    if (!hasSharedPrefsMethod('setLauncherTheme')) return;
+    await callNative('setLauncherTheme', () => SharedPrefs.setLauncherTheme(theme));
+  },
+
+  /**
+   * Writes the user-curated package whitelist used by the drawer's Focus Tools
+   * filter.
+   */
+  async setFocusToolPackages(packages: string[]): Promise<void> {
+    if (!hasSharedPrefsMethod('setFocusToolPackages')) return;
+    await callNative('setFocusToolPackages', () => SharedPrefs.setFocusToolPackages(JSON.stringify(packages)));
+  },
+
+  /**
    * Writes the ordered list of packages for the home launcher's persistent
    * bottom dock (max 5). Stored as a JSON array string in SharedPreferences.
    */

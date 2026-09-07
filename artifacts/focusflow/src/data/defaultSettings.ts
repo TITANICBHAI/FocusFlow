@@ -44,6 +44,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   standaloneVpnPackages: [],
   vpnSelfHealEnabled: false,
   keepFocusActiveUntilTaskEnd: true,
+  launcherTheme: 'glassy',
+  focusToolPackages: [],
   launcherEnabled: false,
   launcherHiddenPackages: [],
   launcherPinnedPackages: [],

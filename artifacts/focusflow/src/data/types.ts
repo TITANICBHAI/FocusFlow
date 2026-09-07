@@ -248,7 +248,9 @@ export interface AppSettings {
   // FocusFlow can act as the device's home screen. When set as default launcher,
   // every app tap routes through FocusFlow first — instant enforcement with no
   // accessibility-service reaction delay.
-  launcherEnabled?: boolean;              // User has enabled the launcher feature
+   launcherTheme: 'classic' | 'glassy';    // Whole-theme choice for the native launcher
+   focusToolPackages: string[];            // User-curated Focus Tools drawer filter
+   launcherEnabled?: boolean;              // User has enabled the launcher feature
   launcherHiddenPackages?: string[];      // Apps completely hidden from the app drawer (only blocked apps can be hidden)
   launcherPinnedPackages?: string[];      // Ordered list of packages on the home screen grid
   launcherDockPackages?: string[];        // Up to 5 apps pinned in the persistent bottom dock

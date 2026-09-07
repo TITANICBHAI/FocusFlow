@@ -1,29 +1,26 @@
 /**
- * home-launcher.tsx
+ * Home Launcher configuration.
  *
- * Home Launcher configuration screen.
- *
- * Accessible from:
- *   - Block Enforcement → Home Launcher section → "Configure Home Launcher"
- *   - Permissions screen → Home Launcher card (when granted) → "Configure Launcher Settings"
- *
- * Locked during active standalone block (same pattern as permissions.tsx).
+ * The native launcher owns layout, drawer editing, and the visual theme.
+ * This screen owns the durable user choices that need to be shared with the
+ * React Native settings experience: theme, Focus Tools, wallpaper, drawer
+ * visibility, and launcher protections.
  */
 
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View,
-  Text,
-  ScrollView,
-  Image,
-  TextInput,
-  Switch,
-  TouchableOpacity,
-  StyleSheet,
-  Alert,
-  Linking,
   ActivityIndicator,
+  Alert,
   AppState,
+  Image,
+  Linking,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -41,30 +38,31 @@ export default function HomeLauncherScreen() {
   const { theme } = useTheme();
   const { state, updateSettings } = useApp();
   const { settings } = state;
-
-  const standaloneActive = (() => {
-    if (!settings.standaloneBlockUntil) return false;
-    if ((settings.standaloneBlockPackages ?? []).length === 0) return false;
-    return new Date(settings.standaloneBlockUntil).getTime() > Date.now();
-  })();
-  const isLocked = standaloneActive;
-
   const [isDefault, setIsDefault] = useState<boolean | null>(null);
   const [checkingDefault, setCheckingDefault] = useState(true);
   const [apps, setApps] = useState<InstalledApp[]>([]);
   const [loadingApps, setLoadingApps] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
+  const standaloneActive = Boolean(
+    settings.standaloneBlockUntil &&
+      (settings.standaloneBlockPackages ?? []).length > 0 &&
+      new Date(settings.standaloneBlockUntil).getTime() > Date.now(),
+  );
   const blockedPackages = useMemo(
     () => new Set([...(settings.standaloneBlockPackages ?? []), ...(settings.alwaysOnPackages ?? [])]),
     [settings.standaloneBlockPackages, settings.alwaysOnPackages],
+  );
+  const focusTools = useMemo(() => new Set(settings.focusToolPackages ?? []), [settings.focusToolPackages]);
+  const hiddenPackages = useMemo(
+    () => new Set(settings.launcherHiddenPackages ?? []),
+    [settings.launcherHiddenPackages],
   );
 
   const checkDefault = useCallback(async () => {
     setCheckingDefault(true);
     try {
-      const result = await SharedPrefsModule.isDefaultLauncher();
-      setIsDefault(result);
+      setIsDefault(await SharedPrefsModule.isDefaultLauncher());
     } catch {
       setIsDefault(false);
     } finally {
@@ -81,8 +79,8 @@ export default function HomeLauncherScreen() {
   }, [checkDefault]);
 
   useEffect(() => {
-    const sub = AppState.addEventListener('change', (s) => {
-      if (s === 'active') void checkDefault();
+    const sub = AppState.addEventListener('change', (value) => {
+      if (value === 'active') void checkDefault();
     });
     return () => sub.remove();
   }, [checkDefault]);
@@ -98,74 +96,36 @@ export default function HomeLauncherScreen() {
     [settings, updateSettings],
   );
 
-  const handleSetDefault = () => {
-    Linking.sendIntent('android.settings.HOME_SETTINGS').catch(() =>
-      Linking.sendIntent('android.settings.MANAGE_DEFAULT_APPS_SETTINGS').catch(() =>
-        Linking.openSettings(),
-      ),
-    );
-  };
-
-  // ── Home screen grid (pinned) ────────────────────────────────────────────────
-  const togglePinned = useCallback(
+  const toggleFocusTool = useCallback(
     (pkg: string) => {
-      const pinned = new Set(settings.launcherPinnedPackages ?? []);
-      if (pinned.has(pkg)) pinned.delete(pkg);
-      else pinned.add(pkg);
-      void update({ launcherPinnedPackages: Array.from(pinned) });
+      const next = new Set(settings.focusToolPackages ?? []);
+      if (next.has(pkg)) next.delete(pkg);
+      else next.add(pkg);
+      void update({ focusToolPackages: Array.from(next) });
     },
-    [settings.launcherPinnedPackages, update],
+    [settings.focusToolPackages, update],
   );
 
-  // ── Dock ─────────────────────────────────────────────────────────────────────
-  const toggleDock = useCallback(
-    (pkg: string) => {
-      const dock = [...(settings.launcherDockPackages ?? [])];
-      const idx = dock.indexOf(pkg);
-      if (idx >= 0) {
-        dock.splice(idx, 1);
-      } else {
-        if (dock.length >= 5) {
-          Alert.alert(
-            'Dock is full',
-            'The dock holds up to 5 apps. Remove one first before adding another.',
-          );
-          return;
-        }
-        dock.push(pkg);
-      }
-      void update({ launcherDockPackages: dock });
-    },
-    [settings.launcherDockPackages, update],
-  );
-
-  // ── Drawer visibility ─────────────────────────────────────────────────────────
   const toggleHidden = useCallback(
     (pkg: string) => {
-      const hidden = new Set(settings.launcherHiddenPackages ?? []);
-      if (hidden.has(pkg)) hidden.delete(pkg);
-      else {
+      const next = new Set(settings.launcherHiddenPackages ?? []);
+      if (next.has(pkg)) {
+        next.delete(pkg);
+      } else {
         if (!blockedPackages.has(pkg)) {
           Alert.alert(
             'Only blocked apps can be hidden',
-            'Add this app to your standalone block list or always-on list first, then hide it from the drawer.',
+            'Add this app to your standalone block list or Always-On list first, then hide it from the drawer.',
           );
           return;
         }
-        hidden.add(pkg);
+        next.add(pkg);
       }
-      void update({ launcherHiddenPackages: Array.from(hidden) });
+      void update({ launcherHiddenPackages: Array.from(next) });
     },
-    [settings.launcherHiddenPackages, blockedPackages, update],
+    [blockedPackages, settings.launcherHiddenPackages, update],
   );
 
-  const pinnedSet = useMemo(() => new Set(settings.launcherPinnedPackages ?? []), [settings.launcherPinnedPackages]);
-  const dockSet   = useMemo(() => new Set(settings.launcherDockPackages ?? []),   [settings.launcherDockPackages]);
-  const hiddenSet = useMemo(() => new Set(settings.launcherHiddenPackages ?? []), [settings.launcherHiddenPackages]);
-  const appByPackage = useMemo(
-    () => new Map(apps.map((app) => [app.packageName, app])),
-    [apps],
-  );
   const filteredApps = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     if (!query) return apps;
@@ -175,42 +135,14 @@ export default function HomeLauncherScreen() {
         app.packageName.toLowerCase().includes(query),
     );
   }, [apps, searchQuery]);
-  const pinnedApps = useMemo(
-    () => (settings.launcherPinnedPackages ?? [])
-      .map((pkg) => appByPackage.get(pkg))
-      .filter((app): app is InstalledApp => Boolean(app)),
-    [appByPackage, settings.launcherPinnedPackages],
-  );
-  const dockApps = useMemo(
-    () => (settings.launcherDockPackages ?? [])
-      .map((pkg) => appByPackage.get(pkg))
-      .filter((app): app is InstalledApp => Boolean(app)),
-    [appByPackage, settings.launcherDockPackages],
-  );
 
-  const movePinned = useCallback(
-    (pkg: string, delta: -1 | 1) => {
-      const next = [...(settings.launcherPinnedPackages ?? [])];
-      const from = next.indexOf(pkg);
-      const to = from + delta;
-      if (from < 0 || to < 0 || to >= next.length) return;
-      [next[from], next[to]] = [next[to], next[from]];
-      void update({ launcherPinnedPackages: next });
-    },
-    [settings.launcherPinnedPackages, update],
-  );
-
-  const moveDock = useCallback(
-    (pkg: string, delta: -1 | 1) => {
-      const next = [...(settings.launcherDockPackages ?? [])];
-      const from = next.indexOf(pkg);
-      const to = from + delta;
-      if (from < 0 || to < 0 || to >= next.length) return;
-      [next[from], next[to]] = [next[to], next[from]];
-      void update({ launcherDockPackages: next });
-    },
-    [settings.launcherDockPackages, update],
-  );
+  const handleSetDefault = () => {
+    Linking.sendIntent('android.settings.HOME_SETTINGS').catch(() =>
+      Linking.sendIntent('android.settings.MANAGE_DEFAULT_APPS_SETTINGS').catch(() =>
+        Linking.openSettings(),
+      ),
+    );
+  };
 
   const handlePickWallpaper = useCallback(async () => {
     try {
@@ -231,16 +163,18 @@ export default function HomeLauncherScreen() {
     }
   }, [update]);
 
-  const handleClearWallpaper = useCallback(async () => {
+  const clearWallpaper = useCallback(async () => {
     await update({ launcherWallpaperUri: null });
     await SharedPrefsModule.putString('launcher_wallpaper', '');
   }, [update]);
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
-      {/* Header */}
       <View style={[styles.header, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
           <Ionicons name="chevron-back" size={24} color={theme.text} />
         </TouchableOpacity>
         <View style={{ flex: 1, marginLeft: SPACING.sm }}>
@@ -251,8 +185,7 @@ export default function HomeLauncherScreen() {
         </View>
       </View>
 
-      {/* Full-screen lock during standalone block */}
-      {isLocked ? (
+      {standaloneActive ? (
         <View style={[styles.lockedScreen, { backgroundColor: theme.background }]}>
           <View style={[styles.lockedCard, { backgroundColor: theme.card, borderColor: COLORS.orange + '55' }]}>
             <View style={styles.lockedIconRing}>
@@ -263,7 +196,7 @@ export default function HomeLauncherScreen() {
               Launcher settings are disabled while a standalone block is active.{'\n\n'}
               Stop the current block to change launcher configuration.
             </Text>
-            <TouchableOpacity style={styles.lockedBackBtn} onPress={() => router.back()} activeOpacity={0.8}>
+            <TouchableOpacity style={styles.lockedBackBtn} onPress={() => router.back()}>
               <Ionicons name="chevron-back" size={16} color="#fff" />
               <Text style={styles.lockedBackText}>Go Back</Text>
             </TouchableOpacity>
@@ -274,8 +207,6 @@ export default function HomeLauncherScreen() {
           style={styles.scroll}
           contentContainerStyle={[styles.content, { paddingBottom: 40 + insets.bottom }]}
         >
-
-          {/* ── Status card ──────────────────────────────────────────── */}
           <View style={[styles.statusCard, {
             backgroundColor: isDefault ? COLORS.green + '12' : theme.card,
             borderColor: isDefault ? COLORS.green + '44' : theme.border,
@@ -284,14 +215,15 @@ export default function HomeLauncherScreen() {
               <View style={[styles.statusIcon, {
                 backgroundColor: (isDefault ? COLORS.green : COLORS.orange) + '20',
               }]}>
-                {checkingDefault
-                  ? <ActivityIndicator size="small" color={COLORS.primary} />
-                  : <Ionicons
-                      name={isDefault ? 'checkmark-circle' : 'alert-circle-outline'}
-                      size={24}
-                      color={isDefault ? COLORS.green : COLORS.orange}
-                    />
-                }
+                {checkingDefault ? (
+                  <ActivityIndicator size="small" color={COLORS.primary} />
+                ) : (
+                  <Ionicons
+                    name={isDefault ? 'checkmark-circle' : 'alert-circle-outline'}
+                    size={24}
+                    color={isDefault ? COLORS.green : COLORS.orange}
+                  />
+                )}
               </View>
               <View style={{ flex: 1, gap: 2 }}>
                 <Text style={[styles.statusTitle, { color: theme.text }]}>
@@ -303,257 +235,135 @@ export default function HomeLauncherScreen() {
                 </Text>
                 <Text style={[styles.statusDesc, { color: theme.muted }]}>
                   {isDefault
-                    ? 'Every app tap routes through FocusFlow — zero reaction delay, no brief flashes of blocked apps.'
-                    : 'Set FocusFlow as your home app to get instant interception. Your existing home screen is preserved and can be re-selected at any time.'}
+                    ? 'Every app tap routes through FocusFlow — zero reaction delay.'
+                    : 'Set FocusFlow as your home app to get instant interception.'}
                 </Text>
               </View>
             </View>
             {!isDefault && (
-              <TouchableOpacity style={styles.setDefaultBtn} onPress={handleSetDefault} activeOpacity={0.85}>
+              <TouchableOpacity style={styles.setDefaultBtn} onPress={handleSetDefault}>
                 <Ionicons name="home-outline" size={16} color="#fff" />
                 <Text style={styles.setDefaultBtnText}>Set as Default Home App</Text>
               </TouchableOpacity>
             )}
           </View>
 
-          {/* ── Live launcher preview ─────────────────────────────────── */}
-          <LauncherPreview
-            pinnedApps={pinnedApps}
-            dockApps={dockApps}
-            wallpaperUri={settings.launcherWallpaperUri ?? null}
-            theme={theme}
-          />
-
-          {/* ── Appearance ───────────────────────────────────────────── */}
           <SectionHeader
             icon="color-palette-outline"
             title="Appearance"
-            description="Customise how the FocusFlow home screen looks."
+            description="Choose the visual treatment for the native launcher."
+            theme={theme}
+          />
+          <View style={styles.themeRow}>
+            <ThemePreviewCard
+              label="Classic"
+              active={(settings.launcherTheme ?? 'glassy') === 'classic'}
+              onPress={() => void update({ launcherTheme: 'classic' })}
+              variant="classic"
+            />
+            <ThemePreviewCard
+              label="Glassy"
+              active={(settings.launcherTheme ?? 'glassy') === 'glassy'}
+              onPress={() => void update({ launcherTheme: 'glassy' })}
+              variant="glassy"
+            />
+          </View>
+          <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <View style={styles.settingRow}>
+              <View style={{ flex: 1, gap: 3 }}>
+                <Text style={[styles.settingLabel, { color: theme.text }]}>Launcher theme</Text>
+                <Text style={[styles.settingDesc, { color: theme.muted }]}>
+                  Glassy uses wallpaper and frosted surfaces. Classic uses a flat dark layout.
+                </Text>
+              </View>
+            </View>
+            {(settings.launcherTheme ?? 'glassy') === 'glassy' && (
+              <TouchableOpacity style={styles.settingRow} onPress={() => void handlePickWallpaper()}>
+                <View style={{ flex: 1, gap: 3 }}>
+                  <Text style={[styles.settingLabel, { color: theme.text }]}>
+                    {settings.launcherWallpaperUri ? 'Custom wallpaper' : 'Wallpaper'}
+                  </Text>
+                  <Text style={[styles.settingDesc, { color: theme.muted }]}>
+                    {settings.launcherWallpaperUri
+                      ? 'Tap to choose a different image'
+                      : 'Uses the system wallpaper by default — tap to choose an image'}
+                  </Text>
+                </View>
+                {settings.launcherWallpaperUri ? (
+                  <TouchableOpacity onPress={() => void clearWallpaper()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Ionicons name="close-circle-outline" size={20} color={theme.muted} />
+                  </TouchableOpacity>
+                ) : (
+                  <Ionicons name="image-outline" size={18} color={theme.muted} />
+                )}
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <SectionHeader
+            icon="sparkles-outline"
+            title="Focus Tools"
+            description="Choose the apps shown by the Focus Tools chip in the native drawer."
             theme={theme}
           />
           <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            <View style={[styles.settingRow, { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.border }]}>
-              <View style={{ flex: 1, gap: 2 }}>
-                <Text style={[styles.settingLabel, { color: theme.text }]}>Clock style</Text>
-                <Text style={[styles.settingDesc, { color: theme.muted }]}>
-                  {settings.launcherClockStyle === 'analog' ? 'Analog clock face' : 'Large digital time display (respects 24 h system setting)'}
-                </Text>
-              </View>
-              <View style={styles.segmentControl}>
-                {(['digital', 'analog'] as const).map((style) => (
-                  <TouchableOpacity
-                    key={style}
-                    style={[
-                      styles.segmentBtn,
-                      (settings.launcherClockStyle ?? 'digital') === style && styles.segmentBtnActive,
-                    ]}
-                    onPress={() => void update({ launcherClockStyle: style })}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[
-                      styles.segmentText,
-                      (settings.launcherClockStyle ?? 'digital') === style && styles.segmentTextActive,
-                    ]}>
-                      {style.charAt(0).toUpperCase() + style.slice(1)}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            <TouchableOpacity
-              style={styles.settingRow}
-              onPress={() => void handlePickWallpaper()}
-              activeOpacity={0.75}
-            >
-              <View style={{ flex: 1, gap: 2 }}>
-                <Text style={[styles.settingLabel, { color: theme.text }]}>
-                  {settings.launcherWallpaperUri ? 'Custom wallpaper' : 'Wallpaper'}
-                </Text>
-                <Text style={[styles.settingDesc, { color: theme.muted }]}>
-                  {settings.launcherWallpaperUri
-                    ? 'Tap to choose a different image'
-                    : 'Uses your system wallpaper by default — tap to choose an image'}
-                </Text>
-              </View>
-              {settings.launcherWallpaperUri ? (
-                <TouchableOpacity
-                  onPress={() => void handleClearWallpaper()}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <Ionicons name="close-circle-outline" size={20} color={theme.muted} />
-                </TouchableOpacity>
-              ) : (
-                <Ionicons name="image-outline" size={18} color={theme.muted} />
-              )}
-            </TouchableOpacity>
+            <AppList
+              apps={filteredApps}
+              loading={loadingApps}
+              checked={focusTools}
+              onToggle={toggleFocusTool}
+              theme={theme}
+              emptyText="No installed apps match this search."
+              badge={(app) => blockedPackages.has(app.packageName) ? 'blocked' : undefined}
+            />
           </View>
 
-          {/* ── App library search ────────────────────────────────────── */}
           <View style={[styles.searchBox, { backgroundColor: theme.card, borderColor: theme.border }]}>
             <Ionicons name="search-outline" size={18} color={theme.muted} />
             <TextInput
               value={searchQuery}
               onChangeText={setSearchQuery}
-              placeholder="Search all installed apps"
+              placeholder="Search installed apps"
               placeholderTextColor={theme.muted}
               autoCapitalize="none"
               autoCorrect={false}
               style={[styles.searchInput, { color: theme.text }]}
             />
             {searchQuery.length > 0 && (
-              <TouchableOpacity
-                onPress={() => setSearchQuery('')}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
+              <TouchableOpacity onPress={() => setSearchQuery('')}>
                 <Ionicons name="close-circle" size={18} color={theme.muted} />
               </TouchableOpacity>
             )}
           </View>
-          <Text style={[styles.searchHint, { color: theme.muted }]}>
-            {searchQuery
-              ? `${filteredApps.length} matching app${filteredApps.length === 1 ? '' : 's'}`
-              : `${apps.length} installed apps · select below to customize your launcher`}
-          </Text>
 
-          {/* ── Dock ─────────────────────────────────────────────────── */}
-          <SectionHeader
-            icon="ellipse-outline"
-            title="Dock"
-            description="Up to 5 apps always visible at the bottom of the home screen — your most-used apps go here."
-            theme={theme}
-          />
-          <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            {loadingApps ? (
-              <View style={styles.loadingRow}>
-                <ActivityIndicator size="small" color={COLORS.primary} />
-                <Text style={[styles.loadingText, { color: theme.muted }]}>Loading installed apps…</Text>
-              </View>
-            ) : apps.length === 0 ? (
-              <View style={styles.emptyRow}>
-                <Text style={[styles.emptyText, { color: theme.muted }]}>No apps found — EAS build required</Text>
-              </View>
-            ) : (
-              <>
-                {dockApps.length > 0 && (
-                  <View style={[styles.orderSection, { borderBottomColor: theme.border }]}>
-                    <Text style={[styles.orderTitle, { color: theme.text }]}>Dock order</Text>
-                    {dockApps.map((app, index) => (
-                      <OrderedAppRow
-                        key={app.packageName}
-                        app={app}
-                        index={index}
-                        total={dockApps.length}
-                        onMove={moveDock}
-                        theme={theme}
-                      />
-                    ))}
-                  </View>
-                )}
-                {filteredApps.map((app) => (
-                  <AppToggleRow
-                    key={app.packageName}
-                    app={app}
-                    checked={dockSet.has(app.packageName)}
-                    onToggle={() => toggleDock(app.packageName)}
-                    theme={theme}
-                    badge={blockedPackages.has(app.packageName) ? 'blocked' : undefined}
-                    disabled={!dockSet.has(app.packageName) && dockSet.size >= 5}
-                  />
-                ))}
-                {filteredApps.length === 0 && (
-                  <View style={styles.emptyRow}>
-                    <Text style={[styles.emptyText, { color: theme.muted }]}>No installed apps match this search.</Text>
-                  </View>
-                )}
-              </>
-            )}
-          </View>
-          {(settings.launcherDockPackages ?? []).length >= 5 && (
-            <Text style={[styles.moreAppsHint, { color: COLORS.orange }]}>
-              Dock is full (5/5). Remove a dock app to add another.
-            </Text>
-          )}
-
-          {/* ── Home Screen Grid ──────────────────────────────────────── */}
-          <SectionHeader
-            icon="grid-outline"
-            title="Home Screen Grid"
-            description="Apps shown in the 4-column grid on the main home screen. Long-press any icon on the home screen to add or remove. You can also use the list below."
-            theme={theme}
-          />
-          <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            {loadingApps ? (
-              <View style={styles.loadingRow}>
-                <ActivityIndicator size="small" color={COLORS.primary} />
-                <Text style={[styles.loadingText, { color: theme.muted }]}>Loading installed apps…</Text>
-              </View>
-            ) : apps.length === 0 ? (
-              <View style={styles.emptyRow}>
-                <Text style={[styles.emptyText, { color: theme.muted }]}>No apps found — EAS build required</Text>
-              </View>
-            ) : (
-              <>
-                {pinnedApps.length > 0 && (
-                  <View style={[styles.orderSection, { borderBottomColor: theme.border }]}>
-                    <Text style={[styles.orderTitle, { color: theme.text }]}>Home grid order</Text>
-                    {pinnedApps.map((app, index) => (
-                      <OrderedAppRow
-                        key={app.packageName}
-                        app={app}
-                        index={index}
-                        total={pinnedApps.length}
-                        onMove={movePinned}
-                        theme={theme}
-                      />
-                    ))}
-                  </View>
-                )}
-                {filteredApps.map((app) => (
-                  <AppToggleRow
-                    key={app.packageName}
-                    app={app}
-                    checked={pinnedSet.has(app.packageName)}
-                    onToggle={() => togglePinned(app.packageName)}
-                    theme={theme}
-                    badge={blockedPackages.has(app.packageName) ? 'blocked' : undefined}
-                  />
-                ))}
-                {filteredApps.length === 0 && (
-                  <View style={styles.emptyRow}>
-                    <Text style={[styles.emptyText, { color: theme.muted }]}>No installed apps match this search.</Text>
-                  </View>
-                )}
-              </>
-            )}
-          </View>
-
-          {/* ── App Drawer Visibility ────────────────────────────────── */}
           <SectionHeader
             icon="eye-off-outline"
             title="App Drawer Visibility"
-            description="Completely hide blocked apps from the drawer so they don't appear at all. Only apps already in your block list can be hidden."
+            description="Only blocked apps can be hidden from the drawer. Glassy also supports hiding directly in Edit Mode."
             theme={theme}
           />
           <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            {blockedPackages.size === 0 ? (
+            {Array.from(blockedPackages).length === 0 ? (
               <View style={styles.emptyRow}>
                 <Ionicons name="information-circle-outline" size={18} color={theme.muted} />
                 <Text style={[styles.emptyText, { color: theme.muted }]}>
-                  No blocked apps yet. Add apps to your standalone or always-on list to hide them from the drawer.
+                  No blocked apps yet. Add apps to Standalone or Always-On first.
                 </Text>
               </View>
             ) : (
-              Array.from(blockedPackages).map((pkg, idx) => {
-                const app = apps.find((a) => a.packageName === pkg);
+              Array.from(blockedPackages).map((pkg) => {
+                const app = apps.find((candidate) => candidate.packageName === pkg) ?? {
+                  packageName: pkg,
+                  appName: pkg,
+                  isIme: false,
+                };
                 return (
                   <AppToggleRow
                     key={pkg}
-                    app={app ?? { packageName: pkg, appName: pkg, isIme: false }}
-                    checked={hiddenSet.has(pkg)}
+                    app={app}
+                    checked={hiddenPackages.has(pkg)}
                     onToggle={() => toggleHidden(pkg)}
                     theme={theme}
-                    isLast={idx === blockedPackages.size - 1}
                     badge="blocked"
                   />
                 );
@@ -561,7 +371,6 @@ export default function HomeLauncherScreen() {
             )}
           </View>
 
-          {/* ── Launcher Protections ─────────────────────────────────── */}
           <SectionHeader
             icon="shield-checkmark-outline"
             title="Launcher Protections"
@@ -571,9 +380,9 @@ export default function HomeLauncherScreen() {
           <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
             <SwitchRow
               label="Lock launcher during standalone block"
-              description="Intercepts the 'Default home app' Settings page and presses HOME while a standalone block is running — prevents switching away mid-session"
+              description="Prevent switching away from FocusFlow while a standalone block is running."
               value={settings.launcherLockDuringStandalone ?? true}
-              onValueChange={(v) => void update({ launcherLockDuringStandalone: v })}
+              onValueChange={(value) => void update({ launcherLockDuringStandalone: value })}
               theme={theme}
               isLast
             />
@@ -583,7 +392,7 @@ export default function HomeLauncherScreen() {
             <Ionicons name="bulb-outline" size={16} color={COLORS.primary} />
             <Text style={[styles.tipText, { color: theme.muted }]}>
               <Text style={{ fontWeight: '700', color: theme.text }}>How it works: </Text>
-              The launcher reads your block list directly from storage — no accessibility service round-trip needed. Blocked apps dim immediately and the block overlay appears before the app even starts. Unblocked apps launch normally.
+              The native launcher reads block state directly from SharedPreferences, so blocked apps can be intercepted before they start.
             </Text>
           </View>
         </ScrollView>
@@ -592,109 +401,44 @@ export default function HomeLauncherScreen() {
   );
 }
 
-function LauncherPreview({
-  pinnedApps,
-  dockApps,
-  wallpaperUri,
-  theme,
+function ThemePreviewCard({
+  label,
+  active,
+  onPress,
+  variant,
 }: {
-  pinnedApps: InstalledApp[];
-  dockApps: InstalledApp[];
-  wallpaperUri: string | null;
-  theme: ReturnType<typeof useTheme>['theme'];
+  label: string;
+  active: boolean;
+  onPress: () => void;
+  variant: 'classic' | 'glassy';
 }) {
+  const isGlassy = variant === 'glassy';
   return (
-    <View style={[styles.previewCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-      <View style={styles.previewHeader}>
-        <View>
-          <Text style={[styles.layoutTitle, { color: theme.text }]}>Live launcher preview</Text>
-          <Text style={[styles.previewSubtitle, { color: theme.muted }]}>Updates as you change the lists below</Text>
-        </View>
-        <Ionicons name="phone-portrait-outline" size={20} color={COLORS.primary} />
+    <TouchableOpacity
+      style={[
+        styles.themePreviewCard,
+        { backgroundColor: isGlassy ? '#243457' : '#18181A' },
+        active && styles.themePreviewCardActive,
+      ]}
+      onPress={onPress}
+      activeOpacity={0.85}
+    >
+      <View style={styles.themePreviewHeader}>
+        <Text style={styles.themePreviewLabel}>{label}</Text>
+        {active && <Ionicons name="checkmark-circle" size={16} color="#A5B4FC" />}
       </View>
-      <View style={styles.phoneFrame}>
-        {wallpaperUri ? (
-          <Image source={{ uri: wallpaperUri }} style={styles.previewWallpaper} resizeMode="cover" />
-        ) : (
-          <View style={styles.previewWallpaperFallback} />
-        )}
-        <View style={styles.previewScrim} />
-        <View style={styles.previewContent}>
-          <Text style={styles.previewDate}>MONDAY · AUG 17</Text>
-          <Text style={styles.previewClock}>9:41</Text>
-          <View style={styles.previewGrid}>
-            {pinnedApps.slice(0, 8).map((app) => (
-              <PreviewAppIcon key={app.packageName} app={app} />
-            ))}
-            {pinnedApps.length === 0 && (
-              <Text style={styles.previewEmpty}>Choose apps for your home grid below</Text>
-            )}
-          </View>
-          <View style={styles.previewDock}>
-            {dockApps.slice(0, 5).map((app) => (
-              <PreviewAppIcon key={app.packageName} app={app} small />
-            ))}
-            {dockApps.length === 0 && <Ionicons name="ellipse-outline" size={20} color="#B9C2D0" />}
-          </View>
+      <View style={[styles.themeMiniHome, !isGlassy && styles.themeMiniHomeClassic]}>
+        <Text style={styles.themeMiniDate}>SAT, 5 SEP</Text>
+        <Text style={styles.themeMiniClock}>8:31</Text>
+        <View style={styles.themeMiniPill}><Text style={styles.themeMiniPillText}>2 blocked • Ready</Text></View>
+        <View style={styles.themeMiniCard}><Text style={styles.themeMiniCardHeading}>Current Task</Text><Text style={styles.themeMiniCardTitle}>Deep work</Text></View>
+        <View style={styles.themeMiniCard}><Text style={styles.themeMiniCardHeading}>Today's Limits</Text><Text style={styles.themeMiniCardText}>YouTube · 12m used</Text></View>
+        <View style={styles.themeMiniActions}>
+          <View style={[styles.themeMiniCircle, !isGlassy && styles.themeMiniCircleClassic]}><Text style={styles.themeMiniDots}>•••</Text></View>
+          <View style={[styles.themeMiniCircle, { backgroundColor: isGlassy ? '#6366F1' : '#1E1E1E' }]}><Text style={styles.themeMiniF}>F</Text></View>
         </View>
       </View>
-    </View>
-  );
-}
-
-function PreviewAppIcon({ app, small = false }: { app: InstalledApp; small?: boolean }) {
-  return app.iconBase64 ? (
-    <Image
-      source={{ uri: `data:image/png;base64,${app.iconBase64}` }}
-      style={small ? styles.previewDockIcon : styles.previewAppIcon}
-    />
-  ) : (
-    <View style={[small ? styles.previewDockIcon : styles.previewAppIcon, styles.previewIconFallback]}>
-      <Ionicons name="apps-outline" size={small ? 14 : 18} color="#E7EAF6" />
-    </View>
-  );
-}
-
-function OrderedAppRow({
-  app,
-  index,
-  total,
-  onMove,
-  theme,
-}: {
-  app: InstalledApp;
-  index: number;
-  total: number;
-  onMove: (packageName: string, delta: -1 | 1) => void;
-  theme: ReturnType<typeof useTheme>['theme'];
-}) {
-  return (
-    <View style={styles.orderRow}>
-      {app.iconBase64 ? (
-        <Image source={{ uri: `data:image/png;base64,${app.iconBase64}` }} style={styles.orderIcon} />
-      ) : (
-        <View style={[styles.orderIcon, styles.appIconPlaceholder]}>
-          <Ionicons name="apps-outline" size={16} color={COLORS.primary} />
-        </View>
-      )}
-      <Text style={[styles.orderName, { color: theme.text }]} numberOfLines={1}>{app.appName}</Text>
-      <TouchableOpacity
-        onPress={() => onMove(app.packageName, -1)}
-        disabled={index === 0}
-        style={styles.orderButton}
-        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-      >
-        <Ionicons name="chevron-up" size={18} color={index === 0 ? theme.border : theme.text} />
-      </TouchableOpacity>
-      <TouchableOpacity
-        onPress={() => onMove(app.packageName, 1)}
-        disabled={index === total - 1}
-        style={styles.orderButton}
-        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-      >
-        <Ionicons name="chevron-down" size={18} color={index === total - 1 ? theme.border : theme.text} />
-      </TouchableOpacity>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -722,20 +466,105 @@ function SectionHeader({
   );
 }
 
+function AppList({
+  apps,
+  loading,
+  checked,
+  onToggle,
+  theme,
+  emptyText,
+  badge,
+}: {
+  apps: InstalledApp[];
+  loading: boolean;
+  checked: Set<string>;
+  onToggle: (packageName: string) => void;
+  theme: ReturnType<typeof useTheme>['theme'];
+  emptyText: string;
+  badge: (app: InstalledApp) => 'blocked' | undefined;
+}) {
+  if (loading) {
+    return (
+      <View style={styles.loadingRow}>
+        <ActivityIndicator size="small" color={COLORS.primary} />
+        <Text style={[styles.loadingText, { color: theme.muted }]}>Loading installed apps…</Text>
+      </View>
+    );
+  }
+  if (apps.length === 0) {
+    return <View style={styles.emptyRow}><Text style={[styles.emptyText, { color: theme.muted }]}>{emptyText}</Text></View>;
+  }
+  return (
+    <>
+      {apps.map((app) => (
+        <AppToggleRow
+          key={app.packageName}
+          app={app}
+          checked={checked.has(app.packageName)}
+          onToggle={() => onToggle(app.packageName)}
+          theme={theme}
+          badge={badge(app)}
+        />
+      ))}
+    </>
+  );
+}
+
+function AppToggleRow({
+  app,
+  checked,
+  onToggle,
+  theme,
+  badge,
+}: {
+  app: { packageName: string; appName: string; isIme: boolean; iconBase64?: string };
+  checked: boolean;
+  onToggle: () => void;
+  theme: ReturnType<typeof useTheme>['theme'];
+  badge?: 'blocked';
+}) {
+  return (
+    <TouchableOpacity style={styles.appRow} onPress={onToggle} activeOpacity={0.7}>
+      {app.iconBase64 ? (
+        <Image source={{ uri: `data:image/png;base64,${app.iconBase64}` }} style={styles.appIcon} />
+      ) : (
+        <View style={[styles.appIconPlaceholder, { backgroundColor: COLORS.primary + '18' }]}>
+          <Ionicons name="apps-outline" size={18} color={COLORS.primary} />
+        </View>
+      )}
+      <View style={{ flex: 1, gap: 1 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: SPACING.xs }}>
+          <Text style={[styles.appName, { color: theme.text }]} numberOfLines={1}>{app.appName}</Text>
+          {badge === 'blocked' && (
+            <View style={styles.blockedBadge}>
+              <Text style={styles.blockedBadgeText}>blocked</Text>
+            </View>
+          )}
+        </View>
+        <Text style={[styles.appPkg, { color: theme.muted }]} numberOfLines={1}>{app.packageName}</Text>
+      </View>
+      <Switch
+        value={checked}
+        onValueChange={onToggle}
+        trackColor={{ false: COLORS.border, true: COLORS.primary + '88' }}
+        thumbColor={checked ? COLORS.primary : COLORS.muted}
+      />
+    </TouchableOpacity>
+  );
+}
+
 function SwitchRow({
   label,
   description,
   value,
   onValueChange,
-  disabled = false,
   theme,
   isLast = false,
 }: {
   label: string;
   description: string;
   value: boolean;
-  onValueChange: (v: boolean) => void;
-  disabled?: boolean;
+  onValueChange: (value: boolean) => void;
   theme: ReturnType<typeof useTheme>['theme'];
   isLast?: boolean;
 }) {
@@ -748,71 +577,10 @@ function SwitchRow({
       <Switch
         value={value}
         onValueChange={onValueChange}
-        disabled={disabled}
         trackColor={{ false: COLORS.border, true: COLORS.primary + '88' }}
         thumbColor={value ? COLORS.primary : COLORS.muted}
       />
     </View>
-  );
-}
-
-function AppToggleRow({
-  app,
-  checked,
-  onToggle,
-  theme,
-  isLast,
-  badge,
-  disabled = false,
-}: {
-  app: { packageName: string; appName: string; isIme: boolean; iconBase64?: string };
-  checked: boolean;
-  onToggle: () => void;
-  theme: ReturnType<typeof useTheme>['theme'];
-  isLast?: boolean;
-  badge?: 'blocked';
-  disabled?: boolean;
-}) {
-  return (
-    <TouchableOpacity
-      style={[
-        styles.appRow,
-        !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.border },
-        disabled && { opacity: 0.45 },
-      ]}
-      onPress={disabled ? undefined : onToggle}
-      activeOpacity={disabled ? 1 : 0.7}
-    >
-      {app.iconBase64 ? (
-        <Image source={{ uri: `data:image/png;base64,${app.iconBase64}` }} style={styles.appIcon} />
-      ) : (
-        <View style={[styles.appIconPlaceholder, { backgroundColor: COLORS.primary + '18' }]}>
-          <Ionicons name="apps-outline" size={18} color={COLORS.primary} />
-        </View>
-      )}
-      <View style={{ flex: 1, gap: 1 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: SPACING.xs }}>
-          <Text style={[styles.appName, { color: theme.text }]} numberOfLines={1}>
-            {app.appName}
-          </Text>
-          {badge === 'blocked' && (
-            <View style={styles.blockedBadge}>
-              <Text style={styles.blockedBadgeText}>blocked</Text>
-            </View>
-          )}
-        </View>
-        <Text style={[styles.appPkg, { color: theme.muted }]} numberOfLines={1}>
-          {app.packageName}
-        </Text>
-      </View>
-      <Switch
-        value={checked}
-        onValueChange={disabled ? undefined : onToggle}
-        disabled={disabled}
-        trackColor={{ false: COLORS.border, true: COLORS.primary + '88' }}
-        thumbColor={checked ? COLORS.primary : COLORS.muted}
-      />
-    </TouchableOpacity>
   );
 }
 
@@ -829,323 +597,129 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: FONT.xs, marginTop: 2 },
   scroll: { flex: 1 },
   content: { padding: SPACING.lg, gap: SPACING.md },
-
-  statusCard: {
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-    padding: SPACING.md,
-    gap: SPACING.sm,
-  },
+  statusCard: { borderRadius: RADIUS.md, borderWidth: 1, padding: SPACING.md, gap: SPACING.sm },
   statusRow: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm },
-  statusIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: RADIUS.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-    marginTop: 2,
-  },
+  statusIcon: { width: 44, height: 44, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center' },
   statusTitle: { fontSize: FONT.sm, fontWeight: '700' },
   statusDesc: { fontSize: FONT.xs, lineHeight: 17 },
   setDefaultBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: SPACING.xs,
-    backgroundColor: COLORS.primary,
-    borderRadius: RADIUS.md,
-    paddingVertical: SPACING.sm + 2,
-    paddingHorizontal: SPACING.lg,
-    marginTop: SPACING.xs,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACING.xs,
+    backgroundColor: COLORS.primary, borderRadius: RADIUS.md, paddingVertical: SPACING.sm + 2,
   },
   setDefaultBtnText: { color: '#fff', fontSize: FONT.sm, fontWeight: '700' },
-
-  layoutPreview: {
-    borderRadius: RADIUS.md,
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: SPACING.md,
-    gap: SPACING.sm,
-  },
-  layoutTitle: { fontSize: FONT.sm, fontWeight: '700' },
-  layoutRow: { flexDirection: 'row', gap: SPACING.sm },
-  layoutZone: { flex: 1, alignItems: 'center', gap: 4 },
-  layoutZoneIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: RADIUS.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  layoutZoneLabel: { fontSize: FONT.xs, fontWeight: '700', color: '#FFFFFF', textAlign: 'center' },
-  layoutZoneDesc: { fontSize: 10, color: '#888', textAlign: 'center', lineHeight: 14 },
-  layoutHint: { fontSize: FONT.xs, lineHeight: 17 },
-  previewCard: {
-    borderRadius: RADIUS.md,
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: SPACING.md,
-    gap: SPACING.sm,
-  },
-  previewHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  previewSubtitle: { fontSize: FONT.xs, marginTop: 2 },
-  phoneFrame: {
-    width: '72%',
-    aspectRatio: 0.54,
-    maxHeight: 310,
-    alignSelf: 'center',
-    overflow: 'hidden',
-    borderRadius: 24,
-    borderWidth: 5,
-    borderColor: '#111827',
-    backgroundColor: '#1F2937',
-    position: 'relative',
-  },
-  previewWallpaper: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  previewWallpaperFallback: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#28365D',
-  },
-  previewScrim: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#33000000',
-  },
-  previewContent: {
+  themeRow: { flexDirection: 'row', gap: SPACING.sm },
+  themePreviewCard: {
     flex: 1,
-    paddingHorizontal: SPACING.sm,
-    paddingTop: SPACING.lg,
-    paddingBottom: SPACING.sm,
-    justifyContent: 'space-between',
-  },
-  previewDate: {
-    color: '#D7DDF0',
-    fontSize: 8,
-    textAlign: 'center',
-    letterSpacing: 0.8,
-  },
-  previewClock: {
-    color: '#FFFFFF',
-    fontSize: 30,
-    fontWeight: '800',
-    textAlign: 'center',
-    marginTop: -SPACING.md,
-  },
-  previewGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    alignContent: 'center',
-    gap: SPACING.sm,
-    flex: 1,
-    paddingVertical: SPACING.sm,
-  },
-  previewAppIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: 8,
-  },
-  previewDock: {
-    minHeight: 42,
-    borderRadius: 16,
-    backgroundColor: '#38FFFFFF',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: SPACING.sm,
-    paddingHorizontal: SPACING.xs,
-  },
-  previewDockIcon: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-  },
-  previewIconFallback: {
-    backgroundColor: '#55627A',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  previewEmpty: {
-    color: '#D7DDF0',
-    fontSize: 10,
-    textAlign: 'center',
-    paddingHorizontal: SPACING.md,
-  },
-  searchBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
     borderRadius: RADIUS.md,
     borderWidth: 1,
-    paddingHorizontal: SPACING.md,
-    minHeight: 48,
+    borderColor: '#FFFFFF22',
+    padding: SPACING.sm,
   },
-  searchInput: { flex: 1, fontSize: FONT.sm, paddingVertical: 0 },
-  searchHint: { fontSize: FONT.xs, marginTop: -SPACING.xs },
-  orderSection: {
-    paddingHorizontal: SPACING.md,
-    paddingTop: SPACING.sm,
-    paddingBottom: SPACING.xs,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  orderTitle: { fontSize: FONT.xs, fontWeight: '700', marginBottom: SPACING.xs },
-  orderRow: {
+  themePreviewCardActive: { borderColor: '#A5B4FC', borderWidth: 2 },
+  themePreviewHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 42,
-    gap: SPACING.sm,
+    justifyContent: 'space-between',
+    marginBottom: SPACING.xs,
   },
-  orderIcon: { width: 28, height: 28, borderRadius: 6, flexShrink: 0 },
-  orderName: { flex: 1, fontSize: FONT.sm, fontWeight: '600' },
-  orderButton: { width: 28, alignItems: 'center', justifyContent: 'center' },
-
+  themePreviewLabel: { color: '#FFFFFF', fontSize: FONT.sm, fontWeight: '800' },
+  themeMiniHome: {
+    minHeight: 190,
+    borderRadius: 14,
+    backgroundColor: '#31426B',
+    padding: 8,
+    justifyContent: 'space-between',
+  },
+  themeMiniHomeClassic: { backgroundColor: '#0E0E0E' },
+  themeMiniDate: { color: '#CBD5F5', fontSize: 7, textAlign: 'center' },
+  themeMiniClock: { color: '#FFFFFF', fontSize: 24, fontWeight: '300', textAlign: 'center' },
+  themeMiniPill: {
+    alignSelf: 'center',
+    backgroundColor: '#44FFFFFF',
+    borderRadius: 9,
+    paddingHorizontal: 5,
+    paddingVertical: 3,
+  },
+  themeMiniPillText: { color: '#E8ECFF', fontSize: 6 },
+  themeMiniCard: { backgroundColor: '#55FFFFFF', borderRadius: 8, padding: 6, gap: 2 },
+  themeMiniCardHeading: { color: '#E5E7EB', fontSize: 6 },
+  themeMiniCardTitle: { color: '#FFFFFF', fontSize: 8, fontWeight: '700' },
+  themeMiniCardText: { color: '#D7DDF0', fontSize: 6 },
+  themeMiniActions: { flexDirection: 'row', justifyContent: 'space-evenly' },
+  themeMiniCircle: {
+    width: 27, height: 27, borderRadius: 14, backgroundColor: '#44FFFFFF',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  themeMiniCircleClassic: { backgroundColor: '#1E1E1E' },
+  themeMiniDots: { color: '#FFFFFF', fontSize: 7, letterSpacing: 1 },
+  themeMiniF: { color: '#FFFFFF', fontSize: 12, fontWeight: '800' },
+  previewCard: { borderRadius: RADIUS.md, borderWidth: 1, padding: SPACING.md, gap: SPACING.sm },
+  previewHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  layoutTitle: { color: '#fff', fontSize: FONT.sm, fontWeight: '700' },
+  previewSubtitle: { color: '#CBD5F5', fontSize: FONT.xs, marginTop: 2 },
+  phoneFrame: {
+    width: '72%', aspectRatio: 0.54, maxHeight: 370, alignSelf: 'center',
+    overflow: 'hidden', borderRadius: 24, borderWidth: 5, borderColor: '#111827',
+    backgroundColor: '#28365D', position: 'relative',
+  },
+  previewWallpaper: { ...StyleSheet.absoluteFillObject },
+  previewWallpaperFallback: { ...StyleSheet.absoluteFillObject, backgroundColor: '#28365D' },
+  previewScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: '#55000000' },
+  previewContent: { flex: 1, paddingHorizontal: SPACING.sm, paddingTop: SPACING.lg, paddingBottom: SPACING.sm, justifyContent: 'space-between' },
+  previewDate: { color: '#D7DDF0', fontSize: 8, textAlign: 'center', letterSpacing: 0.8 },
+  previewClock: { color: '#FFFFFF', fontSize: 30, fontWeight: '800', textAlign: 'center', marginTop: -SPACING.md },
+  previewStatus: { alignSelf: 'center', backgroundColor: '#44FFFFFF', borderRadius: 14, paddingHorizontal: 8, paddingVertical: 4 },
+  previewStatusText: { color: '#E8ECFF', fontSize: 8 },
+  previewTask: { backgroundColor: '#55FFFFFF', borderRadius: 12, padding: 9 },
+  previewTaskHeading: { color: '#EFF2FF', fontSize: 8 },
+  previewTaskTitle: { color: '#fff', fontSize: 12, fontWeight: '700', marginTop: 4 },
+  previewProgress: { height: 3, backgroundColor: '#D9E1F2', borderRadius: 2, marginTop: 7, width: '45%' },
+  previewTaskMeta: { color: '#D7DDF0', fontSize: 7, marginTop: 5 },
+  previewLimits: { backgroundColor: '#55FFFFFF', borderRadius: 12, padding: 9, gap: 4 },
+  previewLimitsHeading: { color: '#EFF2FF', fontSize: 8, marginBottom: 2 },
+  previewLimitRow: { color: '#D7DDF0', fontSize: 7 },
+  previewActions: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center' },
+  previewActionCircle: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#3B3B40', alignItems: 'center', justifyContent: 'center' },
+  previewDots: { color: '#fff', letterSpacing: 2, fontSize: 10 },
+  previewF: { color: '#fff', fontSize: 17, fontWeight: '800' },
+  previewActionLabel: { color: '#E4E7F2', fontSize: 7, textAlign: 'center', marginTop: 4 },
   sectionHeader: { gap: 4, marginBottom: SPACING.xs },
   sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
-  sectionIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: RADIUS.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  sectionIcon: { width: 28, height: 28, borderRadius: RADIUS.sm, alignItems: 'center', justifyContent: 'center' },
   sectionTitle: { fontSize: FONT.md, fontWeight: '700' },
   sectionDesc: { fontSize: FONT.xs, lineHeight: 18, paddingLeft: 28 + SPACING.sm },
-
-  card: {
-    borderRadius: RADIUS.md,
-    borderWidth: StyleSheet.hairlineWidth,
-    overflow: 'hidden',
-  },
-
-  settingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm + 2,
-    gap: SPACING.sm,
-  },
+  card: { borderRadius: RADIUS.md, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
+  settingRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm + 2, gap: SPACING.sm },
   settingLabel: { fontSize: FONT.sm, fontWeight: '600' },
   settingDesc: { fontSize: FONT.xs, lineHeight: 17 },
-
-  segmentControl: {
-    flexDirection: 'row',
-    borderRadius: RADIUS.sm,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  segmentBtn: {
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.xs + 2,
-    backgroundColor: 'transparent',
-  },
+  segmentControl: { flexDirection: 'row', borderRadius: RADIUS.sm, overflow: 'hidden', borderWidth: 1, borderColor: COLORS.border },
+  segmentBtn: { paddingHorizontal: SPACING.sm, paddingVertical: SPACING.xs + 2 },
   segmentBtnActive: { backgroundColor: COLORS.primary },
   segmentText: { fontSize: FONT.xs, fontWeight: '600', color: COLORS.muted },
   segmentTextActive: { color: '#fff' },
-
-  switchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    gap: SPACING.sm,
-  },
-  switchLabel: { fontSize: FONT.sm, fontWeight: '600' },
-  switchDesc: { fontSize: FONT.xs, lineHeight: 17 },
-
-  appRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    gap: SPACING.sm,
-  },
-  appIconPlaceholder: {
-    width: 36,
-    height: 36,
-    borderRadius: RADIUS.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  appIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: RADIUS.sm,
-    flexShrink: 0,
-  },
+  searchBox: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, borderRadius: RADIUS.md, borderWidth: 1, paddingHorizontal: SPACING.md, minHeight: 48 },
+  searchInput: { flex: 1, fontSize: FONT.sm, paddingVertical: 0 },
+  appRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, gap: SPACING.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: COLORS.border },
+  appIconPlaceholder: { width: 36, height: 36, borderRadius: RADIUS.sm, alignItems: 'center', justifyContent: 'center' },
+  appIcon: { width: 36, height: 36, borderRadius: RADIUS.sm },
   appName: { fontSize: FONT.sm, fontWeight: '600' },
   appPkg: { fontSize: 11 },
-  blockedBadge: {
-    backgroundColor: COLORS.orange + '22',
-    borderRadius: 4,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    borderWidth: 1,
-    borderColor: COLORS.orange + '55',
-  },
+  blockedBadge: { backgroundColor: COLORS.orange + '22', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, borderWidth: 1, borderColor: COLORS.orange + '55' },
   blockedBadgeText: { fontSize: 9, color: COLORS.orange, fontWeight: '700' },
-
-  loadingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-    padding: SPACING.md,
-  },
+  switchRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, gap: SPACING.sm },
+  switchLabel: { fontSize: FONT.sm, fontWeight: '600' },
+  switchDesc: { fontSize: FONT.xs, lineHeight: 17 },
+  loadingRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, padding: SPACING.md },
   loadingText: { fontSize: FONT.sm },
-  emptyRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-    padding: SPACING.md,
-  },
+  emptyRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, padding: SPACING.md },
   emptyText: { fontSize: FONT.xs, flex: 1, lineHeight: 17 },
-  moreAppsHint: { fontSize: FONT.xs, textAlign: 'center', marginTop: -SPACING.xs, lineHeight: 17 },
-
-  tipCard: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: SPACING.sm,
-    padding: SPACING.md,
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-  },
+  tipCard: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm, padding: SPACING.md, borderRadius: RADIUS.md, borderWidth: 1 },
   tipText: { flex: 1, fontSize: FONT.xs, lineHeight: 18 },
-
   lockedScreen: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: SPACING.xl },
-  lockedCard: {
-    width: '100%',
-    maxWidth: 340,
-    borderRadius: RADIUS.xl,
-    borderWidth: 1,
-    padding: SPACING.xl,
-    alignItems: 'center',
-    gap: SPACING.md,
-  },
-  lockedIconRing: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: COLORS.orange + '18',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: SPACING.xs,
-  },
+  lockedCard: { width: '100%', maxWidth: 340, borderRadius: RADIUS.xl, borderWidth: 1, padding: SPACING.xl, alignItems: 'center', gap: SPACING.md },
+  lockedIconRing: { width: 72, height: 72, borderRadius: 36, backgroundColor: COLORS.orange + '18', alignItems: 'center', justifyContent: 'center' },
   lockedHeading: { fontSize: FONT.xl, fontWeight: '800', textAlign: 'center' },
   lockedBody: { fontSize: FONT.sm, textAlign: 'center', lineHeight: 21 },
-  lockedBackBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: COLORS.primary,
-    paddingVertical: SPACING.sm + 2,
-    paddingHorizontal: SPACING.lg,
-    borderRadius: RADIUS.md,
-    marginTop: SPACING.xs,
-  },
+  lockedBackBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: COLORS.primary, paddingVertical: SPACING.sm + 2, paddingHorizontal: SPACING.lg, borderRadius: RADIUS.md },
   lockedBackText: { color: '#fff', fontSize: FONT.sm, fontWeight: '700' },
 });
