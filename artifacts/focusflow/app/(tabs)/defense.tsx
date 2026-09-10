@@ -18,6 +18,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 import { DailyAllowanceModal } from '@/components/DailyAllowanceModal';
 import { GreyoutScheduleModal } from '@/components/GreyoutScheduleModal';
+import { NuclearModeModal } from '@/components/NuclearModeModal';
 import { ActiveHeaderButton } from '@/components/ActiveHeaderButton';
 import { PinSetupModal } from '@/components/PinSetupModal';
 import { PinVerifyModal } from '@/components/PinVerifyModal';
@@ -42,6 +43,7 @@ function DefenseScreen() {
 
   const [dailyAllowanceVisible, setDailyAllowanceVisible] = useState(false);
   const [greyoutScheduleVisible, setGreyoutScheduleVisible] = useState(false);
+  const [nuclearModeVisible, setNuclearModeVisible] = useState(false);
   const [pinModal, setPinModal] = useState<
     | { type: 'none' }
     | { type: 'verify'; title: string; description: string; action: DefenseAction }
@@ -450,6 +452,21 @@ function DefenseScreen() {
           </SettingRow>
         </Section>
 
+        <Section title="Always-On Behavior" theme={theme}>
+          <SettingRow
+            label="Auto-copy from standalone block"
+            description="Automatically add standalone-block apps to the Always-On list when the block starts"
+            theme={theme}
+          >
+            <Switch
+              value={settings.autoCopyToAlwaysOn ?? false}
+              onValueChange={(value) => void update({ autoCopyToAlwaysOn: value })}
+              trackColor={{ false: theme.border, true: COLORS.primary + '88' }}
+              thumbColor={settings.autoCopyToAlwaysOn ? COLORS.primary : theme.muted}
+            />
+          </SettingRow>
+        </Section>
+
         <Section title="Network Protection" theme={theme}>
           <SettingRow
             label="Network Blocking (VPN)"
@@ -542,6 +559,16 @@ function DefenseScreen() {
             theme={theme}
           />
         </Section>
+
+        <Section title="Nuclear Mode" theme={theme}>
+          <SettingButton
+            icon="nuclear-outline"
+            label="Uninstall Distracting Apps"
+            description="Permanently remove blocked apps through Android's system uninstall dialog"
+            onPress={() => setNuclearModeVisible(true)}
+            theme={theme}
+          />
+        </Section>
       </ScrollView>
 
       <DailyAllowanceModal
@@ -615,6 +642,10 @@ function DefenseScreen() {
           vpnConsentResolveRef.current?.(false);
           vpnConsentResolveRef.current = null;
         }}
+      />
+      <NuclearModeModal
+        visible={nuclearModeVisible}
+        onClose={() => setNuclearModeVisible(false)}
       />
       {protectionNotice && (
         <View

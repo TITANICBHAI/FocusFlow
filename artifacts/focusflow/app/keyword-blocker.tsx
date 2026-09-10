@@ -1,7 +1,7 @@
 /**
  * keyword-blocker.tsx
  *
- * Dedicated page for the Keyword Blocker. Lifted out of `block-defense` so
+ * Dedicated page for the Keyword Blocker, opened from the Defense tab so
  * the keyword-management UI no longer competes for attention with app-blocking
  * settings (system guard, schedules, deterrents). Reachable from:
  *   • Side Menu → Keyword Blocker

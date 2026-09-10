@@ -196,7 +196,7 @@ const PERMISSIONS: PermissionItem[] = [
     description:
       'Cuts internet access for selected distracting apps while a network block is active.',
     whyNeeded:
-      'Iron Mode can combine app blocking with a local VPN layer. For example, you can prepare downloaded work videos before a session and restrict network access for distracting apps while you focus.',
+      'Network Blocking works alongside app blocking to cut internet access for selected distracting apps while you focus.',
     brokenWithout: [
       'Selected apps keep their internet access during network blocking',
       'Network Blocking will not start until Android VPN consent is granted',

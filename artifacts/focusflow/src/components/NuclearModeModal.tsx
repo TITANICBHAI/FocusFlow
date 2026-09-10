@@ -6,7 +6,7 @@
  * Each tap opens Android's system "Uninstall <App>?" confirmation — the user
  * must confirm in the OS dialog, so accidental deletion is impossible.
  *
- * Entry point: Block Enforcement section of the SideMenu.
+ * Entry point: Nuclear Mode section of the Defense tab.
  */
 
 import React, { useState, useEffect, useCallback } from 'react';

@@ -148,7 +148,7 @@ export interface AppSettings {
   notificationsEnabled: boolean;
   onboardingComplete: boolean;
   privacyAccepted: boolean;
-  /** First-run enforcement preference. Iron Mode adds the stronger optional layers. */
+  /** Legacy setup preference retained for compatibility with existing backups. */
   protectionMode?: 'standard' | 'iron';
   // Standalone app blocking — independent of any task
   standaloneBlockPackages: string[]; // packages to always block regardless of task state
