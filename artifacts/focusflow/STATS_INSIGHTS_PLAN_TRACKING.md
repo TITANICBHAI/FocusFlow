@@ -17,10 +17,10 @@ validation has passed.
 
 ## Current status
 
-- Status: `[-]` Analytics foundation in place. Notifications section, additional
-  UX ideas, and open product decisions added to source plan on 2026-09-11.
-  Achievements, weekly standout persistence, native UsageStats aggregation,
-  all notification work, and additional UX ideas remain unstarted.
+- Status: `[-]` Analytics foundation is source-implemented, including native
+  hourly UsageStats aggregation and bounded per-source snapshot loading.
+  Notifications section, additional UX ideas, achievements, weekly standout
+  persistence, and device validation remain outstanding.
 - Last updated: 2026-09-11
 - Validation boundary: source checks can be performed in this checkout; Android
   UsageStats permission behavior, native service behavior, and device UI require a
@@ -61,12 +61,12 @@ validation has passed.
 - [x] Add the `AnalyticsSnapshot` contract with explicit window types.
 - [x] Implement task totals, completion status counts, hour/day buckets,
   estimation errors, and first-task hour.
-- [-] Implement session totals, clean-session counts, duration totals,
+- [x] Implement session totals, clean-session counts, duration totals,
   hour buckets, and fastest-window calculation.
 - [x] Implement temptation totals, hour buckets, app aggregation, peak hour,
   top app, and top-app share.
 - [x] Implement weekly comparison and 12-entry trend data.
-- [ ] Implement UsageStats aggregation for the 3-month window only after the
+- [x] Implement UsageStats aggregation for the 3-month window only after the
   permission gate is satisfied.
 - [x] Keep snapshot generation deterministic, bounded, local-only, and safe for
   empty or partial data.
@@ -261,3 +261,4 @@ feature.
 | 2026-09-11 | Plan and tracker imported | `[ ]` | No implementation audit performed yet. |
 | 2026-09-11 | Analytics foundation and Stats route | `[-]` | Added four bounded database queries, `AnalyticsSnapshot`, local insight rules/templates, and a new Yesterday/This Week/3-Month route. Focused tests/typecheck are blocked until package dependencies are installed; native hourly UsageStats, full task-result detail, achievements, and weekly standout persistence remain. |
 | 2026-09-11 | Plan expanded — notifications + additional ideas | `[-]` | Sections 8 and 9 added to tracker matching plan additions. Two product decisions (D1, D2) recorded as open blockers. No implementation performed in this update — tracker reflects plan state only. |
+| 2026-09-11 | Analytics foundation completion slice | `[-]` | Added native hourly UsageStats milliseconds, 3-month permission-gated phone metrics, fastest focus-window ratios with sample size, previous blocking-period counts, stable zero-filled trend weeks with `weeksWithData`, and per-source failure health. Unit/type/native verification remains blocked by missing dependencies and generated Android/device validation. |

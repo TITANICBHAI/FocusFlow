@@ -649,6 +649,7 @@ export async function dbGetTasksInDateRange(startDateISO: string, endDateISO: st
 
 export interface SessionOverrideCountRow {
   session_id: number;
+  task_id?: string | null;
   started_at: string;
   ended_at: string | null;
   override_count: number;
@@ -667,6 +668,7 @@ export async function dbGetSessionsWithOverrideCount(
     database.getAllAsync<SessionOverrideCountRow>(
       `SELECT
          s.id AS session_id,
+          s.task_id,
          s.started_at,
          s.ended_at,
          COUNT(o.id) AS override_count
@@ -679,7 +681,7 @@ export async function dbGetSessionsWithOverrideCount(
         AND o.overridden_at < ?
        WHERE s.started_at < ?
          AND (s.ended_at IS NULL OR s.ended_at > ?)
-       GROUP BY s.id, s.started_at, s.ended_at
+        GROUP BY s.id, s.task_id, s.started_at, s.ended_at
        ORDER BY s.started_at ASC`,
       [endISO, startISO, endISO, endISO, startISO],
     ),
@@ -690,6 +692,7 @@ export interface EstimationErrorRow {
   task_id: string;
   planned_minutes: number;
   actual_minutes: number;
+  start_hour?: number | null;
 }
 
 /**
@@ -706,7 +709,8 @@ export async function dbGetEstimationErrors(
       `SELECT
          t.id AS task_id,
          t.duration_minutes AS planned_minutes,
-         (julianday(s.ended_at) - julianday(s.started_at)) * 1440.0 AS actual_minutes
+          (julianday(s.ended_at) - julianday(s.started_at)) * 1440.0 AS actual_minutes,
+          CAST(strftime('%H', datetime(s.started_at, 'localtime')) AS INTEGER) AS start_hour
        FROM focus_sessions s
        INNER JOIN tasks t ON t.id = s.task_id
        WHERE t.status = 'completed'

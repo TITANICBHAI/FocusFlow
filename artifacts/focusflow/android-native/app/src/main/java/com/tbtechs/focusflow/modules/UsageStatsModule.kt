@@ -20,6 +20,7 @@ import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.WritableNativeMap
+import java.util.Calendar
 
 /**
  * UsageStatsModule
@@ -28,6 +29,7 @@ import com.facebook.react.bridge.WritableNativeMap
  * Methods:
  *   - getForegroundApp()             → Promise<String?>
  *   - getUsageSummary(startMs, endMs) → Promise<Map> — aggregated app usage
+ *   - getHourlyUsageSummary(startMs, endMs) → Promise<Map> — raw hourly usage
  *   - hasPermission()                → Promise<Boolean>  — Usage Access (AppOps)
  *   - openUsageAccessSettings()      → Promise<null>
  *   - hasAccessibilityPermission()   → Promise<Boolean>  — Accessibility Service enabled
@@ -218,6 +220,60 @@ class UsageStatsModule(private val reactContext: ReactApplicationContext) :
             })
         } catch (e: Exception) {
             promise.reject("USAGE_SUMMARY_ERROR", e.message, e)
+        }
+    }
+
+    /**
+     * Aggregates raw foreground time into local clock-hour buckets.
+     *
+     * UsageStatsManager returns one UsageStats row per package and hourly
+     * interval. We add the raw millisecond values first and leave conversion to
+     * display minutes to the TypeScript analytics processor. This preserves
+     * short usage sessions that would disappear if every row were floored
+     * independently.
+     */
+    @ReactMethod
+    fun getHourlyUsageSummary(startMs: Double, endMs: Double, promise: Promise) {
+        try {
+            val start = startMs.toLong()
+            val end = endMs.toLong()
+            val hourlyMilliseconds = LongArray(24)
+            if (start < end) {
+                val usageManager =
+                    reactContext.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
+                val ownPackage = reactContext.packageName
+                val stats = usageManager.queryUsageStats(
+                    UsageStatsManager.INTERVAL_HOURLY,
+                    start,
+                    end,
+                ) ?: emptyList()
+
+                for (stat in stats) {
+                    if (stat.packageName == ownPackage) continue
+                    val foregroundMs = stat.totalTimeInForeground
+                    if (foregroundMs <= 0L) continue
+
+                    // UsageStats exposes the first observed timestamp for the
+                    // package/interval. Use it as the local-hour anchor rather
+                    // than relying on a non-public interval-boundary field.
+                    val calendar = Calendar.getInstance().apply {
+                        timeInMillis = stat.firstTimeStamp
+                    }
+                    val hour = calendar.get(Calendar.HOUR_OF_DAY)
+                    if (hour in 0..23) {
+                        hourlyMilliseconds[hour] += foregroundMs
+                    }
+                }
+            }
+
+            val hourlyArray = Arguments.createArray()
+            hourlyMilliseconds.forEach { hourlyArray.pushDouble(it.toDouble()) }
+            promise.resolve(WritableNativeMap().apply {
+                putArray("foregroundMillisecondsByHour", hourlyArray)
+                putDouble("totalForegroundMilliseconds", hourlyMilliseconds.sum().toDouble())
+            })
+        } catch (e: Exception) {
+            promise.reject("USAGE_HOURLY_SUMMARY_ERROR", e.message, e)
         }
     }
 

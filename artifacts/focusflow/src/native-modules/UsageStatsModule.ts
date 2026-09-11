@@ -10,6 +10,7 @@
  * Methods exposed to JS:
  *   - getForegroundApp()                  → string | null
  *   - getUsageSummary(startMs, endMs)     → UsageSummary | null
+ *   - getHourlyUsageSummary(startMs, endMs) → UsageHourlySummary | null
  *   - hasPermission()                     → boolean  (Usage Access granted)
  *   - openUsageAccessSettings()
  *   - hasAccessibilityPermission()        → boolean
@@ -46,8 +47,21 @@ export interface UsageSummary {
   apps: UsageApp[];
 }
 
+/**
+ * Raw hourly foreground time. The native side deliberately keeps these values
+ * in milliseconds so the processor can aggregate before converting to display
+ * minutes, avoiding per-bucket flooring loss.
+ */
+export interface UsageHourlySummary {
+  foregroundMillisecondsByHour: number[];
+  totalForegroundMilliseconds: number;
+}
+
 export const isUsageSummaryAvailable =
   Platform.OS === 'android' && typeof UsageStats?.getUsageSummary === 'function';
+
+export const isUsageHourlySummaryAvailable =
+  Platform.OS === 'android' && typeof UsageStats?.getHourlyUsageSummary === 'function';
 
 export const UsageStatsModule = {
   async getForegroundApp(): Promise<string | null> {
@@ -58,6 +72,14 @@ export const UsageStatsModule = {
   async getUsageSummary(startMs: number, endMs: number): Promise<UsageSummary | null> {
     if (!UsageStats?.getUsageSummary) return null;
     return UsageStats.getUsageSummary(startMs, endMs) as Promise<UsageSummary>;
+  },
+
+  async getHourlyUsageSummary(
+    startMs: number,
+    endMs: number,
+  ): Promise<UsageHourlySummary | null> {
+    if (!UsageStats?.getHourlyUsageSummary) return null;
+    return UsageStats.getHourlyUsageSummary(startMs, endMs) as Promise<UsageHourlySummary>;
   },
 
   async hasPermission(): Promise<boolean> {

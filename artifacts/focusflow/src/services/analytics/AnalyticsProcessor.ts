@@ -12,6 +12,13 @@ import {
   type WeeklyCompletionRateRow,
 } from '@/data/database';
 import { GreyoutModule, type TemptationEntry } from '@/native-modules/GreyoutModule';
+import {
+  isUsageHourlySummaryAvailable,
+  isUsageSummaryAvailable,
+  UsageStatsModule,
+  type UsageHourlySummary,
+  type UsageSummary,
+} from '@/native-modules/UsageStatsModule';
 
 export type AnalyticsWindow = 'yesterday' | 'week' | 'three_months';
 
@@ -23,7 +30,9 @@ export interface AnalyticsSnapshot {
     total: number;
     completed: number;
     skipped: number;
+    skippedThisWeek?: number;
     missed: number;
+    resultRows: { title: string; status: Task['status'] }[];
     byHour: Record<number, { total: number; completed: number }>;
     byDayOfWeek: Record<number, { total: number; completed: number }>;
     estimationErrorMinutes: number[];
@@ -34,8 +43,12 @@ export interface AnalyticsSnapshot {
     cleanCount: number;
     totalFocusMinutes: number;
     byHour: Record<number, number>;
+    byDayOfWeek: Record<number, number>;
     avgDurationMinutes: number;
     fastestWindowHour: number | null;
+    fastestWindowSampleSize: number;
+    fastestWindowImprovementPercent?: number;
+    hardestSession: { hour: number; attempts: number } | null;
   };
   blocking: {
     totalAttempts: number;
@@ -50,22 +63,49 @@ export interface AnalyticsSnapshot {
     completionRateCurr: number;
     blockingAttemptsPrev: number | null;
     blockingAttemptsCurr: number;
-    weekByWeek: { weekStart: string; completionRate: number }[];
+    weekByWeek: { weekStart: string; completionRate: number; hasData: boolean }[];
+    weeksWithData: number;
   };
+  sourceHealth?: AnalyticsSourceHealth;
+  phoneUsage?: {
+    byHour: Record<number, number>;
+    peakHour: number | null;
+    peakPeriod: 'morning' | 'afternoon' | 'evening' | 'night' | null;
+    heaviestApp: { appName: string; minutes: number } | null;
+  };
+}
+
+export type AnalyticsSourceState = 'loaded' | 'unavailable' | 'failed';
+
+export interface AnalyticsSourceHealth {
+  tasks: AnalyticsSourceState;
+  sessions: AnalyticsSourceState;
+  estimationErrors: AnalyticsSourceState;
+  tasksByHour: AnalyticsSourceState;
+  weeklyRates: AnalyticsSourceState;
+  temptations: AnalyticsSourceState;
+  usageSummary?: AnalyticsSourceState;
+  usageHourly?: AnalyticsSourceState;
 }
 
 export interface AnalyticsSourceData {
   tasks: Task[];
+  tasksThisWeek?: Task[];
   sessions: SessionOverrideCountRow[];
   estimationErrors: EstimationErrorRow[];
   tasksByHour: TasksByHourRow[];
   weeklyRates: WeeklyCompletionRateRow[];
   temptations: TemptationEntry[];
+  previousTemptations?: TemptationEntry[];
+  usageSummary?: UsageSummary | null;
+  usageHourly?: UsageHourlySummary | null;
+  health?: AnalyticsSourceHealth;
 }
 
 export interface AnalyticsRange {
   start: Dayjs;
   end: Dayjs;
+  trendWeekAnchor?: Dayjs;
 }
 
 export function getAnalyticsRange(
@@ -75,14 +115,28 @@ export function getAnalyticsRange(
 ): AnalyticsRange {
   if (window === 'yesterday') {
     const day = now.subtract(1, 'day');
-    return { start: day.startOf('day'), end: day.endOf('day') };
+    return {
+      start: day.startOf('day'),
+      end: day.endOf('day'),
+      trendWeekAnchor: day.startOf('week'),
+    };
   }
   if (window === 'three_months') {
-    return { start: now.subtract(89, 'day').startOf('day'), end: now.endOf('day') };
+    return {
+      start: now.subtract(89, 'day').startOf('day'),
+      end: now.endOf('day'),
+      trendWeekAnchor: now.startOf('week'),
+    };
   }
   const offset = (now.day() - weekStartDay + 7) % 7;
   const start = now.subtract(offset, 'day').startOf('day');
-  return { start, end: start.add(6, 'day').endOf('day') };
+  return {
+    start,
+    end: start.add(6, 'day').endOf('day'),
+    trendWeekAnchor: start
+      .subtract(weekStartDay === 0 ? 0 : 1, 'day')
+      .startOf('week'),
+  };
 }
 
 function emptyHourBuckets(): Record<number, number> {
@@ -105,9 +159,11 @@ function buildTaskMetrics(
   tasks: Task[],
   estimationErrors: EstimationErrorRow[],
   taskHourRows: TasksByHourRow[],
+  tasksThisWeek?: Task[],
 ): AnalyticsSnapshot['tasks'] {
   const byHour = emptyTaskHourBuckets();
   const byDayOfWeek = emptyDayBuckets();
+  const resultRows = tasks.map((task) => ({ title: task.title, status: task.status }));
   let firstTaskHour: number | null = null;
   let firstTaskAt = Number.POSITIVE_INFINITY;
 
@@ -138,7 +194,9 @@ function buildTaskMetrics(
     total: tasks.length,
     completed: tasks.filter((task) => task.status === 'completed').length,
     skipped: tasks.filter((task) => task.status === 'skipped').length,
+    skippedThisWeek: (tasksThisWeek ?? tasks).filter((task) => task.status === 'skipped').length,
     missed: tasks.filter((task) => task.status === 'overdue').length,
+    resultRows,
     byHour,
     byDayOfWeek,
     estimationErrorMinutes: estimationErrors
@@ -150,32 +208,77 @@ function buildTaskMetrics(
 
 function buildSessionMetrics(
   sessions: SessionOverrideCountRow[],
+  estimationErrors: EstimationErrorRow[],
 ): AnalyticsSnapshot['sessions'] {
   const byHour = emptyHourBuckets();
+  const byDayOfWeek = Object.fromEntries(Array.from({ length: 7 }, (_, day) => [day, 0]));
   let totalFocusMinutes = 0;
   const durations: number[] = [];
+  const ratiosByHour = new Map<number, number[]>();
+  let hardestSession: { hour: number; attempts: number } | null = null;
 
   for (const session of sessions) {
     const start = new Date(session.started_at);
     if (Number.isNaN(start.getTime())) continue;
     byHour[start.getHours()] += 1;
+    byDayOfWeek[start.getDay()] += 1;
+    if (!hardestSession || session.override_count > hardestSession.attempts) {
+      hardestSession = { hour: start.getHours(), attempts: session.override_count };
+    }
     const end = session.ended_at ? new Date(session.ended_at) : new Date();
     const duration = Math.max(0, (end.getTime() - start.getTime()) / 60000);
     totalFocusMinutes += duration;
     durations.push(duration);
   }
 
+  for (const row of estimationErrors) {
+    const hour = row.start_hour;
+    if (
+      hour === undefined ||
+      hour === null ||
+      hour < 0 ||
+      hour > 23 ||
+      !Number.isFinite(row.planned_minutes) ||
+      row.planned_minutes <= 0 ||
+      !Number.isFinite(row.actual_minutes) ||
+      row.actual_minutes < 0
+    ) {
+      continue;
+    }
+    const ratios = ratiosByHour.get(hour) ?? [];
+    ratios.push(row.actual_minutes / row.planned_minutes);
+    ratiosByHour.set(hour, ratios);
+  }
+
+  const fastestWindow = [...ratiosByHour.entries()]
+    .map(([hour, ratios]) => ({
+      hour,
+      sampleSize: ratios.length,
+      averageRatio: ratios.reduce((sum, ratio) => sum + ratio, 0) / ratios.length,
+    }))
+    .sort((a, b) => a.averageRatio - b.averageRatio || b.sampleSize - a.sampleSize || a.hour - b.hour)[0];
+  const nextFastestWindow = [...ratiosByHour.entries()]
+    .map(([hour, ratios]) => ({
+      hour,
+      averageRatio: ratios.reduce((sum, ratio) => sum + ratio, 0) / ratios.length,
+    }))
+    .sort((a, b) => a.averageRatio - b.averageRatio || a.hour - b.hour)[1];
+
   return {
     total: sessions.length,
     cleanCount: sessions.filter((session) => session.override_count === 0).length,
     totalFocusMinutes: Math.round(totalFocusMinutes * 100) / 100,
     byHour,
+    byDayOfWeek,
     avgDurationMinutes: durations.length
       ? Math.round((durations.reduce((sum, value) => sum + value, 0) / durations.length) * 100) / 100
       : 0,
-    // Calculating this requires session-to-task estimation rows grouped by
-    // start hour; keep it null until that source contract is extended.
-    fastestWindowHour: null,
+    fastestWindowHour: fastestWindow?.hour ?? null,
+    fastestWindowSampleSize: fastestWindow?.sampleSize ?? 0,
+    fastestWindowImprovementPercent: fastestWindow && nextFastestWindow
+      ? Math.max(0, Math.round((nextFastestWindow.averageRatio - fastestWindow.averageRatio) * 100))
+      : 0,
+    hardestSession,
   };
 }
 
@@ -205,22 +308,101 @@ function buildBlockingMetrics(
   };
 }
 
+function getExpectedTrendWeekStarts(
+  range: AnalyticsRange,
+  count: number,
+  weeklyRates: WeeklyCompletionRateRow[],
+): string[] {
+  const latest = range.trendWeekAnchor ?? range.end.startOf('week');
+  return Array.from({ length: count }, (_, index) =>
+    latest.subtract(count - index - 1, 'week').format('YYYY-MM-DD'),
+  );
+}
+
 function buildTrendMetrics(
   weeklyRates: WeeklyCompletionRateRow[],
   blockingAttempts: number,
+  blockingAttemptsPrev: number | null,
+  range: AnalyticsRange,
+  expectedWeekCount: number,
 ): NonNullable<AnalyticsSnapshot['trends']> {
-  const weekByWeek = weeklyRates.map((row) => ({
-    weekStart: row.week_start,
-    completionRate: row.total > 0 ? row.completed / row.total : 0,
-  }));
+  const ratesByWeek = new Map(weeklyRates.map((row) => [row.week_start, row]));
+  const weekByWeek = getExpectedTrendWeekStarts(range, expectedWeekCount, weeklyRates).map((weekStart) => {
+    const row = ratesByWeek.get(weekStart);
+    return {
+      weekStart,
+      completionRate: row && row.total > 0 ? row.completed / row.total : 0,
+      hasData: Boolean(row && row.total > 0),
+    };
+  });
+  const weeksWithData = weekByWeek.filter((week) => week.hasData).length;
   const current = weekByWeek.at(-1)?.completionRate ?? 0;
   const previous = weekByWeek.at(-2)?.completionRate ?? null;
   return {
     completionRatePrev: previous,
     completionRateCurr: current,
-    blockingAttemptsPrev: null,
+    blockingAttemptsPrev,
     blockingAttemptsCurr: blockingAttempts,
     weekByWeek,
+    weeksWithData,
+  };
+}
+
+function getPreviousAnalyticsRange(range: AnalyticsRange): AnalyticsRange {
+  const durationMs = range.end.valueOf() - range.start.valueOf() + 1;
+  const end = range.start.subtract(1, 'millisecond');
+  return {
+    start: end.subtract(durationMs - 1, 'millisecond'),
+    end,
+  };
+}
+
+function getInclusiveLocalDayCount(range: AnalyticsRange): number {
+  return Math.max(
+    1,
+    range.end.startOf('day').diff(range.start.startOf('day'), 'day') + 1,
+  );
+}
+
+function getPhoneUsagePeriod(
+  hour: number | null,
+): NonNullable<AnalyticsSnapshot['phoneUsage']>['peakPeriod'] {
+  if (hour === null) return null;
+  if (hour >= 5 && hour <= 11) return 'morning';
+  if (hour >= 12 && hour <= 16) return 'afternoon';
+  if (hour >= 17 && hour <= 20) return 'evening';
+  return 'night';
+}
+
+function buildPhoneUsageMetrics(
+  usageSummary: UsageSummary | null | undefined,
+  usageHourly: UsageHourlySummary | null | undefined,
+  range: AnalyticsRange,
+): AnalyticsSnapshot['phoneUsage'] {
+  if (!usageHourly || !Array.isArray(usageHourly.foregroundMillisecondsByHour)) {
+    return undefined;
+  }
+
+  const dayCount = getInclusiveLocalDayCount(range);
+  const byHour = emptyHourBuckets();
+  for (let hour = 0; hour < 24; hour += 1) {
+    const milliseconds = usageHourly.foregroundMillisecondsByHour[hour] ?? 0;
+    if (Number.isFinite(milliseconds) && milliseconds > 0) {
+      byHour[hour] = Math.round((milliseconds / 60_000 / dayCount) * 100) / 100;
+    }
+  }
+
+  const peak = Object.entries(byHour).sort(([, a], [, b]) => b - a)[0];
+  return {
+    byHour,
+    peakHour: peak && peak[1] > 0 ? Number(peak[0]) : null,
+    peakPeriod: getPhoneUsagePeriod(peak && peak[1] > 0 ? Number(peak[0]) : null),
+    heaviestApp: usageSummary?.apps?.[0]
+      ? {
+          appName: usageSummary.apps[0].appName || usageSummary.apps[0].packageName,
+          minutes: usageSummary.apps[0].foregroundMinutes,
+        }
+      : null,
   };
 }
 
@@ -234,34 +416,125 @@ export function createAnalyticsSnapshot(
     generatedAt,
     window,
     range: { startISO: range.start.toISOString(), endISO: range.end.toISOString() },
-    tasks: buildTaskMetrics(source.tasks, source.estimationErrors, source.tasksByHour),
-    sessions: buildSessionMetrics(source.sessions),
+    tasks: buildTaskMetrics(source.tasks, source.estimationErrors, source.tasksByHour, source.tasksThisWeek),
+    sessions: buildSessionMetrics(source.sessions, source.estimationErrors),
     blocking: buildBlockingMetrics(source.temptations),
-    trends: buildTrendMetrics(source.weeklyRates, source.temptations.length),
+    trends: buildTrendMetrics(
+      source.weeklyRates,
+      source.temptations.length,
+      source.previousTemptations ? source.previousTemptations.length : null,
+      range,
+      window === 'three_months' ? 12 : 2,
+    ),
+    phoneUsage: window === 'three_months'
+      ? buildPhoneUsageMetrics(source.usageSummary, source.usageHourly, range)
+      : undefined,
+    sourceHealth: source.health,
   };
+}
+
+async function readSource<T>(
+  read: () => Promise<T>,
+  fallback: T,
+): Promise<{ value: T; state: AnalyticsSourceState }> {
+  try {
+    const value = await read();
+    return { value, state: 'loaded' };
+  } catch {
+    return { value: fallback, state: 'failed' };
+  }
 }
 
 export async function buildAnalyticsSnapshot(
   window: AnalyticsWindow,
-  options: { now?: Dayjs; weekStartDay?: number } = {},
+  options: { now?: Dayjs; weekStartDay?: number; usageStatsPermission?: boolean } = {},
 ): Promise<AnalyticsSnapshot> {
   const range = getAnalyticsRange(window, options.now, options.weekStartDay ?? 0);
   const startISO = range.start.toISOString();
   const endISO = range.end.toISOString();
-  const [tasks, sessions, estimationErrors, tasksByHour, weeklyRates, temptations] = await Promise.all([
-    dbGetTasksInDateRange(startISO, endISO),
-    dbGetSessionsWithOverrideCount(startISO, endISO),
-    dbGetEstimationErrors(startISO, endISO),
-    dbGetTasksByHourOfDay(startISO, endISO),
-    dbGetWeeklyCompletionRates(window === 'three_months' ? 12 : 2),
-    GreyoutModule.getTemptationLog(),
+  const previousRange = getPreviousAnalyticsRange(range);
+  const previousStartMs = previousRange.start.valueOf();
+  const previousEndMs = previousRange.end.valueOf();
+  const expectedWeekCount = window === 'three_months' ? 12 : 2;
+  const weekForSkipComparison = window === 'yesterday'
+    ? getAnalyticsRange('week', options.now, options.weekStartDay ?? 0)
+    : null;
+  const canReadUsageStats =
+    window === 'three_months' &&
+    options.usageStatsPermission === true;
+  const usageReads: [
+    { value: UsageSummary | null; state: AnalyticsSourceState },
+    { value: UsageHourlySummary | null; state: AnalyticsSourceState },
+  ] = canReadUsageStats
+    ? await Promise.all([
+        isUsageSummaryAvailable
+          ? readSource(() => UsageStatsModule.getUsageSummary(range.start.valueOf(), range.end.valueOf()), null)
+          : Promise.resolve({ value: null, state: 'unavailable' as AnalyticsSourceState }),
+        isUsageHourlySummaryAvailable
+          ? readSource(() => UsageStatsModule.getHourlyUsageSummary(range.start.valueOf(), range.end.valueOf()), null)
+          : Promise.resolve({ value: null, state: 'unavailable' as AnalyticsSourceState }),
+      ])
+    : [
+        { value: null, state: 'unavailable' as AnalyticsSourceState },
+        { value: null, state: 'unavailable' as AnalyticsSourceState },
+      ];
+
+  const [
+    tasksResult,
+    tasksThisWeekResult,
+    sessionsResult,
+    estimationErrorsResult,
+    tasksByHourResult,
+    weeklyRatesResult,
+    temptationsResult,
+  ] = await Promise.all([
+    readSource(() => dbGetTasksInDateRange(startISO, endISO), []),
+    weekForSkipComparison
+      ? readSource(
+          () => dbGetTasksInDateRange(
+            weekForSkipComparison.start.toISOString(),
+            weekForSkipComparison.end.toISOString(),
+          ),
+          [],
+        )
+      : Promise.resolve({ value: undefined, state: 'unavailable' as AnalyticsSourceState }),
+    readSource(() => dbGetSessionsWithOverrideCount(startISO, endISO), []),
+    readSource(() => dbGetEstimationErrors(startISO, endISO), []),
+    readSource(() => dbGetTasksByHourOfDay(startISO, endISO), []),
+    readSource(() => dbGetWeeklyCompletionRates(expectedWeekCount), []),
+    readSource(() => GreyoutModule.getTemptationLog(), []),
   ]);
-  const inRangeTemptations = temptations.filter(
+  const allTemptations = temptationsResult.value;
+  const inRangeTemptations = allTemptations.filter(
     (entry) => entry.timestamp >= range.start.valueOf() && entry.timestamp <= range.end.valueOf(),
+  );
+  const previousTemptations = allTemptations.filter(
+    (entry) => entry.timestamp >= previousStartMs && entry.timestamp <= previousEndMs,
   );
   return createAnalyticsSnapshot(
     window,
     range,
-    { tasks, sessions, estimationErrors, tasksByHour, weeklyRates, temptations: inRangeTemptations },
+    {
+      tasks: tasksResult.value,
+      tasksThisWeek: tasksThisWeekResult.value,
+      sessions: sessionsResult.value,
+      estimationErrors: estimationErrorsResult.value,
+      tasksByHour: tasksByHourResult.value,
+      weeklyRates: weeklyRatesResult.value,
+      temptations: inRangeTemptations,
+      previousTemptations,
+      usageSummary: usageReads[0].value,
+      usageHourly: usageReads[1].value,
+      health: {
+        tasks: tasksResult.state,
+        sessions: sessionsResult.state,
+        estimationErrors: estimationErrorsResult.state,
+        tasksByHour: tasksByHourResult.state,
+        weeklyRates: weeklyRatesResult.state,
+        temptations: temptationsResult.state,
+        usageSummary: usageReads[0].state,
+        usageHourly: usageReads[1].state,
+      },
+    },
   );
 }

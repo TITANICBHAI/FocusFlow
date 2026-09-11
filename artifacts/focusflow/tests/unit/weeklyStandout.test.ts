@@ -37,6 +37,7 @@ const snapshot: AnalyticsSnapshot = {
     byHour: {},
     avgDurationMinutes: 25,
     fastestWindowHour: null,
+    fastestWindowSampleSize: 0,
   },
   blocking: {
     totalAttempts: 3,
@@ -52,6 +53,7 @@ const snapshot: AnalyticsSnapshot = {
     blockingAttemptsPrev: null,
     blockingAttemptsCurr: 3,
     weekByWeek: [],
+    weeksWithData: 0,
   },
 };
 

@@ -26,3 +26,4 @@
 - [FocusFlow features plan](focusflow-features-plan.md) — audit the imported feature plan against the current artifact; content:// backup opening is only partially implemented.
 - [FocusFlow bug-fix bundle](focusflow-bugfix-bundle.md) — verified diagnosis and ordered tracker for session PIN, scheduling, and launcher fixes.
 - [FocusFlow stats and insights plan](stats-insights-plan.md) — local-only analytics redesign with a separate tracker for source implementation and device validation.
+- [Stats insights data quality](stats-insights-data-quality.md) — zero-fill fixed trend charts, but gate confidence on weeks with real records and preserve source failures.

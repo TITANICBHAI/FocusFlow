@@ -64,7 +64,10 @@ export function StatsInsightsExperience() {
         }
       }
       const [next, lifetime] = await Promise.all([
-        buildAnalyticsSnapshot(view, { weekStartDay }),
+        buildAnalyticsSnapshot(view, {
+          weekStartDay,
+          usageStatsPermission: view === 'three_months',
+        }),
         dbGetLifetimeStats(),
       ]);
       setSnapshot(next);
