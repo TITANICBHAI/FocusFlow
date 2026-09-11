@@ -5,6 +5,7 @@ name: Release Indus (Tag)
 # GitHub Release; only the Play release workflow publishes release assets.
 
 on:
+  workflow_dispatch: # <-- ADD THIS LINE TO ENABLE "RUN WORKFLOW" BUTTON
   push:
     tags:
       - 'indus-v*'
