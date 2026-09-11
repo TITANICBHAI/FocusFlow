@@ -62,6 +62,9 @@ export const INSIGHT_VARIANTS = {
   WEEKLY_FLAT: [
     'Consistent with last week. Not better, not worse.',
   ],
+  WEEKLY_NOTHING_UNUSUAL: [
+    'Nothing unusual this week. You showed up, you finished things, nothing spiked. Sometimes the analysis is: you did well.',
+  ],
   THREE_MONTH_PHONE_PEAK: [
     'Your heaviest phone use is consistently between {peak_start} and {peak_end}. Every week, without exception.',
     "{peak_period_label} is when you use your phone most. That's been true across all 12 weeks.",

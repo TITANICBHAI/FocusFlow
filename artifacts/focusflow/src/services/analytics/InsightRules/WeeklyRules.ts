@@ -14,6 +14,13 @@ function averageEstimationError(snapshot: AnalyticsSnapshot): number | null {
 
 function bestCleanWindow(snapshot: AnalyticsSnapshot): number | null {
   if (snapshot.sourceHealth?.temptations && snapshot.sourceHealth.temptations !== 'loaded') return null;
+  if (
+    snapshot.tasks.total === 0 &&
+    snapshot.sessions.total === 0 &&
+    snapshot.blocking.totalAttempts === 0
+  ) {
+    return null;
+  }
   for (let hour = 0; hour < 24; hour += 1) {
     const nextHour = (hour + 1) % 24;
     if ((snapshot.blocking.byHour[hour] ?? 0) === 0 && (snapshot.blocking.byHour[nextHour] ?? 0) === 0) {
@@ -28,7 +35,7 @@ function daysShownUp(snapshot: AnalyticsSnapshot): number {
   for (const [day, bucket] of Object.entries(snapshot.tasks.byDayOfWeek)) {
     if (bucket.total > 0) present.add(Number(day));
   }
-  for (const [day, count] of Object.entries(snapshot.sessions.byDayOfWeek)) {
+  for (const [day, count] of Object.entries(snapshot.sessions.byDayOfWeek ?? {})) {
     if (count > 0) present.add(Number(day));
   }
   return present.size;
@@ -39,18 +46,14 @@ export const weeklyRules: readonly InsightRule[] = [
     id: 'WEEKLY_VULNERABLE_WINDOW',
     category: 'resistance',
     condition: (snapshot) => snapshot.blocking.totalAttempts > 0 && snapshot.blocking.peakHour !== null,
-    priority: (snapshot) => {
-      const hour = snapshot.blocking.peakHour;
-      const count = hour === null ? 0 : snapshot.blocking.byHour[hour] ?? 0;
-      return count > 8 ? 90 : 85;
-    },
+    priority: () => 85,
     render: (snapshot, seed) => {
       const hour = snapshot.blocking.peakHour;
       const count = hour === null ? 0 : snapshot.blocking.byHour[hour] ?? 0;
       return {
         id: 'WEEKLY_VULNERABLE_WINDOW',
         category: 'resistance',
-        priority: count > 8 ? 90 : 85,
+        priority: 85,
         headline: `${hourLabel(hour)} is your weakest hour`,
         body: renderInsightVariant('WEEKLY_VULNERABLE_WINDOW', seed, {
           peak_hour_label: hourLabel(hour),

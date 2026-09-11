@@ -63,7 +63,34 @@ describe('weekly standout selection', () => {
   });
 
   it('falls back to nothing unusual when every signal was already used', () => {
-    expect(selectWeeklyStandout(snapshot, ['WEEKLY_ONE_APP', 'WEEKLY_VULNERABLE_WINDOW', 'WEEKLY_SHOWED_UP']).id)
+    expect(selectWeeklyStandout(snapshot, [
+      'WEEKLY_ONE_APP',
+      'WEEKLY_VULNERABLE_WINDOW',
+      'WEEKLY_SHOWED_UP',
+      'WEEKLY_TOP_APP_MODERATE',
+      'WEEKLY_CLEAN_WINDOW',
+      'WEEKLY_ESTIMATION_IMPROVING',
+      'WEEKLY_UNDERESTIMATING',
+      'WEEKLY_OVERESTIMATING',
+      'WEEKLY_BETTER_THAN_LAST',
+      'WEEKLY_WORSE_THAN_LAST',
+      'WEEKLY_FLAT',
+    ]).id)
       .toBe('WEEKLY_NOTHING_UNUSUAL');
+    expect(selectWeeklyStandout(snapshot, [
+      'WEEKLY_ONE_APP',
+      'WEEKLY_VULNERABLE_WINDOW',
+      'WEEKLY_SHOWED_UP',
+      'WEEKLY_TOP_APP_MODERATE',
+      'WEEKLY_CLEAN_WINDOW',
+      'WEEKLY_ESTIMATION_IMPROVING',
+      'WEEKLY_UNDERESTIMATING',
+      'WEEKLY_OVERESTIMATING',
+      'WEEKLY_BETTER_THAN_LAST',
+      'WEEKLY_WORSE_THAN_LAST',
+      'WEEKLY_FLAT',
+    ]).body).toBe(
+      'Nothing unusual this week. You showed up, you finished things, nothing spiked. Sometimes the analysis is: you did well.',
+    );
   });
 });

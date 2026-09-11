@@ -35,6 +35,12 @@ function lastTrendWeeks(snapshot: AnalyticsSnapshot, count: number) {
   return weeks.length >= count ? weeks.slice(-count) : [];
 }
 
+function average(values: number[]): number {
+  return values.length === 0
+    ? 0
+    : values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
 function nightPattern(snapshot: AnalyticsSnapshot): { multiplier: number } | null {
   const byHour = snapshot.phoneUsage?.byHour;
   if (!byHour) return null;
@@ -86,7 +92,7 @@ export const threeMonthRules: readonly InsightRule[] = [
   {
     id: 'THREE_MONTH_PHONE_PEAK',
     category: 'pattern',
-    condition: (snapshot) => Boolean(snapshot.phoneUsage?.byHour),
+    condition: (snapshot) => Boolean(snapshot.phoneUsage?.byHour && snapshot.phoneUsage.peakHour !== null),
     priority: () => 92,
     render: (snapshot, seed) => {
       const phone = snapshot.phoneUsage!;
@@ -147,11 +153,22 @@ export const threeMonthRules: readonly InsightRule[] = [
     condition: (snapshot) => {
       if (!hasEnoughTrendData(snapshot, 4)) return false;
       const weeks = snapshot.trends?.weekByWeek ?? [];
+      const firstFour = weeks.slice(0, 4);
       const lastFour = lastTrendWeeks(snapshot, 4);
+      if (
+        firstFour.length !== 4 ||
+        lastFour.length !== 4 ||
+        firstFour.some((week) => !week.hasData) ||
+        lastFour.some((week) => !week.hasData)
+      ) {
+        return false;
+      }
       const monotonic = lastFour.length === 4 &&
         lastFour.every((week, index) => index === 0 || week.completionRate >= lastFour[index - 1].completionRate);
-      const netImprovement = weeks.length >= 4 &&
-        weeks.at(-1)!.completionRate - weeks[0].completionRate >= 0.1;
+      const netImprovement =
+        average(lastFour.map((week) => week.completionRate)) -
+          average(firstFour.map((week) => week.completionRate)) >=
+        0.1;
       return monotonic || netImprovement;
     },
     priority: () => 85,

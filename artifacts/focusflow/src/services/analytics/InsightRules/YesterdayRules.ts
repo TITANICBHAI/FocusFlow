@@ -112,12 +112,12 @@ export const yesterdayRules: readonly InsightRule[] = [
     category: 'nothing_to_report',
     condition: () => true,
     priority: () => 10,
-    render: () => ({
+    render: (snapshot, seed) => ({
       id: 'YESTERDAY_NOTHING_NOTABLE',
       category: 'nothing_to_report',
       priority: 10,
       headline: 'Nothing unusual',
-      body: 'Ordinary day. You showed up, you worked, nothing unusual happened.',
+      body: renderInsightVariant('YESTERDAY_NOTHING_NOTABLE', seed),
       sentiment: 'neutral',
     }),
   },

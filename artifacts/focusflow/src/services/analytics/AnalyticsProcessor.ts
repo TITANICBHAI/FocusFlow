@@ -32,7 +32,7 @@ export interface AnalyticsSnapshot {
     skipped: number;
     skippedThisWeek?: number;
     missed: number;
-    resultRows: { title: string; status: Task['status'] }[];
+    resultRows?: { title: string; status: Task['status'] }[];
     byHour: Record<number, { total: number; completed: number }>;
     byDayOfWeek: Record<number, { total: number; completed: number }>;
     estimationErrorMinutes: number[];
@@ -43,12 +43,12 @@ export interface AnalyticsSnapshot {
     cleanCount: number;
     totalFocusMinutes: number;
     byHour: Record<number, number>;
-    byDayOfWeek: Record<number, number>;
+    byDayOfWeek?: Record<number, number>;
     avgDurationMinutes: number;
     fastestWindowHour: number | null;
     fastestWindowSampleSize: number;
     fastestWindowImprovementPercent?: number;
-    hardestSession: { hour: number; attempts: number } | null;
+    hardestSession?: { hour: number; attempts: number } | null;
   };
   blocking: {
     totalAttempts: number;
@@ -190,6 +190,7 @@ function buildTaskMetrics(
     byHour[row.hour] = { total: row.total, completed: row.completed };
   }
 
+  const taskIds = new Set(tasks.map((task) => task.id));
   return {
     total: tasks.length,
     completed: tasks.filter((task) => task.status === 'completed').length,
@@ -200,6 +201,7 @@ function buildTaskMetrics(
     byHour,
     byDayOfWeek,
     estimationErrorMinutes: estimationErrors
+      .filter((row) => taskIds.has(row.task_id))
       .map((row) => row.actual_minutes - row.planned_minutes)
       .filter(Number.isFinite),
     firstTaskHour,

@@ -715,6 +715,8 @@ export async function dbGetEstimationErrors(
        INNER JOIN tasks t ON t.id = s.task_id
        WHERE t.status = 'completed'
          AND s.ended_at IS NOT NULL
+         AND t.duration_minutes > 0
+         AND s.ended_at > s.started_at
          AND s.started_at < ?
          AND s.ended_at > ?
        ORDER BY s.started_at ASC`,

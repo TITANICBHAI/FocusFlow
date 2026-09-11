@@ -26,13 +26,14 @@ import {
   type InsightCard,
 } from '@/services/analytics/InsightEngine';
 import {
+  isUsageHourlySummaryAvailable,
   isUsageSummaryAvailable,
   UsageStatsModule,
 } from '@/native-modules/UsageStatsModule';
 import { dbGetLifetimeStats } from '@/data/database';
 import { syncAchievements, type AchievementState } from '@/services/analytics/AchievementEngine';
 
-type LoadState = 'loading' | 'ready' | 'permission' | 'error';
+type LoadState = 'loading' | 'ready' | 'permission' | 'unavailable' | 'error';
 
 const VIEW_OPTIONS: { value: AnalyticsWindow; label: string }[] = [
   { value: 'yesterday', label: 'Yesterday' },
@@ -58,7 +59,11 @@ export function StatsInsightsExperience() {
 
     try {
       if (view === 'three_months') {
-        if (!isUsageSummaryAvailable || !(await UsageStatsModule.hasPermission())) {
+        if (!isUsageSummaryAvailable || !isUsageHourlySummaryAvailable) {
+          setLoadState('unavailable');
+          return;
+        }
+        if (!(await UsageStatsModule.hasPermission())) {
           setLoadState('permission');
           return;
         }
@@ -159,6 +164,10 @@ export function StatsInsightsExperience() {
         <PermissionGate theme={theme} />
       )}
 
+      {loadState === 'unavailable' && (
+        <UnavailableGate theme={theme} />
+      )}
+
       {loadState === 'error' && (
         <View style={styles.center}>
           <Ionicons name="warning-outline" size={28} color={COLORS.orange} />
@@ -176,6 +185,13 @@ export function StatsInsightsExperience() {
           showsVerticalScrollIndicator={false}
         >
           {weeklyStandout && <InsightCardView insight={weeklyStandout} theme={theme} />}
+          <DataHealthNotice snapshot={snapshot} theme={theme} />
+          {snapshot.tasks.total === 0 &&
+            snapshot.sessions.total === 0 &&
+            snapshot.blocking.totalAttempts === 0 &&
+            view !== 'three_months' && (
+              <EmptyStatsState view={view} theme={theme} />
+            )}
           <View style={styles.insightStack}>
             {insights.filter((insight) => insight.id !== weeklyStandout?.id).map((insight) => (
               <InsightCardView key={insight.id} insight={insight} theme={theme} />
@@ -183,9 +199,15 @@ export function StatsInsightsExperience() {
           </View>
 
           {view === 'week' && <PresenceStrip snapshot={snapshot} weekStartDay={weekStartDay} theme={theme} />}
-          {view === 'three_months' && <TrendChart snapshot={snapshot} theme={theme} />}
-          <TaskSummary snapshot={snapshot} theme={theme} />
-          {achievements && <AchievementRow state={achievements} theme={theme} />}
+          {view === 'yesterday' && <TaskResultList snapshot={snapshot} theme={theme} />}
+          {view === 'week' && <TaskSummary snapshot={snapshot} theme={theme} />}
+          {view === 'three_months' && (
+            <>
+              <PhoneUsageSummary snapshot={snapshot} theme={theme} />
+              <TrendChart snapshot={snapshot} theme={theme} />
+            </>
+          )}
+          {achievements && view !== 'three_months' && <AchievementRow state={achievements} theme={theme} />}
         </ScrollView>
       )}
     </SafeAreaView>
@@ -213,6 +235,67 @@ function PermissionGate({ theme }: { theme: ReturnType<typeof useTheme>['theme']
         <Ionicons name="settings-outline" size={17} color={COLORS.card} />
         <Text style={[styles.permissionButtonText, { color: COLORS.card }]}>Grant Usage Access</Text>
       </TouchableOpacity>
+    </View>
+  );
+}
+
+function UnavailableGate({ theme }: { theme: ReturnType<typeof useTheme>['theme'] }) {
+  return (
+    <View style={styles.center}>
+      <View style={[styles.permissionIcon, { backgroundColor: theme.surface }]}>
+        <Ionicons name="phone-portrait-outline" size={30} color={theme.muted} />
+      </View>
+      <Text style={[styles.centerTitle, { color: theme.text }]}>3-Month view unavailable</Text>
+      <Text style={[styles.centerText, { color: theme.muted }]}>
+        This build cannot read Android hourly UsageStats yet. Use a FocusFlow Android build with UsageStats support to unlock phone behaviour patterns.
+      </Text>
+    </View>
+  );
+}
+
+function DataHealthNotice({
+  snapshot,
+  theme,
+}: {
+  snapshot: AnalyticsSnapshot;
+  theme: ReturnType<typeof useTheme>['theme'];
+}) {
+  const failedSources = Object.entries(snapshot.sourceHealth ?? {})
+    .filter(([, status]) => status !== 'loaded');
+  const generatedAt = Date.parse(snapshot.generatedAt);
+  const isStale = Number.isFinite(generatedAt) && Date.now() - generatedAt > 5 * 60 * 1000;
+  if (failedSources.length === 0 && !isStale) return null;
+  const unavailable = failedSources.some(([, status]) => status === 'unavailable');
+  return (
+    <View style={[styles.healthNotice, { backgroundColor: COLORS.orange + '12', borderColor: COLORS.orange + '44' }]}>
+      <Ionicons name="information-circle-outline" size={18} color={COLORS.orange} />
+      <Text style={[styles.healthNoticeText, { color: theme.textSecondary }]}>
+        {isStale
+          ? 'This view is stale. Return to it to refresh your local history.'
+          : unavailable
+            ? 'Some local data sources are unavailable, so related insights are omitted.'
+            : 'Some local data could not be read, so related insights are omitted.'}
+      </Text>
+    </View>
+  );
+}
+
+function EmptyStatsState({
+  view,
+  theme,
+}: {
+  view: AnalyticsWindow;
+  theme: ReturnType<typeof useTheme>['theme'];
+}) {
+  return (
+    <View style={[styles.emptyState, { backgroundColor: theme.card, borderColor: theme.border }]}>
+      <Ionicons name="analytics-outline" size={26} color={theme.muted} />
+      <Text style={[styles.emptyStateTitle, { color: theme.text }]}>
+        {view === 'yesterday' ? 'Nothing recorded yesterday' : 'No activity recorded this week'}
+      </Text>
+      <Text style={[styles.emptyStateText, { color: theme.muted }]}>
+        Insights will appear here once FocusFlow has a task, session, or blocked-app attempt to read.
+      </Text>
     </View>
   );
 }
@@ -362,6 +445,82 @@ function TaskSummary({
   );
 }
 
+function TaskResultList({
+  snapshot,
+  theme,
+}: {
+  snapshot: AnalyticsSnapshot;
+  theme: ReturnType<typeof useTheme>['theme'];
+}) {
+  const rows = snapshot.tasks.resultRows ?? [];
+  return (
+    <View style={[styles.section, { backgroundColor: theme.card, borderColor: theme.border }]}>
+      <Text style={[styles.sectionLabel, { color: theme.muted }]}>YESTERDAY'S TASKS</Text>
+      {rows.length === 0 ? (
+        <Text style={[styles.emptyText, { color: theme.muted }]}>No tasks were recorded yesterday.</Text>
+      ) : (
+        rows.map((row, index) => {
+          const isDone = row.status === 'completed';
+          const isSkipped = row.status === 'skipped';
+          const color = isDone ? COLORS.green : isSkipped ? COLORS.orange : COLORS.red;
+          const icon = isDone ? 'checkmark-circle' : isSkipped ? 'remove-circle' : 'close-circle';
+          const label = isDone ? 'Done' : isSkipped ? 'Skipped' : row.status === 'overdue' ? 'Missed' : 'Not completed';
+          return (
+            <View key={`${row.title}-${index}`} style={[styles.taskResultRow, { borderBottomColor: theme.border }]}>
+              <Ionicons name={icon} size={20} color={color} />
+              <Text style={[styles.taskResultTitle, { color: theme.text }]} numberOfLines={2}>{row.title}</Text>
+              <Text style={[styles.taskResultStatus, { color }]}>{label}</Text>
+            </View>
+          );
+        })
+      )}
+    </View>
+  );
+}
+
+function PhoneUsageSummary({
+  snapshot,
+  theme,
+}: {
+  snapshot: AnalyticsSnapshot;
+  theme: ReturnType<typeof useTheme>['theme'];
+}) {
+  const usage = snapshot.phoneUsage;
+  const dailyMinutes = usage
+    ? Math.round(Object.values(usage.byHour).reduce((sum, minutes) => sum + minutes, 0))
+    : 0;
+  return (
+    <View style={[styles.section, { backgroundColor: theme.card, borderColor: theme.border }]}>
+      <View style={styles.sectionTitleRow}>
+        <Text style={[styles.sectionLabel, { color: theme.muted }]}>ANDROID USAGESTATS</Text>
+        <Text style={[styles.sourceBadge, { color: COLORS.green }]}>ON DEVICE</Text>
+      </View>
+      {!usage ? (
+        <Text style={[styles.emptyText, { color: theme.muted }]}>
+          Android returned no phone-use history for this period.
+        </Text>
+      ) : (
+        <>
+          <Text style={[styles.phoneUsageValue, { color: COLORS.blue }]}>
+            {dailyMinutes}m average daily phone use
+          </Text>
+          <Text style={[styles.phoneUsageText, { color: theme.textSecondary }]}>
+            {usage.peakHour === null
+              ? 'No hourly peak was recorded.'
+              : `Heaviest use is around ${hourLabel(usage.peakHour)}.`}
+            {usage.heaviestApp ? ` ${usage.heaviestApp.appName} was the most-used app.` : ''}
+          </Text>
+        </>
+      )}
+    </View>
+  );
+}
+
+function hourLabel(hour: number): string {
+  const normalized = hour % 12 || 12;
+  return `${normalized}${hour < 12 ? 'am' : 'pm'}`;
+}
+
 function AchievementRow({
   state,
   theme,
@@ -383,6 +542,7 @@ function AchievementRow({
           <View key={achievement.id} style={[styles.achievementChip, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <Ionicons name={achievement.icon as keyof typeof Ionicons.glyphMap} size={20} color={COLORS.primary} />
             <Text style={[styles.achievementTitle, { color: theme.text }]}>{achievement.title}</Text>
+            <Text style={[styles.achievementDescription, { color: theme.muted }]}>{achievement.description}</Text>
           </View>
         ))}
       </ScrollView>
@@ -447,11 +607,24 @@ const styles = StyleSheet.create({
   insightBody: { fontSize: FONT.md, lineHeight: 22 },
   section: { padding: SPACING.lg, borderRadius: RADIUS.lg, borderWidth: 1, gap: SPACING.md },
   sectionLabel: { fontSize: FONT.xs, fontWeight: '900', letterSpacing: 1 },
+  sectionTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  sourceBadge: { fontSize: 9, fontWeight: '900', letterSpacing: 0.8 },
   achievementHeading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   newAchievementLabel: { fontSize: FONT.xs, fontWeight: '900', letterSpacing: 1 },
   achievementRow: { gap: SPACING.sm },
-  achievementChip: { minWidth: 108, alignItems: 'center', gap: SPACING.xs, padding: SPACING.md, borderRadius: RADIUS.md, borderWidth: 1 },
+  achievementChip: { width: 190, alignItems: 'center', gap: SPACING.xs, padding: SPACING.md, borderRadius: RADIUS.md, borderWidth: 1 },
   achievementTitle: { fontSize: FONT.xs, fontWeight: '800', textAlign: 'center' },
+  achievementDescription: { fontSize: 11, lineHeight: 15, textAlign: 'center' },
+  taskResultRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, paddingVertical: SPACING.sm, borderBottomWidth: StyleSheet.hairlineWidth },
+  taskResultTitle: { flex: 1, fontSize: FONT.sm, fontWeight: '700' },
+  taskResultStatus: { fontSize: FONT.xs, fontWeight: '900' },
+  phoneUsageValue: { fontSize: FONT.xl, fontWeight: '900' },
+  phoneUsageText: { fontSize: FONT.sm, lineHeight: 20 },
+  healthNotice: { flexDirection: 'row', alignItems: 'flex-start', padding: SPACING.md, borderRadius: RADIUS.md, borderWidth: 1, gap: SPACING.sm },
+  healthNoticeText: { flex: 1, fontSize: FONT.xs, lineHeight: 18 },
+  emptyState: { alignItems: 'center', padding: SPACING.lg, borderRadius: RADIUS.lg, borderWidth: 1, gap: SPACING.xs },
+  emptyStateTitle: { fontSize: FONT.md, fontWeight: '900', textAlign: 'center' },
+  emptyStateText: { fontSize: FONT.xs, lineHeight: 17, textAlign: 'center' },
   presenceRow: { flexDirection: 'row', justifyContent: 'space-between' },
   presenceItem: { alignItems: 'center', gap: SPACING.xs },
   presenceBox: { width: 30, height: 30, borderRadius: RADIUS.sm, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },

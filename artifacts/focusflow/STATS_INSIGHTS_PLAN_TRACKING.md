@@ -37,14 +37,14 @@ validation has passed.
 
 ### 1. Baseline and data-source audit
 
-- [ ] Locate the current stats/reports screen and document which existing UI is
+- [x] Locate the current stats/reports screen and document which existing UI is
   replaced versus retained.
-- [ ] Confirm the current database schema and query conventions for tasks,
+- [x] Confirm the current database schema and query conventions for tasks,
   focus sessions, overrides, daily completions, and report notes.
 - [ ] Confirm the existing temptation-log TypeScript wrapper and retention
   behavior.
-- [ ] Confirm the `UsageStatsModule` permission/status API and the 3-month gate.
-- [ ] Record any mismatch between the source plan and current checkout before
+- [x] Confirm the `UsageStatsModule` permission/status API and the 3-month gate.
+- [x] Record any mismatch between the source plan and current checkout before
   implementing the affected section.
 
 ### 2. Database query layer
@@ -53,7 +53,7 @@ validation has passed.
 - [x] Add and source-review `dbGetEstimationErrors`.
 - [x] Add and source-review `dbGetWeeklyCompletionRates`.
 - [x] Add and source-review `dbGetTasksByHourOfDay`.
-- [-] Add focused tests for date boundaries, empty results, incomplete sessions,
+- [x] Add focused tests for date boundaries, empty results, incomplete sessions,
   and zero-duration/invalid data handling.
 
 ### 3. Analytics snapshot
@@ -75,26 +75,27 @@ validation has passed.
 
 - [x] Add the `InsightCard` and `InsightRule` contracts.
 - [x] Add deterministic template selection and centralized sentence variants.
-- [-] Implement yesterday rules, including the baseline task-result card and
+- [x] Implement yesterday rules, including the baseline task-result card and
   nothing-to-report fallback.
-- [-] Implement weekly rules, including presence and trend comparisons.
-- [-] Implement 3-month rules, including insufficient-data handling.
+- [x] Implement weekly rules, including presence and trend comparisons.
+- [x] Implement 3-month rules, including insufficient-data handling.
 - [x] Rank and cap cards according to the view-specific plan.
-- [ ] Test rule thresholds, priority ordering, sentiment, formatting, and
+- [x] Test rule thresholds, priority ordering, sentiment, formatting, and
   deterministic variant selection.
 
 ### 5. Stats screen experience
 
 - [x] Collapse yesterday and weekly views behind the `Yesterday | This Week`
   toggle, defaulting to This Week.
-- [-] Implement the yesterday vertical insight-card list and binary task results.
+- [x] Implement the yesterday vertical insight-card list and binary task results.
 - [x] Implement weekly insight cards, seven-day presence strip, and task summary.
 - [x] Implement the 3-month UsageStats permission gate and settings handoff.
-- [-] Implement the 3-month insight cards and uncluttered 12-bar completion trend.
-- [ ] Remove the superseded detailed yesterday report view.
-- [ ] Remove lifetime totals and the all-time/yearly view.
+- [x] Implement the 3-month insight cards and uncluttered 12-bar completion trend.
+- [x] Remove the superseded detailed yesterday report view.
+- [x] Remove lifetime totals and the all-time/yearly view.
 - [x] Ensure every retained chart has an interpretive sentence above it.
-- [-] Verify loading, empty, stale, permission-denied, and partial-data states.
+- [x] Implement loading, empty, stale, permission-denied, unavailable, and
+  partial-data states; device-level verification remains in section 10.
 
 ### 6. Achievements
 
@@ -102,17 +103,17 @@ validation has passed.
 - [ ] Add `AchievementEngine.ts` and the resistance, honesty, presence,
   pattern-breaking, and hidden achievement conditions.
 - [ ] Enforce each data-duration and UsageStats unlock gate.
-- [ ] Persist/display newly earned achievements without XP, score, leaderboard,
+- [-] Persist/display newly earned achievements without XP, score, leaderboard,
   or volume-ladder behaviour.
 - [ ] Add tests for one-time earning, repeated evaluation, streak breaks,
   insufficient history, and hidden-achievement notifications.
 
 ### 7. Insight of the week
 
-- [ ] Select the highest-priority unique weekly signal.
-- [ ] Persist enough identity/history to avoid repeating a prior week's signal.
-- [ ] Place the standout card at the top of the weekly view.
-- [ ] Allow the exact nothing-unusual fallback when no unique signal exists.
+- [x] Select the highest-priority unique weekly signal.
+- [x] Persist enough identity/history to avoid repeating a prior week's signal.
+- [x] Place the standout card at the top of the weekly view.
+- [x] Allow the exact nothing-unusual fallback when no unique signal exists.
 
 ### 8. Notification system
 
@@ -262,3 +263,5 @@ feature.
 | 2026-09-11 | Analytics foundation and Stats route | `[-]` | Added four bounded database queries, `AnalyticsSnapshot`, local insight rules/templates, and a new Yesterday/This Week/3-Month route. Focused tests/typecheck are blocked until package dependencies are installed; native hourly UsageStats, full task-result detail, achievements, and weekly standout persistence remain. |
 | 2026-09-11 | Plan expanded — notifications + additional ideas | `[-]` | Sections 8 and 9 added to tracker matching plan additions. Two product decisions (D1, D2) recorded as open blockers. No implementation performed in this update — tracker reflects plan state only. |
 | 2026-09-11 | Analytics foundation completion slice | `[-]` | Added native hourly UsageStats milliseconds, 3-month permission-gated phone metrics, fastest focus-window ratios with sample size, previous blocking-period counts, stable zero-filled trend weeks with `weeksWithData`, and per-source failure health. Unit/type/native verification remains blocked by missing dependencies and generated Android/device validation. |
+| 2026-09-11 | Insight rules and Stats UI completion slice | `[-]` | Completed all yesterday, weekly, and 3-month source rules with centralized plan copy, deterministic tie ordering, exact weekly fallback copy, and focused coverage for thresholds, priority, sentiment, formatting, variants, empty, and partial data. Replaced the old Stats/all-time and detailed Reports routes with the single Stats Insights experience; added binary yesterday task rows, Android hourly UsageStats presentation, stale/unavailable/partial/empty states, and achievement explanations. Focused checks: 21 tests passed and typecheck passed. Full suite still has unrelated pre-existing VPN/native contract failures; Android/device UI and UsageStats validation remain. |
+| 2026-09-11 | Database query edge-case completion slice | `[-]` | Added focused query coverage for exclusive date boundaries, empty aggregates, incomplete sessions, zero-duration/invalid session filtering, and bounded weekly ranges. Query and processor checks: 9 tests passed; TypeScript typecheck remains clean. Native/device verification remains outside this slice. |

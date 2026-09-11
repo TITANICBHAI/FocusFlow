@@ -7,6 +7,7 @@ import { threeMonthRules } from './InsightRules/ThreeMonthRules';
 import { weeklyRules } from './InsightRules/WeeklyRules';
 import { yesterdayRules } from './InsightRules/YesterdayRules';
 import { weekSeed } from './InsightTemplates';
+import { renderInsightVariant } from './InsightTemplates';
 
 export type InsightCategory =
   | 'task'
@@ -47,8 +48,12 @@ export function buildInsights(
   const seed = weekSeed(snapshot.generatedAt);
   const candidates = rulesByWindow[snapshot.window]
     .filter((rule) => rule.condition(snapshot))
-    .map((rule) => ({ card: rule.render(snapshot, seed), priority: rule.priority(snapshot) }))
-    .sort((a, b) => b.priority - a.priority);
+    .map((rule, index) => ({
+      card: rule.render(snapshot, seed),
+      priority: rule.priority(snapshot),
+      index,
+    }))
+    .sort((a, b) => b.priority - a.priority || a.index - b.index);
   return candidates.slice(0, Math.max(1, limit)).map(({ card }) => card);
 }
 
@@ -64,7 +69,7 @@ export function selectWeeklyStandout(
     category: 'nothing_to_report',
     priority: 1,
     headline: 'Nothing unusual this week',
-    body: 'No single signal stood out enough to repeat. Keep building the routine.',
+    body: renderInsightVariant('WEEKLY_NOTHING_UNUSUAL', weekSeed(snapshot.generatedAt)),
     sentiment: 'neutral',
   };
 }
