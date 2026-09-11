@@ -267,6 +267,9 @@ export interface AppSettings {
   // app-blocking and the persistent notification stay active). Default false: completing
   // a task stops focus immediately (the existing behaviour).
   keepFocusActiveUntilTaskEnd: boolean;
+  // When true, completing, skipping, or deleting a future task pulls later
+  // unresolved tasks forward to reclaim the freed schedule time.
+  autoRescheduleEnabled: boolean;
   // Block overlay appearance
   overlayWallpaper?: string;        // Absolute path to custom background image (empty = use gradient)
   overlayQuotes?: string[];         // Custom quote pool (empty = use built-in quotes)

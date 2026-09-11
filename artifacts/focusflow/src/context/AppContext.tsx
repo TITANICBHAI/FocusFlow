@@ -1376,7 +1376,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const tasks = taskSnapshotRef.current;
         const task = tasks.find((t) => t.id === taskId);
         const isFutureScheduledTask = task?.status === 'scheduled' && new Date(task.startTime).getTime() > Date.now();
-        const compressed = task && isFutureScheduledTask ? compressDeletedTaskGap(task, tasks) : tasks;
+        const compressed =
+          task &&
+          isFutureScheduledTask &&
+          stateRef.current.settings.autoRescheduleEnabled
+            ? compressDeletedTaskGap(task, tasks)
+            : tasks;
         const shifted = compressed.filter((candidate) => {
           const original = tasks.find((t) => t.id === candidate.id);
           return (
@@ -1429,7 +1434,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           // If focus is intentionally kept alive until the original end, its
           // reserved time is still occupied. Otherwise reclaim an early finish.
           const compressionTime = keepUntilEnd ? updated.endTime : completedAt;
-          const compressed = compressSchedule(updated, compressionTime, tasksWithUpdate);
+          const compressed = stateRef.current.settings.autoRescheduleEnabled
+            ? compressSchedule(updated, compressionTime, tasksWithUpdate)
+            : tasksWithUpdate;
           const originalById = new Map(tasks.map((t) => [t.id, t]));
           const changedTasks = compressed.filter((candidate) => {
             const original = originalById.get(candidate.id);
@@ -1504,7 +1511,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const skippedAt = Date.now() < new Date(task.startTime).getTime() ? task.startTime : new Date().toISOString();
         const updated = updateTaskStatus(task, 'skipped');
         const tasksWithUpdate = tasks.map((t) => (t.id === taskId ? updated : t));
-        const compressed = compressSchedule(updated, skippedAt, tasksWithUpdate);
+        const compressed = stateRef.current.settings.autoRescheduleEnabled
+          ? compressSchedule(updated, skippedAt, tasksWithUpdate)
+          : tasksWithUpdate;
         const originalById = new Map(tasks.map((t) => [t.id, t]));
         const changedTasks = compressed.filter((candidate) => {
           const original = originalById.get(candidate.id);

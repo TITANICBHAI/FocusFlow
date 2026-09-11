@@ -450,6 +450,22 @@ function DefenseScreen() {
               thumbColor={settings.keepFocusActiveUntilTaskEnd ? COLORS.primary : theme.muted}
             />
           </SettingRow>
+          <SettingRow
+            label="Auto-reschedule freed time"
+            description={
+              settings.autoRescheduleEnabled
+                ? 'On — completing, skipping, or deleting a future task moves later tasks forward'
+                : 'Off — task times stay unchanged when time is freed'
+            }
+            theme={theme}
+          >
+            <Switch
+              value={settings.autoRescheduleEnabled ?? false}
+              onValueChange={(value) => void update({ autoRescheduleEnabled: value })}
+              trackColor={{ false: theme.border, true: COLORS.primary + '88' }}
+              thumbColor={settings.autoRescheduleEnabled ? COLORS.primary : theme.muted}
+            />
+          </SettingRow>
         </Section>
 
         <Section title="Always-On Behavior" theme={theme}>

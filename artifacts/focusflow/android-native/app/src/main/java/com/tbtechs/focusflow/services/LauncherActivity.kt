@@ -11,6 +11,8 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.RenderEffect
+import android.graphics.Shader
 import android.graphics.Typeface
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
@@ -41,6 +43,10 @@ import android.widget.SeekBar
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.core.graphics.drawable.RoundedBitmapDrawableFactory
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.widget.NestedScrollView
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -383,6 +389,8 @@ class LauncherActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
+        window.statusBarColor = Color.TRANSPARENT
+        WindowCompat.setDecorFitsSystemWindows(window, false)
         prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         rootFrame = FrameLayout(this)
         setContentView(rootFrame)
@@ -463,6 +471,11 @@ class LauncherActivity : Activity() {
                 FrameLayout.LayoutParams.MATCH_PARENT,
             )
         }
+        ViewCompat.setOnApplyWindowInsetsListener(scroll) { view, insets ->
+            val bars = insets.getInsets(WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.navigationBars())
+            view.setPadding(view.paddingLeft, bars.top, view.paddingRight, bars.bottom)
+            insets
+        }
         val column = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(20), dp(18), dp(20), dp(24))
@@ -486,6 +499,7 @@ class LauncherActivity : Activity() {
         column.addView(buildTwoIconRow())
         scroll.addView(column)
         rootFrame.addView(scroll)
+        ViewCompat.requestApplyInsets(scroll)
         refreshHomeContent()
         applyWallpaperTint()
     }
@@ -722,6 +736,16 @@ class LauncherActivity : Activity() {
                 LinearLayout.LayoutParams.WRAP_CONTENT,
             ).also { it.bottomMargin = dp(12) }
         })
+        val innerList = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        val scrollWrap = NestedScrollView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(52 * 3 + 16),
+            )
+            isNestedScrollingEnabled = true
+        }
         cards.forEachIndexed { index, allowance ->
             val row = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
@@ -761,8 +785,10 @@ class LauncherActivity : Activity() {
             row.addView(icon)
             row.addView(name)
             row.addView(value)
-            card.addView(row)
+            innerList.addView(row)
         }
+        scrollWrap.addView(innerList)
+        card.addView(scrollWrap)
         container.addView(card)
         container.visibility = View.VISIBLE
     }
@@ -935,6 +961,11 @@ class LauncherActivity : Activity() {
                 )
             }
             loadWallpaperInto(wallpaper)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                wallpaper.setRenderEffect(
+                    RenderEffect.createBlurEffect(22f, 22f, Shader.TileMode.CLAMP),
+                )
+            }
             overlay.addView(wallpaper)
             overlay.addView(View(this).apply {
                 setBackgroundColor(Color.parseColor("#66000000"))
