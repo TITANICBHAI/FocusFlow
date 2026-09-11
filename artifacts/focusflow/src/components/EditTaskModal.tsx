@@ -55,6 +55,9 @@ export default function EditTaskModal({ task, visible, onClose, onSave, onDelete
   const [startDate, setStartDate] = useState<Date>(new Date(task.startTime));
   const [showPicker, setShowPicker] = useState(false);
   const [durationStr, setDurationStr] = useState(String(task.durationMinutes));
+  const [customDuration, setCustomDuration] = useState(
+    !DURATION_PRESETS.some((preset) => preset.minutes === task.durationMinutes),
+  );
   const [priority, setPriority] = useState<TaskPriority>(task.priority);
   const [localTags, setLocalTags] = useState<string[]>(task.tags);
   const [tagInput, setTagInput] = useState('');
@@ -258,24 +261,58 @@ export default function EditTaskModal({ task, visible, onClose, onSave, onDelete
                   style={[
                     styles.durationChip,
                     { borderColor: theme.border },
-                    Number(durationStr) === preset.minutes && {
+                    !customDuration && Number(durationStr) === preset.minutes && {
                       backgroundColor: COLORS.primary,
                       borderColor: COLORS.primary,
                     },
                   ]}
-                  onPress={() => setDurationStr(String(preset.minutes))}
+                  onPress={() => {
+                    setDurationStr(String(preset.minutes));
+                    setCustomDuration(false);
+                  }}
                   activeOpacity={0.75}
                 >
                   <Text style={[
                     styles.durationChipText,
                     { color: theme.text },
-                    Number(durationStr) === preset.minutes && { color: '#fff' },
+                    !customDuration && Number(durationStr) === preset.minutes && { color: '#fff' },
                   ]}>
                     {preset.label}
                   </Text>
                 </TouchableOpacity>
               ))}
+              <TouchableOpacity
+                style={[
+                  styles.durationChip,
+                  { borderColor: theme.border },
+                  customDuration && {
+                    backgroundColor: COLORS.primary,
+                    borderColor: COLORS.primary,
+                  },
+                ]}
+                onPress={() => setCustomDuration(true)}
+                activeOpacity={0.75}
+              >
+                <Text style={[
+                  styles.durationChipText,
+                  { color: theme.text },
+                  customDuration && { color: '#fff' },
+                ]}>
+                  Custom
+                </Text>
+              </TouchableOpacity>
             </View>
+            {customDuration && (
+              <TextInput
+                style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
+                value={durationStr}
+                onChangeText={setDurationStr}
+                placeholder="Minutes"
+                placeholderTextColor={theme.muted}
+                keyboardType="number-pad"
+                returnKeyType="done"
+              />
+            )}
           </View>
 
           {/* Priority */}

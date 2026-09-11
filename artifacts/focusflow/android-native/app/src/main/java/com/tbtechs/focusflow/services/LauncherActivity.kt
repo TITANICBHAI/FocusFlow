@@ -6,6 +6,7 @@ import android.app.WallpaperManager
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
@@ -39,6 +40,7 @@ import android.widget.LinearLayout
 import android.widget.SeekBar
 import android.widget.ScrollView
 import android.widget.TextView
+import androidx.core.graphics.drawable.RoundedBitmapDrawableFactory
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -90,7 +92,7 @@ class LauncherActivity : Activity() {
         // Existing Glassy design tokens.
         private val GLASS_ULTRA = Color.parseColor("#0FFFFFFF")
         private val GLASS_LIGHT = Color.parseColor("#1AFFFFFF")
-        private val GLASS_MID = Color.parseColor("#2AFFFFFF")
+        private val GLASS_MID = Color.parseColor("#99FFFFFF")
         private val GLASS_HEAVY = Color.parseColor("#3CFFFFFF")
         private val GLASS_BORDER = Color.parseColor("#20FFFFFF")
         private val GLASS_BORDER_BRIGHT = Color.parseColor("#35FFFFFF")
@@ -232,16 +234,6 @@ class LauncherActivity : Activity() {
             }
             row.addView(icon)
             row.addView(label)
-            row.addView(View(parent.context).apply {
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    1,
-                ).also {
-                    it.gravity = Gravity.BOTTOM
-                    it.leftMargin = -dp(52)
-                }
-                setBackgroundColor(CLASSIC_BORDER)
-            })
             return ClassicDrawerHolder(row, icon, label)
         }
 
@@ -297,7 +289,7 @@ class LauncherActivity : Activity() {
             val blocked = getBlockedPackages().contains(item.packageName)
             when (holder) {
                 is ClassicDrawerHolder -> {
-                    holder.icon.setImageDrawable(getAppIcon(item.packageName))
+                    holder.icon.setImageDrawable(getRoundIcon(item.packageName))
                     holder.icon.alpha = if (blocked) 0.42f else 1f
                     holder.label.text = item.label
                     holder.label.setTextColor(if (blocked) TEXT_MUTED else TEXT_PRIMARY)
@@ -318,7 +310,10 @@ class LauncherActivity : Activity() {
                         it.width = dp(size)
                         it.height = dp(size)
                     }
-                    holder.icon.setImageDrawable(getAppIcon(item.packageName))
+                    holder.itemView.layoutParams = holder.itemView.layoutParams.also {
+                        it.height = dp((size + 32).coerceAtLeast(88))
+                    }
+                    holder.icon.setImageDrawable(getRoundIcon(item.packageName))
                     holder.icon.alpha = if (blocked) 0.45f else 1f
                     holder.label.text = item.label
                     holder.label.setTextColor(if (blocked) TEXT_MUTED else TEXT_DIM)
@@ -737,7 +732,7 @@ class LauncherActivity : Activity() {
             val icon = ImageView(this).apply {
                 layoutParams = LinearLayout.LayoutParams(dp(40), dp(40))
                 scaleType = ImageView.ScaleType.FIT_CENTER
-                allowance.icon?.let { setImageDrawable(it) }
+                setImageDrawable(getRoundIcon(allowance.pkg))
             }
             val name = TextView(this).apply {
                 text = allowance.label
@@ -957,7 +952,7 @@ class LauncherActivity : Activity() {
             background = if (theme == LauncherTheme.CLASSIC) {
                 GradientDrawable().apply { setColor(CLASSIC_BACKGROUND) }
             } else {
-                GradientDrawable().apply { setColor(Color.parseColor("#220E1422")) }
+                GradientDrawable().apply { setColor(Color.parseColor("#CC0E1422")) }
             }
             layoutParams = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
@@ -1027,9 +1022,42 @@ class LauncherActivity : Activity() {
         drawerRecycler = recycler
         if (theme == LauncherTheme.CLASSIC) {
             recycler.layoutManager = LinearLayoutManager(this)
+            recycler.addItemDecoration(object : RecyclerView.ItemDecoration() {
+                private val dividerPaint = Paint().apply {
+                    color = CLASSIC_BORDER
+                    strokeWidth = dp(1).toFloat()
+                }
+
+                override fun onDraw(
+                    canvas: Canvas,
+                    parent: RecyclerView,
+                    state: RecyclerView.State,
+                ) {
+                    for (index in 0 until parent.childCount) {
+                        val child = parent.getChildAt(index)
+                        canvas.drawLine(
+                            child.left + dp(24).toFloat(),
+                            child.bottom.toFloat(),
+                            child.right - dp(24).toFloat(),
+                            child.bottom.toFloat(),
+                            dividerPaint,
+                        )
+                    }
+                }
+            })
         } else {
             val columns = prefs.getInt(PREF_DRAWER_COLUMNS, 4).coerceIn(4, 5)
             recycler.layoutManager = GridLayoutManager(this, columns)
+            recycler.addItemDecoration(object : RecyclerView.ItemDecoration() {
+                override fun getItemOffsets(
+                    outRect: android.graphics.Rect,
+                    view: View,
+                    parent: RecyclerView,
+                    state: RecyclerView.State,
+                ) {
+                    outRect.bottom = dp(10)
+                }
+            })
             attachDrawerDragSupport(recycler, adapter)
         }
         recycler.adapter = adapter
@@ -1739,7 +1767,11 @@ class LauncherActivity : Activity() {
                     return true
                 }
                 if (dy < -dp(80) && velocity > 250f) {
-                    expandNotificationsPanel()
+                    if (isDrawerOpen) {
+                        closeDrawer()
+                    } else {
+                        expandNotificationsPanel()
+                    }
                     return true
                 }
             }
@@ -1775,6 +1807,20 @@ class LauncherActivity : Activity() {
 
     private fun getAppIcon(pkg: String): Drawable? =
         try { packageManager.getApplicationIcon(pkg) } catch (_: Exception) { null }
+
+    private fun getRoundIcon(pkg: String): Drawable? {
+        val raw = getAppIcon(pkg) ?: return null
+        val bitmap = Bitmap.createBitmap(
+            raw.intrinsicWidth.coerceAtLeast(1),
+            raw.intrinsicHeight.coerceAtLeast(1),
+            Bitmap.Config.ARGB_8888,
+        )
+        raw.setBounds(0, 0, bitmap.width, bitmap.height)
+        raw.draw(Canvas(bitmap))
+        return RoundedBitmapDrawableFactory.create(resources, bitmap).also {
+            it.isCircular = true
+        }
+    }
 
     private fun parseJsonArray(json: String): List<String> {
         return try {
