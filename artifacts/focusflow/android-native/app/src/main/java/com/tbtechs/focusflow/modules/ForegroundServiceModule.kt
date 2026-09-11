@@ -124,6 +124,26 @@ class ForegroundServiceModule(private val reactContext: ReactApplicationContext)
     }
 
     /**
+     * Switches the service to idle mode for an authorized system transition.
+     *
+     * This is intentionally separate from stopService(): task completion,
+     * task skipping, and orphan-session reconciliation are trusted app
+     * transitions and must not be blocked by the user-facing session PIN gate.
+     */
+    @ReactMethod
+    fun stopServiceInternal(promise: Promise) {
+        try {
+            val intent = Intent(reactContext, ForegroundTaskService::class.java).apply {
+                action = ForegroundTaskService.ACTION_SET_IDLE
+            }
+            reactContext.startService(intent)
+            promise.resolve(null)
+        } catch (e: Exception) {
+            promise.reject("SERVICE_STOP_ERROR", e.message, e)
+        }
+    }
+
+    /**
      * Updates the active focus session notification with new task details.
      * Sends a new start command directly — the service handles it in onStartCommand.
      */

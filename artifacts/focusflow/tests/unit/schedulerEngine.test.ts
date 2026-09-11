@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   analyzeScheduleHealth,
   compressSchedule,
+  compressDeletedTaskGap,
   detectConflicts,
   insertTaskSafe,
   rebalanceAfterOverrun,
@@ -121,6 +122,30 @@ describe('schedulerEngine', () => {
 
     expect(compressSchedule(completed, '2026-08-24T10:00:00.000Z', schedule)).toBe(schedule);
     expect(compressSchedule(completed, '2026-08-24T10:30:00.000Z', schedule)).toBe(schedule);
+  });
+
+  it('compresses a later scheduled task when a future task is deleted', () => {
+    vi.setSystemTime(new Date('2026-08-24T08:00:00.000Z'));
+    const earlier = task('earlier', '2026-08-24T08:00:00.000Z', '2026-08-24T09:00:00.000Z');
+    const deleted = task('deleted', '2026-08-24T09:00:00.000Z', '2026-08-24T10:00:00.000Z');
+    const later = task('later', '2026-08-24T10:30:00.000Z', '2026-08-24T11:30:00.000Z');
+    const completed = task('completed', '2026-08-24T12:00:00.000Z', '2026-08-24T13:00:00.000Z', {
+      status: 'completed',
+    });
+
+    const result = compressDeletedTaskGap(deleted, [
+      deleted,
+      earlier,
+      later,
+      completed,
+    ]);
+
+    expect(result.find(({ id }) => id === 'earlier')).toBe(earlier);
+    expect(result.find(({ id }) => id === 'later')).toMatchObject({
+      startTime: '2026-08-24T09:30:00.000Z',
+      endTime: '2026-08-24T10:30:00.000Z',
+    });
+    expect(result.find(({ id }) => id === 'completed')).toBe(completed);
   });
 
   it('reports overlaps and gaps using chronological order', () => {

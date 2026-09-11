@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { withScreenErrorBoundary } from '@/components/withScreenErrorBoundary';
 import { View, Text, FlatList, TouchableOpacity, Pressable, ActivityIndicator, StyleSheet, Alert, RefreshControl } from 'react-native';
@@ -19,6 +19,8 @@ import type { Task } from '@/data/types';
 import { formatTime, isAwaitingDecision } from '@/services/taskService';
 import { analyzeScheduleHealth } from '@/services/schedulerEngine';
 import { retryDb } from '@/data/database';
+import { PinVerifyModal } from '@/components/PinVerifyModal';
+import { SessionPinModule } from '@/native-modules/SessionPinModule';
 
 function ScheduleScreen() {
   const insets = useSafeAreaInsets();
@@ -45,6 +47,8 @@ function ScheduleScreen() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [editTask, setEditTask] = useState<Task | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [deletePinVisible, setDeletePinVisible] = useState(false);
+  const pendingDeleteTaskId = useRef<string | null>(null);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -74,6 +78,16 @@ function ScheduleScreen() {
     },
     [skipTask],
   );
+
+  const handleDeleteTask = useCallback(async (taskId: string) => {
+    const pinSet = await SessionPinModule.isPinSet().catch(() => false);
+    if (pinSet) {
+      pendingDeleteTaskId.current = taskId;
+      setDeletePinVisible(true);
+      return;
+    }
+    await deleteTask(taskId);
+  }, [deleteTask]);
 
   const completedCount = todayTasks.filter((t) => t.status === 'completed').length;
   const totalCount = todayTasks.length;
@@ -267,12 +281,30 @@ function ScheduleScreen() {
           task={editTask}
           onClose={() => setEditTask(null)}
           onSave={updateTask}
-          onDelete={async (id) => {
-            await deleteTask(id);
-            setEditTask(null);
-          }}
+          onDelete={handleDeleteTask}
         />
       )}
+      <PinVerifyModal
+        visible={deletePinVisible}
+        pinType="focus"
+        title="Delete Task"
+        description="Enter your focus session password to delete this task."
+        onVerified={(hash) => {
+          const taskId = pendingDeleteTaskId.current;
+          pendingDeleteTaskId.current = null;
+          setDeletePinVisible(false);
+          if (!taskId) return;
+          void deleteTask(taskId, hash).then(() => {
+            setEditTask(null);
+          }).catch(() => {
+            Alert.alert('Delete failed', 'The task could not be deleted. Please try again.');
+          });
+        }}
+        onCancel={() => {
+          pendingDeleteTaskId.current = null;
+          setDeletePinVisible(false);
+        }}
+      />
     </SafeAreaView>
   );
 }

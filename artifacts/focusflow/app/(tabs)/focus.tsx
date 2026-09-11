@@ -59,6 +59,7 @@ function FocusScreen() {
   const [pinRotationVisible, setPinRotationVisible] = useState(false);
   const [pendingStartTaskId, setPendingStartTaskId] = useState<string | null>(null);
   const [focusStopPinVisible, setFocusStopPinVisible] = useState(false);
+  const pendingFocusStopAction = useRef<((pinHash: string | null) => Promise<void>) | null>(null);
   const [showDefenseHint, setShowDefenseHint] = useState(false);
   const [activeTab, setActiveTab] = useState<'task' | 'block'>('task');
   const navHome = useNavPress('/');
@@ -542,13 +543,25 @@ function FocusScreen() {
                 </TouchableOpacity>
               )}
               {isFocusing && (
-                <TouchableOpacity style={styles.emergencyBtn} onPress={() => Alert.alert('🚨 Emergency Override', 'This will stop focus mode and be logged. Only use in a genuine emergency.', [
-                  { text: 'Cancel', style: 'cancel' },
-                  { text: 'Override', style: 'destructive', onPress: async () => {
-                    await dbLogFocusOverride(task.id, 'manual-override', 'User triggered emergency override');
-                    await stopFocusMode();
-                  } },
-                ])}>
+                <TouchableOpacity
+                  style={styles.emergencyBtn}
+                  onPress={() => Alert.alert('🚨 Emergency Override', 'This will stop focus mode and be logged. Only use in a genuine emergency.', [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Override', style: 'destructive', onPress: async () => {
+                      const pinSet = await SessionPinModule.isPinSet().catch(() => false);
+                      const stopAndLog = async (pinHash: string | null) => {
+                        await dbLogFocusOverride(task.id, 'manual-override', 'User triggered emergency override');
+                        await stopFocusMode(pinHash);
+                      };
+                      if (pinSet) {
+                        pendingFocusStopAction.current = stopAndLog;
+                        setFocusStopPinVisible(true);
+                      } else {
+                        await stopAndLog(null);
+                      }
+                    } },
+                  ])}
+                >
                   <Ionicons name="warning-outline" size={16} color={COLORS.red} />
                   <Text style={styles.emergencyBtnText}>Emergency Override</Text>
                 </TouchableOpacity>
@@ -604,8 +617,16 @@ function FocusScreen() {
         pinType="focus"
         title="Stop Focus Session"
         description="Enter your focus session password to end the session and stop all blocking."
-        onVerified={() => { setFocusStopPinVisible(false); stopFocusMode(); }}
-        onCancel={() => setFocusStopPinVisible(false)}
+        onVerified={(hash) => {
+          const pendingAction = pendingFocusStopAction.current;
+          pendingFocusStopAction.current = null;
+          setFocusStopPinVisible(false);
+          void (pendingAction ? pendingAction(hash) : stopFocusMode(hash));
+        }}
+        onCancel={() => {
+          pendingFocusStopAction.current = null;
+          setFocusStopPinVisible(false);
+        }}
       />
     </SafeAreaView>
   );

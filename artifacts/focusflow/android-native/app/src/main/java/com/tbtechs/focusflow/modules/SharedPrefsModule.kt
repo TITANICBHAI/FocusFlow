@@ -264,8 +264,64 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
         pinHash: String?,
         promise: Promise,
     ) {
+        publishFocusSnapshotImpl(
+            active,
+            taskId,
+            taskName,
+            taskEndMs,
+            taskColor,
+            allowedPackages,
+            nextTaskName,
+            pinHash,
+            enforceSessionPin = true,
+            promise = promise,
+        )
+    }
+
+    /**
+     * Publishes an authorized system transition without checking the user-facing
+     * session PIN. This is reserved for task completion, task skipping, and
+     * orphan-session reconciliation.
+     */
+    @ReactMethod
+    fun publishFocusSnapshotInternal(
+        active: Boolean,
+        taskId: String?,
+        taskName: String?,
+        taskEndMs: Double,
+        taskColor: String?,
+        allowedPackages: ReadableArray?,
+        nextTaskName: String?,
+        promise: Promise,
+    ) {
+        publishFocusSnapshotImpl(
+            active,
+            taskId,
+            taskName,
+            taskEndMs,
+            taskColor,
+            allowedPackages,
+            nextTaskName,
+            pinHash = null,
+            enforceSessionPin = false,
+            promise = promise,
+        )
+    }
+
+    private fun publishFocusSnapshotImpl(
+        active: Boolean,
+        taskId: String?,
+        taskName: String?,
+        taskEndMs: Double,
+        taskColor: String?,
+        allowedPackages: ReadableArray?,
+        nextTaskName: String?,
+        pinHash: String?,
+        enforceSessionPin: Boolean,
+        promise: Promise,
+    ) {
         try {
-            if (!active && rejectIfInvalidSessionPin(
+            if (enforceSessionPin && !active && rejectIfInvalidSessionPin(
                     pinHash,
                     "A session PIN is set — supply the correct PIN hash to end the session",
                     promise,

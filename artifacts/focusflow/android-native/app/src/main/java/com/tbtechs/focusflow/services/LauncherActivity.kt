@@ -1317,7 +1317,11 @@ class LauncherActivity : Activity() {
     private fun buildCustomizeDrawerSheet(): LinearLayout {
         val sheet = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = layeredGlassBackground(28)
+            // Keep the edit sheet on the same opaque navy glass surface as the
+            // main Glassy drawer. The wallpaper behind the drawer is already
+            // blurred by openDrawer() on API 31+, so this surface should add
+            // contrast without switching back to the lighter white glass.
+            background = glassyDrawerSurface(28)
             elevation = dp(12).toFloat()
             layoutParams = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
@@ -1887,6 +1891,12 @@ class LauncherActivity : Activity() {
 
     private fun layeredGlassBackground(radiusDp: Int): Drawable {
         val base = roundedBackground(GLASS_MID, Color.TRANSPARENT, radiusDp)
+        val border = roundedBackground(Color.TRANSPARENT, GLASS_BORDER_BRIGHT, radiusDp)
+        return LayerDrawable(arrayOf(base, border))
+    }
+
+    private fun glassyDrawerSurface(radiusDp: Int): Drawable {
+        val base = roundedBackground(Color.parseColor("#CC0E1422"), Color.TRANSPARENT, radiusDp)
         val border = roundedBackground(Color.TRANSPARENT, GLASS_BORDER_BRIGHT, radiusDp)
         return LayerDrawable(arrayOf(base, border))
     }

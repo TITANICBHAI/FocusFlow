@@ -155,6 +155,33 @@ export const SharedPrefsModule = {
   },
 
   /**
+   * Publishes an authorized system transition without the user-facing
+   * session-PIN check. Used only for completion, skip, and orphan cleanup.
+   */
+  async publishFocusSnapshotInternal(
+    active: boolean,
+    taskId: string | null,
+    taskName: string | null,
+    taskEndMs: number,
+    taskColor: string | null,
+    allowedPackages: string[] | null,
+    nextTaskName: string | null,
+  ): Promise<void> {
+    if (!hasSharedPrefsMethod('publishFocusSnapshotInternal')) {
+      throw new Error('SharedPrefs.publishFocusSnapshotInternal is missing.');
+    }
+    await callNativeStrict('publishFocusSnapshotInternal', () => SharedPrefs.publishFocusSnapshotInternal(
+      active,
+      taskId,
+      taskName,
+      taskEndMs,
+      taskColor,
+      allowedPackages,
+      nextTaskName,
+    ));
+  },
+
+  /**
    * Forces a redraw of any home-screen widgets using whatever is currently in
    * SharedPreferences. Use after standalone-block / task state changes that
    * happen outside a focus session (where ForegroundTaskService would have

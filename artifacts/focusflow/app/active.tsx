@@ -452,7 +452,7 @@ function ActiveScreen() {
       </ScrollView>
 
       <PinVerifyModal visible={defPinVisible} pinType="defense" title="Defense Password Required" description="Enter your defense password to make this change." onVerified={() => { setDefPinVisible(false); pendingDefAction.current?.(); pendingDefAction.current = null; }} onCancel={() => { setDefPinVisible(false); pendingDefAction.current = null; }} />
-      <PinVerifyModal visible={focusPinVisible} pinType="focus" title="Stop Focus Session" description="Enter your focus session password to end the session and stop blocking." onVerified={() => { setFocusPinVisible(false); void stopFocusMode(); }} onCancel={() => setFocusPinVisible(false)} />
+      <PinVerifyModal visible={focusPinVisible} pinType="focus" title="Stop Focus Session" description="Enter your focus session password to end the session and stop blocking." onVerified={(hash) => { setFocusPinVisible(false); void stopFocusMode(hash); }} onCancel={() => setFocusPinVisible(false)} />
     </SafeAreaView>
   );
 }

@@ -45,6 +45,19 @@ export const ForegroundServiceModule = {
     return ForegroundService.stopService(pinHash);
   },
 
+  /**
+   * Ends the native service session for an authorized app transition.
+   * This must never fall back to stopService(), because that method is
+   * intentionally protected by the user-facing session PIN.
+   */
+  async stopServiceInternal(): Promise<void> {
+    if (!ForegroundService) return;
+    if (typeof ForegroundService.stopServiceInternal !== 'function') {
+      throw new Error('ForegroundService.stopServiceInternal is missing.');
+    }
+    return ForegroundService.stopServiceInternal();
+  },
+
   async updateNotification(taskId: string, taskName: string, endTimeMs: number, nextTaskName: string | null): Promise<void> {
     if (!ForegroundService) return;
     return ForegroundService.updateNotification(taskId, taskName, endTimeMs, nextTaskName);

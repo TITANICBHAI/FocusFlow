@@ -86,7 +86,10 @@ export async function startFocusMode(
   appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
 }
 
-export async function stopFocusMode(pinHash: string | null = null): Promise<void> {
+async function stopFocusModeImpl(
+  pinHash: string | null,
+  authorized: boolean,
+): Promise<void> {
   // Always clear native state unconditionally so a cold-start zombie session
   // (focusActive=false in JS but focus_active=true in SharedPreferences from a
   // previous run) is always cleaned up regardless of the JS-side flag.
@@ -109,20 +112,41 @@ export async function stopFocusMode(pinHash: string | null = null): Promise<void
 
   // Always clear Kotlin-side state so the AccessibilityService stops blocking,
   // including cold-start recovery where the JS singleton has no task object.
-  await withTimeout(
-    ForegroundServiceModule.stopService(pinHash),
-    5000,
-    'ForegroundServiceModule.stopService',
-  ).catch(() => {});
-  await withTimeout(
-    SharedPrefsModule.publishFocusSnapshot(false, null, null, 0, null, [], null, pinHash),
-    5000,
-    'publishFocusSnapshot',
-  ).catch(() => {});
+  if (authorized) {
+    await withTimeout(
+      ForegroundServiceModule.stopServiceInternal(),
+      5000,
+      'ForegroundServiceModule.stopServiceInternal',
+    ).catch(() => {});
+    await withTimeout(
+      SharedPrefsModule.publishFocusSnapshotInternal(false, null, null, 0, null, [], null),
+      5000,
+      'publishFocusSnapshotInternal',
+    ).catch(() => {});
+  } else {
+    await withTimeout(
+      ForegroundServiceModule.stopService(pinHash),
+      5000,
+      'ForegroundServiceModule.stopService',
+    ).catch(() => {});
+    await withTimeout(
+      SharedPrefsModule.publishFocusSnapshot(false, null, null, 0, null, [], null, pinHash),
+      5000,
+      'publishFocusSnapshot',
+    ).catch(() => {});
+  }
 
   if (hadActiveSession && task) {
     await dismissPersistentNotification().catch(() => {});
   }
+}
+
+export async function stopFocusMode(pinHash: string | null = null): Promise<void> {
+  await stopFocusModeImpl(pinHash, false);
+}
+
+export async function stopFocusModeInternal(): Promise<void> {
+  await stopFocusModeImpl(null, true);
 }
 
 export function isFocusActive(): boolean {

@@ -49,10 +49,12 @@ import {
 import {
   startFocusMode as _startFocusMode,
   stopFocusMode as _stopFocusMode,
+  stopFocusModeInternal as _stopFocusModeInternal,
   isFocusActive,
   updateCurrentFocusTask as _updateCurrentFocusTask,
 } from '@/services/focusService';
 import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
+import { SessionPinModule } from '@/native-modules/SessionPinModule';
 import { getActiveScheduleVpnPackages } from '@/utils/recurringScheduleUtils';
 import { ForegroundServiceModule } from '@/native-modules/ForegroundServiceModule';
 import { TaskAlarmModule } from '@/native-modules/TaskAlarmModule';
@@ -181,7 +183,7 @@ interface AppContextValue {
 
   addTask: (task: Task) => Promise<void>;
   updateTask: (task: Task) => Promise<void>;
-  deleteTask: (taskId: string) => Promise<void>;
+  deleteTask: (taskId: string, pinHash?: string | null) => Promise<void>;
   completeTask: (taskId: string) => Promise<void>;
   skipTask: (taskId: string) => Promise<void>;
   extendTaskTime: (taskId: string, extraMinutes: number) => Promise<void>;
@@ -953,7 +955,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       tryAutoStartFocusRef.current?.();
       if (shouldForceClearSession(s)) {
         void logger.warn('AppContext', 'tick: force-clearing an orphaned focus session');
-        void stopFocusMode().catch((e) => {
+        void stopFocusModeInternal().catch((e) => {
           void logger.warn('AppContext', `reconcile stopFocusMode failed: ${String(e)}`);
         });
       }
@@ -1370,11 +1372,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  const deleteTask = useCallback(async (taskId: string) => {
+  const deleteTask = useCallback(async (taskId: string, pinHash: string | null = null) => {
     await taskOperationsRef.current.enqueue(async () => {
       try {
+        const pinSet = await SessionPinModule.isPinSet().catch(() => false);
+        if (pinSet) {
+          if (!pinHash || !(await SessionPinModule.verifyPin(pinHash).catch(() => false))) {
+            throw new Error('SESSION_PIN_REQUIRED');
+          }
+        }
         const tasks = taskSnapshotRef.current;
         const task = tasks.find((t) => t.id === taskId);
+        if (stateRef.current.focusSession?.taskId === taskId) {
+          await stopFocusModeInternal();
+        }
         const isFutureScheduledTask = task?.status === 'scheduled' && new Date(task.startTime).getTime() > Date.now();
         const compressed =
           task &&
@@ -1487,7 +1498,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 `task ${taskId} marked done early; keeping focus active until ${new Date(taskEndMs).toISOString()}`,
               );
             } else {
-              await stopFocusMode();
+              await stopFocusModeInternal();
             }
           }
         } catch (e) {
@@ -1539,7 +1550,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // Skip is an explicit move-on action. Unlike early completion, it
         // never inherits keepFocusActiveUntilTaskEnd.
         if (stateRef.current.focusSession?.taskId === taskId) {
-          await stopFocusMode();
+          await stopFocusModeInternal();
         }
       } catch (e) {
         void logger.error('AppContext', `skipTask failed: ${String(e)}`);
@@ -1643,12 +1654,119 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [completeTask, extendTaskTime, skipTask]);
 
+  const stopFocusModeWithMode = useCallback(async (
+    pinHash: string | null,
+    authorized: boolean,
+  ) => {
+    const dismissedTaskId = stateRef.current.focusSession?.taskId ?? null;
+
+    // Close the known session row before native teardown. This also covers an
+    // orphan restored from SQLite where focusService has no currentTask.
+    if (dismissedTaskId) {
+      try {
+        await withTimeout(dbEndFocusSession(dismissedTaskId), 5000, 'dbEndFocusSession');
+      } catch (e) {
+        void logger.warn('AppContext', `dbEndFocusSession failed: ${String(e)}`);
+      }
+    }
+
+    // Always attempt native teardown directly — _stopFocusMode() short-circuits
+    // when focusActive is false (e.g. after a cold app restart), so we call
+    // the native layer unconditionally here to guarantee the foreground service
+    // and SharedPrefs are cleared regardless of JS module state.
+    try {
+      await withTimeout(
+        authorized ? _stopFocusModeInternal() : _stopFocusMode(pinHash),
+        5000,
+        authorized ? '_stopFocusModeInternal' : '_stopFocusMode',
+      );
+    } catch (e) {
+      void logger.warn('AppContext', `stopFocusMode JS-layer failed: ${String(e)}`);
+    }
+    try {
+      await withTimeout(
+        authorized
+          ? ForegroundServiceModule.stopServiceInternal()
+          : ForegroundServiceModule.stopService(pinHash),
+        5000,
+        authorized
+          ? 'ForegroundServiceModule.stopServiceInternal'
+          : 'ForegroundServiceModule.stopService',
+      );
+    } catch (e) {
+      void logger.warn('AppContext', `stopService failed: ${String(e)}`);
+    }
+    try {
+      await withTimeout(
+        authorized
+          ? SharedPrefsModule.publishFocusSnapshotInternal(false, null, null, 0, null, [], null)
+          : SharedPrefsModule.publishFocusSnapshot(false, null, null, 0, null, [], null, pinHash),
+        5000,
+        authorized ? 'publishFocusSnapshotInternal' : 'publishFocusSnapshot',
+      );
+    } catch (e) {
+      void logger.warn('AppContext', `publishFocusSnapshot failed: ${String(e)}`);
+    }
+    if (!authorized) {
+      try {
+        await withTimeout(NetworkBlockModule.stopNetworkBlock(pinHash), 5000, 'stopNetworkBlock');
+      } catch (e) {
+        void logger.warn('AppContext', `stopNetworkBlock failed: ${String(e)}`);
+      }
+    }
+
+    if (dismissedTaskId) {
+      dismissedFocusTaskIdRef.current = dismissedTaskId;
+      try {
+        await SharedPrefsModule.putString('focus_dismissed_task_id', dismissedTaskId);
+      } catch (e) {
+        void logger.warn('AppContext', `dismissed focus task persistence failed: ${String(e)}`);
+      }
+    }
+    dispatch({ type: 'SET_FOCUS_SESSION', payload: null });
+  }, []);
+
+  const stopFocusMode = useCallback(
+    (pinHash: string | null = null) => stopFocusModeWithMode(pinHash, false),
+    [stopFocusModeWithMode],
+  );
+
+  const stopFocusModeInternal = useCallback(
+    () => stopFocusModeWithMode(null, true),
+    [stopFocusModeWithMode],
+  );
+
   // ── Focus Mode ──────────────────────────────────────────────────────────────
 
   const startFocusMode = useCallback(
     async (taskId: string) => {
       const task = state.tasks.find((t) => t.id === taskId);
       if (!task) return;
+
+      const currentState = stateRef.current;
+      const existingSession = currentState.focusSession;
+      const nativeFocusActive = isFocusActive();
+      if (existingSession?.isActive || nativeFocusActive) {
+        if (existingSession?.taskId === taskId) return;
+
+        const existingTask = existingSession
+          ? currentState.tasks.find((candidate) => candidate.id === existingSession.taskId)
+          : null;
+        const currentTaskName = existingTask?.title ?? 'the current focus session';
+        const shouldReplace = await new Promise<boolean>((resolve) => {
+          Alert.alert(
+            'Focus session already active',
+            `Focus is currently running for “${currentTaskName}”. Replace it with “${task.title}”?`,
+            [
+              { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+              { text: 'Replace', style: 'destructive', onPress: () => resolve(true) },
+            ],
+            { cancelable: true, onDismiss: () => resolve(false) },
+          );
+        });
+        if (!shouldReplace) return;
+        await stopFocusModeInternal();
+      }
 
       // Task-specific allowed packages take priority over the global setting.
       // undefined → fall back to global; [] → all allowed; [...] → specific list.
@@ -1686,65 +1804,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         throw e;
       }
     },
-    [state.tasks, state.settings.allowedInFocus],
+    [state.tasks, state.settings.allowedInFocus, stopFocusModeInternal],
   );
-
-  const stopFocusMode = useCallback(async (pinHash: string | null = null) => {
-    const dismissedTaskId = stateRef.current.focusSession?.taskId ?? null;
-
-    // Close the known session row before native teardown. This also covers an
-    // orphan restored from SQLite where focusService has no currentTask.
-    if (dismissedTaskId) {
-      try {
-        await withTimeout(dbEndFocusSession(dismissedTaskId), 5000, 'dbEndFocusSession');
-      } catch (e) {
-        void logger.warn('AppContext', `dbEndFocusSession failed: ${String(e)}`);
-      }
-    }
-
-    // Always attempt native teardown directly — _stopFocusMode() short-circuits
-    // when focusActive is false (e.g. after a cold app restart), so we call
-    // the native layer unconditionally here to guarantee the foreground service
-    // and SharedPrefs are cleared regardless of JS module state.
-    try {
-      await withTimeout(_stopFocusMode(pinHash), 5000, '_stopFocusMode');
-    } catch (e) {
-      void logger.warn('AppContext', `stopFocusMode JS-layer failed: ${String(e)}`);
-    }
-    try {
-      await withTimeout(
-        ForegroundServiceModule.stopService(pinHash),
-        5000,
-        'ForegroundServiceModule.stopService',
-      );
-    } catch (e) {
-      void logger.warn('AppContext', `stopService failed: ${String(e)}`);
-    }
-    try {
-      await withTimeout(
-        SharedPrefsModule.publishFocusSnapshot(false, null, null, 0, null, [], null, pinHash),
-        5000,
-        'publishFocusSnapshot',
-      );
-    } catch (e) {
-      void logger.warn('AppContext', `publishFocusSnapshot failed: ${String(e)}`);
-    }
-    try {
-      await withTimeout(NetworkBlockModule.stopNetworkBlock(pinHash), 5000, 'stopNetworkBlock');
-    } catch (e) {
-      void logger.warn('AppContext', `stopNetworkBlock failed: ${String(e)}`);
-    }
-
-    if (dismissedTaskId) {
-      dismissedFocusTaskIdRef.current = dismissedTaskId;
-      try {
-        await SharedPrefsModule.putString('focus_dismissed_task_id', dismissedTaskId);
-      } catch (e) {
-        void logger.warn('AppContext', `dismissed focus task persistence failed: ${String(e)}`);
-      }
-    }
-    dispatch({ type: 'SET_FOCUS_SESSION', payload: null });
-  }, []);
 
   // ── Settings ─────────────────────────────────────────────────────────────────
 

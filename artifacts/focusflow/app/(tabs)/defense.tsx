@@ -27,10 +27,11 @@ import { VpnConsentModal } from '@/components/VpnConsentModal';
 import { withScreenErrorBoundary } from '@/components/withScreenErrorBoundary';
 import { NetworkBlockModule } from '@/native-modules/NetworkBlockModule';
 import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
+import { SessionPinModule } from '@/native-modules/SessionPinModule';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavPress } from '@/hooks/useNavPress';
 
-type DefenseAction = (defensePinHash?: string) => void;
+type ProtectedAction = (pinHash?: string) => void;
 const DEFENSE_HINT_DISMISSED_KEY = '@focusflow/defenseHintDismissed';
 const DEFENSE_HELP_DISMISSED_KEY = '@focusflow/defenseHelpDismissed';
 
@@ -46,8 +47,8 @@ function DefenseScreen() {
   const [nuclearModeVisible, setNuclearModeVisible] = useState(false);
   const [pinModal, setPinModal] = useState<
     | { type: 'none' }
-    | { type: 'verify'; title: string; description: string; action: DefenseAction }
-    | { type: 'setup'; action: DefenseAction }
+    | { type: 'verify'; pinType: 'defense' | 'focus'; title: string; description: string; action: ProtectedAction }
+    | { type: 'setup'; action: ProtectedAction }
   >({ type: 'none' });
   const [showDefenseHint, setShowDefenseHint] = useState(false);
   const [showDefenseHelp, setShowDefenseHelp] = useState(false);
@@ -55,7 +56,7 @@ function DefenseScreen() {
   const [vpnConsentVisible, setVpnConsentVisible] = useState(false);
   const [protectionNotice, setProtectionNotice] = useState<string | null>(null);
   const vpnConsentResolveRef = useRef<((confirmed: boolean) => void) | null>(null);
-  const pendingSetupAction = useRef<DefenseAction | null>(null);
+  const pendingSetupAction = useRef<ProtectedAction | null>(null);
   const protectionNoticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const navAlwaysOn = useNavPress('/always-on');
   const navKeyword = useNavPress('/keyword-blocker');
@@ -102,11 +103,11 @@ function DefenseScreen() {
   );
 
   const requireDefensePin = useCallback(
-    (title: string, description: string, action: DefenseAction) => {
+    (title: string, description: string, action: ProtectedAction) => {
       void SharedPrefsModule.getString('defense_pin_hash')
         .then((hash) => {
           if (hash) {
-            setPinModal({ type: 'verify', title, description, action });
+            setPinModal({ type: 'verify', pinType: 'defense', title, description, action });
             return;
           }
           if (settings.pinProtectionEnabled ?? false) {
@@ -132,6 +133,21 @@ function DefenseScreen() {
         .catch(() => action());
     },
     [settings.pinProtectionEnabled],
+  );
+
+  const requireSessionPin = useCallback(
+    (title: string, description: string, action: ProtectedAction) => {
+      void SessionPinModule.isPinSet()
+        .then((pinSet) => {
+          if (pinSet) {
+            setPinModal({ type: 'verify', pinType: 'focus', title, description, action });
+            return;
+          }
+          action();
+        })
+        .catch(() => action());
+    },
+    [],
   );
 
   const toggleProtectedSetting = (
@@ -445,7 +461,17 @@ function DefenseScreen() {
           >
             <Switch
               value={settings.keepFocusActiveUntilTaskEnd ?? false}
-              onValueChange={(value) => void update({ keepFocusActiveUntilTaskEnd: value })}
+              onValueChange={(value) => {
+                if (value) {
+                  void update({ keepFocusActiveUntilTaskEnd: true });
+                  return;
+                }
+                requireSessionPin(
+                  'Disable full-duration focus',
+                  'Enter your focus session password to allow tasks to end focus early.',
+                  () => void update({ keepFocusActiveUntilTaskEnd: false }),
+                );
+              }}
               trackColor={{ false: theme.border, true: COLORS.primary + '88' }}
               thumbColor={settings.keepFocusActiveUntilTaskEnd ? COLORS.primary : theme.muted}
             />
@@ -612,7 +638,7 @@ function DefenseScreen() {
 
       <PinVerifyModal
         visible={pinModal.type === 'verify'}
-        pinType="defense"
+        pinType={pinModal.type === 'verify' ? pinModal.pinType : 'defense'}
         title={pinModal.type === 'verify' ? pinModal.title : undefined}
         description={pinModal.type === 'verify' ? pinModal.description : undefined}
         onVerified={(hash) => {
