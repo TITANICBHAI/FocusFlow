@@ -549,6 +549,21 @@ async function initSchema(db: SQLite.SQLiteDatabase): Promise<void> {
     )
   `);
 
+  await db.runAsync(`
+    CREATE TABLE IF NOT EXISTS achievements (
+      id TEXT PRIMARY KEY,
+      earned_at TEXT NOT NULL
+    )
+  `);
+
+  await db.runAsync(`
+    CREATE TABLE IF NOT EXISTS weekly_insights (
+      week_start TEXT PRIMARY KEY,
+      insight_id TEXT NOT NULL,
+      selected_at TEXT NOT NULL
+    )
+  `);
+
   // ── Migration: add focus_allowed_packages column ─────────────────────────
   // ALTER TABLE ADD COLUMN is idempotent via try/catch — safe to run every time.
   const migrationStart = Date.now();
@@ -630,6 +645,140 @@ export async function dbGetTasksInDateRange(startDateISO: string, endDateISO: st
     );
     return rows.map(rowToTask);
   });
+}
+
+export interface SessionOverrideCountRow {
+  session_id: number;
+  started_at: string;
+  ended_at: string | null;
+  override_count: number;
+}
+
+/**
+ * Returns focus sessions that overlap a time window with the number of
+ * temptation overrides that happened during each session. The join is bounded
+ * by both the session lifetime and the requested analytics window.
+ */
+export async function dbGetSessionsWithOverrideCount(
+  startISO: string,
+  endISO: string,
+): Promise<SessionOverrideCountRow[]> {
+  return runWithDb('dbGetSessionsWithOverrideCount', (database) =>
+    database.getAllAsync<SessionOverrideCountRow>(
+      `SELECT
+         s.id AS session_id,
+         s.started_at,
+         s.ended_at,
+         COUNT(o.id) AS override_count
+       FROM focus_sessions s
+       LEFT JOIN focus_overrides o
+         ON o.task_id = s.task_id
+        AND o.overridden_at >= s.started_at
+        AND o.overridden_at <= COALESCE(s.ended_at, ?)
+        AND o.overridden_at >= ?
+        AND o.overridden_at < ?
+       WHERE s.started_at < ?
+         AND (s.ended_at IS NULL OR s.ended_at > ?)
+       GROUP BY s.id, s.started_at, s.ended_at
+       ORDER BY s.started_at ASC`,
+      [endISO, startISO, endISO, endISO, startISO],
+    ),
+  );
+}
+
+export interface EstimationErrorRow {
+  task_id: string;
+  planned_minutes: number;
+  actual_minutes: number;
+}
+
+/**
+ * Compares the scheduled task duration with the measured duration of each
+ * completed focus session. Sessions without an end timestamp are excluded
+ * because their actual duration is not final.
+ */
+export async function dbGetEstimationErrors(
+  startISO: string,
+  endISO: string,
+): Promise<EstimationErrorRow[]> {
+  return runWithDb('dbGetEstimationErrors', (database) =>
+    database.getAllAsync<EstimationErrorRow>(
+      `SELECT
+         t.id AS task_id,
+         t.duration_minutes AS planned_minutes,
+         (julianday(s.ended_at) - julianday(s.started_at)) * 1440.0 AS actual_minutes
+       FROM focus_sessions s
+       INNER JOIN tasks t ON t.id = s.task_id
+       WHERE t.status = 'completed'
+         AND s.ended_at IS NOT NULL
+         AND s.started_at < ?
+         AND s.ended_at > ?
+       ORDER BY s.started_at ASC`,
+      [endISO, startISO],
+    ),
+  );
+}
+
+export interface WeeklyCompletionRateRow {
+  week_start: string;
+  completed: number;
+  total: number;
+}
+
+/**
+ * Returns calendar-week completion aggregates from the local completion
+ * ledger. Weeks use Sunday as the SQL anchor; the caller can relabel or
+ * compare them to a configured UI week anchor without changing stored data.
+ */
+export async function dbGetWeeklyCompletionRates(
+  numWeeks: number,
+): Promise<WeeklyCompletionRateRow[]> {
+  const weeks = Math.max(1, Math.min(12, Math.floor(numWeeks)));
+  const firstWeek = dayjs().startOf('week').subtract(weeks - 1, 'week').format('YYYY-MM-DD');
+  return runWithDb('dbGetWeeklyCompletionRates', (database) =>
+    database.getAllAsync<WeeklyCompletionRateRow>(
+      `SELECT
+         date AS week_start,
+         SUM(completed) AS completed,
+         SUM(total) AS total
+       FROM (
+         SELECT
+           date(date, '-' || strftime('%w', date) || ' days') AS date,
+           completed,
+           total
+         FROM daily_completions
+         WHERE date >= ?
+       )
+       GROUP BY date
+       ORDER BY date ASC`,
+      [firstWeek],
+    ),
+  );
+}
+
+export interface TasksByHourRow {
+  hour: number;
+  total: number;
+  completed: number;
+}
+
+export async function dbGetTasksByHourOfDay(
+  startISO: string,
+  endISO: string,
+): Promise<TasksByHourRow[]> {
+  return runWithDb('dbGetTasksByHourOfDay', (database) =>
+    database.getAllAsync<TasksByHourRow>(
+      `SELECT
+         CAST(strftime('%H', datetime(start_time, 'localtime')) AS INTEGER) AS hour,
+         COUNT(*) AS total,
+         SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed
+       FROM tasks
+       WHERE start_time >= ? AND start_time < ?
+       GROUP BY hour
+       ORDER BY hour ASC`,
+      [startISO, endISO],
+    ),
+  );
 }
 
 /** Saves a non-empty optional note attached to a day or calendar week. */
@@ -1139,6 +1288,106 @@ export async function dbGetAllTimeFocusMinutes(): Promise<number> {
     }
     return Math.round(total);
   });
+}
+
+export interface LifetimeStats {
+  completedTasks: number;
+  totalSessions: number;
+  cleanSessions: number;
+  totalFocusMinutes: number;
+  totalOverrideAttempts: number;
+  currentStreakDays: number;
+}
+
+export async function dbGetLifetimeStats(): Promise<LifetimeStats> {
+  const nowISO = new Date().toISOString();
+  const aggregate = await runWithDb('dbGetLifetimeStats', (database) =>
+    database.getFirstAsync<{
+      completed_tasks: number;
+      total_sessions: number;
+      clean_sessions: number;
+      total_focus_minutes: number | null;
+      total_override_attempts: number;
+    }>(
+      `SELECT
+         (SELECT COUNT(*) FROM tasks WHERE status = 'completed') AS completed_tasks,
+         (SELECT COUNT(*) FROM focus_sessions) AS total_sessions,
+         (SELECT COUNT(*)
+            FROM focus_sessions s
+           WHERE NOT EXISTS (
+             SELECT 1
+               FROM focus_overrides o
+              WHERE o.task_id = s.task_id
+                AND o.overridden_at >= s.started_at
+                AND o.overridden_at <= COALESCE(s.ended_at, ?)
+           )) AS clean_sessions,
+         (SELECT COALESCE(SUM(
+           CASE
+             WHEN s.ended_at IS NULL THEN 0
+             ELSE MAX(0, (julianday(s.ended_at) - julianday(s.started_at)) * 1440.0)
+           END
+         ), 0) FROM focus_sessions s) AS total_focus_minutes,
+         (SELECT COUNT(*) FROM focus_overrides) AS total_override_attempts`,
+      [nowISO],
+    ),
+  );
+  const currentStreakDays = await dbGetStreak();
+  return {
+    completedTasks: aggregate?.completed_tasks ?? 0,
+    totalSessions: aggregate?.total_sessions ?? 0,
+    cleanSessions: aggregate?.clean_sessions ?? 0,
+    totalFocusMinutes: Math.round((aggregate?.total_focus_minutes ?? 0) * 100) / 100,
+    totalOverrideAttempts: aggregate?.total_override_attempts ?? 0,
+    currentStreakDays,
+  };
+}
+
+export async function dbGetEarnedAchievementIds(): Promise<string[]> {
+  return runWithDb('dbGetEarnedAchievementIds', async (database) => {
+    const rows = await database.getAllAsync<{ id: string }>(
+      'SELECT id FROM achievements ORDER BY earned_at ASC',
+    );
+    return rows.map((row) => row.id);
+  });
+}
+
+export async function dbRecordEarnedAchievements(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  await runWithDbWrite('dbRecordEarnedAchievements', (database) =>
+    timedTransaction('dbRecordEarnedAchievements', () =>
+      database.withTransactionAsync(async () => {
+        const earnedAt = new Date().toISOString();
+        for (const id of ids) {
+          await database.runAsync(
+            'INSERT OR IGNORE INTO achievements (id, earned_at) VALUES (?, ?)',
+            [id, earnedAt],
+          );
+        }
+      }),
+    ),
+  );
+}
+
+export async function dbGetRecentWeeklyInsightIds(limit = 8): Promise<string[]> {
+  const boundedLimit = Math.max(1, Math.min(52, Math.floor(limit)));
+  return runWithDb('dbGetRecentWeeklyInsightIds', async (database) => {
+    const rows = await database.getAllAsync<{ insight_id: string }>(
+      'SELECT insight_id FROM weekly_insights ORDER BY week_start DESC LIMIT ?',
+      [boundedLimit],
+    );
+    return rows.map((row) => row.insight_id);
+  });
+}
+
+export async function dbRecordWeeklyInsight(weekStart: string, insightId: string): Promise<void> {
+  await runWithDbWrite('dbRecordWeeklyInsight', (database) =>
+    runAndLogWrite(
+      database,
+      'dbRecordWeeklyInsight',
+      'INSERT OR IGNORE INTO weekly_insights (week_start, insight_id, selected_at) VALUES (?, ?, ?)',
+      [weekStart, insightId, new Date().toISOString()],
+    ),
+  );
 }
 
 /** Total count of completed focus sessions across all time. */

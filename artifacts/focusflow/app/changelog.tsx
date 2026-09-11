@@ -14,6 +14,30 @@ type Entry = {
 
 const CHANGELOG: Entry[] = [
   {
+    version: '1.4.0',
+    date: 'September 2026',
+    sections: [
+      {
+        heading: 'Stats & Insights — In Progress',
+        icon: 'analytics-outline',
+        items: [
+          'Building a local-only analyst view that explains your real patterns instead of showing raw dashboard totals',
+          'Replacing the current Stats experience with Yesterday and This Week insight cards plus a permission-gated 3-Month view',
+          'Adding deterministic insights for blocked-app resistance, task estimation, focus windows, completion trends, and ordinary days with nothing unusual to report',
+          'Adding an on-device achievement system and one weekly standout insight without XP, scores, leaderboards, or volume ladders',
+          'Keeping the full analytics pipeline on the phone — no API calls and no personal usage data leaving the device',
+        ],
+      },
+      {
+        heading: 'Release Metadata',
+        icon: 'information-circle-outline',
+        items: [
+          'Updated FocusFlow to v1.4.0 (build 15)',
+        ],
+      },
+    ],
+  },
+  {
     version: '1.1.3',
     date: 'September 2026',
     sections: [

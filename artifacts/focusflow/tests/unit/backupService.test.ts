@@ -59,6 +59,8 @@ const settings = {
   aversionVibrateEnabled: false,
   aversionSoundEnabled: false,
   weeklyReportEnabled: true,
+  weekStartDay: 0,
+  autoRescheduleEnabled: false,
   greyoutSchedule: [],
   systemGuardEnabled: true,
   blockInstallActionsEnabled: true,

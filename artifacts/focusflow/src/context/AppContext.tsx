@@ -14,6 +14,7 @@ import {
   dbGetSettings,
   dbSaveSettings,
   dbGetActiveFocusSession,
+  dbEndFocusSession,
   dbGetTodayFocusMinutes,
   dbGetStreak,
   dbBackfillDayCompletions,

@@ -41,6 +41,7 @@ import { InsightsPanel } from '@/components/InsightsPanel';
 import type { UsageApp } from '@/native-modules/UsageStatsModule';
 import type { Task } from '@/data/types';
 import { getWeekEnd, getWeekStart } from '@/utils/weekUtils';
+import { StatsInsightsExperience } from '@/components/StatsInsightsExperience';
 
 type Filter = 'yesterday' | 'today' | 'week' | 'alltime';
 const FILTER_PILL_ORDER: Filter[] = ['today', 'yesterday', 'week', 'alltime'];
@@ -1369,4 +1370,4 @@ const styles = StyleSheet.create({
   emptySub:   { fontSize: FONT.sm, textAlign: 'center', maxWidth: 280 },
 });
 
-export default withScreenErrorBoundary(StatsScreen, 'Stats');
+export default withScreenErrorBoundary(StatsInsightsExperience, 'Stats');

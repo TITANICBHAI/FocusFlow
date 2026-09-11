@@ -9,8 +9,8 @@
 |---|---|
 | **App Title** | FocusFlow — Focus & App Blocker |
 | **Package Name** | com.tbtechs.focusflow |
-| **Version** | 1.0.9 |
-| **Version Code** | 9 |
+| **Version** | 1.4.0 |
+| **Version Code** | 15 |
 | **Developer / Company Name** | TB Techs |
 | **Category** | Productivity |
 | **Age Rating** | Everyone (3+) |
@@ -185,44 +185,21 @@ Build your focus. Protect your time.
 
 ---
 
-## RELEASE NOTES (v1.0.9)
+## RELEASE NOTES (v1.4.0 — planned)
 
 ```
-FocusFlow v1.0.9 — Navigation, Import, and Reliability Improvements
+FocusFlow v1.4.0 — Stats & Insights redesign
 
-This update makes navigation, backup handling, diagnostics, and blocking
-workflows clearer while continuing to improve reliability and consistency.
+This release is planned to replace raw statistics with local, interpretive
+feedback about the user's actual focus patterns.
 
-What's new:
-• Bottom navigation is organized into Focus, Schedule, Defense, Stats, and Settings
-• Persistent blocking controls now have a dedicated Defense tab with one-time guidance
-• Stats opens on Today, followed by Yesterday, with synchronized swipe navigation
-• New Task and Edit Task forms no longer trap the keyboard above the lower controls
-• Backup imports now handle task ID collisions explicitly in Add and Replace modes
-• Standalone Block runtime state is preserved during backup imports
-• Exported backups include named feature preset sections without live activation state
-• Imported task Focus Mode behavior is preserved without automatically starting sessions
-• Diagnostic logs are optional, and empty text attachments are avoided
-• Reported feedback and reviews remain visible in the email body for user review
-• Standalone timed block now applies correctly even when the app database 
-  is slow to initialise — the block always goes through
-• Daily allowance entries now save reliably on all devices
-• Keyword blocker and recurring schedule saves are now fault-tolerant
-• Block Enforcement screen: all toggle saves now surface errors clearly 
-  instead of failing silently
-• Home Launcher settings saves improved for all configurations
-• Onboarding: settings save failures now show a clear error instead of 
-  getting stuck silently
-
-Bug fixes:
-• Fixed: Save button in Standalone Block modal appearing to do nothing on 
-  some devices (root cause: database initialisation race condition)
-• Fixed: Blocked words and recurring schedules not applying after save on 
-  cold launch
-• Fixed: Block Defence toggles silently failing on some OEM devices
-
-If you've had issues with blocks not applying after saving — this update 
-fixes that.
+What's planned:
+• Yesterday and This Week views with ranked insight cards and simple task results
+• A permission-gated 3-Month view with completion trends and phone-use patterns
+• Deterministic on-device insights for resistance, scheduling, estimation, and trends
+• A weekly standout insight that avoids repeating the same signal every week
+• On-device achievements with no XP, score, leaderboard, or volume ladder
+• No API calls and no personal usage data leaving the device
 ```
 
 ---
@@ -231,7 +208,7 @@ fixes that.
 
 | Field | Fill With |
 |---|---|
-| **Version** | 1.0.9 |
+| **Version** | 1.4.0 |
 | **License** | Free |
 | **Development Stage** | Final Release |
 | **Min SDK Version** | 8.0 (Android 8.0) |
