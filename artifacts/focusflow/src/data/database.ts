@@ -1046,6 +1046,72 @@ export async function dbGetActiveFocusSession(): Promise<FocusSession | null> {
   });
 }
 
+export interface RecentFocusSessionSummary {
+  sessionId: number;
+  taskId: string;
+  taskTitle: string;
+  startedAt: string;
+  endedAt: string;
+  plannedMinutes: number;
+  overrideCount: number;
+}
+
+/**
+ * Returns the most recently completed focus session inside a short recency
+ * window. This powers the in-app debrief and deliberately stays local.
+ */
+export async function dbGetRecentCompletedFocusSession(
+  maxAgeMinutes = 30,
+): Promise<RecentFocusSessionSummary | null> {
+  const boundedMinutes = Math.max(1, Math.min(120, Math.floor(maxAgeMinutes)));
+  const now = new Date();
+  const cutoff = new Date(now.getTime() - boundedMinutes * 60_000).toISOString();
+  return runWithDbOr('dbGetRecentCompletedFocusSession', null, async (database) => {
+    const row = await database.getFirstAsync<{
+      session_id: number;
+      task_id: string;
+      task_title: string | null;
+      started_at: string;
+      ended_at: string;
+      planned_minutes: number | null;
+      override_count: number;
+    }>(
+      `SELECT
+         s.id AS session_id,
+         s.task_id,
+         t.title AS task_title,
+         s.started_at,
+         s.ended_at,
+         t.duration_minutes AS planned_minutes,
+         COUNT(o.id) AS override_count
+       FROM focus_sessions s
+       LEFT JOIN tasks t ON t.id = s.task_id
+       LEFT JOIN focus_overrides o
+         ON o.task_id = s.task_id
+        AND o.overridden_at >= s.started_at
+        AND o.overridden_at <= s.ended_at
+       WHERE s.is_active = 0
+         AND s.ended_at IS NOT NULL
+         AND s.ended_at >= ?
+         AND s.ended_at <= ?
+       GROUP BY s.id, s.task_id, t.title, s.started_at, s.ended_at, t.duration_minutes
+       ORDER BY s.ended_at DESC, s.id DESC
+       LIMIT 1`,
+      [cutoff, now.toISOString()],
+    );
+    if (!row) return null;
+    return {
+      sessionId: row.session_id,
+      taskId: row.task_id,
+      taskTitle: row.task_title ?? 'Focus session',
+      startedAt: row.started_at,
+      endedAt: row.ended_at,
+      plannedMinutes: Number.isFinite(row.planned_minutes) ? Math.max(0, row.planned_minutes ?? 0) : 0,
+      overrideCount: Math.max(0, row.override_count ?? 0),
+    };
+  });
+}
+
 export async function dbGetTodayFocusMinutes(): Promise<number> {
   return runWithDb('dbGetTodayFocusMinutes', async (database) => {
     const startOfDay = new Date();

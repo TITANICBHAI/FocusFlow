@@ -219,6 +219,14 @@ export interface AppSettings {
   weeklyReportEnabled: boolean;     // Sunday notification with blocked-app attempt counts
   /** Calendar anchor for weekly statistics: 0=Sunday … 6=Saturday. */
   weekStartDay: number;
+  /** User opt-in for one-time pattern discovery notifications. */
+  patternInsightNotificationsEnabled?: boolean;
+  /** Pattern IDs already surfaced through an insight notification. */
+  shownPatternInsightIds?: string[];
+  /** Most recent session ID whose in-app debrief was dismissed. */
+  lastShownDebriefSessionId?: number;
+  /** Dismissal state for the local-only 3-month analytics notice. */
+  threeMonthPrivacyNoticeDismissed?: boolean;
   // Greyout schedule — time-window blocks independent of any focus session
   greyoutSchedule: GreyoutWindow[];
   systemGuardEnabled: boolean;

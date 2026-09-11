@@ -42,7 +42,7 @@ const VIEW_OPTIONS: { value: AnalyticsWindow; label: string }[] = [
 
 export function StatsInsightsExperience() {
   const insets = useSafeAreaInsets();
-  const { state } = useApp();
+  const { state, updateSettings } = useApp();
   const { theme } = useTheme();
   const [view, setView] = useState<AnalyticsWindow>('week');
   const [snapshot, setSnapshot] = useState<AnalyticsSnapshot | null>(null);
@@ -133,6 +133,18 @@ export function StatsInsightsExperience() {
         })}
       </View>
 
+      {view === 'three_months' && !state.settings.threeMonthPrivacyNoticeDismissed && (
+        <LocalOnlyNotice
+          theme={theme}
+          onDismiss={() => {
+            void updateSettings({
+              ...state.settings,
+              threeMonthPrivacyNoticeDismissed: true,
+            });
+          }}
+        />
+      )}
+
       {loadState === 'loading' && (
         <View style={styles.center}>
           <ActivityIndicator size="large" color={COLORS.primary} />
@@ -197,6 +209,35 @@ function PermissionGate({ theme }: { theme: ReturnType<typeof useTheme>['theme']
       >
         <Ionicons name="settings-outline" size={17} color={COLORS.card} />
         <Text style={[styles.permissionButtonText, { color: COLORS.card }]}>Grant Usage Access</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+function LocalOnlyNotice({
+  theme,
+  onDismiss,
+}: {
+  theme: ReturnType<typeof useTheme>['theme'];
+  onDismiss: () => void;
+}) {
+  return (
+    <View style={[styles.privacyNotice, { backgroundColor: theme.card, borderColor: theme.border }]}>
+      <Ionicons name="lock-closed-outline" size={19} color={COLORS.green} />
+      <View style={styles.privacyNoticeCopy}>
+        <Text style={[styles.privacyNoticeTitle, { color: theme.text }]}>Your data stays here</Text>
+        <Text style={[styles.privacyNoticeBody, { color: theme.textSecondary }]}>
+          FocusFlow does not collect, upload, or share your analytics. This view is calculated on this device only.
+        </Text>
+      </View>
+      <TouchableOpacity
+        testID="stats-privacy-notice-dismiss"
+        accessibilityRole="button"
+        accessibilityLabel="Dismiss privacy notice"
+        onPress={onDismiss}
+        hitSlop={10}
+      >
+        <Ionicons name="close" size={19} color={theme.muted} />
       </TouchableOpacity>
     </View>
   );
@@ -374,6 +415,19 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   switchLabel: { fontSize: FONT.xs, fontWeight: '800' },
+  privacyNotice: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginHorizontal: SPACING.lg,
+    marginTop: SPACING.sm,
+    padding: SPACING.md,
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    gap: SPACING.sm,
+  },
+  privacyNoticeCopy: { flex: 1, gap: 2 },
+  privacyNoticeTitle: { fontSize: FONT.sm, fontWeight: '900' },
+  privacyNoticeBody: { fontSize: FONT.xs, lineHeight: 17 },
   scroll: { flex: 1 },
   content: { padding: SPACING.lg, gap: SPACING.md },
   insightStack: { gap: SPACING.sm },

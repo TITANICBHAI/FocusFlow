@@ -264,6 +264,18 @@ function SettingsScreen() {
             label="Request Notification Permission"
             onPress={handleRequestNotifications}
           />
+          <SettingRow
+            label="Pattern Insights"
+            description="Allow FocusFlow to notify you once when it discovers a meaningful routine pattern. Off by default."
+          >
+            <Switch
+              testID="settings-pattern-insights"
+              value={settings.patternInsightNotificationsEnabled ?? false}
+              onValueChange={(v) => update({ patternInsightNotificationsEnabled: v })}
+              trackColor={{ false: COLORS.border, true: COLORS.primary + '88' }}
+              thumbColor={settings.patternInsightNotificationsEnabled ? COLORS.primary : COLORS.muted}
+            />
+          </SettingRow>
         </Section>
 
         {/* ── Scheduling ── */}

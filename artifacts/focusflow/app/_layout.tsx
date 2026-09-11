@@ -42,6 +42,8 @@ import { parseBackupJson } from '@/services/backupService';
 import { NativeFilePickerModule } from '@/native-modules/NativeFilePickerModule';
 import { stageBackupImport } from '@/services/pendingBackupImport';
 import { navPush } from '@/utils/nav';
+import { dbGetRecentCompletedFocusSession, type RecentFocusSessionSummary } from '@/data/database';
+import { SessionDebriefModal } from '@/components/SessionDebriefModal';
 
 // ─── Deferred notification action store ──────────────────────────────────────
 // Stores action from background notification tap so the app can handle it on resume.
@@ -340,6 +342,59 @@ function AchievementCelebrationHost() {
   return <AchievementCelebrationModal milestone={milestone} onDismiss={handleDismiss} />;
 }
 
+// ─── Session debrief host ────────────────────────────────────────────────────
+// A debrief is local feedback about the most recent completed session. It is
+// shown once, only while no other focus session is active, and never sends data
+// anywhere. The active-session guard keeps feedback from interrupting focus.
+function SessionDebriefHost() {
+  const { state, updateSettings } = useApp();
+  const [session, setSession] = React.useState<RecentFocusSessionSummary | null>(null);
+
+  useEffect(() => {
+    if (!state.isDbReady) return;
+    let cancelled = false;
+    if (state.focusSession?.isActive) {
+      setSession(null);
+      return;
+    }
+
+    void dbGetRecentCompletedFocusSession(30)
+      .then((next) => {
+        if (cancelled) return;
+        setSession(
+          next && next.sessionId !== state.settings.lastShownDebriefSessionId
+            ? next
+            : null,
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setSession(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [state.isDbReady, state.focusSession?.isActive, state.settings.lastShownDebriefSessionId]);
+
+  const dismiss = () => {
+    if (!session) return;
+    const sessionId = session.sessionId;
+    setSession(null);
+    void updateSettings({
+      ...state.settings,
+      lastShownDebriefSessionId: sessionId,
+    });
+  };
+
+  return (
+    <SessionDebriefModal
+      session={session}
+      visible={session !== null && !state.focusSession?.isActive}
+      onDismiss={dismiss}
+    />
+  );
+}
+
 // ─── VPN permission guard ─────────────────────────────────────────────────────
 // Shows VpnPermissionLostBanner whenever VPN blocking is enabled but the
 // Android system VPN permission has been silently revoked. Runs inside
@@ -465,6 +520,7 @@ export default function RootLayout() {
             <AppSplashOverlay />
             <OnboardingGuard />
             <AchievementCelebrationHost />
+            <SessionDebriefHost />
             <VpnPermissionHost />
             <FileImportHost />
             <ErrorAlertBanner />
