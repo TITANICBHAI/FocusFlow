@@ -1,0 +1,626 @@
+# FocusFlow — Pure Kotlin/Jetpack Compose Architecture Plan
+
+**Source analyzed:** `artifacts/focusflow/` (React Native/Expo + Kotlin hybrid, package `com.tbtechs.focusflow`, v1.1.2 / versionCode 13, minSdk 26 / targetSdk 35 / compileSdk 35)
+**Target:** `focusflowkotlin/` — pure Kotlin, Jetpack Compose, no JS/TS/RN runtime
+
+### Methodology note (read this before trusting a claim below)
+Every fact in this document is grounded in one of two ways, and I've kept them distinguishable:
+- **Fully read**: `types.ts`, `database.ts`, `defaultSettings.ts`, all 11 files in `src/services/`, all 14 native-module TS wrappers, all hooks/utils, ~70% of `AppContext.tsx` (100% of its state shape, init sequence, sync functions, and public actions — the CRUD boilerplate for `updateTask`/`deleteTask` was sampled, not exhaustively read, since `addTask` already established the pattern), all 15 Kotlin modules, 16 of 19 Kotlin service files, `FocusFlowWidget.kt`, `manifest_additions.xml`, all resource XML files, `FOCUSFLOW_TEST_PLAN.md`'s full section structure.
+- **Structurally extracted** (class/function/constant signatures + targeted excerpts, not full line-by-line): the three largest Kotlin files — `AppBlockerAccessibilityService.kt` (originally 4,770 lines / 229KB, now 4,785 after a later bug-fix pass), `ForegroundTaskService.kt` (1,676 lines / 79KB), `LauncherActivity.kt` (originally 1,562 lines / 65KB, now 1,926 after the launcher bug-fix pass — icon rounding, touch guards, status bar, blur) — plus a fast import/hook pass over the 20 screen files and the 37 component files (I know what each imports and which native modules/hooks it touches, not every line of JSX). Line counts below in §3.4 reflect current sizes, re-verified against `updated.zip`.
+
+Where a decision below is a genuine judgment call rather than a fact from the source, I've labeled it **[DESIGN DECISION]**.
+
+---
+
+## 1. App Overview
+
+FocusFlow is an Android app-blocking / focus-enforcement app. Confirmed feature set, cross-checked against actual source (not just the feature name):
+
+- **Focus sessions** — Pomodoro-style task sessions with work/break states, orchestrated natively by `ForegroundTaskService`
+- **App blocking** — enforced primarily by `AppBlockerAccessibilityService` (foreground-app detection + `GLOBAL_ACTION_HOME`), with `ForegroundTaskService` running a UsageStats-based **fallback poller** if the accessibility service is disabled
+- **Network-level blocking** — a local VPN (`NetworkBlockerVpnService`) that can block per-app or globally, coordinated by `VpnPolicyCoordinator`
+- **Daily allowance system** — two independent modes (count-based "N opens/day" and interval/timed "N minutes/day"), tracked in *two places* (see §6, Risk 1)
+- **Greyout mode** — a scheduled low-stimulation overlay window (not the same as blocking)
+- **Nuclear mode** — a hardened, hard-to-disable enforcement mode built on Device Admin
+- **Blocked keywords/URLs** — text-content scanning of URL bars and generic view text via the accessibility tree
+- **Standalone blocks** — ad-hoc blocks the user starts outside of a scheduled task, with their own expiry/allowance pairing
+- **PIN protection** — a defense PIN gating settings changes, with reuse-prevention and a session-unlock timer
+- **Alarms** — an exact/inexact fallback ladder for task-start/task-end alarms, fully native (`TaskAlarmModule` + `TaskAlarmActivity` + `TaskEndAlarmReceiver`)
+- **Notifications** — task reminders, morning digest, weekly report, all on dedicated channels
+- **Home-screen widget** — `FocusFlowWidget`, already a pure `AppWidgetProvider`
+- **Custom home launcher** — `LauncherActivity`, a `CATEGORY_HOME` activity that is a full replacement launcher UI
+- **Aversive actions** — screen-dimming, vibration pulses, and a ringtone alert, used as a friction/deterrent mechanism (`AversiveActionsManager`)
+- **Backup/restore** — JSON export/import of settings + tasks
+- **Diagnostics/troubleshooting** — an in-app diagnostics reporter and a troubleshoot modal
+- **Achievements/streaks** — a celebration modal tied to a streak-milestone check run at boot
+- **Boot resilience** — `BootReceiver` re-establishes VPN/alarms/allowance state after reboot and includes a **clock-tamper detection check** (dual timestamp validity comparison)
+
+This list matches what I found in code; I did not find evidence of any additional undocumented feature area.
+
+---
+
+## 2. Current Architecture: What the Hybrid Actually Does
+
+### 2.1 What React Native/Expo handles
+- **Navigation**: Expo Router, file-based. 5 bottom tabs (`app/(tabs)/`) + ~15 standalone routed screens (`app/*.tsx`) + a root layout (`app/_layout.tsx`) that hosts the `AppProvider`, global error boundary, achievement-celebration modal, VPN-permission-lost banner, notification-response listener, and deep-link handling (`navigateToTask`/`consumePendingTaskNavigation`).
+- **State**: a single `AppContext.tsx` (1,957 lines) using `useReducer` + a large set of `useCallback`-wrapped orchestration functions. This is the one true global state hub — every screen consumes it via `useApp()`.
+- **Business logic that has no Android dependency**: `schedulerEngine.ts` (task conflict/rebalancing algorithm), `taskService.ts` (pure task-shape helpers), `pinCrypto.ts`/`pinReuseTracker.ts` (SHA-256 hashing + last-5-hash reuse check), `protectedApps.ts` (a hardcoded never-blockable package allowlist).
+- **Background execution**: `expo-task-manager` + `expo-background-fetch`, three headless tasks defined in `backgroundTasks.ts`:
+  - `BACKGROUND_FETCH` — periodic, ~15 min minimum interval (OS-enforced floor)
+  - `OVERRUN_CHECK` — fired by a notification action, not periodic
+  - `NOTIFICATION_BG` — background notification-action handling
+- **The 14 native-module TS wrappers** (`src/native-modules/*.ts`) — thin Promise-returning clients over the RN bridge; this is the entire JS→Kotlin surface.
+
+### 2.2 What Kotlin handles
+Two directories: `android-native/.../modules/` (15 files, RN-bridge-facing) and `android-native/.../services/` (**19 files**, not 17 — verified by direct line count) plus 1 widget provider.
+
+**Modules (RN bridge surface, all extend `ReactContextBaseJavaModule`):**
+`UsageStatsModule`, `ForegroundServiceModule`, `ForegroundLaunchModule`, `FocusDayBridgeModule`, `SharedPrefsModule`, `InstalledAppsModule`, `BlockOverlayModule`, `NuclearModeModule`, `NetworkBlockModule`, `AversionsModule`, `GreyoutModule`, `NativeImagePickerModule`, `NativeFilePickerModule`, `SessionPinModule`, `TaskAlarmModule`, plus `FocusDayPackage.kt` (the registrar).
+
+**Services (the actual enforcement engine — and the important discovery):** I checked every one of the three largest files for `com.facebook.react` imports and found **zero** in `AppBlockerAccessibilityService.kt`, `ForegroundTaskService.kt`, and `LauncherActivity.kt`. These three files — which are 373KB combined, ~65% of the native Kotlin codebase by size — are **already pure Android**, with no React Native dependency at all. They talk to the JS side only indirectly, by reading/writing `SharedPreferences` keys that JS also reads/writes through `SharedPrefsModule`. The same is true of the rest of `services/`: `NetworkBlockerVpnService`, `VpnPolicyCoordinator`, `BlockOverlayActivity`, `TaskAlarmActivity`, `AversiveActionsManager`, `TemptationLogManager`, `WakeLockManager`, `BlockedAppDismissalPolicy`, and the six receivers (`BootReceiver`, `PackageInstallReceiver`, `VpnWatchdogReceiver`, `VpnRecoveryNotifier`, `TaskEndAlarmReceiver`, `TemptationReportReceiver`, `NotificationActionReceiver`, `FocusDayDeviceAdminReceiver`) are all plain Android components.
+
+**This is the single most important fact for the migration**: the hardest, riskiest, most-tested logic in the app doesn't need to be rewritten. It needs a new home.
+
+### 2.3 The bridge layer
+- **JS → Kotlin**: `@ReactMethod`-annotated functions, Promise-based, one call at a time across the bridge.
+- **Kotlin → JS**: `FocusDayBridgeModule` wraps `DeviceEventEmitter`; `eventBridge.ts` is the JS-side subscription registry (`notifAction`, `taskEnded`, `standaloneBlockExpired`, `vpnStateChanged`, and others).
+- **The join point is `SharedPreferences`, not the bridge.** `AppBlockerAccessibilityService` and `ForegroundTaskService` read their operating state (block lists, allowance config, PIN hash, VPN policy) directly from `SharedPreferences` — the same file `SharedPrefsModule` exposes to JS. The bridge is used to *push settings changes down*; it is not in the hot enforcement path.
+
+### 2.4 AppContext's state domains
+Five `useReducer` fields: `tasks: Task[]`, `settings: AppSettings`, `focusSession: FocusSession | null`, `focusViolationApp: string | null`, `isLoading/isDbReady/isDbUnrecoverable: boolean`.
+Eight `_sync*` functions fire on settings changes and push the relevant slice down to native: `_syncDailyAllowance`, `_syncAlwaysBlock`, `_syncBlockedWords`, `_syncAversions`, `_syncGreyoutSchedule`, `_syncSystemGuard`, `_syncStandaloneBlock`, `_syncWidget`.
+Public actions: `refreshTasks`, `addTask`, `updateTask`, `deleteTask`, `completeTask`, `skipTask`, `extendTaskTime`, `startFocusMode`, `stopFocusMode`, `updateSettings`, `setDailyAllowanceEntries`, `setBlockedWords`, `setRecurringBlockSchedules`, `setStandaloneBlock`, `setQuickBlockTemporary`, `setStandaloneBlockAndAllowance`.
+
+### 2.5 Pain points worth carrying into the migration log
+1. **Allowance logic is implemented twice.** `ForegroundTaskService` computes allowance from `UsageStatsManager` queries; `AppBlockerAccessibilityService` independently tracks allowance from accessibility events (`restoreAllowanceSession`, `reconcileCountAllowances`, `accumulateTimedUsage`, its own checkpoint loop). They only agree because both read/write the same `SharedPreferences` keys. This is a real architectural seam, not a hybrid-specific problem — it will still exist in pure Kotlin unless consolidated (see §6, Risk 1).
+2. **Settings are one JSON blob**, not normalized rows — `database.ts`'s `settings` table has exactly one row, key `'app_settings'`, value = the entire serialized `AppSettings` object. Any settings change re-serializes everything.
+3. **Boot-time reconciliation across three stores.** `AppContext.init()` explicitly reads onboarding/privacy-acceptance flags from `SharedPreferences`, `AsyncStorage`, *and* SQLite, and heals whichever is missing from whichever is present — a defensive pattern that exists because the hybrid has three independent storage mechanisms in the first place.
+4. **Process-death recovery is a first-class code path.** `init()` has explicit logic to detect an active focus session that the JS side "forgot about" (app was killed) and reconcile it against native ground truth. This isn't a hybrid bug; it reflects a real Android lifecycle constraint that will carry over.
+
+None of this is evidence that the hybrid *causes* the bugs — it's evidence that the domain (background enforcement that must survive process death) is inherently stateful and async. Worth remembering while migrating: the target architecture needs to solve the same problems, not assume they disappear with the JS layer.
+
+---
+
+## 3. Target Architecture
+
+### 3.1 Navigation
+
+| Expo Route | Source File | Kotlin Screen | NavGraph Route |
+|---|---|---|---|
+| `(tabs)/index` | `app/(tabs)/index.tsx` | `HomeScreen` | `"home"` |
+| `(tabs)/focus` | `app/(tabs)/focus.tsx` | `FocusScreen` | `"focus"` |
+| `(tabs)/stats` | `app/(tabs)/stats.tsx` | `StatsScreen` | `"stats"` |
+| `(tabs)/settings` | `app/(tabs)/settings.tsx` | `SettingsScreen` | `"settings"` |
+| `(tabs)/defense` | `app/(tabs)/defense.tsx` | `DefenseScreen` | `"defense"` |
+| — | `app/(tabs)/_layout.tsx` | `MainScaffold` (bottom nav host) | n/a — Compose `Scaffold` wrapper |
+| — | `app/_layout.tsx` | `MainActivity` + root `NavHost` | n/a — hosts global overlays (achievement modal, VPN banner, error boundary) |
+| `active` | `app/active.tsx` | `ActiveBlockScreen` | `"active"` |
+| `always-on` | `app/always-on.tsx` | `AlwaysOnScreen` | `"always_on"` |
+| `block-defense` | `app/block-defense.tsx` | `StandaloneBlockSetupScreen` | `"block_defense"` |
+| `changelog` | `app/changelog.tsx` | `ChangelogScreen` | `"changelog"` |
+| `home-launcher` | `app/home-launcher.tsx` | `LauncherSetupScreen` | `"home_launcher_setup"` |
+| `how-to-use` | `app/how-to-use.tsx` | `HowToUseScreen` | `"how_to_use"` |
+| `keyword-blocker` | `app/keyword-blocker.tsx` | `KeywordBlockerScreen` | `"keyword_blocker"` |
+| `onboarding` | `app/onboarding.tsx` | `OnboardingScreen` | `"onboarding"` |
+| `password-protection` | `app/password-protection.tsx` | `PasswordProtectionScreen` | `"password_protection"` |
+| `permissions` | `app/permissions.tsx` | `PermissionsScreen` | `"permissions"` |
+| `privacy-policy` | `app/privacy-policy.tsx` | `PrivacyPolicyScreen` | `"privacy_policy"` |
+| `reports` | `app/reports.tsx` | `ReportsScreen` | `"reports"` |
+| `terms-of-service` | `app/terms-of-service.tsx` | `TermsOfServiceScreen` | `"terms_of_service"` |
+| `user-profile` | `app/user-profile.tsx` | `UserProfileScreen` | `"user_profile"` |
+| `vpn-block-list` | `app/vpn-block-list.tsx` | `VpnBlockListScreen` | `"vpn_block_list"` |
+| `+not-found` | `app/+not-found.tsx` | (NavHost default/unknown-route fallback) | n/a |
+
+**[DESIGN DECISION]** `LauncherActivity` (the runtime launcher UI, native, no RN dependency) stays a separate `Activity` with the `CATEGORY_HOME` intent-filter — it is not part of the `NavHost` and must not be merged into `MainActivity`, since a launcher activity has a different task/back-stack contract than a normal app screen (see §6, Risk 11).
+
+### 3.2 State Management — decomposing `AppContext.tsx`
+
+Five ViewModels, matching the five state domains directly:
+
+| ViewModel | StateFlow fields | Backing repository |
+|---|---|---|
+| `TaskViewModel` | `tasks: StateFlow<List<Task>>` | `TaskRepository` (Room) |
+| `SettingsViewModel` | `settings: StateFlow<AppSettings>` | `SettingsRepository` (DataStore) |
+| `FocusSessionViewModel` | `focusSession: StateFlow<FocusSession?>`, `focusViolationApp: StateFlow<String?>` | `FocusSessionRepository` (Room, mirrored to the native `SharedPreferences` keys `ForegroundTaskService` reads) |
+| `AppBootViewModel` | `isLoading`, `isDbReady`, `isDbUnrecoverable: StateFlow<Boolean>` | orchestrates the others during `FocusFlowApp` startup |
+| `EnforcementSyncManager` (not a ViewModel — a plain class owned by `SettingsRepository`) | n/a | replaces the 8 `_sync*` functions; invoked whenever `SettingsViewModel.updateSettings()` commits a change, writes the relevant `SharedPreferences` keys the enforcement services read |
+
+Action mapping:
+
+| AppContext method | ViewModel method | Notes |
+|---|---|---|
+| `refreshTasks` | `TaskViewModel.refresh()` | Room `Flow` makes this largely unnecessary — collect the DAO's `Flow<List<Task>>` directly instead of manual refresh calls |
+| `addTask` / `updateTask` / `deleteTask` | `TaskViewModel.add/update/delete()` | direct `TaskRepository` calls; also re-runs `SchedulerEngine` conflict check, matching current behavior |
+| `completeTask` / `skipTask` / `extendTaskTime` | `TaskViewModel.complete/skip/extend()` | |
+| `startFocusMode` / `stopFocusMode` | `FocusSessionViewModel.start/stop()` | sends an `Intent` to `ForegroundTaskService` (`SET_BREAK`/`CLEAR_BREAK`/`STOP` actions already exist there) rather than a bridge call |
+| `updateSettings` | `SettingsViewModel.update()` | writes DataStore, then triggers `EnforcementSyncManager` |
+| `setDailyAllowanceEntries`, `setBlockedWords`, `setRecurringBlockSchedules`, `setStandaloneBlock`, `setQuickBlockTemporary`, `setStandaloneBlockAndAllowance` | `SettingsViewModel` sub-methods | each maps to one of the 8 sync functions listed above |
+
+**Why this grouping and not more granular ViewModels**: the 8 sync functions all key off the *same* `settings` object changing, and they all write to the same `SharedPreferences` file the enforcement services read. Splitting them into separate ViewModels would just re-introduce the coordination problem `AppContext` currently solves by being one file. Keeping them as methods on one `SettingsRepository`-backed manager preserves the actual data-flow shape instead of imposing an arbitrary one.
+
+### 3.3 Data Layer
+
+**Room** (from `database.ts`'s actual schema — 4 tables get entities; the 5th, `settings`, is a single JSON blob and does not belong in Room):
+
+| Table (current) | Room Entity | PK | Notes |
+|---|---|---|---|
+| `tasks` | `TaskEntity` | `id: String` | columns per `Task` interface in `types.ts` |
+| `focus_sessions` | `FocusSessionEntity` | `id: String` | |
+| `focus_overrides` | `FocusOverrideEntity` | `id: String` (or composite date+taskId, TBD against exact schema during implementation) | |
+| `daily_completions` | `DailyCompletionEntity` | composite (date, taskId) | used for streak/completion history |
+
+**DataStore vs. raw SharedPreferences — this needs an explicit decision, not a default:**
+
+`SettingsRepository` (UI-layer settings read/write from Compose screens) is a good fit for Jetpack **DataStore** — it's coroutine/Flow-native and the UI layer is already coroutine-based.
+
+**But** `AppBlockerAccessibilityService.onAccessibilityEvent()` and `ForegroundTaskService`'s hot paths are **not** suspend functions — they're synchronous system callbacks that cannot await a `Flow` mid-event without real risk of dropping or delaying the event. Forcing these onto DataStore would require wrapping every hot-path read in `runBlocking` (bad) or restructuring the accessibility service into a coroutine-event pipeline (a bigger, riskier change than the migration itself needs to make right now).
+
+**[DESIGN DECISION]**: keep the enforcement services on direct, synchronous `SharedPreferences` reads — exactly as today — using the same key names already confirmed in source (`PREF_DEFENSE_PIN_HASH`, `PREF_BLOCK_LIST`, `PREF_ALWAYS_BLOCK_ENABLED`, and the full allowance/VPN-policy key set found in `AppBlockerAccessibilityService.kt` and `VpnPolicyCoordinator.kt`). `SettingsRepository` becomes a DataStore-backed *facade* for the UI layer that also mirrors writes into that same `SharedPreferences` file (or, more simply, `SettingsRepository` itself is backed by `SharedPreferences` wrapped in `callbackFlow` for Compose observability — not real DataStore). This avoids a two-source-of-truth bug where DataStore says one thing and the enforcement services, still reading `SharedPreferences`, act on another. Whichever variant is chosen, the key point is: **do not let the enforcement services' persistence format become a Prompt-2 implementation-time afterthought — it's the join point of the whole app.**
+
+**In-memory only** (no persistence needed): transient UI state — modal visibility, form drafts, animation state.
+
+### 3.4 Services — reuse vs. rewrite
+
+| File | Lines/Size | Decision | Why |
+|---|---|---|---|
+| `AppBlockerAccessibilityService.kt` | 4,785 / ~230KB | **KEEP AS-IS** | zero RN imports confirmed; move package, nothing else |
+| `ForegroundTaskService.kt` | 1,676 / 79KB | **KEEP AS-IS** | zero RN imports confirmed |
+| `LauncherActivity.kt` | 1,926 / ~80KB | **KEEP AS-IS** | zero RN imports confirmed — grew from 1,562 during the launcher bug-fix pass; still zero RN dependency, re-confirmed |
+| `BlockOverlayActivity.kt` | 724 | KEEP AS-IS | pure Android, builds views in code |
+| `NetworkBlockerVpnService.kt` | 563 | KEEP AS-IS | pure `VpnService`, no RN |
+| `VpnPolicyCoordinator.kt` | 472 | KEEP AS-IS | preserve the policy-generation versioning exactly (§6, Risk 3) |
+| `TaskAlarmActivity.kt` | 400 | KEEP AS-IS | |
+| `AversiveActionsManager.kt` | 218 | KEEP AS-IS | |
+| `VpnWatchdogReceiver.kt` | 198 | KEEP AS-IS | |
+| `TemptationLogManager.kt` | 164 | KEEP AS-IS | |
+| `BootReceiver.kt` | 144 | KEEP AS-IS | includes the clock-tamper check — do not simplify |
+| `PackageInstallReceiver.kt` | 136 | KEEP AS-IS | |
+| `FocusDayDeviceAdminReceiver.kt` | 116 | KEEP AS-IS | |
+| `VpnRecoveryNotifier.kt` | 111 | KEEP AS-IS | |
+| `TaskEndAlarmReceiver.kt` | 108 | KEEP AS-IS | |
+| `NotificationActionReceiver.kt` | 76 | KEEP AS-IS | |
+| `WakeLockManager.kt` | 62 | KEEP AS-IS | |
+| `TemptationReportReceiver.kt` | 50 | KEEP AS-IS | |
+| `BlockedAppDismissalPolicy.kt` | 47 | KEEP AS-IS | already has a JVM unit test (`BlockedAppDismissalPolicyTest.kt`) — good sign, preserve the test too |
+
+All 19 files: **ADAPT only the package declaration and import paths.** None require logic rewrites on the evidence gathered. This is the single biggest cost-saver in the whole migration.
+
+### 3.5 Modules — bridge API to direct Kotlin call
+
+All 15 files **do** need adaptation (they're `ReactContextBaseJavaModule` subclasses — the bridge scaffolding itself is the thing being removed):
+
+| Module | Becomes | Notes |
+|---|---|---|
+| `SharedPrefsModule` | `SettingsRepository` methods | largest file (27.8K); becomes the backbone of §3.3's persistence facade |
+| `UsageStatsModule` | `UsageStatsRepository` | keep the `AppOpsManager.checkOpNoThrow` permission guard verbatim (§6, Risk not to drop) |
+| `NetworkBlockModule` | `VpnRepository` / direct calls into `VpnPolicyCoordinator` | |
+| `TaskAlarmModule` | `AlarmRepository` | keep the exact/inexact alarm ladder verbatim |
+| `ForegroundServiceModule` | direct `Intent`-based calls to `ForegroundTaskService` from `FocusSessionViewModel` | no repository needed — it's just service control |
+| `ForegroundLaunchModule` | folded into `LauncherActivity` control (Repository or direct call) | |
+| `FocusDayBridgeModule` | **deleted** | its entire job was JS event emission; a `SharedFlow`/`StateFlow` in the relevant ViewModel replaces it |
+| `InstalledAppsModule` | `InstalledAppsRepository` | can return `Drawable`/`Bitmap` directly via `PackageManager` instead of base64-encoding icons for the bridge — a real simplification |
+| `BlockOverlayModule` | direct `Intent` launch of `BlockOverlayActivity` | |
+| `NuclearModeModule` | `NuclearModeRepository` | |
+| `AversionsModule` | direct calls into `AversiveActionsManager` | |
+| `GreyoutModule` | `GreyoutRepository` | |
+| `NativeImagePickerModule` / `NativeFilePickerModule` | Compose `rememberLauncherForActivityResult` contracts | standard Android replacement, no custom repository needed |
+| `SessionPinModule` | `PinManager` (see §3.9) | |
+
+### 3.6 Background Work
+
+| Current job | Type | Kotlin replacement | Why |
+|---|---|---|---|
+| `BACKGROUND_FETCH` (~15 min) | `expo-background-fetch` | `WorkManager` `PeriodicWorkRequest`, 15-min interval | matches Android's own OS-enforced minimum periodic interval — a clean 1:1 port |
+| `OVERRUN_CHECK` | notification-triggered headless JS task | **eliminated** | already duplicated natively by `TaskEndAlarmReceiver`/`TaskAlarmActivity`; no JS runtime exists to wake in pure Kotlin |
+| `NOTIFICATION_BG` | background notification-action handler | **eliminated** | already duplicated natively by `NotificationActionReceiver.kt` |
+| `schedulerEngine.ts` | pure JS algorithm | direct Kotlin port, **no Android framework dependency** | it's pure logic (task conflict detection/rebalancing) — the cleanest, lowest-risk port in the whole codebase; keep it unit-testable exactly as today |
+
+### 3.7 Notifications
+
+JS-defined channels (`notificationService.ts`):
+
+| Channel ID | Importance | Purpose |
+|---|---|---|
+| task-reminders | HIGH | pre-start (-10/-5/-1/0 min), mid-session checkins (15/30 min), almost-done, overrun |
+| morning-digest | DEFAULT | daily digest |
+| weekly-report | DEFAULT | weekly summary |
+
+Native-owned channels already exist independently: `focusday_foreground` (persistent idle/active notification, `ForegroundTaskService`), `focusday_block_alert`, `focusday_vpn`, `task_alarm`. **[DESIGN DECISION]** consolidate all channel creation (JS-originated and native-originated) into one `NotificationChannels.kt`, created once in `FocusFlowApp.onCreate()`, so channel IDs aren't defined in two places that could drift.
+
+Actions requiring `PendingIntent`: Complete / Extend 15 / Extend 30 / Skip (active-task notification, currently built in `ForegroundTaskService`).
+
+**New channels added during the analytics/stats redesign:**
+
+| Channel ID | Importance | Purpose |
+|---|---|---|
+| `achievements` | DEFAULT, badge=true | Achievement unlock notifications. Hidden achievements use same channel, `sound=false`. Does not respect quiet hours. |
+| `insights` | LOW, no sound | One-time pattern-discovery notifications only. Respects quiet hours + active-session guard. |
+| `resistance` | DEFAULT | Temptation-spike alerts. Opt-in only (`temptationSpikeEnabled` in AppSettings). Does not fire during active focus session. |
+
+**New notification types (content generated from analytics engine, not static strings):**
+
+- **Morning digest**: body replaced with highest-priority `InsightCard.body` from yesterday's engine run. Fallback: `"Ordinary day yesterday. You showed up."` Skip if app opened within last 10 minutes of fire time.
+- **Weekly report**: body replaced with `syncWeeklyStandout` result. Fallback: `"Consistent week. Nothing stood out."`.
+- **Achievement unlock**: fires from `AchievementEngine` immediately on earn. One notification per achievement. Hidden achievements: same channel, `sound=false`.
+- **Pattern discovery**: fires once per pattern (tracked via `shownPatternInsightIds`). Body never spoils the insight — always `"We noticed something about your schedule. Open Stats to see."`.
+- **Auto-reschedule confirmation**: fires when `savedMinutes > 5` after compress. Body: `"You finished early. [Task] moved to [time]."` Channel: `task-reminders`.
+- **Arbitration**: fires when session arbitration holds or switches a task. Channel: `task-reminders`.
+- **Temptation spike**: opt-in. Fires when `TemptationLogManager` rolling-60-minute count ≥ `temptationSpikeThreshold`. 2-hour cooldown. Channel: `resistance`.
+- **Block list suggestion**: fires after weekly insight run when top app is not in always-block list. Includes deep-link action button. 30-day per-app cooldown. Channel: `weekly-report`.
+- **Week-ahead preview**: fires Sunday at 7pm (configurable). Body: task count + first task name/time. Channel: `weekly-report`.
+
+### 3.8 Aversive Actions & Nuclear Mode
+
+`AversiveActionsManager.kt` (pure Android, 218 lines): screen-dimming via a window overlay + brightness manipulation, a vibration pulse loop, and a ringtone alert — used as a deterrent when a blocked-app attempt is detected. No changes needed beyond package relocation.
+
+`NuclearModeModule.kt`: a Device-Admin-backed "hard to disable" mode. Needs bridge-stripping only (§3.5); the actual enforcement logic it triggers lives in `FocusDayDeviceAdminReceiver.kt`, which is already pure Android and unchanged.
+
+### 3.9 PIN Protection
+
+Current: `pinCrypto.ts` (SHA-256, JS-side, with a Web-Crypto-API attempt and a pure-JS fallback) + `pinReuseTracker.ts` (rejects reuse of the last 5 hashes) + `SessionPinModule.kt` (native in-memory unlock-timer, `SharedPreferences`-backed).
+
+**[DESIGN DECISION]** New `PinManager.kt`: upgrade hashing to `SecretKeyFactory` with `PBKDF2WithHmacSHA256` (stronger than the current single-round SHA-256), with the derived key additionally wrapped by an Android Keystore AES key — the Keystore key never leaves hardware-backed storage; it wraps the derived hash, it does not store the PIN or hash directly. Store the wrapped hash + salt in `SharedPreferences` (not Room — matches current pattern and avoids putting security material in a queryable database). Keep the same last-5-hash reuse check. `SessionPinViewModel` holds the unlocked-until-timestamp in memory, mirroring the current `SessionPinModule` design.
+
+**Migration-specific concern (belongs here, flagged again in §6)**: existing users' PIN hashes are plain SHA-256. There's no way to "upgrade" a hash without the plaintext PIN, so a one-time re-hash-on-next-successful-unlock step is required — verify against the old SHA-256 hash once, then replace it with the new PBKDF2+Keystore-wrapped version.
+
+### 3.10 Widget
+
+`FocusFlowWidget.kt` is already a plain `AppWidgetProvider` reading `SharedPreferences` directly — confirmed via structural read (five render states: active task, awaiting decision, standalone block, next-up, idle; `updatePeriodMillis` = 1,800,000ms / 30 min per `widget_info.xml`). No architectural change needed — it keeps reading from whatever `SettingsRepository`/`FocusSessionRepository` writes to that same `SharedPreferences` file. The only behavior to preserve deliberately: the JS side currently *pushes* an update on every relevant state change (`_syncWidget`) rather than waiting for the 30-min system tick — the Kotlin `SettingsRepository`/`FocusSessionRepository` must keep doing this active push, or the widget will feel laggy (§6, Risk 9).
+
+### 3.11 Permissions Flow
+
+From `permissions.tsx`, `manifest_additions.xml`, and the resource XML files (`accessibility_service_config.xml`, `device_admin.xml`, `strings.xml`):
+
+| Permission | Android API | Flow | Rationale source |
+|---|---|---|---|
+| Accessibility Service | `AccessibilityService` | Settings redirect | `strings.xml`'s `accessibility_service_description` — already Play-Store-policy-compliant wording about what it does/doesn't read; port verbatim |
+| Usage Access | `PACKAGE_USAGE_STATS` | Settings redirect | gated at call-time by `AppOpsManager.checkOpNoThrow` in `UsageStatsModule` |
+| Display over other apps | `SYSTEM_ALERT_WINDOW` | Settings redirect | gated by `Settings.canDrawOverlays()` before every overlay show, per `BlockOverlayModule` |
+| Device Admin | `BIND_DEVICE_ADMIN` | Settings/system redirect | `device_admin.xml` declares `force-lock` only — explicitly and intentionally **not** `wipe-data`; preserve that restraint, don't "helpfully" add more policies |
+| VPN consent | `VpnService.prepare()` | System consent dialog (not a Settings redirect) | one-time per install unless revoked |
+| Exact alarms | `SCHEDULE_EXACT_ALARM` (Android 12+) | Settings redirect | gated by `canScheduleExactAlarms()` in `TaskAlarmModule` — keep the gate |
+| Notifications | `POST_NOTIFICATIONS` (Android 13+) | Runtime dialog | standard |
+| Foreground service types | `dataSync`, `specialUse` (subtype `productivity`) | Manifest-declared, not user-facing | confirmed exact `<property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE">` declaration in `manifest_additions.xml` — must be ported verbatim or the service dies at startup on API 34+ |
+
+### 3.12 Analytics Engine
+
+The analytics layer is a pure-logic, on-device subsystem with no external API calls.
+It was partially built in the hybrid codebase — the structure below reflects what
+exists in `updated.zip` and what still needs completing during the Kotlin migration.
+
+**Files already built (port as-is, package path update only):**
+
+| TS source | Lines | Rule/achievement count | Target Kotlin path |
+|---|---|---|---|
+| `src/services/analytics/AnalyticsProcessor.ts` | 541 | — | `analytics/AnalyticsProcessor.kt` |
+| `src/services/analytics/InsightEngine.ts` | 189 | — | `analytics/InsightEngine.kt` |
+| `src/services/analytics/InsightRules/YesterdayRules.ts` | 123 | 7 rules | `analytics/rules/YesterdayRules.kt` |
+| `src/services/analytics/InsightRules/WeeklyRules.ts` | 262 | 11 rules | `analytics/rules/WeeklyRules.kt` |
+| `src/services/analytics/InsightRules/ThreeMonthRules.ts` | 230 | 8 rules | `analytics/rules/ThreeMonthRules.kt` |
+| `src/services/analytics/InsightTemplates.ts` | 147 | — | `analytics/InsightTemplates.kt` |
+| `src/services/analytics/AchievementEngine.ts` | 103 | 5 achievements | `analytics/AchievementEngine.kt` |
+
+**Data source note, confirmed by reading `AnalyticsProcessor.ts` directly:** the
+temptation/blocking log is read via `GreyoutModule.getTemptationLog()` — it is not
+a separate wrapper. `GreyoutModule.kt`'s port (Stage 2, Replit) must include
+`getTemptationLog`, `clearTemptationLog`, and `getWeeklySummary` for the analytics
+engine to have any blocking data at all. Five DB queries feed `AnalyticsProcessor`,
+not four: `dbGetTasksInDateRange`, `dbGetSessionsWithOverrideCount`,
+`dbGetEstimationErrors`, `dbGetTasksByHourOfDay`, `dbGetWeeklyCompletionRates`.
+
+**Work still needed during migration (Track D, STAGE3):**
+
+- `AchievementEngine`: currently has 5 real achievements, confirmed by direct read:
+  `RESISTANCE_10_CLEAN_SESSIONS` (cleanSessions >= 10), `HONEST_ESTIMATOR` (avg
+  estimation error <= 15min over 5+ samples), `PRESENCE_7_DAYS` (tasks scheduled
+  all 7 days in a week window), `PATTERN_BREAKER` (no single app >50% of 10+
+  blocking attempts), `QUIET_WIN` (hidden — 60+ lifetime focus minutes, a clean
+  session, zero attempts in current snapshot). The plan specifies ~15 total —
+  complete the remaining ~10 during Track D, being careful not to duplicate the
+  ground `HONEST_ESTIMATOR` and `QUIET_WIN` already cover. `LifetimeStats` currently
+  only has `completedTasks, totalSessions, cleanSessions, totalFocusMinutes,
+  totalOverrideAttempts, currentStreakDays` — any new achievement needing a
+  "days since last session" or "last session date" concept requires adding that
+  field to `LifetimeStats` first; it does not exist yet.
+- `AnalyticsProcessor.sessions.fastestWindowHour`: verify the calculation is fully
+  implemented and not returning `null` incorrectly for short-history users.
+- Remaining `AppSettings` fields not yet in `types.ts`: `morningDigestEnabled`,
+  `achievementNotificationsEnabled`, `rescheduleNotificationsEnabled`,
+  `blockSuggestionEnabled`, `weekAheadEnabled`, `temptationSpikeEnabled`,
+  `temptationSpikeThreshold`, `bedTime` — add these before migration.
+
+**New DB tables added in the hybrid (must be in Room schema):**
+
+| Table | Purpose |
+|---|---|
+| `weekly_insights` | Tracks which insight IDs have been used as the weekly standout (prevents repeats). Fields: `week_start TEXT PRIMARY KEY, insight_id TEXT NOT NULL, selected_at TEXT NOT NULL` |
+| `achievements` | Persists achievement IDs that have been earned. Fields: `id TEXT PRIMARY KEY, earned_at TEXT NOT NULL` |
+
+**AnalyticsWindow flow:**
+
+```
+UsageStatsRepository ──┐
+TaskRepository         ├──► AnalyticsProcessor ──► AnalyticsSnapshot
+FocusSessionRepository ─┘        │
+                                  ▼
+                          InsightEngine ──► InsightCard[]
+                          AchievementEngine ──► AchievementState
+```
+
+`AnalyticsSnapshot` is computed fresh on each stats screen load; it is not cached
+between sessions. The only persistent state is `weekly_insight_log` and
+`earned_achievements` in Room.
+
+**UsageStats gate:** `phoneUsage` field in `AnalyticsSnapshot` is only populated
+when `window = THREE_MONTHS` and `UsageStatsRepository.hasPermission()` returns true.
+All other windows ignore `UsageStatsRepository` entirely.
+
+### 3.13 Backup & Export
+
+`backupService.ts` (fully read, 477 lines): JSON export of settings + tasks via `expo-file-system` + the OS share sheet, with an import path that validates the file shape before applying it.
+
+**[DESIGN DECISION]** `BackupManager.kt` using Storage Access Framework (`ACTION_CREATE_DOCUMENT` / `ACTION_OPEN_DOCUMENT`), writing the **same JSON shape** via `kotlinx.serialization` rather than a new format. This is a real backward-compatibility requirement, not just a nicety: existing users have backup files sitting in their Downloads/Drive from the hybrid app, and those files should still import cleanly after the app is migrated. Import validation logic should mirror what `backupService.ts` already checks (shape/version validation) rather than being redesigned from scratch.
+
+---
+
+## 4. Proposed Folder Structure
+
+```
+focusflowkotlin/
+├── app/
+│   └── src/main/
+│       ├── AndroidManifest.xml
+│       ├── java/com/tbtechs/focusflow/
+│       │   ├── FocusFlowApp.kt
+│       │   ├── MainActivity.kt
+│       │   │
+│       │   ├── data/
+│       │   │   ├── local/
+│       │   │   │   ├── FocusFlowDatabase.kt
+│       │   │   │   ├── dao/
+│       │   │   │   │   ├── TaskDao.kt
+│       │   │   │   │   ├── FocusSessionDao.kt
+│       │   │   │   │   ├── FocusOverrideDao.kt
+│       │   │   │   │   └── DailyCompletionDao.kt
+│       │   │   │   └── entity/
+│       │   │   │       ├── TaskEntity.kt
+│       │   │   │       ├── FocusSessionEntity.kt
+│       │   │   │       ├── FocusOverrideEntity.kt
+│       │   │   │       └── DailyCompletionEntity.kt
+│       │   │   ├── prefs/
+│       │   │   │   ├── SharedPrefsKeys.kt          (single source of truth for every key name)
+│       │   │   │   └── SettingsPrefsStore.kt        (sync SharedPreferences facade, callbackFlow-wrapped)
+│       │   │   ├── repository/
+│       │   │   │   ├── TaskRepository.kt
+│       │   │   │   ├── SettingsRepository.kt
+│       │   │   │   ├── FocusSessionRepository.kt
+│       │   │   │   ├── StatsRepository.kt
+│       │   │   │   ├── UsageStatsRepository.kt
+│       │   │   │   ├── VpnRepository.kt
+│       │   │   │   ├── AlarmRepository.kt
+│       │   │   │   ├── InstalledAppsRepository.kt
+│       │   │   │   ├── NuclearModeRepository.kt
+│       │   │   │   ├── GreyoutRepository.kt
+│       │   │   │   └── BackupManager.kt
+│       │   │   └── model/
+│       │   │       ├── Task.kt
+│       │   │       ├── AppSettings.kt
+│       │   │       ├── FocusSession.kt
+│       │   │       ├── DailyAllowanceEntry.kt
+│       │   │       ├── GreyoutWindow.kt
+│       │   │       ├── RecurringBlockSchedule.kt
+│       │   │       └── UserProfile.kt
+│       │   │
+│       │   ├── domain/
+│       │   │   ├── SchedulerEngine.kt               (direct port, no Android dependency)
+│       │   │   ├── TaskQueries.kt
+│       │   │   ├── PinManager.kt
+│       │   │   └── PinReuseTracker.kt
+│       │   │
+│       │   ├── enforcement/
+│       │   │   ├── AppBlockerAccessibilityService.kt
+│       │   │   ├── ForegroundTaskService.kt
+│       │   │   ├── LauncherActivity.kt
+│       │   │   ├── NetworkBlockerVpnService.kt
+│       │   │   ├── VpnPolicyCoordinator.kt
+│       │   │   ├── BlockOverlayActivity.kt
+│       │   │   ├── TaskAlarmActivity.kt
+│       │   │   ├── AversiveActionsManager.kt
+│       │   │   ├── TemptationLogManager.kt
+│       │   │   ├── WakeLockManager.kt
+│       │   │   ├── BlockedAppDismissalPolicy.kt
+│       │   │   └── receivers/
+│       │   │       ├── BootReceiver.kt
+│       │   │       ├── PackageInstallReceiver.kt
+│       │   │       ├── VpnWatchdogReceiver.kt
+│       │   │       ├── VpnRecoveryNotifier.kt
+│       │   │       ├── TaskEndAlarmReceiver.kt
+│       │   │       ├── TemptationReportReceiver.kt
+│       │   │       ├── NotificationActionReceiver.kt
+│       │   │       └── FocusDayDeviceAdminReceiver.kt
+│       │   │
+│       │   ├── widget/
+│       │   │   └── FocusFlowWidget.kt
+│       │   │
+│       │   ├── analytics/
+│       │   │   ├── AnalyticsProcessor.kt
+│       │   │   ├── InsightEngine.kt
+│       │   │   ├── InsightTemplates.kt
+│       │   │   ├── AchievementEngine.kt
+│       │   │   └── rules/
+│       │   │       ├── YesterdayRules.kt
+│       │   │       ├── WeeklyRules.kt
+│       │   │       └── ThreeMonthRules.kt
+│       │   │
+│       │   ├── notifications/
+│       │   │   ├── NotificationChannels.kt
+│       │   │   └── NotificationRepository.kt
+│       │   │
+│       │   ├── background/
+│       │   │   └── BackgroundFetchWorker.kt
+│       │   │
+│       │   ├── ui/
+│       │   │   ├── theme/
+│       │   │   │   ├── Color.kt
+│       │   │   │   ├── Type.kt
+│       │   │   │   └── Theme.kt
+│       │   │   ├── navigation/
+│       │   │   │   ├── FocusFlowNavGraph.kt
+│       │   │   │   └── Routes.kt
+│       │   │   ├── home/          (HomeScreen.kt, HomeViewModel.kt, TaskCard.kt, TimelineView.kt, QuickAddModal.kt, ...)
+│       │   │   ├── focus/         (FocusScreen.kt, FocusViewModel.kt, ActiveHeaderButton.kt, ExtendModal.kt, SessionDebriefModal.kt)
+│       │   │   ├── stats/         (StatsScreen.kt, StatsViewModel.kt, StatsInsightsExperience.kt, InsightCardView.kt, PresenceStrip.kt, TrendChart.kt, AchievementRow.kt, InsightsPanel.kt, PermissionGate.kt, UnavailableGate.kt, LocalOnlyNotice.kt, DataHealthNotice.kt, EmptyStatsState.kt)
+│       │   │   ├── settings/      (SettingsScreen.kt, SettingsViewModel.kt, DarkModeToggle.kt, ...)
+│       │   │   ├── defense/       (DefenseScreen.kt, DefenseViewModel.kt, StandaloneBlockModal.kt, NuclearModeModal.kt, GreyoutScheduleModal.kt, BlockedWordsModal.kt, ...)
+│       │   │   ├── onboarding/    (OnboardingScreen.kt)
+│       │   │   ├── permissions/   (PermissionsScreen.kt, RestrictedSettingsBanner.kt, AccessibilityRestrictedRecovery.kt)
+│       │   │   ├── launchersetup/ (LauncherSetupScreen.kt)
+│       │   │   ├── blocklist/     (VpnBlockListScreen.kt, AppPickerSheet.kt, AllowedAppsModal.kt, QuickBlockSheet.kt)
+│       │   │   ├── keyword/       (KeywordBlockerScreen.kt)
+│       │   │   ├── alwayson/      (AlwaysOnScreen.kt, VpnConsentModal.kt, VpnPermissionLostBanner.kt)
+│       │   │   ├── reports/       (ReportsScreen.kt)
+│       │   │   ├── profile/       (UserProfileScreen.kt, PinSetupModal.kt, PinVerifyModal.kt, PinRotationModal.kt, PasswordProtectionScreen.kt)
+│       │   │   ├── legal/         (PrivacyPolicyScreen.kt, TermsOfServiceScreen.kt)
+│       │   │   ├── support/       (HowToUseScreen.kt, ChangelogScreen.kt, DiagnosticsModal.kt, TroubleshootModal.kt, ReportIssueModal.kt)
+│       │   │   └── common/        (ErrorBoundary.kt, ErrorFallback.kt, ErrorAlertBanner.kt, SideMenu.kt, AchievementCelebrationModal.kt, EditTaskModal.kt, TaskDetailModal.kt, DailyAllowanceModal.kt, OverlayAppearanceModal.kt)
+│       │   │
+│       │   └── di/
+│       │       ├── AppModule.kt
+│       │       └── DatabaseModule.kt
+│       │
+│       └── res/
+│           ├── xml/
+│           │   ├── accessibility_service_config.xml
+│           │   ├── device_admin.xml
+│           │   └── widget_info.xml
+│           ├── layout/
+│           │   └── widget_focusflow.xml
+│           ├── drawable/
+│           │   ├── widget_background.xml
+│           │   └── widget_add_task_bg.xml
+│           └── values/
+│               └── strings.xml
+│
+├── gradle/libs.versions.toml
+├── settings.gradle.kts
+└── build.gradle.kts
+```
+
+### 4.1 Component/screen file count, verified
+`src/components/` contains **36** files (not the ~30 estimated earlier — recounted directly from the extracted archive), plus one small compat shim at `components/KeyboardAwareScrollViewCompat.tsx` (738 bytes) at the project root, outside `src/`. Every one of the 37 is accounted for in the `ui/` groupings above by the screen(s) that import it.
+
+---
+
+## 5. Gradle Dependencies
+
+```toml
+[versions]
+composeBom = "2024.09.00"          # verify latest stable at implementation time
+navigationCompose = "2.8.0"
+room = "2.6.1"
+datastore = "1.1.1"
+workmanager = "2.9.1"
+lifecycle = "2.8.4"
+kotlinxCoroutines = "1.8.1"
+kotlinxSerialization = "1.7.1"
+coil = "2.6.0"
+junit = "4.13.2"
+turbine = "1.1.0"
+robolectric = "4.13"
+androidxTestExt = "1.2.1"
+espresso = "3.6.1"
+
+[libraries]
+# Compose BOM + UI
+androidx-compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
+androidx-compose-ui = { module = "androidx.compose.ui:ui" }
+androidx-compose-ui-graphics = { module = "androidx.compose.ui:ui-graphics" }
+androidx-compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview" }
+androidx-compose-material3 = { module = "androidx.compose.material3:material3" }
+androidx-activity-compose = { module = "androidx.activity:activity-compose", version = "1.9.2" }
+
+# Navigation
+androidx-navigation-compose = { module = "androidx.navigation:navigation-compose", version.ref = "navigationCompose" }
+
+# Room + KSP
+androidx-room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
+androidx-room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
+androidx-room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
+
+# DataStore
+androidx-datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastore" }
+
+# WorkManager
+androidx-work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version.ref = "workmanager" }
+
+# Lifecycle / ViewModel / Coroutines
+androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycle" }
+androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycle" }
+kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "kotlinxCoroutines" }
+
+# Serialization (settings blob, backup JSON)
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
+
+# Images (replaces base64-over-bridge icon transport)
+coil-compose = { module = "io.coil-kt:coil-compose", version.ref = "coil" }
+
+# Testing
+junit = { module = "junit:junit", version.ref = "junit" }
+turbine = { module = "app.cash.turbine:turbine", version.ref = "turbine" }
+robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
+androidx-test-ext-junit = { module = "androidx.test.ext:junit", version.ref = "androidxTestExt" }
+androidx-espresso-core = { module = "androidx.test.espresso:espresso-core", version.ref = "espresso" }
+
+[plugins]
+android-application = { id = "com.android.application", version = "8.6.0" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version = "2.0.20" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version = "2.0.20" }
+ksp = { id = "com.google.devtools.ksp", version = "2.0.20-1.0.24" }
+```
+
+**[DESIGN DECISION]** No Hilt/Dagger listed by default — given this is a solo-developer app with a bounded number of repositories, manual DI via a `di/AppModule.kt` object providing singletons is simpler to reason about than adding a DI framework. If preferred, Hilt can be substituted; note this as an open choice rather than a settled fact, since nothing in the source codebase implies a DI framework preference (the RN side has none).
+
+---
+
+## 6. Migration Risk Register
+
+| # | Sev | Risk | Mitigation |
+|---|---|---|---|
+| 1 | **H** | Allowance logic is implemented **twice** — `ForegroundTaskService` (UsageStats-based) and `AppBlockerAccessibilityService` (accessibility-event-based) — kept in sync only because both read/write the same `SharedPreferences` keys. | Port both implementations with their exact current key names intact (do not "clean up" one to match the other during the port); if consolidation is wanted, do it as a deliberate follow-up task after the migration compiles and passes existing behavior, not during it. |
+| 2 | **H** | `AppBlockerAccessibilityService`'s anti-circumvention surface (12+ settings-page detectors, YouTube Shorts/Instagram Reels resource-ID matching) is inherently OEM/version-fragile, and I found no automated test coverage for resource-ID matching in the test-plan structure. | Treat this file as **do-not-refactor** during migration — port verbatim, verify manually against the specific OEM/Android version combinations already known to matter (Realme UI is called out elsewhere in project history), and only refactor afterward with real device testing. |
+| 3 | **H** | `VpnPolicyCoordinator`'s policy-generation versioning (a counter that discards stale async dispatch results) is subtle and easy to accidentally drop during a "clean rewrite" pass. | Port the file verbatim (§3.4 already marks it KEEP AS-IS); if touched at all, add a regression test asserting a stale generation is discarded even if it resolves after a newer one. |
+| 4 | **M** | Onboarding/privacy-acceptance flags are currently persisted redundantly across `SharedPreferences`, `AsyncStorage`, and SQLite, and `AppContext.init()` actively reconciles across all three at boot. Existing installed users' upgrade path depends on this. | Pick one canonical store for the Kotlin app (`SharedPreferences`/DataStore), but write a **one-time migration read** that checks all three legacy locations on first launch post-update, so upgrading users don't lose onboarding state and get re-shown onboarding. |
+| 5 | **H** | Foreground service types on Android 14+ (`dataSync` and `specialUse` with `PROPERTY_SPECIAL_USE_FGS_SUBTYPE="productivity"`) are declared exactly once, in `manifest_additions.xml`. | Port the manifest declaration verbatim, including the `<property>` tag — omitting it causes the OS to kill the service at startup on API 34+, not a graceful degradation. |
+| 6 | **M** | The exact-alarm scheduling ladder (`setAlarmClock` → `setExactAndAllowWhileIdle` → `setAndAllowWhileIdle`) in `TaskAlarmModule` is a deliberate fallback chain, not a single call. | Port the full ladder and its `canScheduleExactAlarms()` gate; do not "simplify" to a single `setExact` call. |
+| 7 | **M** | Settings are one JSON blob; a single malformed field could fail deserialization for the whole object. The JS side already has an 8-second-timeout-then-`DEFAULT_SETTINGS` fallback pattern in `AppContext.init()`. | Use a deserializer that default-fills missing/malformed fields per-field rather than failing the whole object, matching the existing fallback philosophy rather than introducing a stricter one that could regress boot reliability. |
+| 8 | **M** | `BootReceiver` includes a clock-tamper detection check (dual primary/secondary timestamp validity comparison) protecting allowance/schedule integrity against users setting the clock back. | Port the exact comparison and tolerance values; this is easy to accidentally "simplify away" since it looks like defensive boilerplate but is load-bearing. |
+| 9 | **M** | The widget currently gets *pushed* updates on state change (`_syncWidget`) in addition to its 30-minute system-driven `updatePeriodMillis`. Relying on the system tick alone will make the widget feel stale. | `FocusSessionRepository`/`SettingsRepository` must call `AppWidgetManager.updateAppWidget()` proactively on every relevant state change, not just rely on the OS schedule. |
+| 10 | **M** | Existing users' PIN hashes are plain SHA-256 (`pinCrypto.ts`); the proposed Kotlin design upgrades to PBKDF2+Keystore-wrapped, but a hash cannot be upgraded without the plaintext PIN. | One-time re-hash-on-next-successful-unlock: verify against the legacy SHA-256 hash once, then immediately replace it with the new format. Do not force a PIN reset on upgrade. |
+
+---
+
+## 7. Behavioral Contracts to Preserve
+
+Extracted from `FOCUSFLOW_TEST_PLAN.md`'s section structure, cross-referenced against the actual enforcement code read in §2–3 (not against test-plan prose I didn't read in full — see the Methodology note at the top).
+
+| Contract area | Source in Test Plan | Kotlin implementation note |
+|---|---|---|
+| App blocking during active focus session | Accessibility/blocking section | `AppBlockerAccessibilityService` ported verbatim (§3.4); fallback poller in `ForegroundTaskService` must also be ported, not dropped as "redundant" |
+| Daily allowance (count mode) | Allowance section | Both independent implementations (§6, Risk 1) must be preserved together |
+| Daily allowance (interval/timed mode) | Allowance section | Same as above; verify `queryUsageStats(INTERVAL_DAILY)` full-calendar-day semantics are preserved, not accidentally window-scoped during the port |
+| Standalone block expiry | Standalone block section | `_syncStandaloneBlock` + native expiry check (30-second tick in `AppContext`) → becomes a `WorkManager` or repeating-alarm-driven check in Kotlin, not a UI-thread-only timer |
+| VPN-based network blocking (per-app and global) | VPN/network section | `VpnPolicyCoordinator` + `NetworkBlockerVpnService` ported verbatim |
+| Exact task alarms firing on time | Alarms section | Full ladder from `TaskAlarmModule` (Risk 6) |
+| PIN gate on settings changes | PIN/security section | New `PinManager` (§3.9), with the legacy-hash upgrade path (Risk 10) |
+| Device Admin lock-now enforcement | Nuclear mode section | `FocusDayDeviceAdminReceiver`, `force-lock` policy only — do not add `wipe-data` or any policy beyond what's declared in `device_admin.xml` |
+| Boot recovery of VPN/alarms/allowance state | Boot section | `BootReceiver` ported verbatim, including clock-tamper check (Risk 8) |
+| Backup file import/export compatibility | Backup section | New `BackupManager` must accept the existing JSON shape (§3.12) |
+| Accessibility service data-handling disclosure | (Play Store policy, not a test-plan section, but binding) | `strings.xml`'s `accessibility_service_description` — port verbatim; do not reword, since it's written to match Play Store's accessibility-service policy requirements |
+
+---
+
+## Open questions for you, not resolved by source-reading alone
+
+1. **Allowance consolidation** (Risk 1) — keep the two independent implementations in sync as today, or use the migration as the moment to consolidate into one authoritative allowance engine that both the accessibility service and foreground service call into? I've defaulted to "preserve as-is" since that's the lower-risk choice for Prompt 2, but it's your call.
+2. **DataStore vs. SharedPreferences facade for `SettingsRepository`** (§3.3) — I've recommended keeping the enforcement services on raw `SharedPreferences` and wrapping a facade around it for the UI layer, rather than a full DataStore migration. This avoids touching the hot path, but means the "modern" DataStore APIs you might expect from a fresh Compose app aren't actually used underneath. Worth confirming this trade-off is the one you want before Prompt 2 builds on it.
+3. **Hilt vs. manual DI** — left open in §5; no source evidence points either way.
