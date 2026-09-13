@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from 'fs';
+import { existsSync, readFileSync, readdirSync } from 'fs';
 import { join, relative } from 'path';
 import { createHash } from 'crypto';
 
@@ -10,7 +10,7 @@ const TOKEN =
 const OWNER = 'TITANICBHAI';
 const REPO = 'FocusFlow';
 const BRANCH = 'main';
-const BASE = '/home/runner/workspace';
+const BASE = existsSync('/home/runner/workspace') ? '/home/runner/workspace' : process.cwd();
 // GitHub's secondary rate limit triggers around ~10 parallel POSTs to /git/blobs.
 // Keep concurrency low and rely on retries to absorb the occasional 403/429.
 const CONCURRENCY = 4;
@@ -37,6 +37,7 @@ const EXCLUDE_PATTERNS = [
 
 const MUST_INCLUDE_PATTERNS = [
   /^artifacts\/focusflow\/android-native\//,
+  /^focusflowkotlin\//,
 ];
 
 function shouldExclude(filePath) {
@@ -137,7 +138,7 @@ async function processInBatches(items, concurrency, fn) {
 
 function getAppVersion() {
   try {
-    const appJson = JSON.parse(readFileSync('/home/runner/workspace/artifacts/focusflow/app.json', 'utf-8'));
+    const appJson = JSON.parse(readFileSync(join(BASE, 'artifacts/focusflow/app.json'), 'utf-8'));
     const version = appJson?.expo?.version ?? 'unknown';
     const versionCode = appJson?.expo?.android?.versionCode ?? '?';
     return { version, versionCode };
