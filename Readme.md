@@ -10,12 +10,27 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 
 ## FocusFlow — Android Productivity App
 
-`artifacts/focusflow` — Expo (React Native) Android app combining intelligent task scheduling with OS-level app blocking via custom Kotlin native services.
+`artifacts/focusflow` — FocusFlow's Android app. The current checkout is an Expo/React Native + Kotlin hybrid, but the target architecture is a pure Kotlin + Jetpack Compose Android app.
 
 ### Architecture
 
-- **JS layer (control plane)** — writes config to SharedPreferences, displays UI, manages app state (AppContext).
-- **Kotlin layer (execution plane)** — owns timing, enforcement, and recovery. Never relies on JS being alive.
+- **Target architecture** — pure Kotlin + Jetpack Compose, with no JavaScript, TypeScript, React Native, Expo runtime, or React Native bridge.
+- **Current checkout** — the existing Expo/React Native code is retained as a transitional behavior and migration reference.
+- **Native execution** — Kotlin owns timing, enforcement, background recovery, alarms, VPN behavior, and system integrations without relying on JS being alive.
+- **Canonical document** — read [`artifacts/focusflow/ARCHITECTURE.md`](artifacts/focusflow/ARCHITECTURE.md) before making FocusFlow mobile changes.
+- **Agent instructions** — [`AGENTS.md`](AGENTS.md) and [`artifacts/focusflow/AGENTS.md`](artifacts/focusflow/AGENTS.md) require every agent to read and follow the architecture before editing.
+
+### Kotlin Migration Rules
+
+These rules apply to all new FocusFlow mobile work:
+
+1. Do not add new React Native or Expo UI, bridge modules, or hybrid-only behavior.
+2. Preserve existing Kotlin enforcement behavior first; do not rewrite load-bearing services as cleanup.
+3. Keep enforcement services on their synchronous `SharedPreferences` contract in hot paths.
+4. Preserve blocking, allowances, VPN, alarms, boot recovery, widgets, backups, PIN migration, permissions, and accessibility disclosure contracts.
+5. Keep source implementation and Android emulator/device validation as separate status gates.
+
+The full target navigation, data layer, service reuse plan, risk register, behavioral contracts, and open decisions live in [`artifacts/focusflow/ARCHITECTURE.md`](artifacts/focusflow/ARCHITECTURE.md).
 
 ### Native Services
 
@@ -106,14 +121,15 @@ When both task-based focus and standalone block are active simultaneously, enfor
 - **Monorepo tool**: pnpm workspaces
 - **Node.js version**: 24
 - **Package manager**: pnpm
-- **Mobile framework**: Expo (React Native)
+- **Current mobile framework**: Expo (React Native), transitional only
+- **Target mobile framework**: Kotlin + Jetpack Compose
 
 ## Structure
 
 ```text
 artifacts-monorepo/
 ├── artifacts/
-│   ├── focusflow/          # Expo (React Native) Android app
+│   ├── focusflow/          # FocusFlow Android app; migrating to pure Kotlin/Compose
 │   └── mockup-sandbox/     # Vite dev server for canvas UI prototyping
 ├── lib/
 │   └── db/                 # Drizzle ORM schema (unused, retained for future use)

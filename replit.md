@@ -1,5 +1,9 @@
 # Project Notes
 
+## Mandatory FocusFlow architecture direction
+
+Before any work on `artifacts/focusflow`, read `artifacts/focusflow/AGENTS.md` and then read `artifacts/focusflow/ARCHITECTURE.md`. The current Expo/React Native files are a transitional behavior source. The target mobile app is pure Kotlin + Jetpack Compose with no JS/TS/RN runtime or new React Native bridge. The architecture document is authoritative for the migration; older hybrid plans remain reference material for the scope they explicitly cover.
+
 ## Recent Fixes (latest session)
 - **Android automatic backup disabled**: `app.json`, the Expo config plugin, and `android-native/install.sh` all force `android:allowBackup="false"`. Do not ever change this to `true`; FocusFlow's explicit `.focusflow` export/import is separate and remains available.
 - **QUERY_ALL_PACKAGES + REQUEST_DELETE_PACKAGES**: Added both permissions to `install.sh`. `QUERY_ALL_PACKAGES` is required on Android 11+ for the app drawer to list all installed apps. `REQUEST_DELETE_PACKAGES` is required by `NuclearModeModule` to launch the system uninstall dialog.
@@ -48,7 +52,8 @@ I prefer iterative development with clear communication at each stage. Please as
 - **Extensibility**: Designed to be extended with advanced customization and scheduling rules.
 
 ## FocusFlow (Android Mobile App)
-- **Technology Stack**: Expo (React Native) for the main application, pure Kotlin/Jetpack Compose for core Android Accessibility Services.
+- **Current checkout**: Expo (React Native) UI with Kotlin native enforcement code, retained as a transitional behavior source.
+- **Target architecture**: Pure Kotlin/Jetpack Compose Android app with no JS/TS/RN runtime. See `artifacts/focusflow/ARCHITECTURE.md` before making mobile changes.
 - **Blocking Mechanisms**:
     - `AppBlockerAccessibilityService.kt`: Core service for app, keyword, and system protection.
     - `NetworkBlockModule.ts`/`.kt`: Manages network-level blocking.
