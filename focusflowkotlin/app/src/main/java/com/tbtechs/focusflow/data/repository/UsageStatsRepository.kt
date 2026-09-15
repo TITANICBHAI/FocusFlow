@@ -267,7 +267,7 @@ class UsageStatsRepository(private val context: Context) {
             val usageManager = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
             val ownPackage = context.packageName
             val stats = usageManager.queryUsageStats(
-                UsageStatsManager.INTERVAL_HOURLY,
+                UsageStatsManager.INTERVAL_DAILY,
                 start,
                 end,
             ) ?: emptyList()

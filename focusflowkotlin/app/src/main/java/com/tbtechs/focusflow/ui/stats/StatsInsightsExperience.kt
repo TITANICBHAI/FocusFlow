@@ -72,12 +72,12 @@ fun StatsInsightsExperience(
             StatsLoadState.Ready -> snapshot?.let { loaded ->
                 LazyColumn(modifier = androidx.compose.ui.Modifier.weight(1f)) {
                     item {
-                        if (window == ANALYTICS_WEEK) weeklyStandout?.let(::InsightCardView)
+                        if (window == ANALYTICS_WEEK) weeklyStandout?.let { InsightCardView(it) }
                         DataHealthNotice(loaded)
                         if (loaded.tasks.total == 0 && loaded.sessions.total == 0 && loaded.blocking.totalAttempts == 0 && window != ANALYTICS_THREE_MONTHS) {
                             EmptyStatsState(window)
                         }
-                        insights.filter { it.id != weeklyStandout?.id }.forEach(::InsightCardView)
+                        insights.filter { it.id != weeklyStandout?.id }.forEach { InsightCardView(it) }
                         when (window) {
                             ANALYTICS_WEEK -> {
                                 PresenceStrip(loaded)
@@ -89,7 +89,7 @@ fun StatsInsightsExperience(
                                 TrendChart(loaded)
                             }
                         }
-                        if (window != ANALYTICS_THREE_MONTHS) achievements?.let(::AchievementRow)
+                        if (window != ANALYTICS_THREE_MONTHS) achievements?.let { AchievementRow(it) }
                     }
                 }
             } ?: LoadingStats()

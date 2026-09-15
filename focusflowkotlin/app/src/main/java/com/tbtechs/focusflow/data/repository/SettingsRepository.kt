@@ -388,7 +388,7 @@ class SettingsRepository(context: Context) {
         nextTaskName,
     )
 
-    private fun publishFocusSnapshotImpl(
+    private suspend fun publishFocusSnapshotImpl(
         active: Boolean,
         taskId: String?,
         taskName: String?,

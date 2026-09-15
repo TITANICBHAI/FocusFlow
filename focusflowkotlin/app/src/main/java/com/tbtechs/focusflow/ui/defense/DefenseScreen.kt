@@ -159,7 +159,8 @@ fun DefenseScreen(
                 SettingButton(
                     "Daily Allowance",
                     "Set daily count, time, or interval limits per app",
-                ) { allowanceVisible = true }
+                    onClick = { allowanceVisible = true },
+                )
             }
 
             DefenseSection("Defense Tools") {
@@ -173,7 +174,8 @@ fun DefenseScreen(
                     "Scheduled Blocks",
                     "Manage recurring time-window blocks",
                     enabled = !blockActive,
-                ) { schedulesVisible = true }
+                    onClick = { schedulesVisible = true },
+                )
                 SettingButton(
                     "Manage VPN App List",
                     "Choose which apps should have internet access blocked",
@@ -314,7 +316,8 @@ fun DefenseScreen(
                     "Uninstall Distracting Apps",
                     "Permanently remove blocked apps through Android's system uninstall dialog",
                     icon = Icons.Outlined.Block,
-                ) { nuclearVisible = true }
+                    onClick = { nuclearVisible = true },
+                )
             }
         }
     }

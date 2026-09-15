@@ -14,7 +14,7 @@ fun PresenceStrip(snapshot: AnalyticsSnapshot, weekStartDay: Int = 0) = Card {
         Row {
             repeat(7) { index ->
                 val day = (weekStartDay + index) % 7
-                val attended = snapshot.tasks.byDayOfWeek[day]?.total ?: 0 > 0
+                val attended = (snapshot.tasks.byDayOfWeek[day]?.total ?: 0) > 0
                 Text(if (attended) "✓ ${dayName(day)}" else dayName(day), color = if (attended) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }

@@ -32,6 +32,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -55,6 +56,7 @@ fun VpnPermissionLostBanner(
 ) {
     val context = LocalContext.current
     val activity = context as? Activity
+    val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
     var permissionLost by remember { mutableStateOf(false) }
     var regranting by remember { mutableStateOf(false) }
@@ -105,15 +107,15 @@ fun VpnPermissionLostBanner(
         check()
     }
 
-    DisposableEffect(activity, vpnBlockEnabled, vpnPackages) {
+    DisposableEffect(lifecycleOwner, vpnBlockEnabled, vpnPackages) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 scope.launch { check() }
             }
         }
-        activity?.let { owner -> owner.lifecycle.addObserver(observer) }
+        lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
-            activity?.let { owner -> owner.lifecycle.removeObserver(observer) }
+            lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
 

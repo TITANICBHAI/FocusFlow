@@ -25,12 +25,10 @@ fun ErrorBoundary(
     var reportVisible by remember(screenName) { mutableStateOf(false) }
 
     if (error == null) {
-        try {
-            content()
-        } catch (throwable: Throwable) {
-            error = throwable
-            onError?.invoke(throwable)
-        }
+        // Compose functions cannot be invoked from a Kotlin try/catch block.
+        // Keep rendering the child normally; runtime failures are reported by
+        // the host's uncaught-error handling rather than by a fake boundary.
+        content()
     } else {
         ErrorFallback(
             screenName = screenName,

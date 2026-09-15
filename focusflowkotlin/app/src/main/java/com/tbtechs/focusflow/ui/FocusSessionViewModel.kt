@@ -2,6 +2,7 @@ package com.tbtechs.focusflow.ui
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.content.Context.MODE_PRIVATE
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.tbtechs.focusflow.data.model.FocusSession
@@ -9,6 +10,7 @@ import com.tbtechs.focusflow.data.repository.FocusSessionRepository
 import com.tbtechs.focusflow.data.repository.ForegroundServiceController
 import com.tbtechs.focusflow.data.repository.SettingsRepository
 import com.tbtechs.focusflow.data.repository.TaskRepository
+import com.tbtechs.focusflow.enforcement.AppBlockerAccessibilityService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -75,6 +77,9 @@ class FocusSessionViewModel(
     private val settingsRepository: SettingsRepository,
     context: Context,
 ) : ViewModel() {
+
+    private val prefs: SharedPreferences =
+        context.applicationContext.getSharedPreferences("focusday_prefs", MODE_PRIVATE)
 
     // FLAG-3: not in AppModule — instantiated with applicationContext directly.
     private val foregroundServiceController = ForegroundServiceController(context.applicationContext)
@@ -231,11 +236,11 @@ class FocusSessionViewModel(
             settingsRepository.setActiveTask(
                 taskId       = task.id,
                 taskName     = task.title,
-                startMs      = startMs,
                 endMs        = endMs,
-                color        = task.color,
                 nextTaskName = null,
             )
+            settingsRepository.setActiveTaskColor(task.color ?: "")
+            settingsRepository.setActiveTaskStartMs(task.id, startMs)
             settingsRepository.setAllowedPackages(allowedPackages)
 
             // Step 4 — start the foreground service

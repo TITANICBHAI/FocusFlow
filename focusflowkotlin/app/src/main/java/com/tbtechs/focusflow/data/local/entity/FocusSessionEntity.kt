@@ -42,7 +42,7 @@ data class FocusSessionEntity(
 
     /** NULL while the session is still active. */
     @ColumnInfo(name = "ended_at")
-    val endedAt: String?,
+    val endedAt: String? = null,
 
     /** Stored as INTEGER 0/1. */
     @ColumnInfo(name = "is_active", defaultValue = "1")
