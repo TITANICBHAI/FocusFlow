@@ -110,7 +110,7 @@ fun getAnalyticsRange(
             )
         }
 
-        else -> throw IllegalArgumentException("Unknown analytics window: $window"),
+        else -> throw IllegalArgumentException("Unknown analytics window: $window")
     }
 }
 
