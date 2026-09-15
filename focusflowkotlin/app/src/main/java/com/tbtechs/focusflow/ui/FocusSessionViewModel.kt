@@ -1,6 +1,7 @@
 package com.tbtechs.focusflow.ui
 
 import android.content.Context
+import android.content.SharedPreferences
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.tbtechs.focusflow.data.model.FocusSession
@@ -9,10 +10,14 @@ import com.tbtechs.focusflow.data.repository.ForegroundServiceController
 import com.tbtechs.focusflow.data.repository.SettingsRepository
 import com.tbtechs.focusflow.data.repository.TaskRepository
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import java.time.Instant
@@ -85,6 +90,49 @@ class FocusSessionViewModel(
      */
     private val _focusSession = MutableStateFlow<FocusSession?>(null)
     val focusSession: StateFlow<FocusSession?> = _focusSession.asStateFlow()
+
+    data class FocusBreakState(
+        val active: Boolean,
+        val untilMs: Long,
+    )
+
+    val focusBreak: StateFlow<FocusBreakState> = flow {
+        while (true) {
+            val untilMs = settingsRepository.getFocusBreakUntilMs()
+            val active = untilMs > System.currentTimeMillis()
+            if (!active && untilMs > 0L) {
+                settingsRepository.setFocusBreak(active = false, untilMs = 0L)
+            }
+            emit(FocusBreakState(active = active, untilMs = if (active) untilMs else 0L))
+            delay(1_000)
+        }
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = FocusBreakState(active = false, untilMs = 0L),
+    )
+
+    val todayFocusMinutes: StateFlow<Int> = flow {
+        while (true) {
+            emit(runCatching { focusSessionRepository.getTodayFocusMinutes() }.getOrDefault(0))
+            delay(15_000)
+        }
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = 0,
+    )
+
+    val todayOverrideCount: StateFlow<Int> = flow {
+        while (true) {
+            emit(runCatching { focusSessionRepository.getTodayOverrideCount() }.getOrDefault(0))
+            delay(15_000)
+        }
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = 0,
+    )
 
     /**
      * Package name of the app that most recently triggered a focus violation,
@@ -278,6 +326,21 @@ class FocusSessionViewModel(
     fun loadActiveSession() {
         viewModelScope.launch {
             _focusSession.value = focusSessionRepository.getActiveFocusSession()
+        }
+    }
+
+    fun startPomodoroBreak(minutes: Int) {
+        viewModelScope.launch {
+            settingsRepository.setFocusBreak(
+                active = true,
+                untilMs = System.currentTimeMillis() + minutes.coerceAtLeast(1) * 60_000L,
+            )
+        }
+    }
+
+    fun endPomodoroBreak() {
+        viewModelScope.launch {
+            settingsRepository.setFocusBreak(active = false, untilMs = 0L)
         }
     }
 }

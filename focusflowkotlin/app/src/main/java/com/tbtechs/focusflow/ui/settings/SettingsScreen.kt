@@ -48,8 +48,6 @@ fun SettingsScreen(
     taskViewModel: TaskViewModel = viewModel(),
     focusSessionViewModel: FocusSessionViewModel = viewModel(),
     appBootViewModel: AppBootViewModel = viewModel(),
-    isDarkMode: Boolean = false,
-    onToggleDarkMode: () -> Unit = {},
     onOpenProfile: () -> Unit = {},
     onOpenPermissions: () -> Unit = {},
     onExportBackup: (() -> Unit)? = null,
@@ -62,6 +60,7 @@ fun SettingsScreen(
     val settings by settingsViewModel.settings.collectAsState()
     val tasks by taskViewModel.tasks.collectAsState()
     val focusSession by focusSessionViewModel.focusSession.collectAsState()
+    val allowanceUsage by settingsViewModel.allowanceUsage.collectAsState()
     val isLoading by appBootViewModel.isLoading.collectAsState()
     val isDbReady by appBootViewModel.isDbReady.collectAsState()
     val context = LocalContext.current
@@ -134,8 +133,14 @@ fun SettingsScreen(
                         label = "Dark Mode",
                         description = "Use a darker color palette throughout FocusFlow",
                     ) {
-                        // NEEDS: app-level theme state and persistence. AppSettings has no theme field.
-                        DarkModeToggle(isDark = isDarkMode, onToggle = onToggleDarkMode)
+                        DarkModeToggle(
+                            isDark = settings.darkModeEnabled,
+                            onToggle = {
+                                settingsViewModel.updateSettings(
+                                    settings.copy(darkModeEnabled = !settings.darkModeEnabled),
+                                )
+                            },
+                        )
                     }
                 }
             }
@@ -359,6 +364,7 @@ fun SettingsScreen(
         onSave = settingsViewModel::setDailyAllowanceEntries,
         onVerifyDefensePin = settingsViewModel::verifyPin,
         onClose = { dailyAllowanceVisible = false },
+        usageByPackage = allowanceUsage,
     )
     ReportIssueModal(
         visible = reportIssueVisible,

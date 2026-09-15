@@ -10,6 +10,8 @@ import com.tbtechs.focusflow.data.model.QuickBlockConfig
 import com.tbtechs.focusflow.data.model.RecurringBlockSchedule
 import com.tbtechs.focusflow.data.model.StandaloneBlockAndAllowanceConfig
 import com.tbtechs.focusflow.data.model.StandaloneBlockConfig
+import com.tbtechs.focusflow.data.repository.AllowanceUsage
+import com.tbtechs.focusflow.data.repository.AllowanceSnapshot
 import com.tbtechs.focusflow.data.repository.SettingsRepository
 import com.tbtechs.focusflow.domain.PinManager
 import com.tbtechs.focusflow.domain.FocusPinManager
@@ -21,6 +23,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -38,26 +41,6 @@ import org.json.JSONObject
  *   - [PinManager]          (Track B)
  *   - [PinReuseTracker]     (Track B)
  *   - [PinSessionState]     (Track B)
- *
- * ─── FLAGS ────────────────────────────────────────────────────────────────────
- *
- * FLAG-1  settings StateFlow is write-through only. SettingsRepository is a
- *         SharedPreferences write-only facade — it has no getters for most
- *         fields. Initial on-disk state is NOT loaded into [settings]. To fix:
- *         add get*() methods to SettingsRepository for each field.
- *
- * FLAG-2  [setRecurringBlockSchedules] is STUBBED. SettingsRepository has no
- *         method for recurring block schedules. Requires a new
- *         SettingsRepository.setRecurringBlockSchedules() backed by a
- *         SharedPreferences key that AppBlockerAccessibilityService reads.
- *
- * FLAG-3  [setQuickBlockTemporary] is STUBBED. No clear backing method in
- *         SettingsRepository. Likely maps to setStandaloneBlock() with an
- *         auto-computed untilMs, but the atomic behavior is undefined.
- *
- * FLAG-4  [setStandaloneBlockAndAllowance] is STUBBED. No combined atomic
- *         setter in SettingsRepository. publishStandaloneSnapshot() is the
- *         closest but does not update allowance state.
  *
  * Defense PIN rotation uses ReuseTrackerKey.ALWAYSON. The source tracker has
  * no dedicated defense bucket; FOCUS remains reserved for session PINs.
@@ -78,14 +61,51 @@ class SettingsViewModel(
     // ─── Settings state ───────────────────────────────────────────────────────
 
     /**
-     * Current app settings. Write-through: starts from defaults, updated on
-     * each setter call. See FLAG-1 — initial on-disk state is not loaded.
-     *
-     * Backing source: this ViewModel (maintained internally). Individual field
-     * setters write through to [SettingsRepository].
+     * Current app settings. Hydrated from the enforcement preference namespace
+     * on startup, then updated on each setter call.
      */
     private val _settings = MutableStateFlow(AppSettings())
     val settings: StateFlow<AppSettings> = _settings.asStateFlow()
+
+    /**
+     * Read-only allowance counters refreshed while a caller is observing them.
+     * The repository reads the whole native snapshot under the same lock used by
+     * the enforcement service, so the editor never writes or fabricates usage.
+     */
+    val allowanceSnapshot: StateFlow<AllowanceSnapshot> = flow {
+        while (true) {
+            emit(
+                runCatching {
+                    settingsRepository.getAllowanceSnapshot()
+                }.getOrDefault(
+                    AllowanceSnapshot(
+                        usageJson = null,
+                        configJson = null,
+                        activeSessionPackage = null,
+                        activeSessionEndMs = 0L,
+                    ),
+                ),
+            )
+            delay(1_000)
+        }
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = AllowanceSnapshot(
+            usageJson = null,
+            configJson = null,
+            activeSessionPackage = null,
+            activeSessionEndMs = 0L,
+        ),
+    )
+
+    val allowanceUsage: StateFlow<Map<String, AllowanceUsage>> = flow {
+        allowanceSnapshot.collect { emit(it.usageByPackage) }
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = emptyMap(),
+    )
 
     init {
         viewModelScope.launch {
@@ -139,6 +159,15 @@ class SettingsViewModel(
             // systemGuardEnabled: SettingsRepository.setSystemGuardEnabled(enabled)
             if (newSettings.systemGuardEnabled != current.systemGuardEnabled) {
                 settingsRepository.setSystemGuardEnabled(newSettings.systemGuardEnabled)
+            }
+            if (newSettings.blockInstallActionsEnabled != current.blockInstallActionsEnabled) {
+                settingsRepository.setBlockInstallActionsEnabled(newSettings.blockInstallActionsEnabled)
+            }
+            if (newSettings.blockYoutubeShortsEnabled != current.blockYoutubeShortsEnabled) {
+                settingsRepository.setBlockYoutubeShortsEnabled(newSettings.blockYoutubeShortsEnabled)
+            }
+            if (newSettings.blockInstagramReelsEnabled != current.blockInstagramReelsEnabled) {
+                settingsRepository.setBlockInstagramReelsEnabled(newSettings.blockInstagramReelsEnabled)
             }
             // alwaysBlock: SettingsRepository.setAlwaysBlockActive(active, packages)
             if (newSettings.alwaysBlockEnabled != current.alwaysBlockEnabled ||
@@ -219,15 +248,7 @@ class SettingsViewModel(
         }
     }
 
-    /**
-     * ⚠ STUB — FLAG-2
-     *
-     * SettingsRepository has no method for recurring block schedules.
-     * This method is a no-op until SettingsRepository.setRecurringBlockSchedules()
-     * is added and AppBlockerAccessibilityService is updated to read the key.
-     *
-     * Backing call: NONE — do not wire this in GPT Terra until the backing is added.
-     */
+    /** Persists recurring block schedules and updates the settings snapshot. */
     fun setRecurringBlockSchedules(schedules: List<RecurringBlockSchedule>) {
         viewModelScope.launch {
             settingsRepository.setRecurringBlockSchedules(schedules)
@@ -260,14 +281,8 @@ class SettingsViewModel(
     }
 
     /**
-     * ⚠ STUB — FLAG-3
-     *
-     * No backing method in SettingsRepository for a "quick block temporary" operation.
-     * Likely maps to setStandaloneBlock() with auto-computed untilMs =
-     * System.currentTimeMillis() + config.durationMs, but the exact behavior
-     * and enforcement keys are undefined. Do not wire in GPT Terra until clarified.
-     *
-     * Backing call: NONE.
+     * Starts a temporary standalone block using the same persisted state as the
+     * regular standalone-block flow.
      */
     fun setQuickBlockTemporary(config: QuickBlockConfig) {
         viewModelScope.launch {
@@ -288,14 +303,8 @@ class SettingsViewModel(
     }
 
     /**
-     * ⚠ STUB — FLAG-4
-     *
-     * No atomic setter in SettingsRepository for standalone block + allowance together.
-     * publishStandaloneSnapshot() is the closest existing method but does not update
-     * allowance state. Do not wire in GPT Terra until SettingsRepository provides an
-     * atomic combined setter.
-     *
-     * Backing call: NONE.
+     * Commits standalone-block and allowance state together through the repository's
+     * synchronous snapshot write.
      */
     fun setStandaloneBlockAndAllowance(config: StandaloneBlockAndAllowanceConfig) {
         viewModelScope.launch {

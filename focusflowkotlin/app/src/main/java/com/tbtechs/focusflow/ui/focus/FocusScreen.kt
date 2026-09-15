@@ -62,6 +62,7 @@ fun FocusScreen(
     val tasks by taskViewModel.tasks.collectAsState()
     val settings by settingsViewModel.settings.collectAsState()
     val session by focusSessionViewModel.focusSession.collectAsState()
+    val focusBreak by focusSessionViewModel.focusBreak.collectAsState()
     val task = session?.taskId?.let { id -> tasks.firstOrNull { it.id == id } }
         ?: tasks.firstOrNull(Task::isRunningNow)
     val isFocusing = session?.isActive == true
@@ -136,6 +137,8 @@ fun FocusScreen(
                     TaskFocusPanel(
                         task = task,
                         isFocusing = isFocusing,
+                         pomodoroEnabled = settings.pomodoroEnabled,
+                         focusBreakActive = focusBreak.active,
                         allowedPackages = session?.allowedPackages.orEmpty(),
                         otherActiveCount = tasks.count(Task::isRunningNow) - if (task.isRunningNow()) 1 else 0,
                         onStart = { focusSessionViewModel.startFocusMode(task.id) },
@@ -146,6 +149,10 @@ fun FocusScreen(
                         onOpenSchedule = onOpenSchedule,
                         onOpenStandalone = { showStandaloneEditor = true },
                         onEmergencyOverride = { showEmergencyConfirmation = true },
+                         onStartBreak = {
+                             focusSessionViewModel.startPomodoroBreak(settings.pomodoroBreakMinutes)
+                         },
+                         onEndBreak = focusSessionViewModel::endPomodoroBreak,
                         standaloneActive = standaloneActive,
                         onOpenStandalonePanel = { activePanel = "block" },
                     )
@@ -272,6 +279,8 @@ private fun OrphanedFocusPanel(onStop: () -> Unit) = Column(modifier = androidx.
 private fun TaskFocusPanel(
     task: Task,
     isFocusing: Boolean,
+    pomodoroEnabled: Boolean,
+    focusBreakActive: Boolean,
     allowedPackages: List<String>,
     otherActiveCount: Int,
     onStart: () -> Unit,
@@ -282,6 +291,8 @@ private fun TaskFocusPanel(
     onOpenSchedule: () -> Unit,
     onOpenStandalone: () -> Unit,
     onEmergencyOverride: () -> Unit,
+    onStartBreak: () -> Unit,
+    onEndBreak: () -> Unit,
     standaloneActive: Boolean,
     onOpenStandalonePanel: () -> Unit,
 ) = LazyColumn(modifier = androidx.compose.ui.Modifier.fillMaxSize()) {
@@ -300,11 +311,21 @@ private fun TaskFocusPanel(
                 if (task.tags.isNotEmpty()) Text(task.tags.joinToString(" ") { "#$it" })
             }
         }
-        if (isFocusing) {
+        if (isFocusing && pomodoroEnabled) {
             Card(modifier = androidx.compose.ui.Modifier.fillMaxWidth()) {
                 Text("Pomodoro")
-                Text("Pomodoro phase and break controls are waiting for FocusSessionViewModel break-state APIs.")
-                Button(onClick = {}, enabled = false) { Text("Take break") }
+                Text(
+                    if (focusBreakActive) {
+                        "Blocking is paused for the current break."
+                    } else {
+                        "Take a timed break without ending this focus session."
+                    },
+                )
+                Button(
+                    onClick = if (focusBreakActive) onEndBreak else onStartBreak,
+                ) {
+                    Text(if (focusBreakActive) "End break" else "Take break")
+                }
             }
         }
         if (otherActiveCount > 0) Button(onClick = onOpenSchedule) { Text("+$otherActiveCount more active") }
@@ -321,7 +342,6 @@ private fun TaskFocusPanel(
         }
         if (!isFocusing) {
             Button(onClick = onStart) {
-                // NEEDS: focus-session PIN rotation before activation when a session PIN already exists.
                 Icon(Icons.Outlined.Security, null)
                 Text("Activate Focus")
             }

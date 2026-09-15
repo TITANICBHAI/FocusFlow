@@ -39,6 +39,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.tbtechs.focusflow.data.repository.FocusSessionRepository
 import com.tbtechs.focusflow.data.repository.SettingsRepository
+import com.tbtechs.focusflow.ui.SettingsViewModel
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
@@ -58,6 +59,7 @@ fun UserProfileScreen(
     onFinished: () -> Unit,
     onImportBackup: (suspend () -> Unit)? = null,
     focusSessionRepository: FocusSessionRepository? = null,
+    settingsViewModel: SettingsViewModel? = null,
 ) {
     val scope = rememberCoroutineScope()
     var editing by remember(isEditMode) { mutableStateOf(!isEditMode) }
@@ -136,10 +138,13 @@ fun UserProfileScreen(
                 settingsRepository.putString(PROFILE_KEY, profile.toString())
                 settingsRepository.putString("onboarding_complete", "true")
             }
-            // NEEDS: AppSettings/SettingsViewModel fields for defaultDuration,
-            // pomodoroDuration, and pomodoroBreak. The current Kotlin model does
-            // not expose those legacy settings, so profile JSON remains complete
-            // while this screen avoids writing an unenforced duplicate key.
+            focusLength?.let { duration ->
+                settingsViewModel?.updateSettings(
+                    settingsViewModel.settings.value.copy(
+                        defaultDurationMinutes = duration,
+                    ),
+                )
+            }
             // NEEDS: NotificationRepository wiring for morning-digest and weekly
             // report scheduling after the profile save.
             saving = false

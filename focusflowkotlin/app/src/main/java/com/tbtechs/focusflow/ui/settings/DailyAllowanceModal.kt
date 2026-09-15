@@ -29,8 +29,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import com.tbtechs.focusflow.data.model.DailyAllowanceEntry
 import com.tbtechs.focusflow.data.repository.InstalledAppsRepository
+import com.tbtechs.focusflow.data.repository.AllowanceUsage
 import com.tbtechs.focusflow.ui.launcher.AppPickerSheet
 import org.json.JSONArray
+import java.time.LocalDate
 
 /**
  * Per-app daily allowance editor.
@@ -49,6 +51,7 @@ fun DailyAllowanceModal(
     onSave: (List<DailyAllowanceEntry>) -> Unit,
     onVerifyDefensePin: (String) -> Boolean,
     onClose: () -> Unit,
+    usageByPackage: Map<String, AllowanceUsage> = emptyMap(),
 ) {
     if (!visible) return
 
@@ -265,6 +268,7 @@ fun DailyAllowanceModal(
                             AllowanceConfiguration(
                                 draft = draft,
                                 locked = isEntryLocked,
+                                usage = usageByPackage[draft.packageName],
                                 onUpdate = { updated -> updateDraft(draft.packageName) { updated } },
                             )
                         }
@@ -361,6 +365,7 @@ fun DailyAllowanceModal(
 private fun AllowanceConfiguration(
     draft: DailyAllowanceDraft,
     locked: Boolean,
+    usage: AllowanceUsage?,
     onUpdate: (DailyAllowanceDraft) -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
@@ -371,10 +376,8 @@ private fun AllowanceConfiguration(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        // NEEDS: a usage state flow from enforcement. Do not guess remaining
-        // usage because a stale number could incorrectly imply an app is usable.
         Text(
-            "Live usage is unavailable in the current ViewModel contract.",
+            allowanceUsageLabel(draft, usage),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -428,6 +431,40 @@ private fun AllowanceConfiguration(
             }
         }
     }
+}
+
+private fun allowanceUsageLabel(
+    draft: DailyAllowanceDraft,
+    usage: AllowanceUsage?,
+): String {
+    if (usage == null) return "No usage recorded in the current allowance window."
+
+    val today = LocalDate.now().toString()
+    return when (draft.mode) {
+        AllowanceMode.Count -> {
+            val count = if (usage.date == today) usage.count else 0
+            "Used today: $count of ${draft.countPerDay} opens"
+        }
+        AllowanceMode.TimeBudget -> {
+            val usedMs = if (usage.date == today) usage.usedMs else 0L
+            "Used today: ${formatAllowanceMinutes(usedMs)} of ${draft.budgetMinutes} min"
+        }
+        AllowanceMode.Interval -> {
+            val windowEnd = usage.windowStartMs +
+                draft.intervalHours.coerceAtLeast(1).toLong() * 60L * MINUTE_MS
+            val usedMs = if (usage.windowStartMs > 0L && System.currentTimeMillis() < windowEnd) {
+                usage.usedMs
+            } else {
+                0L
+            }
+            "Used in current window: ${formatAllowanceMinutes(usedMs)} of ${draft.intervalMinutes} min"
+        }
+    }
+}
+
+private fun formatAllowanceMinutes(usedMs: Long): String {
+    val minutes = (usedMs / MINUTE_MS).toInt()
+    return if (minutes == 0 && usedMs > 0L) "<1 min" else "$minutes min"
 }
 
 @Composable

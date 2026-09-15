@@ -1,11 +1,18 @@
 package com.tbtechs.focusflow
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -26,6 +33,7 @@ import com.tbtechs.focusflow.ui.FocusSessionViewModel
 import com.tbtechs.focusflow.ui.SettingsViewModel
 import com.tbtechs.focusflow.ui.TaskViewModel
 import com.tbtechs.focusflow.ui.alwayson.VpnPermissionLostBanner
+import com.tbtechs.focusflow.ui.backup.BackupCoordinator
 import com.tbtechs.focusflow.ui.common.AchievementCelebrationModal
 import com.tbtechs.focusflow.ui.common.AppErrorEvents
 import com.tbtechs.focusflow.ui.common.ErrorAlertBanner
@@ -37,6 +45,7 @@ import com.tbtechs.focusflow.ui.support.DiagnosticLogEntry
 import com.tbtechs.focusflow.ui.support.DiagnosticLogLevel
 import com.tbtechs.focusflow.ui.support.DiagnosticsModal
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * Normal app activity host. LauncherActivity remains a separate CATEGORY_HOME
@@ -51,12 +60,10 @@ class MainActivity : ComponentActivity() {
         requestedRoute = routeFromIntent(intent)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         setContent {
-            androidx.compose.material3.MaterialTheme {
-                FocusFlowRoot(
-                    requestedRoute = requestedRoute,
-                    vpnRepository = vpnRepository,
-                )
-            }
+            FocusFlowRoot(
+                requestedRoute = requestedRoute,
+                vpnRepository = vpnRepository,
+            )
         }
     }
 
@@ -81,6 +88,7 @@ private fun FocusFlowRoot(
     val settingsViewModel = remember {
         SettingsViewModel(AppModule.settingsRepository, AppModule.pinManager, context)
     }
+    val settings by settingsViewModel.settings.collectAsState()
     val focusSessionViewModel = remember {
         FocusSessionViewModel(
             focusSessionRepository = AppModule.focusSessionRepository,
@@ -102,6 +110,52 @@ private fun FocusFlowRoot(
             insightEngine = AppModule.insightEngine,
             achievementEngine = AppModule.achievementEngine,
         )
+    }
+    val backupCoordinator = remember {
+        BackupCoordinator(
+            context = context,
+            taskRepository = AppModule.taskRepository,
+            focusSessionRepository = AppModule.focusSessionRepository,
+            settingsRepository = AppModule.settingsRepository,
+            settingsViewModel = settingsViewModel,
+        )
+    }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var replaceTasksOnImport by remember { mutableStateOf(false) }
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        result.data?.data?.let { destination ->
+            scope.launch {
+                val outcome = backupCoordinator.export(settings, destination)
+                Toast.makeText(
+                    context,
+                    if (outcome.ok) "Backup exported." else "Backup export failed: ${outcome.error}",
+                    Toast.LENGTH_LONG,
+                ).show()
+            }
+        }
+    }
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        result.data?.data?.let { source ->
+            scope.launch {
+                val outcome = backupCoordinator.import(
+                    source = source,
+                    replaceTasks = replaceTasksOnImport,
+                    currentSettings = settings,
+                    currentFocusActive = focusSessionViewModel.focusSession.value?.isActive == true,
+                )
+                val message = when (outcome) {
+                    is com.tbtechs.focusflow.data.repository.RestoreResult.Success ->
+                        "Backup restored: ${outcome.summary.tasksImported} tasks imported."
+                    is com.tbtechs.focusflow.data.repository.RestoreResult.Error ->
+                        outcome.message
+                }
+                Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+            }
+        }
     }
     var networkSettings by remember { mutableStateOf<NetworkBlockSettings?>(null) }
     var diagnosticEvents by remember { mutableStateOf(AppErrorEvents.snapshot()) }
@@ -142,53 +196,65 @@ private fun FocusFlowRoot(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        ErrorBoundary(screenName = "root") {
-            FocusFlowNavGraph(
-                navController = navController,
-                taskViewModel = taskViewModel,
-                settingsViewModel = settingsViewModel,
-                focusSessionViewModel = focusSessionViewModel,
-                appBootViewModel = appBootViewModel,
-                statsViewModel = statsViewModel,
-                vpnRepository = vpnRepository,
+    MaterialTheme(
+        colorScheme = if (settings.darkModeEnabled) darkColorScheme() else lightColorScheme(),
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            ErrorBoundary(screenName = "root") {
+                FocusFlowNavGraph(
+                    navController = navController,
+                    taskViewModel = taskViewModel,
+                    settingsViewModel = settingsViewModel,
+                    focusSessionViewModel = focusSessionViewModel,
+                    appBootViewModel = appBootViewModel,
+                    statsViewModel = statsViewModel,
+                    vpnRepository = vpnRepository,
+                    backupCoordinator = backupCoordinator,
+                    onExportBackup = {
+                        exportLauncher.launch(backupCoordinator.createExportIntent())
+                    },
+                    onImportBackup = { replace ->
+                        replaceTasksOnImport = replace
+                        importLauncher.launch(backupCoordinator.createImportIntent())
+                    },
+                )
+            }
+
+            networkSettings?.let { policy ->
+                VpnPermissionLostBanner(
+                    vpnBlockEnabled = policy.enabled && policy.vpn,
+                    vpnPackages = (policy.packages + policy.standalonePackages).distinct(),
+                    vpnRepository = vpnRepository,
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .align(Alignment.BottomCenter),
+                contentAlignment = Alignment.BottomCenter,
+            ) {
+                ErrorAlertBanner(onViewLogs = { diagnosticsVisible = true })
+            }
+
+            AchievementCelebrationModal(
+                visible = newlyEarned != null && newlyEarned.id != dismissedAchievementId,
+                achievement = newlyEarned,
+                onDismiss = { dismissedAchievementId = newlyEarned?.id },
             )
         }
 
-        networkSettings?.let { policy ->
-            VpnPermissionLostBanner(
-                vpnBlockEnabled = policy.enabled && policy.vpn,
-                vpnPackages = (policy.packages + policy.standalonePackages).distinct(),
-                vpnRepository = vpnRepository,
-            )
-        }
-
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .align(Alignment.BottomCenter),
-            contentAlignment = Alignment.BottomCenter,
-        ) {
-            ErrorAlertBanner(onViewLogs = { diagnosticsVisible = true })
-        }
-
-        AchievementCelebrationModal(
-            visible = newlyEarned != null && newlyEarned.id != dismissedAchievementId,
-            achievement = newlyEarned,
-            onDismiss = { dismissedAchievementId = newlyEarned?.id },
+        DiagnosticsModal(
+            visible = diagnosticsVisible,
+            logs = diagnosticEvents.map { event ->
+                DiagnosticLogEntry(
+                    timestamp = event.timestampMillis.toString(),
+                    level = DiagnosticLogLevel.ERROR,
+                    tag = event.tag,
+                    message = event.message,
+                )
+            },
+            onClose = { diagnosticsVisible = false },
         )
     }
-
-    DiagnosticsModal(
-        visible = diagnosticsVisible,
-        logs = diagnosticEvents.map { event ->
-            DiagnosticLogEntry(
-                timestamp = event.timestampMillis.toString(),
-                level = DiagnosticLogLevel.ERROR,
-                tag = event.tag,
-                message = event.message,
-            )
-        },
-        onClose = { diagnosticsVisible = false },
-    )
 }

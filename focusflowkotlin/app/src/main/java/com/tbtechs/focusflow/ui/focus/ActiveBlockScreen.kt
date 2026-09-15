@@ -33,6 +33,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tbtechs.focusflow.data.model.AppSettings
 import com.tbtechs.focusflow.data.model.StandaloneBlockConfig
 import com.tbtechs.focusflow.data.model.Task
+import com.tbtechs.focusflow.data.repository.AllowanceUsage
 import com.tbtechs.focusflow.domain.FocusPinManager
 import com.tbtechs.focusflow.ui.FocusSessionViewModel
 import com.tbtechs.focusflow.ui.SettingsViewModel
@@ -61,6 +62,9 @@ fun ActiveBlockScreen(
     val settings by settingsViewModel.settings.collectAsState()
     val session by focusSessionViewModel.focusSession.collectAsState()
     val violation by focusSessionViewModel.focusViolationApp.collectAsState()
+    val allowanceSnapshot by settingsViewModel.allowanceSnapshot.collectAsState()
+    val todayFocusMinutes by focusSessionViewModel.todayFocusMinutes.collectAsState()
+    val todayOverrideCount by focusSessionViewModel.todayOverrideCount.collectAsState()
     val focusTask = session?.taskId?.let { taskId -> tasks.firstOrNull { it.id == taskId } }
     val standaloneActive = settings.standaloneBlockActive && settings.standaloneBlockPackages.isNotEmpty() && settings.standaloneBlockUntilMs > System.currentTimeMillis()
     val alwaysOnActive = settings.alwaysBlockEnabled && settings.alwaysBlockPackages.isNotEmpty()
@@ -111,9 +115,26 @@ fun ActiveBlockScreen(
                     expanded = if (expanded == "allowance") "" else "allowance"
                 } {
                     if (allowancePackages.isEmpty()) Text("No per-app daily limits are configured.")
-                    else if (expanded == "allowance") PackageNames(allowancePackages)
+                    else if (expanded == "allowance") {
+                        allowancePackages.forEach { packageName ->
+                            AllowancePackageStatus(
+                                packageName = packageName,
+                                usage = allowanceSnapshot.usageByPackage[packageName],
+                                activeSession = allowanceSnapshot.activeSessionPackage == packageName,
+                            )
+                        }
+                        allowanceSnapshot.activeSessionPackage?.let { activePackage ->
+                            Text(
+                                "Active allowance session: $activePackage" +
+                                    if (allowanceSnapshot.activeSessionEndMs > 0L) {
+                                        " · ends ${allowanceSnapshot.activeSessionEndMs.activeDateTime()}"
+                                    } else {
+                                        ""
+                                    },
+                            )
+                        }
+                    }
                     else Text("${allowancePackages.size} apps tracked · tap to see configured apps.")
-                    // NEEDS: allowance usage, rolling interval reset, and active-session allowance fields exposed to a ViewModel.
                     Button(onClick = onOpenDefense) { Text("Manage daily allowance") }
                 }
                 ExpandableStatusCard("Keyword Blocker", if (settings.blockedWords.isEmpty()) "Not active" else "Active", settings.blockedWords.isNotEmpty(), expanded == "keywords") {
@@ -147,7 +168,13 @@ fun ActiveBlockScreen(
                     } else Text("Tap to see configured days, times, and blocked app groups.")
                     Button(onClick = onOpenDefense) { Text("Manage scheduled blocks") }
                 }
-                TodaySummary(tasks, session, violation)
+                TodaySummary(
+                    tasks = tasks,
+                    session = session,
+                    violation = violation,
+                    todayFocusMinutes = todayFocusMinutes,
+                    todayOverrideCount = todayOverrideCount,
+                )
             }
         }
     }
@@ -233,13 +260,36 @@ private fun PackageNames(packages: List<String>) = Column {
 }
 
 @Composable
-private fun TodaySummary(tasks: List<Task>, session: com.tbtechs.focusflow.data.model.FocusSession?, violation: String?) {
+private fun TodaySummary(
+    tasks: List<Task>,
+    session: com.tbtechs.focusflow.data.model.FocusSession?,
+    violation: String?,
+    todayFocusMinutes: Int,
+    todayOverrideCount: Int,
+) {
     val today = LocalDate.now()
     val todayTasks = tasks.filter { runCatching { Instant.parse(it.startTime).atZone(ZoneId.systemDefault()).toLocalDate() == today }.getOrDefault(false) }
-    val focusMinutes = session?.startedAt?.let { runCatching { Duration.between(Instant.parse(it), Instant.now()).toMinutes().coerceAtLeast(0) }.getOrDefault(0) } ?: 0
-    // NEEDS: today’s persisted focus-minute and override-count queries in a ViewModel.
     Text("TODAY", style = MaterialTheme.typography.labelLarge)
-    Text("${todayTasks.count { it.status == "completed" }}/${todayTasks.size} tasks · ${focusMinutes}m focus · ${if (violation == null) 0 else 1} blocked attempts")
+    Text(
+        "${todayTasks.count { it.status == "completed" }}/${todayTasks.size} tasks · " +
+            "$todayFocusMinutes m focus · $todayOverrideCount overrides" +
+            if (violation != null) " · latest blocked attempt: $violation" else "",
+    )
+}
+
+@Composable
+private fun AllowancePackageStatus(
+    packageName: String,
+    usage: AllowanceUsage?,
+    activeSession: Boolean,
+) {
+    val usageLabel = when (usage?.mode) {
+        "count" -> "used ${usage.count} opens today"
+        "interval" -> "used ${usage.usedMs / 60_000L} min in current window"
+        "time_budget" -> "used ${usage.usedMs / 60_000L} min today"
+        else -> "no usage recorded"
+    }
+    Text("$packageName · $usageLabel${if (activeSession) " · in use" else ""}")
 }
 
 @Composable

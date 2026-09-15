@@ -17,7 +17,6 @@ fun PermissionGate(onOpenUsageAccessSettings: () -> Unit) = Column {
     Text("Unlock the 3-Month view", style = MaterialTheme.typography.headlineSmall)
     Text("This screen uses Android UsageStats to show phone behaviour patterns. The data stays on this device.")
     Button(onClick = onOpenUsageAccessSettings) {
-        // NEEDS: StatsViewModel event to UsageStatsRepository.openUsageAccessSettings().
         Icon(Icons.Outlined.Settings, null)
         Text("Grant Usage Access")
     }

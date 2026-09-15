@@ -192,29 +192,46 @@ fun DefenseScreen(
             }
 
             DefenseSection("System Guard") {
-                UnavailableSwitch(
+                SettingSwitch(
                     "Protect system controls",
                     "Block power menu, notification shade, and sensitive Settings pages",
                     settings.systemGuardEnabled,
-                    "system guard detail fields",
                 ) { enabled ->
                     if (enabled) update(settings.copy(systemGuardEnabled = true))
                     else protectedToggle("System Guard", false) {
                         update(settings.copy(systemGuardEnabled = false))
                     }
                 }
-                UnavailableSwitch(
+                SettingSwitch(
                     "Block YouTube Shorts",
                     "Redirect away from the Shorts player",
-                    false,
-                    "YouTube Shorts preference",
-                )
-                UnavailableSwitch(
+                    settings.blockYoutubeShortsEnabled,
+                ) { enabled ->
+                    if (enabled) update(settings.copy(blockYoutubeShortsEnabled = true))
+                    else protectedToggle("Block YouTube Shorts", false) {
+                        update(settings.copy(blockYoutubeShortsEnabled = false))
+                    }
+                }
+                SettingSwitch(
                     "Block Instagram Reels",
                     "Redirect away from the Reels viewer",
-                    false,
-                    "Instagram Reels preference",
-                )
+                    settings.blockInstagramReelsEnabled,
+                ) { enabled ->
+                    if (enabled) update(settings.copy(blockInstagramReelsEnabled = true))
+                    else protectedToggle("Block Instagram Reels", false) {
+                        update(settings.copy(blockInstagramReelsEnabled = false))
+                    }
+                }
+                SettingSwitch(
+                    "Block install actions",
+                    "Block install, update, and uninstall confirmation screens",
+                    settings.blockInstallActionsEnabled,
+                ) { enabled ->
+                    if (enabled) update(settings.copy(blockInstallActionsEnabled = true))
+                    else protectedToggle("Block install actions", false) {
+                        update(settings.copy(blockInstallActionsEnabled = false))
+                    }
+                }
             }
 
             DefenseSection("Aversion Deterrents") {

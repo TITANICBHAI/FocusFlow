@@ -37,6 +37,7 @@ import com.tbtechs.focusflow.ui.FocusSessionViewModel
 import com.tbtechs.focusflow.ui.SettingsViewModel
 import com.tbtechs.focusflow.ui.TaskViewModel
 import com.tbtechs.focusflow.ui.alwayson.AlwaysOnScreen
+import com.tbtechs.focusflow.ui.backup.BackupCoordinator
 import com.tbtechs.focusflow.ui.common.ErrorBoundary
 import com.tbtechs.focusflow.ui.common.SideMenu
 import com.tbtechs.focusflow.ui.defense.DefenseScreen
@@ -69,6 +70,9 @@ fun FocusFlowNavGraph(
     appBootViewModel: AppBootViewModel,
     statsViewModel: com.tbtechs.focusflow.ui.stats.StatsViewModel,
     vpnRepository: VpnRepository,
+    backupCoordinator: BackupCoordinator? = null,
+    onExportBackup: () -> Unit = {},
+    onImportBackup: (Boolean) -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -145,7 +149,11 @@ fun FocusFlowNavGraph(
                     ScreenBoundary(Routes.STATS) {
                         StatsInsightsExperience(
                             statsViewModel = statsViewModel,
-                            onOpenUsageAccessSettings = { navigate(Routes.PERMISSIONS) },
+                            onOpenUsageAccessSettings = {
+                                scope.launch {
+                                    AppModule.usageStatsRepository.openUsageAccessSettings()
+                                }
+                            },
                         )
                     }
                 }
@@ -158,6 +166,8 @@ fun FocusFlowNavGraph(
                             taskViewModel = taskViewModel,
                             focusSessionViewModel = focusSessionViewModel,
                             appBootViewModel = appBootViewModel,
+                            onExportBackup = backupCoordinator?.let { onExportBackup },
+                            onImportBackup = backupCoordinator?.let { onImportBackup },
                             onOpenProfile = { navigate(Routes.USER_PROFILE) },
                             onOpenPermissions = { navigate(Routes.PERMISSIONS) },
                             onOpenStats = { navigate(Routes.STATS) },
@@ -320,7 +330,11 @@ fun FocusFlowNavGraph(
                         isEditMode = true,
                         onBack = ::back,
                         onFinished = ::back,
+                        onImportBackup = backupCoordinator?.let {
+                            { onImportBackup(false) }
+                        },
                         focusSessionRepository = AppModule.focusSessionRepository,
+                        settingsViewModel = settingsViewModel,
                     )
                 }
             }

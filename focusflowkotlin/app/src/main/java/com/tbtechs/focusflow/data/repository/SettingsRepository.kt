@@ -28,6 +28,22 @@ data class AllowanceSnapshot(
     val configJson: String?,
     val activeSessionPackage: String?,
     val activeSessionEndMs: Long,
+    val usageByPackage: Map<String, AllowanceUsage> = emptyMap(),
+)
+
+/**
+ * Read-only view of one package's persisted allowance counters.
+ *
+ * The enforcement service stores different fields for count, daily-budget,
+ * and rolling-interval modes. Keeping those raw fields together lets the UI
+ * present current usage without reimplementing or mutating enforcement logic.
+ */
+data class AllowanceUsage(
+    val mode: String?,
+    val date: String?,
+    val count: Int,
+    val windowStartMs: Long,
+    val usedMs: Long,
 )
 
 /**
@@ -79,6 +95,7 @@ class SettingsRepository(context: Context) {
         private const val KEY_DAILY_ALLOWANCE_USED = "daily_allowance_used"
         private const val KEY_DAILY_ALLOWANCE_CONFIG = "daily_allowance_config"
         private const val KEY_RECURRING_BLOCK_SCHEDULES = "recurring_block_schedules"
+        private const val KEY_DARK_MODE_ENABLED = "dark_mode_enabled"
         private const val KEY_MORNING_DIGEST_ENABLED = "morning_digest_enabled"
         private const val KEY_ACHIEVEMENT_NOTIFICATIONS_ENABLED = "achievement_notifications_enabled"
         private const val KEY_PATTERN_INSIGHT_NOTIFICATIONS_ENABLED = "pattern_insight_notifications_enabled"
@@ -735,6 +752,7 @@ class SettingsRepository(context: Context) {
             settings.lastSessionResultByTaskId.forEach { (taskId, result) -> put(taskId, result) }
         }
         prefs.edit()
+            .putBoolean(KEY_DARK_MODE_ENABLED, settings.darkModeEnabled)
             .putBoolean(KEY_MORNING_DIGEST_ENABLED, settings.morningDigestEnabled)
             .putBoolean(KEY_ACHIEVEMENT_NOTIFICATIONS_ENABLED, settings.achievementNotificationsEnabled)
             .putBoolean(KEY_PATTERN_INSIGHT_NOTIFICATIONS_ENABLED, settings.patternInsightNotificationsEnabled)
@@ -806,6 +824,19 @@ class SettingsRepository(context: Context) {
             ),
             networkBlockEnabled = prefs.getBoolean(KEY_NETWORK_BLOCK_ENABLED, false),
             systemGuardEnabled = prefs.getBoolean(AppBlockerAccessibilityService.PREF_SYSTEM_GUARD_ENABLED, false),
+            blockInstallActionsEnabled = prefs.getBoolean(
+                AppBlockerAccessibilityService.PREF_BLOCK_INSTALL_ACTIONS,
+                false,
+            ),
+            blockYoutubeShortsEnabled = prefs.getBoolean(
+                AppBlockerAccessibilityService.PREF_BLOCK_YT_SHORTS,
+                false,
+            ),
+            blockInstagramReelsEnabled = prefs.getBoolean(
+                AppBlockerAccessibilityService.PREF_BLOCK_IG_REELS,
+                false,
+            ),
+            darkModeEnabled = prefs.getBoolean(KEY_DARK_MODE_ENABLED, true),
             morningDigestEnabled = prefs.getBoolean(KEY_MORNING_DIGEST_ENABLED, true),
             achievementNotificationsEnabled = prefs.getBoolean(
                 KEY_ACHIEVEMENT_NOTIFICATIONS_ENABLED,
@@ -860,11 +891,13 @@ class SettingsRepository(context: Context) {
 
     suspend fun getAllowanceSnapshot(): AllowanceSnapshot =
         synchronized(AppBlockerAccessibilityService.ALLOWANCE_USAGE_LOCK) {
+            val usageJson = prefs.getString(KEY_DAILY_ALLOWANCE_USED, null)
             AllowanceSnapshot(
-                usageJson = prefs.getString(KEY_DAILY_ALLOWANCE_USED, null),
+                usageJson = usageJson,
                 configJson = prefs.getString(KEY_DAILY_ALLOWANCE_CONFIG, null),
                 activeSessionPackage = prefs.getString(KEY_ACTIVE_SESSION_PACKAGE, null),
                 activeSessionEndMs = prefs.getLong(KEY_ACTIVE_SESSION_END_MS, 0L),
+                usageByPackage = parseAllowanceUsage(usageJson),
             )
         }
 
@@ -974,6 +1007,28 @@ class SettingsRepository(context: Context) {
 
     private fun requestVpnSync() {
         NetworkBlockerVpnService.requestSync(appContext)
+    }
+
+    private fun parseAllowanceUsage(raw: String?): Map<String, AllowanceUsage> {
+        if (raw.isNullOrBlank()) return emptyMap()
+        return runCatching {
+            val root = JSONObject(raw)
+            buildMap {
+                root.keys().forEach { packageName ->
+                    val value = root.optJSONObject(packageName) ?: return@forEach
+                    put(
+                        packageName,
+                        AllowanceUsage(
+                            mode = value.optString("mode").takeIf(String::isNotBlank),
+                            date = value.optString("date").takeIf(String::isNotBlank),
+                            count = value.optInt("count", 0).coerceAtLeast(0),
+                            windowStartMs = value.optLong("windowStartMs", 0L).coerceAtLeast(0L),
+                            usedMs = value.optLong("usedMs", 0L).coerceAtLeast(0L),
+                        ),
+                    )
+                }
+            }
+        }.getOrDefault(emptyMap())
     }
 
     private fun requireValidSessionPin(pinHash: String?, message: String) {

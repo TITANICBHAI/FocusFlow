@@ -6,9 +6,11 @@ import com.tbtechs.focusflow.data.local.entity.TaskEntity
 import com.tbtechs.focusflow.data.model.Reminder
 import com.tbtechs.focusflow.data.model.Task
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import org.json.JSONObject
 import java.time.Instant
 import java.time.ZoneId
 
@@ -48,6 +50,20 @@ class TaskRepository(private val taskDao: TaskDao) {
      */
     fun observeAllTasks(): Flow<List<Task>> =
         taskDao.observeAllTasks().map { entities -> entities.map { it.toDomain() } }
+
+    /** One-shot task snapshot used by the native backup coordinator. */
+    suspend fun getAllTasks(): List<Task> = observeAllTasks().first()
+
+    /**
+     * Keeps the backup envelope field names aligned with the serialized domain
+     * model used by the existing React Native backup format.
+     */
+    fun taskToBackupJson(task: Task): JSONObject =
+        JSONObject(json.encodeToString(task))
+
+    /** Parses one backup task without dropping unknown future fields. */
+    fun taskFromBackupJson(raw: JSONObject): Task? =
+        runCatching { json.decodeFromString<Task>(raw.toString()) }.getOrNull()
 
     /**
      * Tasks that ended within the last 24 h but are still unresolved.

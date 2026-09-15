@@ -3,11 +3,6 @@ package com.tbtechs.focusflow.data.model
 /**
  * AppSettings
  *
- * ⚠ FLAG — MISSING FROM REPLIT STAGE 2 OUTPUT
- *
- * This file should have been produced by Replit's SettingsRepository work. It was not.
- * This is the authoritative definition until Replit's output is extended.
- *
  * SettingsRepository persists the enforcement-facing fields and the
  * notification/insight preferences. SettingsViewModel hydrates this model on
  * startup and writes changes through the repository.
@@ -72,8 +67,14 @@ data class AppSettings(
 
     // ── System guard ─────────────────────────────────────────────────────────
     val systemGuardEnabled: Boolean = false,
+    val blockInstallActionsEnabled: Boolean = false,
+    val blockYoutubeShortsEnabled: Boolean = false,
+    val blockInstagramReelsEnabled: Boolean = false,
 
     // ── Notification and insight preferences ─────────────────────────────────
+    /** App-wide theme preference. True uses the dark Material 3 palette. */
+    val darkModeEnabled: Boolean = true,
+
     /**
      * Notification toggles used by the analytics-driven notification layer.
      * These are deliberately explicit so older settings snapshots can continue
