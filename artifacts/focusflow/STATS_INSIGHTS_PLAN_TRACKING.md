@@ -19,9 +19,12 @@ validation has passed.
 
 - Status: `[-]` Analytics foundation is source-implemented, including native
   hourly UsageStats aggregation and bounded per-source snapshot loading.
-  Notifications section, additional UX ideas, achievements, weekly standout
-  persistence, and device validation remain outstanding.
-- Last updated: 2026-09-11
+  Notifications section, additional UX ideas, weekly standout persistence, and
+  device validation remain outstanding. The achievement registry and lifetime
+  stats source are now implemented in the TypeScript artifact; the Kotlin Room
+  port is source-complete but still requires a generated Android project for
+  build/device validation.
+- Last updated: 2026-09-15
 - Validation boundary: source checks can be performed in this checkout; Android
   UsageStats permission behavior, native service behavior, and device UI require a
   generated Android project and device/emulator validation. Notification delivery
@@ -99,14 +102,16 @@ validation has passed.
 
 ### 6. Achievements
 
-- [ ] Add `LifetimeStats` access without broad unbounded reads.
-- [ ] Add `AchievementEngine.ts` and the resistance, honesty, presence,
+- [x] Add `LifetimeStats` access without broad unbounded reads.
+- [x] Add `AchievementEngine.ts` and the resistance, honesty, presence,
   pattern-breaking, and hidden achievement conditions.
 - [ ] Enforce each data-duration and UsageStats unlock gate.
 - [-] Persist/display newly earned achievements without XP, score, leaderboard,
   or volume-ladder behaviour.
-- [ ] Add tests for one-time earning, repeated evaluation, streak breaks,
-  insufficient history, and hidden-achievement notifications.
+- [-] Add tests for one-time earning, repeated evaluation, streak breaks,
+  insufficient history, and hidden-achievement notifications. Source tests now
+  cover registry evaluation and return/early-completion conditions; notification
+  and repeated-persistence coverage remain.
 
 ### 7. Insight of the week
 

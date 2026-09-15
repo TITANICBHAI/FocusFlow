@@ -1369,6 +1369,7 @@ export interface LifetimeStats {
   totalFocusMinutes: number;
   totalOverrideAttempts: number;
   currentStreakDays: number;
+  lastSessionAt: string | null;
 }
 
 export async function dbGetLifetimeStats(): Promise<LifetimeStats> {
@@ -1380,6 +1381,7 @@ export async function dbGetLifetimeStats(): Promise<LifetimeStats> {
       clean_sessions: number;
       total_focus_minutes: number | null;
       total_override_attempts: number;
+      last_session_at: string | null;
     }>(
       `SELECT
          (SELECT COUNT(*) FROM tasks WHERE status = 'completed') AS completed_tasks,
@@ -1398,8 +1400,9 @@ export async function dbGetLifetimeStats(): Promise<LifetimeStats> {
              WHEN s.ended_at IS NULL THEN 0
              ELSE MAX(0, (julianday(s.ended_at) - julianday(s.started_at)) * 1440.0)
            END
-         ), 0) FROM focus_sessions s) AS total_focus_minutes,
-         (SELECT COUNT(*) FROM focus_overrides) AS total_override_attempts`,
+          ), 0) FROM focus_sessions s) AS total_focus_minutes,
+          (SELECT COUNT(*) FROM focus_overrides) AS total_override_attempts,
+          (SELECT MAX(started_at) FROM focus_sessions WHERE is_active = 0) AS last_session_at`,
       [nowISO],
     ),
   );
@@ -1411,6 +1414,7 @@ export async function dbGetLifetimeStats(): Promise<LifetimeStats> {
     totalFocusMinutes: Math.round((aggregate?.total_focus_minutes ?? 0) * 100) / 100,
     totalOverrideAttempts: aggregate?.total_override_attempts ?? 0,
     currentStreakDays,
+    lastSessionAt: aggregate?.last_session_at ?? null,
   };
 }
 

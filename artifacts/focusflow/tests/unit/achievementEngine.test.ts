@@ -1,13 +1,16 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from "vitest";
 
-vi.mock('@/data/database', () => ({
+vi.mock("@/data/database", () => ({
   dbGetEarnedAchievementIds: vi.fn(async () => []),
   dbRecordEarnedAchievements: vi.fn(async () => undefined),
 }));
 
-import { evaluateAchievements, ACHIEVEMENTS } from '@/services/analytics/AchievementEngine';
-import type { AnalyticsSnapshot } from '@/services/analytics/AnalyticsProcessor';
-import type { LifetimeStats } from '@/data/database';
+import {
+  evaluateAchievements,
+  ACHIEVEMENTS,
+} from "@/services/analytics/AchievementEngine";
+import type { AnalyticsSnapshot } from "@/services/analytics/AnalyticsProcessor";
+import type { LifetimeStats } from "@/data/database";
 
 const lifetime: LifetimeStats = {
   completedTasks: 20,
@@ -16,12 +19,16 @@ const lifetime: LifetimeStats = {
   totalFocusMinutes: 90,
   totalOverrideAttempts: 10,
   currentStreakDays: 4,
+  lastSessionAt: null,
 };
 
 const snapshot: AnalyticsSnapshot = {
-  generatedAt: '2026-09-09T12:00:00.000Z',
-  window: 'week',
-  range: { startISO: '2026-09-07T00:00:00.000Z', endISO: '2026-09-13T23:59:59.999Z' },
+  generatedAt: "2026-09-09T12:00:00.000Z",
+  window: "week",
+  range: {
+    startISO: "2026-09-07T00:00:00.000Z",
+    endISO: "2026-09-13T23:59:59.999Z",
+  },
   tasks: {
     total: 7,
     completed: 6,
@@ -67,19 +74,55 @@ const snapshot: AnalyticsSnapshot = {
   },
 };
 
-describe('AchievementEngine', () => {
-  it('evaluates achievements from bounded lifetime and window data', () => {
-    const earned = evaluateAchievements(lifetime, snapshot).map((item) => item.id);
-    expect(earned).toEqual(expect.arrayContaining([
-      'RESISTANCE_10_CLEAN_SESSIONS',
-      'HONEST_ESTIMATOR',
-      'PRESENCE_7_DAYS',
-      'QUIET_WIN',
-    ]));
-    expect(earned).not.toContain('PATTERN_BREAKER');
+describe("AchievementEngine", () => {
+  it("evaluates achievements from bounded lifetime and window data", () => {
+    const earned = evaluateAchievements(lifetime, snapshot).map(
+      (item) => item.id,
+    );
+    expect(earned).toEqual(
+      expect.arrayContaining([
+        "RESISTANCE_10_CLEAN_SESSIONS",
+        "HONEST_ESTIMATOR",
+        "PRESENCE_7_DAYS",
+        "QUIET_WIN",
+        "IRON_SESSION",
+      ]),
+    );
+    expect(earned).not.toContain("PATTERN_BREAKER");
   });
 
-  it('keeps the hidden achievement in the source registry but marks it hidden', () => {
-    expect(ACHIEVEMENTS.find((item) => item.id === 'QUIET_WIN')?.hidden).toBe(true);
+  it("keeps the hidden achievement in the source registry but marks it hidden", () => {
+    expect(ACHIEVEMENTS.find((item) => item.id === "QUIET_WIN")?.hidden).toBe(
+      true,
+    );
+    expect(ACHIEVEMENTS.find((item) => item.id === "LONG_GAME")?.hidden).toBe(
+      true,
+    );
+    expect(ACHIEVEMENTS.find((item) => item.id === "RESET")?.hidden).toBe(true);
+  });
+
+  it("detects a return after a five-day gap and reset after completing a task", () => {
+    const returnedLifetime = {
+      ...lifetime,
+      lastSessionAt: "2026-09-01T12:00:00.000Z",
+    };
+    const earned = evaluateAchievements(returnedLifetime, snapshot).map(
+      (item) => item.id,
+    );
+    expect(earned).toContain("BACK_AGAIN");
+    expect(earned).toContain("RESET");
+  });
+
+  it("recognizes three early completions as the hidden long-game achievement", () => {
+    const longGameSnapshot = {
+      ...snapshot,
+      tasks: {
+        ...snapshot.tasks,
+        estimationErrorMinutes: [-30, -45, -60],
+      },
+    };
+    expect(
+      evaluateAchievements(lifetime, longGameSnapshot).map((item) => item.id),
+    ).toContain("LONG_GAME");
   });
 });

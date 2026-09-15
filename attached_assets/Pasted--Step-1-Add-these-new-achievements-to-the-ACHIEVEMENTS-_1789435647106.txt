@@ -1,0 +1,21 @@
+**Step 1 — Add these new achievements to the `ACHIEVEMENTS` array** (edit TS, not
+Kotlin yet). These are chosen specifically to not overlap the 5 that already exist:
+
+| ID | Category | Title | Condition |
+|---|---|---|---|
+| `IRON_SESSION` | resistance | Iron Session | A single session in the current snapshot with `override_count === 0` — this is a *per-session* achievement, distinct from `RESISTANCE_10_CLEAN_SESSIONS` which is lifetime cumulative. Check `snapshot.sessions.cleanCount > 0` for the current window. |
+| `THREE_WEEKS` | presence | Three Weeks | `lifetime.currentStreakDays >= 21` — this field already exists, no new field needed. |
+| `LONG_GAME` | hidden | The Long Game | 3 or more entries in `snapshot.tasks.estimationErrorMinutes` are `<= -30` (finished 30+ minutes early, 3 times in the current snapshot). No new field needed — this reads `estimationErrorMinutes`, which already exists. |
+| `SELF_AWARE` | pattern_breaking | Self-Aware | Requires knowing when an app was added to the block list. Check `src/data/types.ts` for a `changed_at` or similar timestamp on block-list entries before writing this condition — if no such timestamp exists on the block list data structure, **do not implement this achievement**; flag it in your report instead of inventing a field for it. |
+| `BACK_AGAIN` | presence | Back Again | Requires "days since last session." **New field needed**: add `lastSessionAt: string \| null` to `LifetimeStats` in `database.ts`, and update `dbGetLifetimeStats()` to compute it (most recent `focus_sessions.started_at`). Condition: `lastSessionAt` is more than 5 days before `snapshot.generatedAt`, evaluated at the moment a new session starts. |
+| `RESET` | hidden | Reset | Same new field as `BACK_AGAIN` (`lastSessionAt`). Condition: gap was more than 5 days AND `snapshot.tasks.completed >= 1` in the current window — came back after a gap and completed something. |
+
+**Do not add** `SHARP_ESTIMATE` or `FIVE_SHARP` as separate achievements — they
+would duplicate `HONEST_ESTIMATOR`'s ground (average estimation accuracy). If you
+want a distinct honesty achievement, it needs to test something `HONEST_ESTIMATOR`
+doesn't — e.g., a single estimate within 5 minutes, as a "first sign of it" moment
+distinct from the sustained-accuracy achievement. Use your judgment, but don't ship
+two achievements that fire at effectively the same time for the same reason.
+
+For each hidden achievement: `hidden: true`, and the description should only say what
+happened, not what to do to earn it.
