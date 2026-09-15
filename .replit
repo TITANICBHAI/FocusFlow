@@ -1,4 +1,4 @@
-modules = ["nodejs-20", "web", "bash"]
+modules = ["nodejs-20", "web", "bash", "python-base-3.13", "java-graalvm22.3"]
 
 [deployment]
 router = "application"
@@ -173,3 +173,4 @@ externalPort = 3000
 
 [nix]
 channel = "stable-25_05"
+packages = ["gradle"]

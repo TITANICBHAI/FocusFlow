@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="focusflow_indigo">#6366F1</color>
+    <color name="focusflow_background">#F8F7FC</color>
+    <color name="focusflow_surface">#FFFFFF</color>
+    <color name="focusflow_on_surface">#1B1B21</color>
+</resources>
