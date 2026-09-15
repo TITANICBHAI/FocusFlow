@@ -1,0 +1,75 @@
+This prompt adds the remaining settings fields that support the notification system,
+and builds `NotificationRepository.kt` — the class that generates analytics-driven
+notification content. This does NOT replace the existing notification scheduling in
+`ForegroundTaskService` or `NotificationActionReceiver` — it adds content generation
+only.
+
+**Part A — Add missing AppSettings fields:**
+
+In `AppSettings.kt` (the Kotlin data class from Track A), add these fields with their
+defaults. Cross-check `src/data/defaultSettings.ts` for each default value — confirmed
+absent from the current codebase by direct grep, all eight are real new work:
+
+```kotlin
+val morningDigestEnabled: Boolean = true,
+val achievementNotificationsEnabled: Boolean = true,
+val rescheduleNotificationsEnabled: Boolean = true,
+val blockSuggestionEnabled: Boolean = true,
+val weekAheadEnabled: Boolean = true,
+val temptationSpikeEnabled: Boolean = false,
+val temptationSpikeThreshold: Int = 8,
+val bedTime: String = "22:00",   // pairs with wakeUpTime for quiet hours
+```
+
+Also add these two — they support the "additional ideas" section of
+`STATS_INSIGHTS_PLAN.md` (the productive-window nudge and the focus-intent screen)
+and are confirmed absent as well:
+```kotlin
+val productiveWindowNudgeEnabled: Boolean = false,   // opt-in, per the plan
+val lastSessionResultByTaskId: Map<String, String> = emptyMap(),  // taskId -> last session outcome summary
+```
+
+**Already present — do not re-add, verify instead:** `patternInsightNotificationsEnabled`,
+`shownPatternInsightIds`, and `lastShownDebriefSessionId` all already exist in the TS
+codebase (`types.ts`/`defaultSettings.ts`). Confirm Track A's `AppSettings.kt` carried
+them over correctly rather than adding duplicates.
+
+**Part B — Create `NotificationRepository.kt`:**
+
+```kotlin
+class NotificationRepository(
+    private val analyticsProcessor: AnalyticsProcessor,
+    private val insightEngine: InsightEngine,
+    private val settingsRepository: SettingsRepository,
+) {
+    // Returns the body string for the morning digest notification
+    // Runs AnalyticsProcessor for yesterday, takes top InsightCard body
+    // Falls back to "Ordinary day yesterday. You showed up." if only nothing_to_report fires
+    suspend fun buildMorningDigestBody(): String
+
+    // Returns the body string for the weekly report notification
+    // Calls syncWeeklyStandout, returns its body
+    // Falls back to "Consistent week. Nothing stood out."
+    suspend fun buildWeeklyReportBody(): String
+
+    // Returns the body for the week-ahead preview notification
+    // Reads tomorrow+6 days of scheduled tasks, returns count + first task name/time
+    // Returns null if no tasks scheduled next week
+    suspend fun buildWeekAheadBody(): String?
+}
+```
+
+Implement all three methods. Each one is a `suspend fun` that reads from repositories
+and runs the analytics engine — no Android Context needed, no notification scheduling.
+The actual notification scheduling stays in the existing alarm/service infrastructure.
+
+**Update `NotificationChannels.kt`:** Add the three new channels:
+- `achievements`: `NotificationManager.IMPORTANCE_DEFAULT`, badge=true
+- `insights`: `NotificationManager.IMPORTANCE_LOW`, no sound
+- `resistance`: `NotificationManager.IMPORTANCE_DEFAULT`
+
+**Report:**
+```
+| Part | Files changed | Fields added / methods implemented | Flags |
+|---|---|---|---|
+```

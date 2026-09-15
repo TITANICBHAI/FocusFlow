@@ -85,10 +85,13 @@ class StatsViewModel(
                 )
                 _analyticsSnapshot.value = snapshot
                 _insightCards.value = insightEngine.buildInsights(snapshot)
+                // Keep achievement persistence independent from weekly
+                // standout recording. A transient weekly-ledger failure
+                // should not prevent newly earned achievements from syncing.
+                _achievementState.value = achievementEngine.syncAchievements(snapshot)
                 if (window == ANALYTICS_WEEK) {
                     _weeklyStandout.value = insightEngine.syncWeeklyStandout(snapshot)
                 }
-                _achievementState.value = achievementEngine.syncAchievements(snapshot)
                 _loadState.value = if (hasUsableStats(snapshot)) {
                     StatsLoadState.Ready
                 } else {

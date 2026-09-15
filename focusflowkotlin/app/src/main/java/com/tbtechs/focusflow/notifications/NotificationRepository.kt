@@ -5,13 +5,21 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.app.NotificationManagerCompat
+import com.tbtechs.focusflow.analytics.ANALYTICS_YESTERDAY
+import com.tbtechs.focusflow.analytics.ANALYTICS_WEEK
+import com.tbtechs.focusflow.analytics.AnalyticsProcessor
+import com.tbtechs.focusflow.analytics.InsightEngine
 import com.tbtechs.focusflow.data.repository.AlarmRepository
+import com.tbtechs.focusflow.data.repository.SettingsRepository
+import com.tbtechs.focusflow.data.repository.TaskRepository
 import com.tbtechs.focusflow.domain.Task
 import com.tbtechs.focusflow.domain.TaskStatus
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlin.math.max
@@ -29,6 +37,15 @@ class NotificationRepository(
     private val scheduler: NotificationScheduler,
     private val alarmRepository: AlarmRepository,
     private val clock: Clock = Clock.systemDefaultZone(),
+    /**
+     * Analytics/content dependencies are optional to preserve the existing
+     * scheduling-only construction path. Content methods fail explicitly when
+     * the analytics layer has not been wired.
+     */
+    private val analyticsProcessor: AnalyticsProcessor? = null,
+    private val insightEngine: InsightEngine? = null,
+    private val settingsRepository: SettingsRepository? = null,
+    private val taskRepository: TaskRepository? = null,
 ) {
     private val appContext = context.applicationContext
     private val writeMutex = Mutex()
@@ -255,6 +272,72 @@ class NotificationRepository(
         runCatching { scheduler.cancel(WEEKLY_REPORT_ID) }
     }
 
+    /**
+     * Builds the body for the morning digest from yesterday's highest-priority
+     * insight. A nothing-to-report card is intentionally not surfaced as the
+     * digest body; it gets the short honest fallback instead.
+     */
+    suspend fun buildMorningDigestBody(): String {
+        val processor = requireNotNull(analyticsProcessor) {
+            "AnalyticsProcessor is required to build notification content"
+        }
+        val engine = requireNotNull(insightEngine) {
+            "InsightEngine is required to build notification content"
+        }
+        val snapshot = processor.buildAnalyticsSnapshot(ANALYTICS_YESTERDAY)
+        val insight = engine.buildInsights(snapshot)
+            .firstOrNull { it.category != "nothing_to_report" }
+        return insight?.body ?: MORNING_DIGEST_FALLBACK
+    }
+
+    /**
+     * Builds the weekly report body and records the selected standout through
+     * InsightEngine's weekly deduplication ledger.
+     */
+    suspend fun buildWeeklyReportBody(): String {
+        val processor = requireNotNull(analyticsProcessor) {
+            "AnalyticsProcessor is required to build notification content"
+        }
+        val engine = requireNotNull(insightEngine) {
+            "InsightEngine is required to build notification content"
+        }
+        val snapshot = processor.buildAnalyticsSnapshot(ANALYTICS_WEEK)
+        val standout = engine.syncWeeklyStandout(snapshot)
+        return if (standout.category == "nothing_to_report") {
+            WEEKLY_REPORT_FALLBACK
+        } else {
+            standout.body
+        }
+    }
+
+    /**
+     * Returns the seven local calendar days beginning tomorrow, matching the
+     * "tomorrow + 6 days" definition in the reference plan.
+     */
+    suspend fun buildWeekAheadBody(): String? {
+        val repository = requireNotNull(taskRepository) {
+            "TaskRepository is required to build week-ahead notification content"
+        }
+        val now = Instant.now(clock).atZone(clock.zone)
+        val start = now.toLocalDate()
+            .plusDays(1)
+            .atStartOfDay(clock.zone)
+        val end = start.toLocalDate()
+            .plusDays(6)
+            .atTime(23, 59, 59, 999_999_999)
+            .atZone(clock.zone)
+        val tasks = repository.getTasksInDateRange(
+            startISO = start.toInstant().toString(),
+            endISO = end.toInstant().toString(),
+        ).sortedBy { parseInstant(it.startTime) }
+        val first = tasks.firstOrNull() ?: return null
+        val firstStart = parseInstant(first.startTime).atZone(clock.zone)
+        val firstTime = firstStart.format(
+            DateTimeFormatter.ofPattern("HH:mm 'on' EEEE", Locale.getDefault()),
+        )
+        return "You have ${tasks.size} tasks scheduled. First up: ${first.title} at $firstTime."
+    }
+
     suspend fun fireLateStartWarning(task: Task, minutesLate: Int) {
         if (!requestPermissions()) return
         scheduler.schedule(
@@ -443,10 +526,15 @@ class NotificationRepository(
         const val REMINDER_CHANNEL_ID = NotificationChannels.TASK_REMINDERS
         const val MORNING_DIGEST_CHANNEL_ID = NotificationChannels.MORNING_DIGEST
         const val WEEKLY_REPORT_CHANNEL_ID = NotificationChannels.WEEKLY_REPORT
+        const val ACHIEVEMENTS_CHANNEL_ID = NotificationChannels.ACHIEVEMENTS
+        const val INSIGHTS_CHANNEL_ID = NotificationChannels.INSIGHTS
+        const val RESISTANCE_CHANNEL_ID = NotificationChannels.RESISTANCE
 
         private const val STANDALONE_EXPIRY_ID = "standalone-expiry"
         private const val MORNING_DIGEST_ID = "morning-digest"
         private const val WEEKLY_REPORT_ID = "weekly-report"
+        private const val MORNING_DIGEST_FALLBACK = "Ordinary day yesterday. You showed up."
+        private const val WEEKLY_REPORT_FALLBACK = "Consistent week. Nothing stood out."
         private const val MAX_SCHEDULED_NOTIFICATIONS = 450
         private const val FIVE_MINUTES_MS = 5 * 60_000L
         private const val TEN_MINUTES_MS = 10 * 60_000L

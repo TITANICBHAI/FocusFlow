@@ -7,6 +7,7 @@ import com.tbtechs.focusflow.data.repository.HourlyUsageSummary
 import com.tbtechs.focusflow.data.repository.UsageStatsRepository
 import com.tbtechs.focusflow.data.repository.UsageSummary
 import com.tbtechs.focusflow.data.repository.TaskRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import org.json.JSONArray
@@ -392,6 +393,10 @@ private data class SourceRead<T>(val value: T, val state: AnalyticsSourceState)
 private suspend fun <T> readSource(read: suspend () -> T, fallback: T): SourceRead<T> =
     try {
         SourceRead(read(), SOURCE_LOADED)
+    } catch (cancelled: CancellationException) {
+        // A cancelled stats load must remain cancelled. Treating it as a
+        // failed source lets an obsolete reload continue building a snapshot.
+        throw cancelled
     } catch (_: Exception) {
         SourceRead(fallback, SOURCE_FAILED)
     }

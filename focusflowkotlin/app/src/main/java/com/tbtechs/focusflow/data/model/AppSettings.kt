@@ -77,6 +77,26 @@ data class AppSettings(
 
     // ── System guard ─────────────────────────────────────────────────────────
     val systemGuardEnabled: Boolean = false,
+
+    // ── Notification and insight preferences ─────────────────────────────────
+    /**
+     * Notification toggles used by the analytics-driven notification layer.
+     * These are deliberately explicit so older settings snapshots can continue
+     * to deserialize with the reference defaults.
+     */
+    val morningDigestEnabled: Boolean = true,
+    val achievementNotificationsEnabled: Boolean = true,
+    val patternInsightNotificationsEnabled: Boolean = false,
+    val rescheduleNotificationsEnabled: Boolean = true,
+    val blockSuggestionEnabled: Boolean = true,
+    val weekAheadEnabled: Boolean = true,
+    val temptationSpikeEnabled: Boolean = false,
+    val temptationSpikeThreshold: Int = 8,
+    val bedTime: String = "22:00",
+    val productiveWindowNudgeEnabled: Boolean = false,
+    val lastSessionResultByTaskId: Map<String, String> = emptyMap(),
+    val shownPatternInsightIds: List<String> = emptyList(),
+    val lastShownDebriefSessionId: Int? = null,
 )
 
 /**

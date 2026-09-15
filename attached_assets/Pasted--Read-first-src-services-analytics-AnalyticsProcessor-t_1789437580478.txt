@@ -1,0 +1,90 @@
+**Read first:** `src/services/analytics/AnalyticsProcessor.ts` (541 lines) and
+`src/services/analytics/InsightEngine.ts` (189 lines). These are the largest files
+in this track — read them fully before writing a line of Kotlin.
+
+**AnalyticsProcessor:** computes an `AnalyticsSnapshot` from Room DAOs and
+`UsageStatsRepository`. Key concerns during port:
+
+- `buildAnalyticsSnapshot(window, options)` is the main entry point — in Kotlin this
+  becomes a `suspend fun` in a `CoroutineScope`. It reads from **five** DB queries in
+  parallel, not four: `dbGetTasksInDateRange`, `dbGetSessionsWithOverrideCount`,
+  `dbGetEstimationErrors`, `dbGetTasksByHourOfDay`, `dbGetWeeklyCompletionRates`. All
+  five need Room DAO equivalents from Track A before this port can compile.
+- **Blocking/temptation data comes from `GreyoutModule.getTemptationLog()`** — not a
+  separate temptation-log wrapper. In Kotlin this is `GreyoutRepository.getTemptationLog()`
+  (Replit's Stage 2 port). If that method isn't on `GreyoutRepository` yet, this whole
+  file can't compile — check before starting.
+- The `UsageStats` gate (`window === 'three_months' && usageStatsPermission`) must be
+  preserved exactly — the `phoneUsage` field must remain `null`/absent for any window
+  that isn't `three_months`.
+- `sessions.fastestWindowHour` **is fully implemented, confirmed by direct read** —
+  it groups estimation-error ratios by start hour, averages them, and picks the
+  lowest-ratio hour with the most samples as a tiebreak. Port this exactly as
+  written; there is nothing to complete here, only to translate faithfully. It also
+  returns `fastestWindowSampleSize` and `fastestWindowImprovementPercent` — both
+  real fields, port all three together, not just the hour.
+- `tasks.missed` counts tasks where `status === 'overdue'`, not a literal `'missed'`
+  status string. Check the actual `Task.status` union in `types.ts` before assuming
+  the string value — don't guess based on the field name `missed`.
+- `tasks.resultRows` is a `{ title: string; status: Task['status'] }[]` array — this
+  is what `TaskResultList` (Stage 4, GPT Terra) renders directly. Make sure it's
+  populated in the Kotlin port, it's easy to overlook since it's a convenience field
+  alongside the bucketed data.
+- All arithmetic (completion rates, averages, percentages) must match the TS original
+  to 2 decimal places — don't simplify fractions or change rounding.
+- `AnalyticsSourceHealth` has exactly these fields — port all of them, not a subset:
+  `tasks, sessions, estimationErrors, tasksByHour, weeklyRates, temptations,
+  usageSummary?, usageHourly?`. Each is `'loaded' | 'unavailable' | 'failed'`.
+
+**InsightEngine:** `buildInsights`, `selectWeeklyStandout`, `syncWeeklyStandout`.
+- `syncWeeklyStandout` writes to the `weekly_insights` table (`week_start TEXT
+  PRIMARY KEY, insight_id TEXT NOT NULL, selected_at TEXT NOT NULL`) — in Kotlin
+  it's a `suspend fun` calling the Room DAO directly. Confirm this table exists from
+  Track A before this port; don't assume a different name.
+- The deduplication logic (`previousInsightIds` filter) must be preserved.
+- `buildInsights` limit: `5` for `three_months`, `4` for other windows — this is a
+  default parameter value in TS (`limit = snapshot.window === 'three_months' ? 5 : 4`),
+  make sure the Kotlin default matches, not just the call sites you happen to find.
+
+Kotlin target paths:
+- `analytics/AnalyticsProcessor.kt`
+- `analytics/InsightEngine.kt`
+
+**Also build `ui/stats/StatsViewModel.kt` in this same prompt — this is confirmed,
+not optional.** GPT Terra's Stage 4 Prompt 3 already assumes this ViewModel exists
+and codes the stats screen against it; nothing else in the pipeline produces it. It
+belongs here rather than in Track C specifically so Track D can keep running
+independently of Track C, without a new cross-track dependency.
+
+```kotlin
+class StatsViewModel(
+    private val analyticsProcessor: AnalyticsProcessor,
+    private val insightEngine: InsightEngine,
+    private val achievementEngine: AchievementEngine,   // from Prompt 1
+) : ViewModel() {
+    val analyticsSnapshot: StateFlow<AnalyticsSnapshot?>
+    val insightCards: StateFlow<List<InsightCard>>
+    val weeklyStandout: StateFlow<InsightCard?>
+    val achievementState: StateFlow<AchievementState?>
+    val loadState: StateFlow<StatsLoadState>   // Loading | Ready | PermissionNeeded | Unavailable | Error
+    val activeWindow: StateFlow<AnalyticsWindow>
+
+    fun setWindow(window: AnalyticsWindow)   // triggers a fresh buildAnalyticsSnapshot + buildInsights + syncAchievements
+    fun reload()                              // re-runs the same pipeline for the current window
+}
+```
+`loadState` must distinguish "waiting on UsageStats permission" from "genuine error"
+from "not enough data yet" — these map to `PermissionGate`, `UnavailableGate`, and
+`EmptyStatsState` respectively on the Stage 4 side, and GPT Terra's prompt expects
+all three to be distinguishable, not collapsed into one generic error state.
+
+**Report:**
+```
+| Issue | File | How resolved |
+|---|---|---|
+```
+(One row per anything that differed from a direct port — missing TS features in Kotlin
+stdlib, type mismatches, null safety changes, etc. Include `StatsViewModel.kt` in
+this same report, not a separate one.)
+
+---
