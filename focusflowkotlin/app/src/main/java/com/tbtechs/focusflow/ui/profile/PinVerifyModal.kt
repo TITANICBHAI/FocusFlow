@@ -1,6 +1,5 @@
 package com.tbtechs.focusflow.ui.profile
 
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.material.icons.Icons

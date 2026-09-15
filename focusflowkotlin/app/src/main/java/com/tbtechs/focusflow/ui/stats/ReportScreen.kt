@@ -130,7 +130,7 @@ private fun TaskTimelineRow(task: Task) = Row(modifier = androidx.compose.ui.Mod
     Text(if (task.status == "completed") "✓" else if (task.status == "skipped") "—" else "○")
     Column(modifier = androidx.compose.ui.Modifier.weight(1f)) {
         Text(task.title)
-        Text("${task.startTime.reportTime()} · ${task.durationMinutes}m", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("${task.reportTime()} · ${task.durationMinutes}m", color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
     Text(task.status.replaceFirstChar(Char::titlecase))
 }

@@ -26,6 +26,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -57,7 +58,7 @@ fun PermissionsScreen(
     val context = LocalContext.current
     val owner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
-    val settings by settingsViewModel.settings.collectAsStateCompat()
+    val settings by settingsViewModel.settings.collectAsState()
     var statuses by remember { mutableStateOf<Map<PermissionId, PermissionStatus>>(emptyMap()) }
     var expanded by remember { mutableStateOf<PermissionId?>(null) }
     var checking by remember { mutableStateOf(true) }

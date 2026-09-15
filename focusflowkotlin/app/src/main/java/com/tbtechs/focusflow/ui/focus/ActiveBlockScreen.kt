@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowBack
@@ -104,16 +103,16 @@ fun ActiveBlockScreen(
                         }) { Text("Clear saved apps") }
                     }
                 }
-                ExpandableStatusCard("Always-On Apps", if (alwaysOnActive) "Active" else "Not active", settings.alwaysBlockPackages.isNotEmpty(), expanded == "always") {
+                ExpandableStatusCard("Always-On Apps", if (alwaysOnActive) "Active" else "Not active", settings.alwaysBlockPackages.isNotEmpty(), expanded == "always", onToggle = {
                     expanded = if (expanded == "always") "" else "always"
-                } {
+                }) {
                     Text(if (settings.alwaysBlockPackages.isEmpty()) "No always-on apps" else "${settings.alwaysBlockPackages.size} blocked continuously")
                     if (expanded == "always") PackageNames(settings.alwaysBlockPackages)
                     Button(onClick = onOpenAlwaysOn) { Text("Manage Always-On apps") }
                 }
-                ExpandableStatusCard("Daily Allowance", if (allowancePackages.isEmpty()) "Not configured" else "${allowancePackages.size} apps configured", allowancePackages.isNotEmpty(), expanded == "allowance") {
+                ExpandableStatusCard("Daily Allowance", if (allowancePackages.isEmpty()) "Not configured" else "${allowancePackages.size} apps configured", allowancePackages.isNotEmpty(), expanded == "allowance", onToggle = {
                     expanded = if (expanded == "allowance") "" else "allowance"
-                } {
+                }) {
                     if (allowancePackages.isEmpty()) Text("No per-app daily limits are configured.")
                     else if (expanded == "allowance") {
                         allowancePackages.forEach { packageName ->
@@ -137,16 +136,16 @@ fun ActiveBlockScreen(
                     else Text("${allowancePackages.size} apps tracked · tap to see configured apps.")
                     Button(onClick = onOpenDefense) { Text("Manage daily allowance") }
                 }
-                ExpandableStatusCard("Keyword Blocker", if (settings.blockedWords.isEmpty()) "Not active" else "Active", settings.blockedWords.isNotEmpty(), expanded == "keywords") {
+                ExpandableStatusCard("Keyword Blocker", if (settings.blockedWords.isEmpty()) "Not active" else "Active", settings.blockedWords.isNotEmpty(), expanded == "keywords", onToggle = {
                     expanded = if (expanded == "keywords") "" else "keywords"
-                } {
+                }) {
                     Text(if (settings.blockedWords.isEmpty()) "No keywords configured" else "${settings.blockedWords.size} active immediately")
                     if (expanded == "keywords") Text(settings.blockedWords.joinToString())
                     Button(onClick = onOpenKeywordBlocker) { Text("Manage keywords") }
                 }
-                ExpandableStatusCard("VPN Blocking", if (settings.networkBlockEnabled) "Configured" else "Not configured", settings.networkBlockEnabled, expanded == "vpn") {
+                ExpandableStatusCard("VPN Blocking", if (settings.networkBlockEnabled) "Configured" else "Not configured", settings.networkBlockEnabled, expanded == "vpn", onToggle = {
                     expanded = if (expanded == "vpn") "" else "vpn"
-                } {
+                }) {
                     // NEEDS: VpnRepository status, failed-package list, and policy generation state in a ViewModel.
                     Text(if (settings.networkBlockEnabled) "VPN blocking is configured. Live service status is unavailable here." else "No VPN apps configured.")
                     Button(onClick = onOpenVpnBlockList) { Text("Manage VPN blocking") }
@@ -161,7 +160,8 @@ fun ActiveBlockScreen(
                     },
                     settings.recurringBlockSchedules.isNotEmpty(),
                     expanded == "schedules",
-                ) { expanded = if (expanded == "schedules") "" else "schedules" } {
+                    onToggle = { expanded = if (expanded == "schedules") "" else "schedules" },
+                ) {
                     if (settings.recurringBlockSchedules.isEmpty()) Text("No recurring scheduled blocks are configured.")
                     else if (expanded == "schedules") settings.recurringBlockSchedules.forEach { schedule ->
                         Text("${schedule.packages.size} apps · ${schedule.startHour}:00–${schedule.endHour}:00 · ${schedule.daysOfWeek.joinToString()}")

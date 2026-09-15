@@ -21,6 +21,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -32,6 +33,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -68,7 +70,7 @@ fun OnboardingScreen(
     val context = LocalContext.current
     val owner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
-    val settings by settingsViewModel.settings.collectAsStateCompat()
+    val settings by settingsViewModel.settings.collectAsState()
     var step by remember { mutableStateOf(OnboardingStep.CORE) }
     var statuses by remember { mutableStateOf<Map<PermissionId, PermissionStatus>>(emptyMap()) }
     var expanded by remember { mutableStateOf<PermissionId?>(null) }
@@ -322,7 +324,3 @@ fun OnboardingScreen(
         )
     }
 }
-
-@Composable
-private fun <T> androidx.lifecycle.compose.collectAsStateCompat(flow: kotlinx.coroutines.flow.StateFlow<T>): androidx.compose.runtime.State<T> =
-    androidx.compose.runtime.collectAsState(flow)

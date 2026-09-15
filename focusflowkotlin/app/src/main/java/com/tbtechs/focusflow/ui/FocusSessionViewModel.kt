@@ -235,9 +235,9 @@ class FocusSessionViewModel(
             settingsRepository.setFocusActive(active = true)
             settingsRepository.setActiveTask(
                 taskId       = task.id,
-                taskName     = task.title,
+                name         = task.title,
                 endMs        = endMs,
-                nextTaskName = null,
+                nextName     = null,
             )
             settingsRepository.setActiveTaskColor(task.color ?: "")
             settingsRepository.setActiveTaskStartMs(task.id, startMs)

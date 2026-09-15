@@ -21,6 +21,7 @@ import java.time.LocalTime
 import java.time.ZoneId
 
 private val editDurationOptions = listOf(25, 45, 60, 90, 120)
+private val editPriorityOptions = listOf("low", "medium", "high", "critical")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,7 +61,7 @@ fun EditTaskModal(task: Task, onDismiss: () -> Unit, onSave: (Task) -> Unit, onD
             )
             if (customDuration) HomeTextField(customDurationValue, { customDurationValue = it }, "Custom minutes")
             Text("Priority", style = MaterialTheme.typography.titleSmall)
-            ChoiceRow(priorityOptions, priority, onSelect = { priority = it })
+            ChoiceRow(editPriorityOptions, priority, onSelect = { priority = it })
             Text("Tags", style = MaterialTheme.typography.titleSmall)
             if (tags.isNotEmpty()) Row { tags.forEach { tag -> FilterChip(selected = false, onClick = { tags = tags - tag }, label = { Text("#$tag ×") }) } }
             HomeTextField(newTag, { newTag = it }, "Add a tag")

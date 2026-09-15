@@ -204,6 +204,7 @@ fun AccessibilityRestrictedRecovery(
                         }
                         Text("The recovery stays open until Accessibility is actually enabled.")
                     }
+                    else -> Unit
                 }
             }
         },

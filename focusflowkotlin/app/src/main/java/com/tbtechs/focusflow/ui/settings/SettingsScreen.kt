@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -18,6 +17,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -520,23 +520,3 @@ private fun SettingsAction(
 }
 
 private data class SettingsNotice(val title: String, val body: String)
-
-private fun dailyAllowanceEntriesFromJson(json: String?): List<DailyAllowanceEntry> =
-    runCatching {
-        val array = JSONArray(json ?: "[]")
-        (0 until array.length()).mapNotNull { index ->
-            val value = array.optJSONObject(index) ?: return@mapNotNull null
-            val packageName = value.optString("package").ifBlank {
-                value.optString("packageName")
-            }.takeIf(String::isNotBlank) ?: return@mapNotNull null
-            DailyAllowanceEntry(
-                packageName = packageName,
-                dailyAllowanceMs = value.optLong("dailyAllowanceMs", 30L * 60_000L),
-                mode = value.optString("mode", "time_budget"),
-                countPerDay = value.optInt("countPerDay", 1),
-                budgetMinutes = value.optInt("budgetMinutes", 30),
-                intervalMinutes = value.optInt("intervalMinutes", 5),
-                intervalHours = value.optInt("intervalHours", 1),
-            )
-        }
-    }.getOrDefault(emptyList())
