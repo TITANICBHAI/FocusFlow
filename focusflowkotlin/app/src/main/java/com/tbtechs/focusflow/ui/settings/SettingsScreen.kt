@@ -36,6 +36,7 @@ import com.tbtechs.focusflow.ui.AppBootViewModel
 import com.tbtechs.focusflow.ui.FocusSessionViewModel
 import com.tbtechs.focusflow.ui.SettingsViewModel
 import com.tbtechs.focusflow.ui.TaskViewModel
+import com.tbtechs.focusflow.ui.support.ReportIssueModal
 
 /** The "settings" destination from ARCHITECTURE.md §3.1. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -67,6 +68,7 @@ fun SettingsScreen(
     var dailyAllowanceVisible by remember { mutableStateOf(false) }
     var clearAllConfirmationVisible by remember { mutableStateOf(false) }
     var importChoiceVisible by remember { mutableStateOf(false) }
+    var reportIssueVisible by remember { mutableStateOf(false) }
     var notice by remember { mutableStateOf<SettingsNotice?>(null) }
 
     val requestNotifications = rememberLauncherForActivityResult(
@@ -310,10 +312,7 @@ fun SettingsScreen(
                         description = "Review and email a bug report, feedback, or app review",
                         onClick = {
                             if (onReportIssue == null) {
-                                unavailable(
-                                    "Issue reporting unavailable",
-                                    "NEEDS: Kotlin diagnostics and report-composer flow supplied by the navigation host.",
-                                )
+                                reportIssueVisible = true
                             } else {
                                 onReportIssue()
                             }
@@ -377,6 +376,10 @@ fun SettingsScreen(
         onSave = settingsViewModel::setDailyAllowanceEntries,
         onVerifyDefensePin = settingsViewModel::verifyPin,
         onClose = { dailyAllowanceVisible = false },
+    )
+    ReportIssueModal(
+        visible = reportIssueVisible,
+        onClose = { reportIssueVisible = false },
     )
 
     if (importChoiceVisible) {

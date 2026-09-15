@@ -15,7 +15,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Refresh
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Icon
@@ -42,6 +41,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tbtechs.focusflow.ui.SettingsViewModel
+import com.tbtechs.focusflow.ui.support.TroubleshootModal
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -194,13 +194,10 @@ fun PermissionsScreen(
     }
 
     troubleshooting?.let { id ->
-        val permission = permissionDefinitions.first { it.id == id }
-        AlertDialog(
-            onDismissRequest = { troubleshooting = null },
-            title = { Text("Troubleshoot ${permission.title}") },
-            text = { Text("If Android did not apply the change, open the system page again, confirm the toggle, then return to FocusFlow and tap Refresh. OEM battery managers may require an additional exception.") },
-            confirmButton = { Button(onClick = { troubleshooting = null; grant(id) }) { Text("Open settings") } },
-            dismissButton = { TextButton(onClick = { troubleshooting = null }) { Text("Close") } },
+        TroubleshootModal(
+            visible = true,
+            permissionId = id,
+            onClose = { troubleshooting = null },
         )
     }
 }
