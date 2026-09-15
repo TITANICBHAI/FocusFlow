@@ -12,16 +12,18 @@ import com.tbtechs.focusflow.data.local.dao.AchievementDao
 import com.tbtechs.focusflow.data.local.dao.FocusOverrideDao
 import com.tbtechs.focusflow.data.local.dao.FocusSessionDao
 import com.tbtechs.focusflow.data.local.dao.TaskDao
+import com.tbtechs.focusflow.data.local.dao.WeeklyInsightDao
 import com.tbtechs.focusflow.data.local.entity.DailyCompletionEntity
 import com.tbtechs.focusflow.data.local.entity.AchievementEntity
 import com.tbtechs.focusflow.data.local.entity.FocusOverrideEntity
 import com.tbtechs.focusflow.data.local.entity.FocusSessionEntity
 import com.tbtechs.focusflow.data.local.entity.TaskEntity
+import com.tbtechs.focusflow.data.local.entity.WeeklyInsightEntity
 
 /**
  * Room database for FocusFlow.
  *
- * ## Covered tables (5 Room entities)
+ * ## Covered tables (6 Room entities)
  * | Entity | Table |
  * |---|---|
  * | [TaskEntity] | `tasks` |
@@ -32,7 +34,7 @@ import com.tbtechs.focusflow.data.local.entity.TaskEntity
  *
  * ## Out-of-scope tables (no Room entities — not managed here)
  * - `settings` — single JSON-blob row; handled by [SettingsRepository] via SharedPreferences.
- * - `report_notes`, `weekly_insights` — pending Track D (Stats).
+ * - `report_notes` — still handled outside Room.
  *
  * ## Database file
  * The hybrid React-Native app stored data in `focusday.db` (not `focusflow.db`).
@@ -46,6 +48,7 @@ import com.tbtechs.focusflow.data.local.entity.TaskEntity
  * | 1 | Original schema: `tasks` (without `focus_allowed_packages`), `focus_sessions`, `focus_overrides`, `daily_completions`, plus `settings`/`report_notes`/`achievements`/`weekly_insights` (not Room-managed). |
  * | 2 | `ALTER TABLE tasks ADD COLUMN focus_allowed_packages TEXT` — the column added by the hybrid app's inline try/catch migration in `initSchema`. |
  * | 3 | `CREATE TABLE IF NOT EXISTS achievements (id TEXT PRIMARY KEY, earned_at TEXT NOT NULL)`. |
+ * | 4 | `weekly_insights` becomes Room-managed. |
  *
  * ### Hybrid-app database bootstrap — IMPORTANT
  * The hybrid app used expo-sqlite and **never set SQLite `user_version`**, so
@@ -59,7 +62,7 @@ import com.tbtechs.focusflow.data.local.entity.TaskEntity
  * // In di/AppModule.kt, FocusFlowApp.onCreate(), or wherever the DB singleton is built:
  * FocusFlowDatabase.prepareLegacyDatabase(context)
  * val db = Room.databaseBuilder(context, FocusFlowDatabase::class.java, DB_NAME)
- *     .addMigrations(MIGRATION_0_1, MIGRATION_1_2, MIGRATION_2_3)
+ *     .addMigrations(MIGRATION_0_1, MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
  *     .build()
  * ```
  *
@@ -88,8 +91,9 @@ import com.tbtechs.focusflow.data.local.entity.TaskEntity
         FocusOverrideEntity::class,
         DailyCompletionEntity::class,
         AchievementEntity::class,
+        WeeklyInsightEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = true,
 )
 abstract class FocusFlowDatabase : RoomDatabase() {
@@ -99,6 +103,7 @@ abstract class FocusFlowDatabase : RoomDatabase() {
     abstract fun focusOverrideDao(): FocusOverrideDao
     abstract fun dailyCompletionDao(): DailyCompletionDao
     abstract fun achievementDao(): AchievementDao
+    abstract fun weeklyInsightDao(): WeeklyInsightDao
 
     companion object {
 
@@ -211,6 +216,20 @@ abstract class FocusFlowDatabase : RoomDatabase() {
                         `id` TEXT NOT NULL,
                         `earned_at` TEXT NOT NULL,
                         PRIMARY KEY(`id`)
+                    )
+                """.trimIndent())
+            }
+        }
+
+        /** Adds the existing hybrid-app weekly standout ledger to Room. */
+        val MIGRATION_3_4: Migration = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `weekly_insights` (
+                        `week_start` TEXT NOT NULL,
+                        `insight_id` TEXT NOT NULL,
+                        `selected_at` TEXT NOT NULL,
+                        PRIMARY KEY(`week_start`)
                     )
                 """.trimIndent())
             }

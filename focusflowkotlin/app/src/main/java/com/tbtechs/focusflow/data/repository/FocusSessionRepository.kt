@@ -289,10 +289,13 @@ class FocusSessionRepository(
      *
      * [numWeeks] is clamped to [1, 12] matching the JS `Math.max(1, Math.min(12, …))`.
      */
-    suspend fun getWeeklyCompletionRates(numWeeks: Int): List<com.tbtechs.focusflow.data.local.dao.WeeklyCompletionRateRow> {
+    suspend fun getWeeklyCompletionRates(
+        numWeeks: Int,
+        now: Instant = Instant.now(),
+    ): List<com.tbtechs.focusflow.data.local.dao.WeeklyCompletionRateRow> {
         val weeks = numWeeks.coerceIn(1, 12)
         // Sunday anchor matching dayjs().startOf('week').subtract(weeks-1, 'week')
-        val firstWeek = LocalDate.now(ZoneId.systemDefault())
+        val firstWeek = now.atZone(ZoneId.systemDefault()).toLocalDate()
             .with(java.time.DayOfWeek.SUNDAY)
             .minusWeeks((weeks - 1).toLong())
             .toString()

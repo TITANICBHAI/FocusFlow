@@ -17,13 +17,11 @@ validation has passed.
 
 ## Current status
 
-- Status: `[-]` Analytics foundation is source-implemented, including native
-  hourly UsageStats aggregation and bounded per-source snapshot loading.
-  Notifications section, additional UX ideas, weekly standout persistence, and
-  device validation remain outstanding. The achievement registry and lifetime
-  stats source are now implemented in the TypeScript artifact; the Kotlin Room
-  port is source-complete but still requires a generated Android project for
-  build/device validation.
+- Status: `[-]` Analytics foundation, insight generation, weekly standout
+  persistence, and the Kotlin stats loading pipeline are source-implemented.
+  Notifications, additional UX ideas, and device validation remain
+  outstanding. The Kotlin Room port still requires a generated Android project
+  for build/device validation.
 - Last updated: 2026-09-15
 - Validation boundary: source checks can be performed in this checkout; Android
   UsageStats permission behavior, native service behavior, and device UI require a
@@ -271,3 +269,4 @@ feature.
 | 2026-09-11 | Insight rules and Stats UI completion slice | `[-]` | Completed all yesterday, weekly, and 3-month source rules with centralized plan copy, deterministic tie ordering, exact weekly fallback copy, and focused coverage for thresholds, priority, sentiment, formatting, variants, empty, and partial data. Replaced the old Stats/all-time and detailed Reports routes with the single Stats Insights experience; added binary yesterday task rows, Android hourly UsageStats presentation, stale/unavailable/partial/empty states, and achievement explanations. Focused checks: 21 tests passed and typecheck passed. Full suite still has unrelated pre-existing VPN/native contract failures; Android/device UI and UsageStats validation remain. |
 | 2026-09-11 | Database query edge-case completion slice | `[-]` | Added focused query coverage for exclusive date boundaries, empty aggregates, incomplete sessions, zero-duration/invalid session filtering, and bounded weekly ranges. Query and processor checks: 9 tests passed; TypeScript typecheck remains clean. Native/device verification remains outside this slice. |
 | 2026-09-15 | Kotlin insight-rule port | `[-]` | Added pure Kotlin templates, exact week-seed/placeholder rendering, expanded snapshot contracts, and all 7 yesterday, 11 weekly, and 8 three-month rules under the Kotlin analytics package. The imported Kotlin tree has no Gradle wrapper/build files, so compiler, generated-Android, and device validation remain outstanding. |
+| 2026-09-15 | Kotlin analytics processor and stats pipeline | `[-]` | Added the full local `AnalyticsProcessor`, `InsightEngine`, Room-managed `weekly_insights` ledger with version-4 migration, `AchievementEngine` facade, and `ui/stats/StatsViewModel` with Loading/Ready/PermissionNeeded/Unavailable/Error states. Source review is complete; Kotlin/Gradle compilation and Android/device validation remain blocked because this checkout has no Gradle wrapper or generated Android project. |

@@ -6,6 +6,11 @@ import com.tbtechs.focusflow.data.local.FocusFlowDatabase
 import com.tbtechs.focusflow.data.repository.FocusSessionRepository
 import com.tbtechs.focusflow.data.repository.SettingsRepository
 import com.tbtechs.focusflow.data.repository.TaskRepository
+import com.tbtechs.focusflow.data.repository.GreyoutRepository
+import com.tbtechs.focusflow.data.repository.UsageStatsRepository
+import com.tbtechs.focusflow.analytics.AnalyticsProcessor
+import com.tbtechs.focusflow.analytics.AchievementEngine
+import com.tbtechs.focusflow.analytics.InsightEngine
 
 /**
  * Manual DI singleton — the single source of truth for every repository
@@ -70,6 +75,21 @@ object AppModule {
     lateinit var focusSessionRepository: FocusSessionRepository
         private set
 
+    lateinit var greyoutRepository: GreyoutRepository
+        private set
+
+    lateinit var usageStatsRepository: UsageStatsRepository
+        private set
+
+    lateinit var analyticsProcessor: AnalyticsProcessor
+        private set
+
+    lateinit var insightEngine: InsightEngine
+        private set
+
+    lateinit var achievementEngine: AchievementEngine
+        private set
+
     // ─── Init ─────────────────────────────────────────────────────────────────
 
     /**
@@ -93,6 +113,7 @@ object AppModule {
                 FocusFlowDatabase.MIGRATION_0_1,
                 FocusFlowDatabase.MIGRATION_1_2,
                 FocusFlowDatabase.MIGRATION_2_3,
+                FocusFlowDatabase.MIGRATION_3_4,
             )
             .build()
 
@@ -108,6 +129,20 @@ object AppModule {
             focusOverrideDao = database.focusOverrideDao(),
             dailyCompletionDao = database.dailyCompletionDao(),
             taskDao          = database.taskDao(),
+        )
+
+        greyoutRepository = GreyoutRepository(app)
+        usageStatsRepository = UsageStatsRepository(app)
+        analyticsProcessor = AnalyticsProcessor(
+            taskRepository = taskRepository,
+            focusSessionRepository = focusSessionRepository,
+            greyoutRepository = greyoutRepository,
+            usageStatsRepository = usageStatsRepository,
+        )
+        insightEngine = InsightEngine(database.weeklyInsightDao())
+        achievementEngine = AchievementEngine(
+            focusSessionRepository = focusSessionRepository,
+            achievementDao = database.achievementDao(),
         )
     }
 }

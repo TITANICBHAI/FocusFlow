@@ -1,14 +1,13 @@
 package com.tbtechs.focusflow.analytics
 
 /**
- * The subset of the analytics snapshot required by AchievementEngine.
- *
- * The remaining analytics fields can be added by the AnalyticsProcessor port
- * without changing achievement condition signatures.
+ * Full analytics snapshot consumed by the insight and achievement engines and
+ * by the stats UI.
  */
 data class AnalyticsSnapshot(
     val generatedAt: String,
-    val window: String,
+    val window: AnalyticsWindow,
+    val range: SnapshotRange,
     val tasks: TaskMetrics,
     val sessions: SessionMetrics,
     val blocking: BlockingMetrics,
@@ -92,7 +91,14 @@ data class AnalyticsSnapshot(
     )
 
     data class SourceHealth(
-        val temptations: String = "loaded",
+        val tasks: AnalyticsSourceState = SOURCE_LOADED,
+        val sessions: AnalyticsSourceState = SOURCE_LOADED,
+        val estimationErrors: AnalyticsSourceState = SOURCE_LOADED,
+        val tasksByHour: AnalyticsSourceState = SOURCE_LOADED,
+        val weeklyRates: AnalyticsSourceState = SOURCE_LOADED,
+        val temptations: AnalyticsSourceState = SOURCE_LOADED,
+        val usageSummary: AnalyticsSourceState? = null,
+        val usageHourly: AnalyticsSourceState? = null,
     )
 
     data class PhoneUsage(
@@ -107,3 +113,8 @@ data class AnalyticsSnapshot(
         val minutes: Double,
     )
 }
+
+data class SnapshotRange(
+    val startISO: String,
+    val endISO: String,
+)

@@ -1,6 +1,7 @@
 package com.tbtechs.focusflow.analytics
 
 import com.tbtechs.focusflow.data.local.dao.AchievementDao
+import com.tbtechs.focusflow.data.repository.FocusSessionRepository
 import com.tbtechs.focusflow.data.local.entity.AchievementEntity
 import java.time.Duration
 import java.time.Instant
@@ -175,4 +176,20 @@ private fun gapDays(lastSessionAt: String?, generatedAt: String): Double? {
         Duration.between(Instant.parse(lastSessionAt), Instant.parse(generatedAt))
             .toMillis() / (24.0 * 60.0 * 60.0 * 1000.0)
     }.getOrNull()
+}
+
+/**
+ * Stats-facing facade around the pure achievement evaluator and Room ledger.
+ */
+class AchievementEngine(
+    private val focusSessionRepository: FocusSessionRepository,
+    private val achievementDao: AchievementDao,
+) {
+    suspend fun syncAchievements(snapshot: AnalyticsSnapshot): AchievementState =
+        com.tbtechs.focusflow.analytics.syncAchievements(
+            lifetime = focusSessionRepository.getLifetimeStats(),
+            snapshot = snapshot,
+            achievementDao = achievementDao,
+            earnedAt = snapshot.generatedAt,
+        )
 }
