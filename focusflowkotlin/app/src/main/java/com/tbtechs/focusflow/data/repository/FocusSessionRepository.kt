@@ -14,6 +14,7 @@ import com.tbtechs.focusflow.data.local.entity.FocusSessionEntity
 import com.tbtechs.focusflow.data.model.FocusSession
 import com.tbtechs.focusflow.analytics.LifetimeStats
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.time.Instant
@@ -96,6 +97,10 @@ class FocusSessionRepository(
      */
     suspend fun getActiveFocusSession(): FocusSession? =
         focusSessionDao.getActiveSession()?.toDomain()
+
+    /** Emits the active session whenever Room observes a lifecycle change. */
+    fun observeActiveFocusSession(): Flow<FocusSession?> =
+        focusSessionDao.observeActiveSession().map { it?.toDomain() }
 
     /**
      * Returns the total focus minutes logged today (local calendar day).

@@ -30,7 +30,6 @@ import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
-import com.tbtechs.focusflow.modules.FocusDayBridgeModule
 
 /**
  * TaskAlarmActivity
@@ -393,10 +392,6 @@ class TaskAlarmActivity : Activity() {
         } catch (_: Exception) {}
         finish()
     }
-
-    /** Suppress unused-field warning — referenced via JS/native bridge symmetry. */
-    @Suppress("unused")
-    private val bridgeName = FocusDayBridgeModule.NAME
 
     private fun dp(v: Int): Int =
         (v * resources.displayMetrics.density + 0.5f).toInt()

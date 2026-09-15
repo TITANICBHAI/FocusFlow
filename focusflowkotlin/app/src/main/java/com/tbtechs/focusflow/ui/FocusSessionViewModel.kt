@@ -11,6 +11,7 @@ import com.tbtechs.focusflow.data.repository.TaskRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import org.json.JSONArray
@@ -93,10 +94,31 @@ class FocusSessionViewModel(
     private val _focusViolationApp = MutableStateFlow<String?>(null)
     val focusViolationApp: StateFlow<String?> = _focusViolationApp.asStateFlow()
 
+    private val violationPreferenceListener =
+        SharedPreferences.OnSharedPreferenceChangeListener { sharedPreferences, key ->
+            if (key == AppBlockerAccessibilityService.PREF_CURRENT_VIOLATION_APP) {
+                _focusViolationApp.value = sharedPreferences.getString(key, null)
+            }
+        }
+
     // ─── Init ─────────────────────────────────────────────────────────────────
 
     init {
-        loadActiveSession()
+        prefs.registerOnSharedPreferenceChangeListener(violationPreferenceListener)
+        _focusViolationApp.value = prefs.getString(
+            AppBlockerAccessibilityService.PREF_CURRENT_VIOLATION_APP,
+            null,
+        )
+        viewModelScope.launch {
+            focusSessionRepository.observeActiveFocusSession().collect { session ->
+                _focusSession.value = session
+            }
+        }
+    }
+
+    override fun onCleared() {
+        prefs.unregisterOnSharedPreferenceChangeListener(violationPreferenceListener)
+        super.onCleared()
     }
 
     // ─── Session lifecycle ────────────────────────────────────────────────────

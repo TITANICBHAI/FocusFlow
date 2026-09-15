@@ -4,6 +4,9 @@ import android.content.Context
 import androidx.room.Room
 import com.tbtechs.focusflow.data.local.FocusFlowDatabase
 import com.tbtechs.focusflow.data.repository.FocusSessionRepository
+import com.tbtechs.focusflow.data.repository.ForegroundServiceController
+import com.tbtechs.focusflow.data.repository.AlarmRepository
+import com.tbtechs.focusflow.data.repository.BlockOverlayController
 import com.tbtechs.focusflow.data.repository.SettingsRepository
 import com.tbtechs.focusflow.data.repository.TaskRepository
 import com.tbtechs.focusflow.data.repository.GreyoutRepository
@@ -11,6 +14,7 @@ import com.tbtechs.focusflow.data.repository.UsageStatsRepository
 import com.tbtechs.focusflow.analytics.AnalyticsProcessor
 import com.tbtechs.focusflow.analytics.AchievementEngine
 import com.tbtechs.focusflow.analytics.InsightEngine
+import com.tbtechs.focusflow.domain.PinManager
 
 /**
  * Manual DI singleton — the single source of truth for every repository
@@ -53,6 +57,18 @@ object AppModule {
      * [SettingsViewModel], and the enforcement layer.
      */
     lateinit var settingsRepository: SettingsRepository
+        private set
+
+    lateinit var foregroundServiceController: ForegroundServiceController
+        private set
+
+    lateinit var alarmRepository: AlarmRepository
+        private set
+
+    lateinit var blockOverlayController: BlockOverlayController
+        private set
+
+    lateinit var pinManager: PinManager
         private set
 
     /**
@@ -119,6 +135,10 @@ object AppModule {
 
         // Repositories — order within this block does not matter.
         settingsRepository = SettingsRepository(app)
+        foregroundServiceController = ForegroundServiceController(app)
+        alarmRepository = AlarmRepository(app)
+        blockOverlayController = BlockOverlayController(app)
+        pinManager = PinManager(app)
 
         taskRepository = TaskRepository(
             taskDao = database.taskDao(),

@@ -87,6 +87,14 @@ class SettingsViewModel(
     private val _settings = MutableStateFlow(AppSettings())
     val settings: StateFlow<AppSettings> = _settings.asStateFlow()
 
+    init {
+        viewModelScope.launch {
+            _settings.value = settingsRepository.readAppSettings().copy(
+                pinProtectionEnabled = pinManager.isPinSet(),
+            )
+        }
+    }
+
     // ─── PIN session state ────────────────────────────────────────────────────
 
     /**
@@ -141,9 +149,12 @@ class SettingsViewModel(
                     newSettings.alwaysBlockPackages,
                 )
             }
-            // recurringBlockSchedules: STUBBED (FLAG-2)
-            // dailyAllowanceConfigJson: handled via setDailyAllowanceEntries()
-            // pinProtectionEnabled: managed via setPin()/clearPin() — not updated here
+            if (newSettings.recurringBlockSchedules != current.recurringBlockSchedules) {
+                settingsRepository.setRecurringBlockSchedules(newSettings.recurringBlockSchedules)
+            }
+            if (newSettings != current) {
+                settingsRepository.setNotificationPreferences(newSettings)
+            }
 
             _settings.value = newSettings
         }
@@ -193,10 +204,10 @@ class SettingsViewModel(
      * Backing call: NONE — do not wire this in GPT Terra until the backing is added.
      */
     fun setRecurringBlockSchedules(schedules: List<RecurringBlockSchedule>) {
-        // TODO (Track D or post-Terra): implement once SettingsRepository gains
-        //   setRecurringBlockSchedules(schedules: List<RecurringBlockSchedule>)
-        //   and AppBlockerAccessibilityService reads the corresponding key.
-        _settings.update { it.copy(recurringBlockSchedules = schedules) }
+        viewModelScope.launch {
+            settingsRepository.setRecurringBlockSchedules(schedules)
+            _settings.update { it.copy(recurringBlockSchedules = schedules) }
+        }
     }
 
     /**
@@ -234,10 +245,21 @@ class SettingsViewModel(
      * Backing call: NONE.
      */
     fun setQuickBlockTemporary(config: QuickBlockConfig) {
-        // TODO: implement once SettingsRepository.setQuickBlockTemporary() is defined.
-        // Provisional: could map to setStandaloneBlock(active=true, packages=config.packages,
-        // untilMs=System.currentTimeMillis()+config.durationMs)
-        // but atomic behavior with allowance state is unconfirmed.
+        viewModelScope.launch {
+            val untilMs = System.currentTimeMillis() + config.durationMs.coerceAtLeast(0L)
+            settingsRepository.setStandaloneBlock(
+                active = true,
+                packages = config.packages,
+                untilMs = untilMs,
+            )
+            _settings.update {
+                it.copy(
+                    standaloneBlockActive = true,
+                    standaloneBlockPackages = config.packages,
+                    standaloneBlockUntilMs = untilMs,
+                )
+            }
+        }
     }
 
     /**
@@ -251,9 +273,31 @@ class SettingsViewModel(
      * Backing call: NONE.
      */
     fun setStandaloneBlockAndAllowance(config: StandaloneBlockAndAllowanceConfig) {
-        // TODO: implement once SettingsRepository gains an atomic combined setter.
-        // Two separate calls (setStandaloneBlock + setDailyAllowanceEntries) are
-        // not atomic and risk a window where block state and allowance state diverge.
+        viewModelScope.launch {
+            val allowanceJson = JSONArray().also { arr ->
+                config.allowanceEntries.forEach { entry ->
+                    arr.put(JSONObject().apply {
+                        put("package", entry.packageName)
+                        put("dailyAllowanceMs", entry.dailyAllowanceMs)
+                    })
+                }
+            }.toString()
+            settingsRepository.publishStandaloneAndAllowanceSnapshot(
+                active = config.standaloneBlockActive,
+                packages = config.standaloneBlockPackages,
+                untilMs = config.standaloneBlockUntilMs,
+                allowanceEntries = config.allowanceEntries,
+                pinHash = config.pinHash,
+            )
+            _settings.update {
+                it.copy(
+                    standaloneBlockActive = config.standaloneBlockActive,
+                    standaloneBlockPackages = config.standaloneBlockPackages,
+                    standaloneBlockUntilMs = config.standaloneBlockUntilMs,
+                    dailyAllowanceConfigJson = allowanceJson,
+                )
+            }
+        }
     }
 
     // ─── PIN management ───────────────────────────────────────────────────────
@@ -310,6 +354,7 @@ class SettingsViewModel(
         }
 
         pinManager.setPin(newPin)
+        _settings.update { it.copy(pinProtectionEnabled = true) }
         return true
     }
 }

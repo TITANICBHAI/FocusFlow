@@ -1,387 +1,210 @@
-# FocusFlow Kotlin Migration — Complete Implementation Audit
+# FocusFlow Complete Implementation Audit
 
 **Audit date:** 2026-09-15  
-**Audit scope:** `focusflowkotlin/` compared with the five attached migration specifications, the hybrid reference implementation in `artifacts/focusflow/`, and the existing migration reports.  
-**Audit rule:** Source files and targeted searches are evidence. Existing stage reports are not treated as proof of completion. No Kotlin, TypeScript, Android, Gradle, or configuration implementation files were modified during this audit.
+**Scope:** `artifacts/focusflow/` reference application, `focusflowkotlin/` migration, the five migration specifications in `attached_assets/`, and the existing Stage 5–8 reports.
+**Requested constraint:** audit only. No implementation code was fixed during this audit.
 
-## Executive summary
+## 1. Executive summary
 
-The migration contains a substantial amount of Stage 1, Stage 2, and Stage 3 source code. The important enforcement algorithms, most repository conversions, Room entities/DAOs, PIN hashing and legacy migration, analytics rules, and notification/backup logic are present in the Kotlin tree.
+The Kotlin migration is **substantially populated at the source level but is not complete, wired, build-verified, or ready for release**.
 
-It is not currently a buildable or runnable pure-Kotlin Android application. The highest-impact blockers are:
+The earlier version of this audit was stale: it reported that the Android scaffold was absent. The current tree does contain a Gradle project, manifest, Room layer, repositories, PIN and analytics code, ViewModels, enforcement services, and application startup code. The accurate finding is that the project has a real scaffold and much of Stages 1–3, but the Compose product UI and several cross-layer integration boundaries are still incomplete.
 
-1. **The Android project scaffold is absent.** `focusflowkotlin/` has no Gradle build files, Gradle wrapper, Android manifest, resources, Compose host, main activity, navigation graph, or Kotlin test source set.
-2. **Stage 1 files still reference deleted React Native bridge classes.** `FocusDayBridgeModule` and `BlockOverlayModule` are imported or referenced from enforcement code even though the pure-Kotlin architecture says `FocusDayBridgeModule` is deleted and `BlockOverlayModule` is replaced by `BlockOverlayController`.
-3. **Several files reference a missing `com.tbtechs.focusflow.MainActivity`.** This prevents a self-contained Android build even after the bridge imports are resolved.
-4. **Settings and ViewModel integration is incomplete.** Existing settings are not loaded into `SettingsViewModel.settings`; recurring schedules, quick temporary blocks, and combined standalone-block/allowance updates are explicit no-ops; focus-session state is not reactive to external Room writes; and blocked-app violations have no bridge into `focusViolationApp`.
-5. **Runtime wiring is incomplete.** `NotificationRepository` has no registered concrete scheduler in the inspected application wiring, `ForegroundServiceController` is instantiated inside `FocusSessionViewModel` rather than supplied by `AppModule`, and no Activity/UI layer wires the ViewModels into a functioning app.
-6. **Verification is source-only.** `gradle` and `kotlinc` are unavailable, no wrapper exists, and there is no Android project to compile or install. No Kotlin compilation, Android build, automated Kotlin test run, or device verification can be claimed.
+### Highest-impact findings
 
-**Overall status: BLOCKED.** The migration is best described as a large source-level handoff for Stages 1–3, not a complete implementation.
+1. **The Stage 4 Compose UI is missing.** `MainActivity.kt` renders only a placeholder `Scaffold` with three text labels. There is no `NavHost`, no screen family, no bottom navigation, and no Compose UI directory beyond ViewModels.
+2. **The pure-Kotlin boundary is not complete.** `FocusDayBridgeModule.kt` and `BlockOverlayModule.kt` remain in the target tree, and Stage 1 enforcement code still imports and calls them. This contradicts the architecture’s bridge-removal requirement and leaves React-era event/overlay behavior in the enforcement path.
+3. **Settings are not a complete persisted state model.** `SettingsViewModel` starts from defaults instead of hydrating existing settings, and three required actions are explicit no-ops: recurring schedules, quick temporary block, and atomic standalone-block-plus-allowance.
+4. **Runtime dependency wiring is incomplete.** `AppModule` wires Room, settings, core repositories, and analytics, but not all repositories/controllers/services required by the Stage 2 output. Notification scheduling and background-fetch adapters are still injection boundaries without an installed production implementation.
+5. **Focus-session synchronization remains only partly wired.** Room writes and SharedPreferences writes occur in `FocusSessionViewModel`, but the repository still documents mirror/widget TODOs, active-session state is not a Room `Flow`, and accessibility violations have no propagation path into `focusViolationApp`.
+6. **The manifest does not match the architecture’s explicit foreground-service declaration.** The migration manifest declares only `specialUse`; the architecture requires `dataSync` plus `specialUse` and the `productivity` subtype.
+7. **The project cannot be compiled or tested in this environment.** `./gradlew` lacks executable permission, and invoking it through `bash` reaches Gradle but fails because `java`/`javac` are absent and `JAVA_HOME` is unset. No Android build, unit-test run, or device verification can be claimed.
+8. **There are no Kotlin test sources in the migration project.** The reference has tests and the architecture explicitly identifies behavior that must remain testable, but `focusflowkotlin/app/src/test` and `app/src/androidTest` contain no Kotlin test implementation.
 
-## Status legend
+### Overall conclusion
 
-| Status | Meaning |
-|---|---|
-| **Implemented — source** | The requested logic or file is present and matches the inspected source contract at source level. |
-| **Implemented — wired** | The source logic is present and connected through the inspected Kotlin application wiring. |
-| **Partial** | A meaningful portion is present, but one or more required behaviors or methods are missing. |
-| **Documented-only** | The tree contains a design note, contract, or placeholder, but not an executable implementation. |
-| **Unverifiable** | The source appears present, but compilation, runtime behavior, or device behavior could not be checked. |
-| **Blocked** | A known missing dependency, scaffold, or unresolved reference prevents the requirement from being treated as complete. |
+| Area | Source-level assessment | Runtime/build assessment |
+|---|---|---|
+| Stage 1 enforcement relocation | Largely present and structurally faithful | Unverified; bridge imports remain |
+| Stage 2 repositories/background/notifications/backup | Present in substantial part | Not fully wired; several adapters are explicit boundaries |
+| Stage 3 Room/PIN/ViewModels/analytics | Present in substantial part | Not fully synchronized; no build or tests |
+| Stage 4 Compose UI | Missing except for placeholder host | Product is not navigable or usable |
+| Release readiness | Not ready | Blocked by missing JDK and unresolved integration gaps |
 
-## Requirement matrix
+## 2. Status and evidence conventions
 
-The required columns are preserved exactly: **Requirement**, **Source document**, **Expected behavior**, **Evidence**, **Status**, and **Gap or blocker**.
+- **Complete:** the requested source-level implementation is present and matches the specification in the inspected code. Runtime behavior remains unverified if the build could not run.
+- **Partial:** some source exists, but wiring, parity, persistence, or a required behavior is incomplete.
+- **Missing:** the required implementation or deliverable is not present.
+- **Documentation-only:** the requirement is described in comments/reports but is not implemented or wired.
+- **Blocked:** verification or completion is prevented by an external/toolchain blocker.
+- **Unverifiable:** source evidence is insufficient to establish runtime behavior without a build/device.
+
+Evidence labels used below:
+
+- **Implemented:** concrete Kotlin/XML/Gradle code exists.
+- **Wired:** a startup, repository, ViewModel, service, or UI call path connects it.
+- **Documentation-only:** TODO/FLAG/comment/report says it should exist but does not establish implementation.
+- **Unverifiable:** requires Gradle, Android framework execution, or a device.
+
+## 3. Completion matrix
+
+### A. Architecture and application structure
 
 | Requirement | Source document | Expected behavior | Evidence | Status | Gap or blocker |
 |---|---|---|---|---|---|
-| Relocate all Stage 1 enforcement files into the Kotlin package tree | `STAGE1_GEMINI_PROMPT_1789438066202.md`; `PIPELINE_README_1789438066201.md` | All required enforcement services, activities, receivers, and widget exist under the Kotlin package layout. | The expected Stage 1 files are present under `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/enforcement/`, `enforcement/receivers/`, and `widget/`. | **Implemented — source** | Presence does not establish a buildable Android module. |
-| Preserve Stage 1 enforcement bodies | Stage 1 prompt | Relocated files retain the reference enforcement behavior after package/import relocation. | Structural source comparisons were completed for the listed enforcement files. Counts and bodies match the reference for the compared files; `AppBlockerAccessibilityService.kt` has two additional comments only. | **Implemented — source** | Kotlin compilation and device enforcement were not possible. |
-| Remove React Native dependencies from Stage 1 | Stage 1 prompt; `ARCHITECTURE_1789438066200.md` | Pure Kotlin code must not import deleted bridge modules. | `TaskAlarmActivity.kt` imports `FocusDayBridgeModule`; `NotificationActionReceiver.kt` imports and uses it; `AppBlockerAccessibilityService.kt` imports and uses both `FocusDayBridgeModule` and `BlockOverlayModule`. | **Blocked** | `FocusDayBridgeModule` is specified as deleted; `BlockOverlayModule` is supposed to be replaced by `BlockOverlayController`. |
-| Provide a native main activity target | Architecture document; Stage 1 enforcement references | Activities, receivers, widget, and notifications can launch the pure-Kotlin app entry point. | Multiple Kotlin files import or refer to `com.tbtechs.focusflow.MainActivity`; no `MainActivity.kt` exists. | **Blocked** | The missing activity also prevents manifest registration and navigation wiring. |
-| Convert SharedPrefs bridge behavior | Stage 2 prompt 1 | Preserve key names, PIN gates, synchronous snapshot commits, widget updates, VPN sync, and both PIN-gated and PIN-free snapshot methods. | `SettingsRepository.kt` contains the native key constants, `publishFocusSnapshot(...)`, `publishFocusSnapshotInternal(...)`, synchronous `commit()` paths, widget update calls, and VPN sync calls. | **Implemented — source** | Most getters needed by the UI are absent; runtime behavior is unverified. |
-| Keep enforcement preference keys aligned | Stage 2 prompt 1 | Repository keys must match keys read by enforcement services. | Targeted searches cross-checked repository constants against `AppBlockerAccessibilityService`, `ForegroundTaskService`, `NetworkBlockerVpnService`, and `VpnPolicyCoordinator`. | **Partial** | The remaining deleted-module references indicate that not all bridge-level communication was converted to the new StateFlow/native contract. |
-| Convert foreground service controls | Stage 2 prompt 2 | Controller sends the actual `ACTION_*` intents to `ForegroundTaskService`, including PIN-free `stopServiceInternal()`. | `ForegroundServiceController.kt` contains start, stop, internal stop, notification, break, and battery-optimization methods. | **Implemented — source** | The controller is not registered in `AppModule`; `FocusSessionViewModel` constructs it directly. |
-| Convert launcher controls | Stage 2 prompt 2 | `LauncherController` controls the relocated `LauncherActivity`. | `LauncherController.kt` is present and targets the enforcement launcher activity. | **Implemented — source** | No manifest or application UI exists to prove the activity is registered and reachable. |
-| Convert block overlay behavior | Stage 2 prompt 3 | Preserve the `Settings.canDrawOverlays()` guard and launch native overlay behavior. | `BlockOverlayController.kt` exists; `AppBlockerAccessibilityService.kt` still directly references the deleted `BlockOverlayModule` for default quotes. | **Partial** | Controller replacement is present but the enforcement service still has an unresolved old-module dependency. |
-| Convert aversive actions | Stage 2 prompt 3 | Controller calls `AversiveActionsManager`. | `AversionsController.kt` and `AversiveActionsManager.kt` are present. | **Implemented — source** | Not compile- or device-verified. |
-| Convert nuclear mode | Stage 2 prompt 3 | Repository calls the relocated device-admin receiver without blocking calls. | `NuclearModeRepository.kt` is present and uses coroutine-based delay rather than `Handler`. | **Implemented — source** | Android device-admin manifest wiring is absent. |
-| Convert installed-app enumeration | Stage 2 prompt 4 | Return native `Drawable`/`Bitmap` values rather than bridge-only base64 icons. | `InstalledAppsRepository.kt` is present as the native package-manager repository. | **Implemented — source** | No UI consumer or Android build is present. |
-| Convert greyout and temptation logging | Stage 2 prompt 4 | Preserve greyout schedule writes plus `getTemptationLog()`, `clearTemptationLog()`, and `getWeeklySummary()`. | `GreyoutRepository.kt` contains the schedule and temptation-log methods; `AnalyticsProcessor.kt` reads the temptation log through it. | **Implemented — source** | SharedPreferences/runtime synchronization is unverified. |
-| Replace native image/file pickers with Compose contracts | Stage 2 prompt 4 | Use `rememberLauncherForActivityResult` for image and document selection. | The picker replacements are documented patterns; no Compose picker implementation exists in the Kotlin tree. | **Documented-only** | UI implementation and Activity Result wiring are missing. |
-| Port scheduler algorithm | Stage 2 prompt 5 | Direct, unit-testable Kotlin port of conflict detection/rebalancing. | `domain/SchedulerEngine.kt` is present. | **Implemented — source** | No Kotlin test source set or test execution is available. |
-| Port background fetch | Stage 2 prompt 5 | Keep only `BACKGROUND_FETCH` as a WorkManager periodic worker; retain native alarm/receiver ownership for other jobs. | `background/BackgroundFetchWorker.kt` is present. | **Implemented — source** | WorkManager dependency/configuration and manifest registration are absent. |
-| Convert notification channels | Stage 2 prompt 6; Stage 3 Track D prompt 4 | Create task-reminders HIGH, morning-digest DEFAULT, weekly-report DEFAULT, plus achievements, insights, and resistance channels with specified badge/sound behavior. | `NotificationChannels.kt` defines all six channels. The three additional channels use DEFAULT/badge, LOW/no sound, and DEFAULT respectively. | **Implemented — source** | Channel creation is called by `FocusFlowApp`, but the Android application scaffold is absent. |
-| Convert notification scheduling/content | Stage 2 prompt 6; Stage 3 Track D prompt 4 | Preserve reminder scheduling and provide morning, weekly, and week-ahead content generation. | `NotificationRepository.kt` implements reminder scheduling, morning digest body, weekly report body, and week-ahead body. | **Partial** | The class includes injected scheduling infrastructure, but no concrete scheduler registration or end-to-end receiver/UI wiring was found. |
-| Preserve backup JSON shape | Stage 2 prompt 6 | Export/import remains compatible with existing `FocusFlowBackupV1` files. | `BackupManager.kt` retains the `FocusFlowBackupV1` envelope, settings/tasks/preset sections, portable-setting filtering, merge/replace behavior, and legacy task handling. | **Implemented — source** | Exact runtime compatibility with old files could not be exercised without a build/test harness. |
-| Use Storage Access Framework for backup | Stage 2 prompt 6 | Use `ACTION_CREATE_DOCUMENT` and `ACTION_OPEN_DOCUMENT`, with provider-backed URI streams. | `BackupManager.kt` creates both intents and uses `ContentResolver` input/output streams. | **Implemented — source** | Activity Result launcher and manifest/UI integration are missing. |
-| Define the four core Room entities faithfully | Stage 3 Track A | Map `tasks`, `focus_sessions`, `focus_overrides`, and `daily_completions` column-for-column to the existing schema. | `TaskEntity.kt`, `FocusSessionEntity.kt`, `FocusOverrideEntity.kt`, and `DailyCompletionEntity.kt` preserve table/column names, nullability, JSON fields, indexes, and primary-key behavior. | **Implemented — source** | Room schema validation and migration execution were not run. |
-| Wire Room database and migrations | Stage 3 Track A | Open the existing `focusday.db`, handle the legacy `user_version = 0` behavior, and register migrations. | `FocusFlowDatabase.kt` uses `focusday.db`, defines versions 0→1→2→3→4, and provides `prepareLegacyDatabase`; `AppModule.kt` registers the migrations. | **Implemented — source** | Fresh/legacy database behavior is unverified. `FocusFlowApp` cannot actually run without the missing manifest/build scaffold. |
-| Provide matching Room DAOs | Stage 3 Track A | Expose reactive fetch-all flows and the specific task/session/override/completion queries used by the reference database layer. | `TaskDao.kt`, `FocusSessionDao.kt`, `FocusOverrideDao.kt`, and `DailyCompletionDao.kt` contain the required queries; analytics projections include task hours, session overrides, estimation errors, weekly rates, and lifetime aggregates. | **Partial** | Active-session DAO access is one-shot rather than a reactive `Flow`, which directly limits `FocusSessionViewModel`. |
-| Wrap Room with task/session repositories | Stage 3 Track A | ViewModels call real repository methods for CRUD, active sessions, overrides, completions, and analytics. | `TaskRepository.kt` and `FocusSessionRepository.kt` provide the main CRUD/lifecycle/analytics methods and preserve nullable `focusAllowedPackages` semantics. | **Partial** | Some reference database utilities remain outside these repositories; focus-session enforcement mirror/widget writes remain TODOs in the repository and are performed only partially by the ViewModel. |
-| Preserve task Flow behavior | Stage 3 Track C | `TaskViewModel.tasks` is a `StateFlow` backed by the Room task Flow; all requested mutations call real repository methods. | `TaskViewModel.kt` uses `observeAllTasks().stateIn(...)`; add/update/delete/complete/skip/extend call `TaskRepository`. | **Implemented — source** | No Compose consumer, DI factory, or tests exist. |
-| Implement settings StateFlow and settings mutations | Stage 3 Track C | Load persisted settings before task refresh; implement all declared mutation methods against real repository calls. | `SettingsViewModel.kt` starts from `AppSettings()` and explicitly documents that persisted settings are not loaded. `setRecurringBlockSchedules`, `setQuickBlockTemporary`, and `setStandaloneBlockAndAllowance` are no-ops. | **Partial / blocked** | Existing settings can be silently represented by defaults, and three public contract methods do not mutate enforcement state. |
-| Port notification-related `AppSettings` fields | Stage 3 Track D prompt 4 | Add the eight notification/quiet-hour fields plus productive-window and last-session-result fields, while retaining existing pattern fields. | `AppSettings.kt` contains all ten requested additions plus `patternInsightNotificationsEnabled`, `shownPatternInsightIds`, and `lastShownDebriefSessionId`. | **Implemented — source** | The Kotlin model remains much narrower than the complete reference `AppSettings` shape; full settings parity is not established. |
-| Implement PIN hashing and Keystore wrapping | Stage 3 Track B | Use PBKDF2-HMAC-SHA256, wrap the derived key with Android Keystore AES-GCM, and avoid logging sensitive values. | `PinManager.kt` implements PBKDF2, AES-GCM Keystore wrapping, constant-time comparison, and no PIN/hash/salt logging. | **Implemented — source** | Android Keystore behavior and cryptographic compatibility were not run on a device. |
-| Migrate legacy SHA-256 PINs | Stage 3 Track B | Verify legacy SHA-256 on successful unlock and immediately upgrade to PBKDF2/Keystore without forcing reset. | `PinManager.verifyPin()` checks `defense_pin_hash`, compares the UTF-8 SHA-256 hex digest, and calls `setPin()` on success. | **Implemented — source** | Runtime migration and old-user data compatibility remain unverified. |
-| Preserve PIN reuse behavior | Stage 3 Track B | Port the last-five-hash reuse window and comparison behavior. | `PinReuseTracker.kt` is present; `SettingsViewModel.rotatePin()` calls it. | **Partial** | `rotatePin()` uses the `FOCUS` reuse key for the defense PIN; the source comments identify this as provisional. |
-| Preserve PIN session behavior | Stage 3 Track B | Match the actual source behavior for timeout and process death. | `SessionPinModule.kt` has no unlock timer. `PinSessionState.kt` correctly keeps state in memory, but introduces a five-minute `SESSION_UNLOCK_DURATION_MS` placeholder. | **Documented-only / partial** | The timeout is invented by the migration and must be confirmed before shipping. |
-| Implement focus-session ViewModel | Stage 3 Track C | Expose active session StateFlow, start/stop focus mode, mirror enforcement state, and call the foreground service. | `FocusSessionViewModel.kt` starts/stops Room sessions, updates SharedPreferences, starts/stops the service, and exposes the requested flows. | **Partial** | Active session is manually loaded, not reactive; `focusViolationApp` has only a manual callback; controller is not injected through `AppModule`. |
-| Preserve PIN-free authorized system paths | Stage 2 prompt 1/2; bug-fix expectations | Task completion/skip/orphan cleanup paths can publish/stop state without incorrectly triggering a user PIN gate. | `SettingsRepository.publishFocusSnapshotInternal()` and `ForegroundServiceController.stopServiceInternal()` are present; `FocusSessionViewModel.stopFocusMode()` uses the internal stop path. | **Implemented — source** | The remaining callers and lifecycle paths are not wired into a complete application. |
-| Implement boot sequence and DB readiness state | Stage 3 Track C | Settings check, task refresh, active-session recovery, and distinct loading/ready/unrecoverable state. | `AppBootViewModel.kt` exposes the three requested flows and performs the three steps. `FocusFlowApp.kt` initializes the database before repositories. | **Partial** | Settings are only touched, not loaded; timeout is 3 seconds rather than the 8-second pattern discussed in the architecture risk material; callback/UI wiring is absent. |
-| Port analytics achievement definitions | Stage 3 Track D prompt 1 | Preserve the five existing achievements and add the five applicable achievements, skipping `SELF_AWARE` if no block-list timestamp exists. | `AchievementEngine.kt` contains 10 definitions: five original plus `IRON_SESSION`, `THREE_WEEKS`, `LONG_GAME`, `BACK_AGAIN`, and `RESET`; `SELF_AWARE` is omitted. | **Implemented — source** | The engine is not compile- or runtime-verified. |
-| Port analytics rules | Stage 3 Track D prompt 2 | Match rule counts exactly: yesterday 7, weekly 11, three-month 8. | `YesterdayRules.kt`, `WeeklyRules.kt`, and `ThreeMonthRules.kt` contain 7, 11, and 8 `InsightRule` declarations respectively. | **Implemented — source** | No automated golden-vector tests are present. |
-| Port analytics arithmetic and source-health state | Stage 3 Track D prompt 3 | Preserve usage permission gating, zero-filled trends, rounding, result rows, fastest-window metrics, and per-source loaded/unavailable/failed state. | `AnalyticsProcessor.kt` includes the three-month UsageStats gate, source reads, health fields, result rows, trend zero-fill, usage buckets, fastest-window calculations, and rounding. | **Implemented — source** | The calculations could not be compiled or compared with runtime fixtures. |
-| Wire stats ViewModel | Stage 3 Track D prompt 3 | Expose snapshot, insights, weekly standout, achievements, load state, active window, `setWindow`, and `reload`. | `ui/stats/StatsViewModel.kt` exposes all requested flows and distinguishes permission, unavailable, loading, ready, and error states. | **Implemented — source** | No stats screen or navigation destination exists. |
-| Provide the Compose/UI Stage 4 handoff | Architecture document; Stage 3 prompts refer to GPT Terra Stage 4 | Build the application shell, screens, navigation, pickers, Activity Result launchers, and Android entry points that consume the ViewModels. | No main activity, Compose screen/component implementation, navigation graph, resources, manifest, Gradle project, or tests exist under `focusflowkotlin/`. | **Blocked / documented-only** | The attached pipeline prompts specify the handoff but do not provide a Stage 4 implementation prompt in this workspace. |
+| Pure Kotlin target with no JS/TS/RN runtime | `ARCHITECTURE_1789438066200.md` §§1, 3 | The target app contains no React Native bridge or JS runtime dependency | **Implemented:** most target services are plain Android Kotlin. **Implemented:** Gradle/manifest/Application scaffold exists. **Implemented:** `FocusDayBridgeModule.kt` and `BlockOverlayModule.kt` still exist; Stage 1 services import them. | Partial | The bridge removal is incomplete. `FocusDayBridgeModule` is still used by `NotificationActionReceiver`, `TaskAlarmActivity`, and `AppBlockerAccessibilityService`; `BlockOverlayModule` is still used by `AppBlockerAccessibilityService`. |
+| Native enforcement services are relocated without logic loss | Architecture §3.4; Stage 1 prompt §§1–7 | Copy the 19 service/receiver files and preserve functions, constants, and critical logic | **Implemented:** all 19 reference service files exist in `enforcement/` and `enforcement/receivers/`. Structural comparison matched `fun`, `class`, `override fun`, and `const val` counts for every file. The largest file remains approximately 4,793 lines in the target. | Complete at source level | Build and behavior remain unverified. Some files still depend on the legacy module classes, so the pure-Kotlin boundary is not complete. |
+| Launcher remains a separate `CATEGORY_HOME` Activity | Architecture §3.1, §3.4 | Preserve `LauncherActivity` outside Compose navigation and retain launcher intent contract | **Implemented:** `AndroidManifest.xml` declares `.enforcement.LauncherActivity` with `MAIN`, `HOME`, and `DEFAULT`. Target launcher file is present and structurally matches the reference. | Complete at source level | Device launcher behavior is unverified. |
+| All specified navigation routes and screen families exist | Architecture §3.1; Stage 4 handoff in pipeline README | Compose screens for five tabs and standalone routes, with a root navigation host and global overlays | **Implemented only:** `MainActivity` calls `setContent`. **Implemented only:** `FocusFlowScaffold` shows “Native Android host ready” and the route text. **Missing:** `NavHost`, route declarations, screen Composables, bottom navigation, global overlays, and screen-family files. The UI directory contains only five ViewModels. | Missing | This is the largest product-completeness gap. Stage 4 has not been implemented. |
+| App startup initializes the migration in the required order | Architecture §3.3; Stage 3 Room prompt | Legacy database preparation, Room initialization, repository wiring, and notification channels occur before use | **Implemented:** `FocusFlowApp.onCreate()` calls `prepareLegacyDatabase`, `AppModule.init`, and `NotificationChannels.createAll` in that order. | Partial | `AppModule` does not actually wire every repository/controller named by its comments and the migration plan. Startup does not install the background-fetch gateway or notification scheduler. |
+| Five state domains are represented | Architecture §3.2 | Task, settings, focus session, boot, and stats state are represented by ViewModels | **Implemented:** `TaskViewModel`, `SettingsViewModel`, `FocusSessionViewModel`, `AppBootViewModel`, and `StatsViewModel` exist. | Partial | ViewModels are not connected to Compose screens. Focus-session and settings state have the explicit synchronization gaps recorded below. |
+| Reference manifest components and permissions are ported | Architecture §3.11; `artifacts/focusflow/android-native/manifest_additions.xml` | Accessibility, Usage Access, overlay, Device Admin, VPN, alarms, notifications, launcher, widget, receivers, and services are declared | **Implemented:** current manifest includes the major permissions and components, `allowBackup="false"`, accessibility metadata, VPN service, Device Admin receiver, alarms, widget, launcher, and receivers. | Partial | The foreground service is declared with `android:foregroundServiceType="specialUse"` only. The architecture explicitly requires `dataSync` plus `specialUse` and the `productivity` special-use property. |
+| Automatic backup remains disabled | Architecture §3.11; Android backup memory note | User data moves only through explicit FocusFlow export/import | **Implemented:** `android:allowBackup="false"` in the target manifest. | Complete at source level | Explicit export/import behavior still lacks complete UI wiring. |
+| Foreground-service subtype is declared exactly | Architecture §3.11, §6 Risk 5 | API 34+ service startup must see the required service type and `productivity` subtype | **Implemented:** `PROPERTY_SPECIAL_USE_FGS_SUBTYPE="productivity"` is present. **Mismatch:** `foregroundServiceType` is `specialUse`, not `dataSync|specialUse`. | Partial / release blocker | This must be reconciled before claiming API 34+ foreground-service compatibility. |
 
-## Major deviations and source-level findings
+### B. Stage 1 — enforcement relocation and named risks
 
-### 1. Pure-Kotlin boundary is not complete
+| Requirement | Source document | Expected behavior | Evidence | Status | Gap or blocker |
+|---|---|---|---|---|---|
+| All 20 Stage 1 relocation targets are present | `STAGE1_GEMINI_PROMPT_1789438066202.md` prompts 1–7 | 19 service/receiver files plus `FocusFlowWidget.kt` are copied to the target locations | **Implemented:** all 19 enforcement files and the widget exist. | Complete at source level | The Stage 1 consolidated report required by prompt 9 is not present as a distinct handoff document; current evidence is from direct comparison and later reports. |
+| Structural fidelity of relocated files | Stage 1 verification protocol | Source and target should preserve line-scale content and exact counts of functions/classes/overrides/constants | **Implemented:** direct comparison found exact structural counts for every inspected file. Target line counts differ only by package/import/comment changes. | Complete at source level | No compiler or runtime verification. |
+| VPN policy-generation counter survives relocation | Stage 1 prompt 8; Architecture §6 Risk 3 | Stale asynchronous VPN policy results must be discarded | **Implemented:** `VpnPolicyCoordinator.kt` exists and has the source structural counts, including the policy-generation logic. `VpnRepository` calls it rather than reimplementing a simplified policy. | Complete at source level | Requires build/device exercise to prove race behavior. |
+| Alarm fallback ladder survives adaptation | Stage 1 prompt 8; Architecture §3.5, §6 | Try `setAlarmClock`, then `setExactAndAllowWhileIdle`, then `setAndAllowWhileIdle`, with exact-alarm permission gating | **Implemented:** `AlarmRepository.kt` is present and the source-level ladder and `canScheduleExactAlarms()` guard are present. | Complete at source level | Runtime alarm behavior is unverified. |
+| Usage Stats permission guard survives adaptation | Stage 1 prompt 8; Architecture §3.5 | Every usage-stat query checks `AppOpsManager.checkOpNoThrow` and fails loudly when permission is missing | **Implemented:** `UsageStatsRepository.kt` contains the guard before its usage queries. | Complete at source level | Requires Android permission/device verification. |
+| Clock-tamper and boot recovery behavior is preserved | Stage 1 prompt 1; Architecture §1, §3.4, §6 | Boot recovery must include the dual-timestamp clock check and recover enforcement state | **Implemented:** target `BootReceiver.kt` exists with matching structural counts and the clock-tamper logic. | Complete at source level | Receiver execution is unverified. |
+| Duplicate allowance implementations retain matching storage keys | Architecture §2.5, §6 Risk 1; pipeline README | Accessibility and foreground fallback paths must continue to use the compatible allowance keys | **Implemented:** both large enforcement services remain present and retain the source allowance code/key constants. | Complete at source level | The duplication remains an architectural risk; no runtime equivalence test exists. |
+| Widget preserves active update behavior | Architecture §3.10, §6 Risk 9 | Widget reads the shared state and receives active pushes, not only the 30-minute system tick | **Implemented:** target widget is structurally matched and declared in the manifest. **Partial wiring:** focus-session repository contains TODOs for `AppWidgetManager.updateAppWidget()`; settings-side push exists in Stage 2 code. | Partial | Active session changes can leave the widget stale until a system update. |
+| Stage 1 bridge boundary is complete | Stage 1 prompt 8; Architecture §3.5 | Bridge modules are removed or replaced with direct Kotlin calls | **Implemented partially:** repositories/controllers exist. **Not removed:** two module files remain and relocated services import them. | Partial | This is both a migration-boundary gap and a likely integration/build concern. |
 
-The Stage 2 prompt explicitly says `FocusDayBridgeModule.kt` is deleted and replaced by StateFlow in the ViewModel layer. The Kotlin tree still contains these references:
+### C. Stage 2 — repositories, background work, notifications, and backup
 
-- `enforcement/TaskAlarmActivity.kt`
-  - Imports `com.tbtechs.focusflow.modules.FocusDayBridgeModule`.
-  - Uses `FocusDayBridgeModule.NAME`.
-- `enforcement/receivers/NotificationActionReceiver.kt`
-  - Imports `FocusDayBridgeModule`.
-  - Sends its action constants and still describes waking the React instance.
-- `enforcement/AppBlockerAccessibilityService.kt`
-  - Imports `FocusDayBridgeModule`.
-  - Sends the blocked-app broadcast using bridge constants.
-  - Imports and reads `BlockOverlayModule.DEFAULT_QUOTES`.
+| Requirement | Source document | Expected behavior | Evidence | Status | Gap or blocker |
+|---|---|---|---|---|---|
+| Shared preferences become the enforcement settings facade | Stage 2 prompt; Architecture §§3.3, 3.5 | UI writes must preserve the exact synchronous keys read by enforcement services | **Implemented:** `SettingsRepository` exposes numerous setters for enforcement state and writes shared preferences. `SettingsViewModel` calls it for several settings. | Partial | The repository is effectively write-oriented for many fields; most settings are not read back to hydrate `AppSettings`. Recurring schedules and atomic combined operations are absent. |
+| Settings UI state hydrates from existing installation data | Architecture §3.2–3.3; Stage 2/3 handoff | A process restart must show persisted settings rather than defaults | **Implemented only:** `SettingsViewModel` exposes `StateFlow<AppSettings>`. **Explicit gap:** it initializes `_settings` with `AppSettings()` and documents that on-disk state is not loaded. | Missing | Existing users can see incorrect/default UI state until each setting is changed again. |
+| Recurring schedules are persisted and synchronized | Architecture action mapping; Stage 2 prompt | `setRecurringBlockSchedules` must reach the enforcement layer | **Documentation-only:** method exists in `SettingsViewModel` but is an explicit no-op with a TODO. `AppSettings` marks the repository setter as missing. | Missing | No repository setter, key contract, or enforcement read path. |
+| Quick temporary block is implemented | Architecture action mapping; Stage 2 prompt | Temporary block must atomically establish the requested blocked packages and expiry | **Documentation-only:** `setQuickBlockTemporary` is an explicit no-op. | Missing | Exact backing operation and atomic semantics remain undefined. |
+| Standalone block plus allowance is atomic | Architecture action mapping; Stage 2 prompt | Combined state must not expose a window where block and allowance disagree | **Documentation-only:** `setStandaloneBlockAndAllowance` is an explicit no-op. | Missing | `publishStandaloneSnapshot` is not a replacement because it does not update allowance state. |
+| Foreground service control is direct Kotlin | Architecture §3.5 | ViewModel/service calls use `Intent`-based controller, not RN bridge | **Implemented:** `ForegroundServiceController` exists and `FocusSessionViewModel` calls it. | Partial | It is constructed directly inside the ViewModel and is absent from `AppModule`; lifecycle/test wiring is incomplete. |
+| Background fetch is replaced by WorkManager | Architecture §3.6; Stage 2 prompt | A unique 15-minute periodic worker survives process death and performs the old fetch work | **Implemented:** `BackgroundFetchWorker.enqueuePeriodic()` uses unique WorkManager work with a 15-minute interval. | Partial | No startup code calls `enqueuePeriodic()`. `BackgroundFetchDependencies` has no installed production factory, so the worker explicitly returns failure when run without configuration. |
+| Notification channels are centralized and created | Architecture §3.7 | Required task, digest, report, analytics, and resistance channels exist and are initialized | **Implemented:** `NotificationChannels.createAll()` and `NotificationRepository.setupNotificationChannels()` exist. `FocusFlowApp` creates channels at startup. | Partial | The startup comment only names the three app-level channels; the complete Stage 3 analytics channel set and generic scheduler path are not demonstrably wired. |
+| Notification scheduling has a real Android adapter | Stage 2/3 prompts; Architecture §3.7 | Reminder requests result in actual scheduled notifications and receiver actions | **Implemented:** `NotificationRepository` has scheduling logic and injected `NotificationScheduler`. **Documentation-only boundary:** constructor requires an adapter, but no concrete production scheduler is wired in `AppModule`. | Partial | Notifications cannot be claimed functional from source presence alone. |
+| Notification analytics content is connected | Architecture §3.7; Stage 3D | Morning digest, weekly standout, pattern, achievement, resistance, suggestion, and week-ahead content use analytics state | **Implemented:** content-building methods and analytics dependencies exist in `NotificationRepository`; analytics sources and channels are present in source. | Partial | Optional dependencies intentionally fail explicitly when not wired. No scheduler/receiver/startup path proves these notifications can fire. |
+| Backup/restore uses explicit file picker paths | Architecture §1, §3.5, §3.11; Stage 2/6 reports | Export/import settings and tasks without Android automatic backup | **Implemented:** backup manager/repository and content URI handling exist in the target source. | Partial | No complete Compose settings UI or application-level user flow is present to invoke export/import, and runtime URI/device behavior is unverified. |
+| Native image/file pickers replace bridge modules | Architecture §3.5 | Compose activity-result contracts handle file/image selection | **Documentation-only / missing:** architecture describes the replacement, but no screen implementation or picker integration is present in the target UI. | Missing | Stage 4 UI is required before these flows can be connected. |
+| Scheduler engine is ported as pure logic | Architecture §3.6 | Conflict detection/rebalancing remains unit-testable without Android | **Implemented:** `domain/SchedulerEngine.kt` exists as a pure Kotlin implementation. | Partial | No Kotlin tests exist, and the codebase currently has two task model representations (`domain.Task` and `data.model.Task`) that need reconciliation at integration boundaries. |
+| All Stage 2 report tables are available | Pipeline README §§24–25 | Stage 2 hands off repositories/background/notifications/domain plus a completed public-method report | **Implemented:** `STAGE7_CONSOLIDATED_REPORT.md`, `STAGE6_NOTIFICATION_BACKUP_REPORT.md`, and `NOTIFICATION_SETTINGS_REPORT.md` provide substantial documentation. | Partial | The report set is not a clean Stage 2 public-method handoff; some later reports document known gaps rather than proving completion. |
 
-These are not documentation-only references; they are executable imports/usages and are build blockers.
+### D. Stage 3 — Room, PIN, ViewModels, and analytics
 
-### 2. The Android host layer does not exist
+| Requirement | Source document | Expected behavior | Evidence | Status | Gap or blocker |
+|---|---|---|---|---|---|
+| Room preserves the legacy database and schema | Stage 3A; Architecture §3.3; persistence plan/report | Open the existing `focusday.db`, apply migrations, and preserve tasks/sessions/overrides/completions | **Implemented:** `FocusFlowDatabase`, entities, DAOs, migration constants, and `prepareLegacyDatabase()` exist. `FocusFlowApp` calls preparation before Room. | Partial | No Java/Gradle build or migration test can run here; actual legacy-database opening and migration remain unverifiable. |
+| Core Room entities and DAOs exist | Architecture §3.3; Stage 3A | Tasks, focus sessions, overrides, and daily completions are represented with required queries | **Implemented:** entity/DAO/repository source exists for the four core tables, including analytical projections and local-calendar logic. | Complete at source level | Runtime schema validation and Room compilation are blocked. |
+| Analytics persistence tables exist | Pipeline README Stage 3D; Stage 8 report | Achievement and weekly-insight state persists locally | **Implemented:** achievement and weekly-insight entities/DAOs are present and included in the database. | Complete at source level | No database test run. |
+| Focus session writes mirror enforcement state | Architecture §3.2–3.3, §6 Risk 9; Stage 3C | Room, synchronous SharedPreferences, foreground service, and widget remain consistent | **Implemented partially:** `FocusSessionViewModel.startFocusMode()` and `stopFocusMode()` perform Room, SharedPreferences, and service operations. **Documentation-only:** repository still contains mirror/widget TODOs. | Partial | Ordering/error handling and widget push are not fully centralized or transactionally protected. |
+| Active focus session is reactive | Architecture §3.2 | UI observes active-session changes from Room/native recovery | **Implemented only:** one-shot `getActiveSession()` plus a `MutableStateFlow`; `FocusSessionDao` has no active-session `Flow`. | Partial | External BootReceiver/service/DAO changes do not update the ViewModel until explicit reload or recreation. |
+| Focus violation reaches UI state | Architecture state mapping | Accessibility detections update `focusViolationApp` through a Kotlin-native path | **Implemented only:** `onViolationDetected()` updates a flow when called manually. **Missing:** broadcast/shared-preference/content-provider path from accessibility service. | Missing | The UI cannot reliably show current violation state. |
+| PIN storage is stronger than legacy SHA-256 and supports migration | Architecture §3.9; Stage 3B | PBKDF2/Keystore storage, legacy verification and rehash, last-five reuse prevention | **Implemented:** `PinManager` and `PinReuseTracker` exist; source documents legacy migration intent and no secret logging. | Partial | Device-backed Keystore behavior is unverified. The exact legacy rehash-on-success path must be checked in runtime tests. |
+| PIN session timeout matches a canonical requirement | Architecture §3.9; Stage 3B | Session unlock duration is defined and consistent with product behavior | **Implemented only:** `PinSessionState` adds a 5-minute in-memory timeout. **Explicit source finding:** legacy `SessionPinModule.kt` has no timeout/timestamp at all. | Partial / design blocker | The 5-minute value is a placeholder, not derived from the reference implementation. Product/UX confirmation is required before shipping. |
+| ViewModels are fully wired through DI | Architecture §3.2; Stage 3C | ViewModels receive real repositories/controllers and are constructible by UI | **Implemented partially:** ViewModels exist and use repositories. `FocusSessionViewModel` directly constructs `ForegroundServiceController`; `AppModule` does not expose it. | Partial | No ViewModel factory/navigation integration exists because the UI is missing. |
+| Analytics source contracts are preserved | Architecture §3.12; pipeline README §§66–75 | Engine uses usage stats, greyout temptation logs, sessions, tasks, and failure states | **Implemented:** `AnalyticsProcessor`, `InsightEngine`, rule files, source-state fields, and repository dependencies exist. `AnalyticsProcessor` calls `GreyoutRepository` and `UsageStatsRepository`. | Complete at source level | Build and data-quality behavior are unverified. |
+| Analytics rule counts match the reference | Pipeline README §§73–75; Stage 3D | Yesterday 7, Weekly 11, Three Month 8 | **Implemented:** current Kotlin source counts match those specified counts. | Complete at source level | No automated contract test was run. |
+| Achievement definitions and lifetime fields align | Pipeline README §§68–70; Stage 3D | Every achievement condition uses an available `LifetimeStats` field | **Implemented:** current source has 10 definitions and includes `lastSessionAt` in lifetime stats. `SELF_AWARE` is not present, consistent with the inspected Kotlin set. | Complete at source level | No compilation/test verification. |
+| Stats ViewModel exists and consumes analytics | Pipeline README Stage 3D; Architecture §3.12 | Stats state is available to the future Stats screen | **Implemented:** `ui/stats/StatsViewModel.kt` exists and references analytics windows/cards/achievement state. | Partial | There is no Stats screen to render it. |
+| Notification preferences are persisted and honored | Architecture §3.7; Stage 3D | New analytics notification toggles and cooldown state survive app restarts | **Implemented partially:** new fields are present in `AppSettings`; notification repository contains preference-dependent logic. | Partial | `AppSettings` is not hydrated from storage and `SettingsViewModel.updateSettings()` does not persist all analytics fields. |
+| Stage 3 track reports are complete | Pipeline README §§26–29 | Track A/B/C/D handoffs document outputs and seams | **Implemented partially:** Stage 8 and other reports cover substantial areas. | Partial | No distinct, complete Track A/B/C/D handoff table was found; the current source itself contains unresolved seam flags. |
 
-The Kotlin source tree contains `FocusFlowApp.kt`, but the project has no manifest declaring it. The source also has no:
+### E. Verification and quality gates
 
-- `build.gradle` or `build.gradle.kts`;
-- `settings.gradle` or `settings.gradle.kts`;
-- Gradle wrapper;
-- `AndroidManifest.xml`;
-- `src/main/res` resources;
-- `MainActivity.kt`;
-- Compose root;
-- navigation graph;
-- Activity Result launchers;
-- Kotlin test source set.
+| Requirement | Source document | Expected behavior | Evidence | Status | Gap or blocker |
+|---|---|---|---|---|---|
+| Gradle debug build succeeds | Pipeline README; project build configuration | Android project compiles and packages a debug APK | `./gradlew :app:assembleDebug --stacktrace` failed with permission denied because `gradlew` is not executable. `bash gradlew :app:assembleDebug --stacktrace` reached Gradle but failed before compilation because `java` is missing and `JAVA_HOME` is unset. | Blocked | Install/provide a JDK and then rerun the build. Until then, source-level claims cannot be upgraded to compile-verified claims. |
+| Kotlin unit tests exist and pass | Architecture §3.4 mentions a preserved JVM test; pipeline stage handoffs | Critical policy, scheduler, repository, and analytics contracts are testable | No Kotlin test source files were found under `focusflowkotlin/app/src/test` or `app/src/androidTest`. | Missing | Add tests after the implementation gaps are resolved; do not treat comments or reference JS tests as Kotlin verification. |
+| Device verification of accessibility/VPN/alarms/launcher/widget | Architecture §§1, 3, 6 and test plan | Critical Android lifecycle and enforcement behaviors survive migration | No Android build/device run was possible. | Blocked | Requires JDK, Android SDK/Gradle build, and a test device or emulator. |
+| Static source audit is reproducible | User request and pipeline verification rules | Requirement claims are backed by current file searches and comparisons | Direct source reads, structural comparison, manifest comparison, bridge-import search, UI marker search, report search, and workflow/build attempts were run during this audit. | Complete for this audit | This report is not a substitute for compilation or device tests. |
 
-The migration therefore cannot be evaluated as an Android application. The source may be a useful staged handoff, but it is not a complete deliverable.
+## 4. Important reference-to-target deviations
 
-### 3. Settings are not a round-trip persistence model
+### 4.1 The Stage 1 files are present, but not fully detached
 
-`SettingsRepository` writes many enforcement keys but exposes only a small number of getters. `SettingsViewModel.settings` starts from `AppSettings()` and only reflects changes made during the current process. Existing persisted settings are not loaded before the app proceeds.
+The relocation itself is strong. The direct structural comparison found:
 
-The following public methods are explicitly no-ops:
+- all 20 Stage 1 targets present;
+- exact counts for `fun`, `class`, `override fun`, and `const val` in each compared file;
+- the approximately 4,785-line accessibility service preserved;
+- the VPN policy-generation logic preserved;
+- the exact-alarm fallback and Usage Stats permission guard preserved.
 
-- `SettingsViewModel.setRecurringBlockSchedules(...)`;
-- `SettingsViewModel.setQuickBlockTemporary(...)`;
-- `SettingsViewModel.setStandaloneBlockAndAllowance(...)`.
+However, the target still contains:
 
-The `AppSettings` data class also represents only a subset of the much larger TypeScript settings model. The notification fields required by Stage 3 are present, but this should not be mistaken for complete settings parity.
+- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/modules/FocusDayBridgeModule.kt`;
+- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/modules/BlockOverlayModule.kt`;
+- imports and calls to both from relocated enforcement code.
 
-### 4. Focus state has multiple wiring gaps
+This means “the files were copied faithfully” and “the pure-Kotlin migration boundary is complete” are different conclusions. The former is supported; the latter is not.
 
-`FocusSessionViewModel.focusSession` is a manually maintained `MutableStateFlow`; `FocusSessionDao` does not expose a reactive active-session query. A boot receiver, service, or other database writer can change the active session without updating the ViewModel.
+### 4.2 The target has two task model namespaces
 
-`focusViolationApp` is only updated through `onViolationDetected(...)`. The enforcement service has no inspected SharedPreferences listener, broadcast receiver, or other dispatch path that calls it.
+The target contains a `Task`/`TaskStatus` model in `domain/SchedulerEngine.kt` and a separate `Task`/`TaskStatus` representation in `data/model/Task.kt`. `TaskRepository` returns `data.model.Task`, while `BackgroundFetchWorker` and `NotificationRepository` use `domain.Task`.
 
-`ForegroundServiceController` is created directly inside `FocusSessionViewModel` even though the architecture uses `AppModule` as the repository/controller wiring boundary.
+This is a high-risk integration seam even though the files can individually look complete. It needs a compile check and a deliberate model decision before notification/background adapters are wired.
 
-### 5. PIN session timeout is deliberately provisional
+### 4.3 The manifest is close but not identical to the architecture requirement
 
-The source `SessionPinModule.kt` has no unlock timer or timeout. The Kotlin migration correctly keeps the unlock state in memory, but `PinSessionState.SESSION_UNLOCK_DURATION_MS` is an explicitly provisional five-minute value. The value is not a source-preserved behavior and must not be treated as production-ready.
+The target correctly includes the special-use property:
 
-### 6. Notification scheduling has a source contract but no complete runtime path
+```xml
+<property
+    android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+    android:value="productivity" />
+```
 
-The content-generation methods are implemented and the channels are defined. However:
+But the service currently declares:
 
-- `NotificationRepository` is not registered in `AppModule`;
-- the inspected tree provides the `NotificationScheduler` interface but no complete concrete scheduler wiring;
-- notification action handling still references `FocusDayBridgeModule`;
-- no Activity/UI layer launches or configures notification-related flows.
+```xml
+android:foregroundServiceType="specialUse"
+```
 
-The result is a source-level implementation, not a verified end-to-end notification system.
+The architecture explicitly calls for `dataSync` plus `specialUse`. This is a release-critical discrepancy, not merely a documentation difference.
 
-### 7. Backup conversion is structurally strong but not runnable here
+### 4.4 The persistence contract is not yet one source of truth
 
-The backup code preserves the old envelope and uses SAF correctly at the repository boundary. The remaining gap is integration: `BackupDataSource` and restore callbacks must be connected to the actual Room/settings/UI layer, and Activity Result launchers must be added to the missing Compose host.
+The architecture deliberately allows synchronous SharedPreferences reads in hot enforcement callbacks, but requires the UI/repository layer to mirror those writes consistently. The current code has the beginnings of that design:
 
-## Wiring gaps
+- `SettingsRepository` writes enforcement keys;
+- `FocusSessionViewModel` writes Room and SharedPreferences;
+- enforcement services read SharedPreferences;
+- Room holds durable task/session history.
 
-| Area | Current state | Required integration |
-|---|---|---|
-| Android application entry | `FocusFlowApp.kt` exists | Add Android module/build files, manifest, application declaration, resources, and `MainActivity`. |
-| Room singleton | `AppModule` builds `FocusFlowDatabase` and repositories | Add actual application/component lifecycle wiring and verify migrations against legacy databases. |
-| ViewModel construction | ViewModels exist as plain constructors | Add factories or a DI host that supplies the real repositories/managers. |
-| Foreground service controller | Directly constructed in `FocusSessionViewModel` | Register and supply it through the application wiring boundary. |
-| Active session state | One-shot DAO query plus manual StateFlow updates | Add a reactive DAO/repository Flow or a complete event dispatch strategy. |
-| Blocked-app violation | Service detects violations; ViewModel has a manual hook | Add a native broadcast/shared-state bridge and lifecycle-safe listener. |
-| Deleted bridge replacement | Old bridge imports remain | Replace action/constants and overlay quote access with native Kotlin contracts. |
-| Main activity references | Several services/receivers target missing `MainActivity` | Create and declare the Activity, then replace all stale React-launch assumptions. |
-| Settings hydration | Defaults only on ViewModel startup | Add typed read methods or a complete settings snapshot read and load it before task refresh. |
-| Settings mutations | Three public methods are no-ops | Define the exact persistence/atomic semantics and implement the repository methods. |
-| Notification scheduler | `NotificationScheduler` interface exists | Supply an AlarmManager/WorkManager-backed implementation and register it. |
-| Backup UI | SAF intent builders and stream operations exist | Add Activity Result launchers and connect callbacks to Room/settings/task repositories. |
-| Picker UI | Pattern documented only | Implement `rememberLauncherForActivityResult` image/document flows. |
-| Enforcement manifest | Services/receivers/activities are source files | Declare all components, permissions, accessibility service metadata, VPN service, device admin, widget, and foreground-service requirements. |
-| Compose/navigation | No UI implementation | Build the root Compose host, navigation, settings, task, focus, and stats destinations. |
-| Testing | No Kotlin test source set | Add unit tests for repository mapping, migrations, scheduler, PIN migration, analytics arithmetic, and backup compatibility; add device tests for enforcement. |
+The missing pieces are initial settings hydration, complete settings setters, repository-level session mirroring, widget push, and a single installed dependency graph. The comments describe these requirements accurately, but comments are not wired behavior.
 
-## Verification results
+## 5. Existing reports and plans assessed
 
-### Completed source-level checks
-
-- Read all five authoritative attached specification files:
-  - `attached_assets/ARCHITECTURE_1789438066200.md`
-  - `attached_assets/PIPELINE_README_1789438066201.md`
-  - `attached_assets/STAGE1_GEMINI_PROMPT_1789438066202.md`
-  - `attached_assets/STAGE2_REPLIT_PROMPT_1789438066203.md`
-  - `attached_assets/STAGE3_CLAUDE_PROMPT_1789438066204.md`
-- Read the existing migration reports:
-  - `focusflowkotlin/STAGE5_BUSINESS_LOGIC_REPORT.md`
-  - `focusflowkotlin/STAGE6_NOTIFICATION_BACKUP_REPORT.md`
-  - `focusflowkotlin/STAGE7_CONSOLIDATED_REPORT.md`
-  - `focusflowkotlin/STAGE8_ANALYTICS_REPORT.md`
-  - `focusflowkotlin/NOTIFICATION_SETTINGS_REPORT.md`
-- Enumerated the Kotlin tree: **73 Kotlin source files**.
-- Compared the relocated Stage 1 source structure and bodies against the reference files.
-- Searched for unresolved deleted-module imports and missing `MainActivity` references.
-- Checked Room entities, DAOs, database version/migration declarations, and repository mappings.
-- Checked alarm fallback ladder, UsageStats permission guard, VPN coordinator usage, backup SAF intents, notification channels, and coroutine-based nuclear-mode delay.
-- Counted analytics rules:
-  - Yesterday: **7**
-  - Weekly: **11**
-  - Three-month: **8**
-- Counted Kotlin achievement definitions: **10**, with `SELF_AWARE` omitted because no source block-list timestamp was found.
-- Confirmed `lastSessionAt` is present in Kotlin lifetime stats.
-- Confirmed the requested notification `AppSettings` additions are present.
-- Confirmed no PIN/hash/salt logging was found in `PinManager.kt`, `PinSessionState.kt`, or the inspected PIN code.
-- Confirmed the requested Stage 1/2/3 target files exist where expected.
-- Confirmed the Android project scaffold files are absent.
-
-### Checks that could not run
-
-| Check | Result |
+| Existing document | Audit finding |
 |---|---|
-| `gradle --version` | Not available: `gradle` is not installed. |
-| `kotlinc -version` | Not available: `kotlinc` is not installed. |
-| Gradle wrapper build | Not possible: no `gradlew` exists. |
-| Android compilation | Not performed: no Gradle Android project/build files. |
-| Room schema validation | Not performed: no Android build/runtime. |
-| Kotlin unit tests | Not performed: no Kotlin test source set or test runner. |
-| Android device/emulator verification | Not performed: no generated/installable Android project. |
-| Accessibility/VPN/overlay/device-admin behavior | Not verified: requires Android runtime and manifest/service wiring. |
-| Legacy database migration | Not executed against a real `focusday.db`. |
-| Legacy PIN migration | Not executed against a real SharedPreferences/Keystore environment. |
-| Backup import/export compatibility | Not executed with old backup fixtures. |
+| `focusflowkotlin/COMPLETE_IMPLEMENTATION_AUDIT.md` | Stale before this audit; its claim that the Android scaffold is absent is contradicted by the current tree. Replaced by this report. |
+| `STAGE5_BUSINESS_LOGIC_REPORT.md` | Useful supporting analysis, but does not prove Compose UI or runtime integration. |
+| `STAGE6_NOTIFICATION_BACKUP_REPORT.md` | Documents substantial notification/backup source work and remaining adapter/wiring boundaries. |
+| `STAGE7_CONSOLIDATED_REPORT.md` | Useful Stage 2/3 consolidation, but its completion claims must be read against current TODO/FLAG comments and the missing UI. |
+| `STAGE8_ANALYTICS_REPORT.md` | Supports the analytics source-level findings and rule-count comparison; runtime remains unverified. |
+| `NOTIFICATION_SETTINGS_REPORT.md` | Supports the settings/notification preference findings; it does not establish settings hydration or Compose UI wiring. |
+| `focusflowkotlin/ARCHITECTURE.md` | Current migration architecture reference; used together with the five attached specifications and direct source evidence. |
 
-## Blockers
+## 6. Recommended implementation order after audit approval
 
-### Build blockers
+No fixes were made in this audit. If implementation begins, the safest order is:
 
-1. No Android Gradle project or wrapper.
-2. No manifest or resources.
-3. Missing `MainActivity`.
-4. Unresolved `FocusDayBridgeModule` references.
-5. Unresolved `BlockOverlayModule` references.
-6. No declared Android dependencies or compile SDK configuration.
+1. Resolve the Kotlin target boundary and compile blockers: remove/replace the remaining module dependencies, reconcile the duplicate task models, and correct the manifest service type.
+2. Complete the persistence and synchronization contract: settings hydration, the three stubbed settings operations, active-session observation, violation propagation, repository-level SharedPreferences mirroring, and widget pushes.
+3. Install the real dependency graph: foreground controller, alarm/VPN/overlay/installed-app/nuclear/greyout paths, notification scheduler, background-fetch gateway, and backup entry points.
+4. Build the Compose navigation and screen families from the actual ViewModel APIs; do not invent screen calls before the ViewModels compile.
+5. Add Kotlin unit/contract tests for scheduler, VPN generation, alarm fallback, settings serialization, analytics counts, PIN migration, and Room migrations.
+6. Run the Gradle build, tests, generated Android install, and device verification for accessibility, VPN, alarms, launcher, widget, backup/restore, PIN, boot recovery, and notification actions.
 
-### Functional blockers
+## 7. Final audit conclusion
 
-1. Persisted settings are not hydrated into `SettingsViewModel`.
-2. Three settings mutation methods are no-ops.
-3. Focus-session state is not reactive to external writes.
-4. Blocked-app violation state has no enforcement-to-ViewModel bridge.
-5. Notification scheduler/application wiring is incomplete.
-6. Backup and picker functionality lacks a UI host.
-7. PIN unlock timeout is provisional.
+FocusFlow is **not yet ready for implementation sign-off or release**. The migration has real Stage 1–3 source assets and several high-risk logic ports appear structurally faithful, but the current project is still a backend/enforcement scaffold with a placeholder UI and known synchronization gaps. The missing JDK prevents compilation, and the missing Compose UI prevents the product from being usable even if the source compiled.
 
-### Verification blockers
-
-1. No Kotlin compiler or Gradle executable.
-2. No test source set or fixtures.
-3. No Android runtime/device target.
-
-## Recommended implementation order
-
-This is an audit recommendation, not work performed during this pass.
-
-1. **Create the Android project scaffold first.** Add Gradle files/wrapper, dependencies, manifest, resources, application class registration, and a minimal `MainActivity`.
-2. **Resolve the pure-Kotlin boundary.** Remove all `FocusDayBridgeModule` and `BlockOverlayModule` imports/usages, define native constants/events, and replace React wake-up assumptions.
-3. **Wire the enforcement components.** Declare services, receivers, widget, VPN, accessibility metadata, device-admin metadata, overlay activity, and required permissions.
-4. **Complete repository/application wiring.** Register all repositories/controllers, add a concrete notification scheduler, and create ViewModel factories.
-5. **Complete settings persistence.** Add typed reads, hydrate `AppSettings`, implement recurring schedules, quick temporary blocks, and atomic standalone-block/allowance updates.
-6. **Complete focus synchronization.** Add reactive active-session observation and a native violation event/state bridge.
-7. **Implement the Compose host.** Add navigation, task/focus/settings/stats screens, picker contracts, backup Activity Result flows, and permission gates.
-8. **Resolve the PIN timeout decision.** Confirm the intended UX timeout; replace the provisional five-minute value with an explicit product-approved contract.
-9. **Add automated tests.** Cover Room migrations/mapping, scheduler behavior, PIN legacy migration, analytics golden vectors, backup shape compatibility, and notification slot logic.
-10. **Build and verify on Android.** Run compilation, unit tests, generated-project checks, emulator/device tests, and enforcement-specific validation before calling the migration complete.
-
-## Exact inspected files and sources
-
-### Authoritative specifications
-
-- `attached_assets/ARCHITECTURE_1789438066200.md`
-- `attached_assets/PIPELINE_README_1789438066201.md`
-- `attached_assets/STAGE1_GEMINI_PROMPT_1789438066202.md`
-- `attached_assets/STAGE2_REPLIT_PROMPT_1789438066203.md`
-- `attached_assets/STAGE3_CLAUDE_PROMPT_1789438066204.md`
-
-### Existing migration reports
-
-- `focusflowkotlin/STAGE5_BUSINESS_LOGIC_REPORT.md`
-- `focusflowkotlin/STAGE6_NOTIFICATION_BACKUP_REPORT.md`
-- `focusflowkotlin/STAGE7_CONSOLIDATED_REPORT.md`
-- `focusflowkotlin/STAGE8_ANALYTICS_REPORT.md`
-- `focusflowkotlin/NOTIFICATION_SETTINGS_REPORT.md`
-- `focusflowkotlin/ARCHITECTURE.md`
-
-### Reference implementation files
-
-- `artifacts/focusflow/src/data/database.ts`
-- `artifacts/focusflow/src/data/types.ts`
-- `artifacts/focusflow/src/data/defaultSettings.ts`
-- `artifacts/focusflow/src/context/AppContext.tsx`
-- `artifacts/focusflow/src/services/schedulerEngine.ts`
-- `artifacts/focusflow/src/tasks/backgroundTasks.ts`
-- `artifacts/focusflow/src/services/notificationService.ts`
-- `artifacts/focusflow/src/services/backupService.ts`
-- `artifacts/focusflow/src/services/analytics/AchievementEngine.ts`
-- `artifacts/focusflow/src/services/analytics/AnalyticsProcessor.ts`
-- `artifacts/focusflow/src/services/analytics/InsightEngine.ts`
-- `artifacts/focusflow/src/services/analytics/InsightTemplates.ts`
-- `artifacts/focusflow/src/services/analytics/YesterdayRules.ts`
-- `artifacts/focusflow/src/services/analytics/WeeklyRules.ts`
-- `artifacts/focusflow/src/services/analytics/ThreeMonthRules.ts`
-- `artifacts/focusflow/src/utils/pinCrypto.ts`
-- `artifacts/focusflow/src/utils/pinReuseTracker.ts`
-- `artifacts/focusflow/android-native/app/src/main/java/com/tbtechs/focusflow/modules/SessionPinModule.kt`
-- `artifacts/focusflow/android-native/app/src/main/java/com/tbtechs/focusflow/services/AppBlockerAccessibilityService.kt`
-- `artifacts/focusflow/android-native/app/src/main/java/com/tbtechs/focusflow/services/ForegroundTaskService.kt`
-- `artifacts/focusflow/android-native/app/src/main/java/com/tbtechs/focusflow/services/VpnPolicyCoordinator.kt`
-
-### Kotlin migration files directly inspected
-
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/FocusFlowApp.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/di/AppModule.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/data/local/FocusFlowDatabase.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/data/local/entity/TaskEntity.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/data/local/entity/FocusSessionEntity.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/data/local/entity/FocusOverrideEntity.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/data/local/entity/DailyCompletionEntity.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/data/local/entity/AchievementEntity.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/data/local/entity/WeeklyInsightEntity.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/data/local/dao/TaskDao.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/data/local/dao/FocusSessionDao.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/data/local/dao/FocusOverrideDao.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/data/local/dao/DailyCompletionDao.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/data/local/dao/AchievementDao.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/data/local/dao/WeeklyInsightDao.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/data/repository/TaskRepository.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/data/repository/FocusSessionRepository.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/data/repository/SettingsRepository.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/data/repository/AlarmRepository.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/data/repository/UsageStatsRepository.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/data/repository/VpnRepository.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/data/repository/BackupManager.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/data/repository/BlockOverlayController.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/data/repository/ForegroundServiceController.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/data/repository/LauncherController.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/data/repository/GreyoutRepository.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/data/repository/InstalledAppsRepository.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/data/repository/NuclearModeRepository.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/data/model/AppSettings.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/domain/PinManager.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/domain/PinReuseTracker.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/domain/PinSessionState.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/ui/TaskViewModel.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/ui/SettingsViewModel.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/ui/FocusSessionViewModel.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/ui/AppBootViewModel.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/ui/stats/StatsViewModel.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/analytics/AchievementEngine.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/analytics/AnalyticsProcessor.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/analytics/InsightEngine.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/analytics/InsightTemplates.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/analytics/LifetimeStats.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/analytics/rules/YesterdayRules.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/analytics/rules/WeeklyRules.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/analytics/rules/ThreeMonthRules.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/notifications/NotificationChannels.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/notifications/NotificationRepository.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/enforcement/AppBlockerAccessibilityService.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/enforcement/TaskAlarmActivity.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/enforcement/ForegroundTaskService.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/enforcement/NetworkBlockerVpnService.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/enforcement/VpnPolicyCoordinator.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/enforcement/BlockOverlayActivity.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/enforcement/LauncherActivity.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/enforcement/VpnRecoveryNotifier.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/enforcement/receivers/NotificationActionReceiver.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/enforcement/receivers/TemptationReportReceiver.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/widget/FocusFlowWidget.kt`
-- `focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/background/BackgroundFetchWorker.kt`
-
-### Search-only inventory
-
-All Kotlin files under:
-
-`focusflowkotlin/app/src/main/java/com/tbtechs/focusflow/`
-
-were included in targeted searches for:
-
-- deleted bridge-module imports and references;
-- `MainActivity` references;
-- TODO, placeholder, no-op, deferred, and scaffold markers;
-- Room annotations, entities, DAOs, migrations, and query declarations;
-- achievement and analytics rule counts;
-- Android build/manifest/resource/test file presence.
-
-## Conclusion
-
-The migration has enough source material to begin an implementation phase, but it should not be labeled complete or production-ready. The first implementation milestone should be an installable Android scaffold with all stale bridge dependencies removed. Only after that milestone can the repository, PIN, analytics, notification, backup, and enforcement code be compiled and tested as one system.
+The highest-value next step is implementation of the integration boundary and UI in the order above, followed by build/device verification.

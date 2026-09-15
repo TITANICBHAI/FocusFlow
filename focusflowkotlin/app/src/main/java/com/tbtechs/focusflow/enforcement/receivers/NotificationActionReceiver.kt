@@ -1,11 +1,11 @@
 package com.tbtechs.focusflow.enforcement.receivers
 
 import com.tbtechs.focusflow.enforcement.AppBlockerAccessibilityService
+import com.tbtechs.focusflow.enforcement.EnforcementEventContract
 
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import com.tbtechs.focusflow.modules.FocusDayBridgeModule
 
 /**
  * NotificationActionReceiver
@@ -19,12 +19,10 @@ import com.tbtechs.focusflow.modules.FocusDayBridgeModule
  * Flow:
  *   User taps action → PendingIntent fires this receiver → receiver:
  *     1. Writes a "pending_notif_action" entry to SharedPrefs as a fallback
- *        in case the React JS instance is not yet alive.
- *     2. Launches MainActivity so the React instance starts (if not already alive).
- *     3. Sends a local broadcast to FocusDayBridgeModule for immediate handling
- *        when the React instance IS already active.
- *   Bridge emits "FocusDayEvent" of type "NOTIF_ACTION" to JS.
- *   On first onHostResume, the bridge also replays any pending action from SharedPrefs.
+ *        in case the app process is not yet alive.
+ *     2. Launches MainActivity so the UI process starts (if not already alive).
+ *     3. Sends an application-local broadcast for immediate handling when the
+ *        app process is already active.
  */
 class NotificationActionReceiver : BroadcastReceiver() {
 
@@ -47,8 +45,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
         val action = intent.action ?: return
         val minutes = intent.getIntExtra(EXTRA_MINUTES, 15)
 
-        // 1. Persist the action to SharedPrefs so FocusDayBridgeModule can replay it
-        //    on the next onHostResume if the React instance was not alive when tapped.
+        // 1. Persist the action so the app can replay it after process startup.
         val prefs = context.getSharedPreferences(
             AppBlockerAccessibilityService.PREFS_NAME,
             Context.MODE_PRIVATE
@@ -67,9 +64,9 @@ class NotificationActionReceiver : BroadcastReceiver() {
         launchIntent?.let { context.startActivity(it) }
 
         // 3. Send broadcast for immediate handling if React is already alive.
-        val bridgeIntent = Intent(FocusDayBridgeModule.ACTION_NOTIF_ACTION).apply {
+        val bridgeIntent = Intent(EnforcementEventContract.ACTION_NOTIF_ACTION).apply {
             `package` = context.packageName
-            putExtra(FocusDayBridgeModule.EXTRA_NOTIF_ACTION_TYPE, action)
+            putExtra(EnforcementEventContract.EXTRA_NOTIF_ACTION_TYPE, action)
             putExtra(EXTRA_TASK_ID, taskId)
             putExtra(EXTRA_MINUTES, minutes)
         }

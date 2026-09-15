@@ -10,6 +10,9 @@ import com.tbtechs.focusflow.enforcement.AppBlockerAccessibilityService
 import com.tbtechs.focusflow.enforcement.NetworkBlockerVpnService
 import com.tbtechs.focusflow.enforcement.VpnPolicyCoordinator
 import com.tbtechs.focusflow.widget.FocusFlowWidget
+import com.tbtechs.focusflow.data.model.AppSettings
+import com.tbtechs.focusflow.data.model.DailyAllowanceEntry
+import com.tbtechs.focusflow.data.model.RecurringBlockSchedule
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -74,6 +77,20 @@ class SettingsRepository(context: Context) {
 
         private const val KEY_DAILY_ALLOWANCE_USED = "daily_allowance_used"
         private const val KEY_DAILY_ALLOWANCE_CONFIG = "daily_allowance_config"
+        private const val KEY_RECURRING_BLOCK_SCHEDULES = "recurring_block_schedules"
+        private const val KEY_MORNING_DIGEST_ENABLED = "morning_digest_enabled"
+        private const val KEY_ACHIEVEMENT_NOTIFICATIONS_ENABLED = "achievement_notifications_enabled"
+        private const val KEY_PATTERN_INSIGHT_NOTIFICATIONS_ENABLED = "pattern_insight_notifications_enabled"
+        private const val KEY_RESCHEDULE_NOTIFICATIONS_ENABLED = "reschedule_notifications_enabled"
+        private const val KEY_BLOCK_SUGGESTION_ENABLED = "block_suggestion_enabled"
+        private const val KEY_WEEK_AHEAD_ENABLED = "week_ahead_enabled"
+        private const val KEY_TEMPTATION_SPIKE_ENABLED = "temptation_spike_enabled"
+        private const val KEY_TEMPTATION_SPIKE_THRESHOLD = "temptation_spike_threshold"
+        private const val KEY_BED_TIME = "bed_time"
+        private const val KEY_PRODUCTIVE_WINDOW_NUDGE_ENABLED = "productive_window_nudge_enabled"
+        private const val KEY_LAST_SESSION_RESULT_BY_TASK_ID = "last_session_result_by_task_id"
+        private const val KEY_SHOWN_PATTERN_INSIGHT_IDS = "shown_pattern_insight_ids"
+        private const val KEY_LAST_SHOWN_DEBRIEF_SESSION_ID = "last_shown_debrief_session_id"
         private const val KEY_LAUNCHER_DOCK_PACKAGES = "launcher_dock_packages"
         private const val KEY_LAUNCHER_HIDDEN_PACKAGES = "launcher_hidden_packages"
         private const val KEY_DRAWER_HIDDEN_PACKAGES = "drawer_hidden_packages"
@@ -113,7 +130,9 @@ class SettingsRepository(context: Context) {
                 "A session PIN is set — supply the correct PIN hash to end the session",
             )
         }
-        prefs.edit().putBoolean(KEY_FOCUS_ACTIVE, active).apply()
+        val editor = prefs.edit().putBoolean(KEY_FOCUS_ACTIVE, active)
+        if (!active) editor.remove(AppBlockerAccessibilityService.PREF_CURRENT_VIOLATION_APP)
+        editor.apply()
         requestVpnSync()
     }
 
@@ -507,6 +526,59 @@ class SettingsRepository(context: Context) {
             .apply()
     }
 
+    /**
+     * Stores recurring blocks and mirrors them to the greyout schedule consumed
+     * by the accessibility service. Existing user-created greyout windows
+     * (entries without a scheduleId) are preserved.
+     */
+    suspend fun setRecurringBlockSchedules(schedules: List<RecurringBlockSchedule>) {
+        val recurringJson = JSONArray().apply {
+            schedules.forEach { schedule ->
+                put(JSONObject().apply {
+                    put("id", schedule.id)
+                    put("packages", JSONArray(schedule.packages))
+                    put("startHour", schedule.startHour)
+                    put("endHour", schedule.endHour)
+                    put("daysOfWeek", JSONArray(schedule.daysOfWeek))
+                    put("enabled", schedule.enabled)
+                })
+            }
+        }.toString()
+
+        val existingWindows = parseJsonArrayObjects(
+            prefs.getString("greyout_schedule", "[]") ?: "[]",
+        ).filter { it.optString("scheduleId").isBlank() }
+        val scheduleWindows = schedules
+            .filter { it.enabled && it.packages.isNotEmpty() }
+            .flatMap { schedule ->
+                schedule.packages.map { packageName ->
+                    JSONObject().apply {
+                        put("pkg", packageName)
+                        put("startHour", schedule.startHour.coerceIn(0, 23))
+                        put("startMin", 0)
+                        put("endHour", schedule.endHour.coerceIn(0, 23))
+                        put("endMin", 0)
+                        put(
+                            "days",
+                            JSONArray(schedule.daysOfWeek.map { day -> (day.coerceIn(0, 6) + 1) }),
+                        )
+                        put("scheduleId", schedule.id)
+                    }
+                }
+            }
+
+        if (!prefs.edit()
+                .putString(KEY_RECURRING_BLOCK_SCHEDULES, recurringJson)
+                .putString(
+                    "greyout_schedule",
+                    JSONArray(existingWindows + scheduleWindows).toString(),
+                )
+                .commit()
+        ) {
+            throw IllegalStateException("WRITE_FAILED: recurring schedule commit() returned false")
+        }
+    }
+
     suspend fun publishScheduleVpnSnapshot(packagesJson: String) {
         if (!prefs.edit().putString(KEY_SCHEDULE_VPN_PACKAGES, packagesJson).commit()) {
             throw IllegalStateException("WRITE_FAILED: commit() returned false")
@@ -578,6 +650,142 @@ class SettingsRepository(context: Context) {
         appContext.sendBroadcast(
             Intent(AppBlockerAccessibilityService.ACTION_ALLOWANCE_CONFIG_CHANGED).apply {
                 `package` = appContext.packageName
+            },
+        )
+    }
+
+    /**
+     * Atomically updates standalone enforcement and allowance configuration.
+     * The allowance-change broadcast is sent only after the shared preference
+     * commit succeeds.
+     */
+    suspend fun publishStandaloneAndAllowanceSnapshot(
+        active: Boolean,
+        packages: List<String>,
+        untilMs: Long,
+        allowanceEntries: List<DailyAllowanceEntry>,
+        pinHash: String?,
+    ) {
+        if (!active && prefs.getLong(KEY_STANDALONE_UNTIL_MS, 0L) > System.currentTimeMillis()) {
+            requireValidSessionPin(
+                pinHash,
+                "A session PIN is set — supply the correct PIN to end the standalone block early",
+            )
+        }
+        val allowanceJson = JSONArray().apply {
+            allowanceEntries.forEach { entry ->
+                put(JSONObject().apply {
+                    put("package", entry.packageName)
+                    put("dailyAllowanceMs", entry.dailyAllowanceMs)
+                })
+            }
+        }.toString()
+        val editor = prefs.edit()
+        if (active) {
+            editor
+                .putBoolean(KEY_STANDALONE_ACTIVE, true)
+                .putString(KEY_STANDALONE_PACKAGES, packages.toJsonArrayString())
+                .putLong(KEY_STANDALONE_UNTIL_MS, untilMs)
+        } else {
+            editor
+                .putBoolean(KEY_STANDALONE_ACTIVE, false)
+                .putString(KEY_STANDALONE_PACKAGES, "[]")
+                .putLong(KEY_STANDALONE_UNTIL_MS, 0L)
+        }
+        editor.putString(KEY_DAILY_ALLOWANCE_CONFIG, allowanceJson)
+        if (!editor.commit()) {
+            throw IllegalStateException("WRITE_FAILED: standalone and allowance commit() returned false")
+        }
+        appContext.sendBroadcast(
+            Intent(AppBlockerAccessibilityService.ACTION_ALLOWANCE_CONFIG_CHANGED).apply {
+                `package` = appContext.packageName
+            },
+        )
+        requestVpnSync()
+        pushWidgetUpdate()
+    }
+
+    suspend fun setNotificationPreferences(settings: AppSettings) {
+        val results = JSONObject().apply {
+            settings.lastSessionResultByTaskId.forEach { (taskId, result) -> put(taskId, result) }
+        }
+        prefs.edit()
+            .putBoolean(KEY_MORNING_DIGEST_ENABLED, settings.morningDigestEnabled)
+            .putBoolean(KEY_ACHIEVEMENT_NOTIFICATIONS_ENABLED, settings.achievementNotificationsEnabled)
+            .putBoolean(KEY_PATTERN_INSIGHT_NOTIFICATIONS_ENABLED, settings.patternInsightNotificationsEnabled)
+            .putBoolean(KEY_RESCHEDULE_NOTIFICATIONS_ENABLED, settings.rescheduleNotificationsEnabled)
+            .putBoolean(KEY_BLOCK_SUGGESTION_ENABLED, settings.blockSuggestionEnabled)
+            .putBoolean(KEY_WEEK_AHEAD_ENABLED, settings.weekAheadEnabled)
+            .putBoolean(KEY_TEMPTATION_SPIKE_ENABLED, settings.temptationSpikeEnabled)
+            .putInt(KEY_TEMPTATION_SPIKE_THRESHOLD, settings.temptationSpikeThreshold)
+            .putString(KEY_BED_TIME, settings.bedTime)
+            .putBoolean(KEY_PRODUCTIVE_WINDOW_NUDGE_ENABLED, settings.productiveWindowNudgeEnabled)
+            .putString(KEY_LAST_SESSION_RESULT_BY_TASK_ID, results.toString())
+            .putString(KEY_SHOWN_PATTERN_INSIGHT_IDS, JSONArray(settings.shownPatternInsightIds).toString())
+            .apply {
+                if (settings.lastShownDebriefSessionId == null) {
+                    remove(KEY_LAST_SHOWN_DEBRIEF_SESSION_ID)
+                } else {
+                    putInt(KEY_LAST_SHOWN_DEBRIEF_SESSION_ID, settings.lastShownDebriefSessionId)
+                }
+            }
+            .apply()
+    }
+
+    /**
+     * Reads the settings fields owned by this repository from the existing
+     * enforcement preference namespace.
+     */
+    suspend fun readAppSettings(): AppSettings {
+        val resultMap = mutableMapOf<String, String>()
+        runCatching {
+            val obj = JSONObject(prefs.getString(KEY_LAST_SESSION_RESULT_BY_TASK_ID, "{}") ?: "{}")
+            obj.keys().forEach { key -> resultMap[key] = obj.optString(key) }
+        }
+        return AppSettings(
+            alwaysBlockPackages = parseStringArray(
+                prefs.getString(AppBlockerAccessibilityService.PREF_ALWAYS_BLOCK_PKGS, "[]"),
+            ),
+            alwaysBlockEnabled = prefs.getBoolean(AppBlockerAccessibilityService.PREF_ALWAYS_BLOCK, false),
+            blockedWords = parseStringArray(
+                prefs.getString(AppBlockerAccessibilityService.PREF_BLOCKED_WORDS, "[]"),
+            ),
+            standaloneBlockActive = prefs.getBoolean(KEY_STANDALONE_ACTIVE, false),
+            standaloneBlockPackages = parseStringArray(prefs.getString(KEY_STANDALONE_PACKAGES, "[]")),
+            standaloneBlockUntilMs = prefs.getLong(KEY_STANDALONE_UNTIL_MS, 0L),
+            dailyAllowanceConfigJson = prefs.getString(KEY_DAILY_ALLOWANCE_CONFIG, null),
+            recurringBlockSchedules = parseRecurringSchedules(
+                prefs.getString(KEY_RECURRING_BLOCK_SCHEDULES, "[]"),
+            ),
+            networkBlockEnabled = prefs.getBoolean(KEY_NETWORK_BLOCK_ENABLED, false),
+            systemGuardEnabled = prefs.getBoolean(AppBlockerAccessibilityService.PREF_SYSTEM_GUARD_ENABLED, false),
+            morningDigestEnabled = prefs.getBoolean(KEY_MORNING_DIGEST_ENABLED, true),
+            achievementNotificationsEnabled = prefs.getBoolean(
+                KEY_ACHIEVEMENT_NOTIFICATIONS_ENABLED,
+                true,
+            ),
+            patternInsightNotificationsEnabled = prefs.getBoolean(
+                KEY_PATTERN_INSIGHT_NOTIFICATIONS_ENABLED,
+                false,
+            ),
+            rescheduleNotificationsEnabled = prefs.getBoolean(KEY_RESCHEDULE_NOTIFICATIONS_ENABLED, true),
+            blockSuggestionEnabled = prefs.getBoolean(KEY_BLOCK_SUGGESTION_ENABLED, true),
+            weekAheadEnabled = prefs.getBoolean(KEY_WEEK_AHEAD_ENABLED, true),
+            temptationSpikeEnabled = prefs.getBoolean(KEY_TEMPTATION_SPIKE_ENABLED, false),
+            temptationSpikeThreshold = prefs.getInt(KEY_TEMPTATION_SPIKE_THRESHOLD, 8),
+            bedTime = prefs.getString(KEY_BED_TIME, "22:00") ?: "22:00",
+            productiveWindowNudgeEnabled = prefs.getBoolean(
+                KEY_PRODUCTIVE_WINDOW_NUDGE_ENABLED,
+                false,
+            ),
+            lastSessionResultByTaskId = resultMap,
+            shownPatternInsightIds = parseStringArray(
+                prefs.getString(KEY_SHOWN_PATTERN_INSIGHT_IDS, "[]"),
+            ),
+            lastShownDebriefSessionId = if (prefs.contains(KEY_LAST_SHOWN_DEBRIEF_SESSION_ID)) {
+                prefs.getInt(KEY_LAST_SHOWN_DEBRIEF_SESSION_ID, 0)
+            } else {
+                null
             },
         )
     }
@@ -704,4 +912,35 @@ class SettingsRepository(context: Context) {
     }
 
     private fun List<String>.toJsonArrayString(): String = JSONArray(this).toString()
+
+    private fun parseStringArray(json: String?): List<String> =
+        runCatching {
+            val array = JSONArray(json ?: "[]")
+            (0 until array.length()).mapNotNull { index ->
+                array.optString(index).takeIf { it.isNotBlank() }
+            }
+        }.getOrDefault(emptyList())
+
+    private fun parseJsonArrayObjects(json: String): List<JSONObject> =
+        runCatching {
+            val array = JSONArray(json)
+            (0 until array.length()).mapNotNull { array.optJSONObject(it) }
+        }.getOrDefault(emptyList())
+
+    private fun parseRecurringSchedules(json: String?): List<RecurringBlockSchedule> =
+        runCatching {
+            val array = JSONArray(json ?: "[]")
+            (0 until array.length()).mapNotNull { index ->
+                val item = array.optJSONObject(index) ?: return@mapNotNull null
+                val days = item.optJSONArray("daysOfWeek") ?: JSONArray()
+                RecurringBlockSchedule(
+                    id = item.optString("id"),
+                    packages = parseStringArray(item.optJSONArray("packages")?.toString()),
+                    startHour = item.optInt("startHour").coerceIn(0, 23),
+                    endHour = item.optInt("endHour").coerceIn(0, 23),
+                    daysOfWeek = (0 until days.length()).map { days.optInt(it) },
+                    enabled = item.optBoolean("enabled", true),
+                )
+            }
+        }.getOrDefault(emptyList())
 }

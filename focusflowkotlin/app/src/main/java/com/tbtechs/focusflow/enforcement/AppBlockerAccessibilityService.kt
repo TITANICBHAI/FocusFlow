@@ -41,8 +41,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
-import com.tbtechs.focusflow.modules.BlockOverlayModule
-import com.tbtechs.focusflow.modules.FocusDayBridgeModule
+import com.tbtechs.focusflow.data.repository.BlockOverlayController
 // import com.tbtechs.focusflow.enforcement.BlockOverlayActivity (same package)
 // import com.tbtechs.focusflow.enforcement.NetworkBlockerVpnService (same package)
 import org.json.JSONArray
@@ -151,6 +150,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
          */
         const val PREF_ALWAYS_BLOCK      = "always_block_active"
         const val PREF_ALWAYS_BLOCK_PKGS = "always_block_packages"
+        const val PREF_CURRENT_VIOLATION_APP = "current_violation_app"
 
         // ── Home Launcher prefs (read by LauncherActivity + this service) ────────
         /** Whether the user wants the home-app chooser intercepted during standalone. */
@@ -3034,9 +3034,12 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     // ─── Enforcement ─────────────────────────────────────────────────────────
 
     private fun handleBlockedApp(blockedPackage: String, blockReason: String? = null) {
-        val broadcast = Intent(FocusDayBridgeModule.ACTION_APP_BLOCKED).apply {
+        prefs.edit()
+            .putString(PREF_CURRENT_VIOLATION_APP, blockedPackage)
+            .apply()
+        val broadcast = Intent(EnforcementEventContract.ACTION_APP_BLOCKED).apply {
             `package` = packageName
-            putExtra(FocusDayBridgeModule.EXTRA_BLOCKED_PKG, blockedPackage)
+            putExtra(EnforcementEventContract.EXTRA_BLOCKED_PKG, blockedPackage)
         }
         sendBroadcast(broadcast)
 
@@ -3543,9 +3546,9 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             try {
                 val arr = JSONArray(customJson)
                 (0 until arr.length()).map { arr.getString(it) }.takeIf { it.isNotEmpty() }
-                    ?: BlockOverlayModule.DEFAULT_QUOTES
-            } catch (_: Exception) { BlockOverlayModule.DEFAULT_QUOTES }
-        } else BlockOverlayModule.DEFAULT_QUOTES
+                    ?: BlockOverlayController.DEFAULT_QUOTES
+            } catch (_: Exception) { BlockOverlayController.DEFAULT_QUOTES }
+        } else BlockOverlayController.DEFAULT_QUOTES
         return pool.random()
     }
 

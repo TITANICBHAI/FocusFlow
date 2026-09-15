@@ -5,6 +5,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
 import com.tbtechs.focusflow.data.local.entity.FocusSessionEntity
+import kotlinx.coroutines.flow.Flow
 
 // ─── Result projection POJOs ──────────────────────────────────────────────────
 
@@ -84,6 +85,10 @@ interface FocusSessionDao {
      */
     @Query("SELECT * FROM focus_sessions WHERE is_active = 1 ORDER BY id DESC LIMIT 1")
     suspend fun getActiveSession(): FocusSessionEntity?
+
+    /** Reactive counterpart used by the UI after boot recovery or service writes. */
+    @Query("SELECT * FROM focus_sessions WHERE is_active = 1 ORDER BY id DESC LIMIT 1")
+    fun observeActiveSession(): Flow<FocusSessionEntity?>
 
     /**
      * Returns all sessions that started on or after [startOfDay] (ISO timestamp).
