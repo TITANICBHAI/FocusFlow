@@ -24,6 +24,8 @@ object Routes {
     const val PERMISSIONS = "permissions"
     const val PRIVACY_POLICY = "privacy_policy"
     const val REPORTS = "reports"
+    /** Prompt 3 compatibility slug retained alongside the architecture route. */
+    const val REPORT = "report"
     const val TERMS_OF_SERVICE = "terms_of_service"
     const val USER_PROFILE = "user_profile"
     const val VPN_BLOCK_LIST = "vpn_block_list"
@@ -49,6 +51,7 @@ object Routes {
         PERMISSIONS,
         PRIVACY_POLICY,
         REPORTS,
+        REPORT,
         TERMS_OF_SERVICE,
         USER_PROFILE,
         VPN_BLOCK_LIST,

@@ -92,6 +92,17 @@ data class AppSettings(
     val lastSessionResultByTaskId: Map<String, String> = emptyMap(),
     val shownPatternInsightIds: List<String> = emptyList(),
     val lastShownDebriefSessionId: Int? = null,
+
+    // ── Productivity preferences ─────────────────────────────────────────────
+    val taskRemindersEnabled: Boolean = true,
+    val defaultDurationMinutes: Int = 60,
+    val autoFocusEnabled: Boolean = false,
+    val allowedFocusPackages: List<String> = emptyList(),
+    val pomodoroEnabled: Boolean = false,
+    val pomodoroWorkMinutes: Int = 25,
+    val pomodoroBreakMinutes: Int = 5,
+    val focusDefenseHintDismissed: Boolean = false,
+    val localAnalyticsNoticeDismissed: Boolean = false,
 )
 
 /**
@@ -130,6 +141,11 @@ data class RecurringBlockSchedule(
 data class DailyAllowanceEntry(
     val packageName: String,
     val dailyAllowanceMs: Long,
+    val mode: String = "time_budget",
+    val countPerDay: Int = 1,
+    val budgetMinutes: Int = (dailyAllowanceMs / 60_000L).coerceAtLeast(1L).toInt(),
+    val intervalMinutes: Int = 5,
+    val intervalHours: Int = 1,
 )
 
 /**

@@ -35,9 +35,11 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tbtechs.focusflow.data.model.StandaloneBlockConfig
 import com.tbtechs.focusflow.data.model.Task
+import com.tbtechs.focusflow.domain.FocusPinManager
 import com.tbtechs.focusflow.ui.FocusSessionViewModel
 import com.tbtechs.focusflow.ui.SettingsViewModel
 import com.tbtechs.focusflow.ui.TaskViewModel
@@ -55,6 +57,8 @@ fun FocusScreen(
     onOpenSchedule: () -> Unit = {},
     onOpenPermissions: () -> Unit = {},
 ) {
+    val context = LocalContext.current
+    val focusPinManager = remember { FocusPinManager(context) }
     val tasks by taskViewModel.tasks.collectAsState()
     val settings by settingsViewModel.settings.collectAsState()
     val session by focusSessionViewModel.focusSession.collectAsState()
@@ -65,12 +69,16 @@ fun FocusScreen(
         settings.standaloneBlockPackages.isNotEmpty() &&
         settings.standaloneBlockUntilMs > System.currentTimeMillis()
 
-    var showDefenseHint by remember { mutableStateOf(true) }
+    var showDefenseHint by remember(settings.focusDefenseHintDismissed) {
+        mutableStateOf(!settings.focusDefenseHintDismissed)
+    }
     var showStandaloneEditor by remember { mutableStateOf(false) }
     var showExtend by remember { mutableStateOf(false) }
     var showStopConfirmation by remember { mutableStateOf(false) }
     var showEmergencyConfirmation by remember { mutableStateOf(false) }
     var showFocusPinUnavailable by remember { mutableStateOf(false) }
+    var focusPin by remember { mutableStateOf("") }
+    var pendingPinReason by remember { mutableStateOf<String?>(null) }
     var showCompleteConfirmation by remember { mutableStateOf(false) }
     var showSkipConfirmation by remember { mutableStateOf(false) }
     var activePanel by remember { mutableStateOf("task") }
@@ -94,7 +102,7 @@ fun FocusScreen(
                         Icon(Icons.Outlined.Security, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                         Text("Always-On Blocking and related protection tools have moved to the Defense tab.", modifier = androidx.compose.ui.Modifier.weight(1f))
                         androidx.compose.material3.IconButton(onClick = { showDefenseHint = false }) {
-                            // NEEDS: persisted focus-defense-hint dismissal preference.
+                            settingsViewModel.updateSettings(settings.copy(focusDefenseHintDismissed = true))
                             Icon(Icons.Outlined.Close, contentDescription = "Dismiss Defense hint")
                         }
                     }
@@ -172,7 +180,7 @@ fun FocusScreen(
         confirmButton = {
             Button(onClick = {
                 showStopConfirmation = false
-                // NEEDS: focus-session PIN verification and rotation APIs; SettingsViewModel PIN is the defense PIN.
+                pendingPinReason = null
                 showFocusPinUnavailable = true
             }) { Text("Stop") }
         },
@@ -185,7 +193,7 @@ fun FocusScreen(
         confirmButton = {
             Button(onClick = {
                 showEmergencyConfirmation = false
-                // NEEDS: FocusSessionViewModel.recordOverride(taskId, reason) before stopping the session.
+                pendingPinReason = "emergency_override"
                 showFocusPinUnavailable = true
             }) { Text("Override") }
         },
@@ -194,8 +202,27 @@ fun FocusScreen(
     if (showFocusPinUnavailable) AlertDialog(
         onDismissRequest = { showFocusPinUnavailable = false },
         title = { Text("Focus session password required") },
-        text = { Text("This action needs the focus-session PIN contract. It is not exposed by the current ViewModels, so FocusFlow will keep blocking rather than bypassing the gate.") },
-        confirmButton = { Button(onClick = { showFocusPinUnavailable = false }) { Text("OK") } },
+        text = {
+            OutlinedTextField(
+                value = focusPin,
+                onValueChange = { focusPin = it },
+                label = { Text("Focus session password") },
+                singleLine = true,
+            )
+        },
+        confirmButton = {
+            Button(onClick = {
+                if (focusPinManager.verifyPin(focusPin)) {
+                    pendingPinReason?.let { reason ->
+                        task?.id?.let { focusSessionViewModel.recordOverride(it, reason) }
+                    }
+                    focusSessionViewModel.stopFocusMode(focusPinManager.hash(focusPin))
+                    focusPin = ""
+                    pendingPinReason = null
+                    showFocusPinUnavailable = false
+                }
+            }) { Text("Stop Focus") }
+        },
     )
     if (showCompleteConfirmation && task != null) AlertDialog(
         onDismissRequest = { showCompleteConfirmation = false },

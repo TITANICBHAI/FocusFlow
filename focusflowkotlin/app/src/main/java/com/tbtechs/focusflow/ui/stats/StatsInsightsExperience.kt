@@ -27,6 +27,7 @@ import com.tbtechs.focusflow.analytics.ANALYTICS_THREE_MONTHS
 import com.tbtechs.focusflow.analytics.ANALYTICS_WEEK
 import com.tbtechs.focusflow.analytics.ANALYTICS_YESTERDAY
 import com.tbtechs.focusflow.analytics.AnalyticsWindow
+import com.tbtechs.focusflow.di.AppModule
 
 /** The superseding Stats experience; do not substitute UsageInsights or WeeklyReport. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -41,7 +42,10 @@ fun StatsInsightsExperience(
     val achievements by statsViewModel.achievementState.collectAsState()
     val state by statsViewModel.loadState.collectAsState()
     val window by statsViewModel.activeWindow.collectAsState()
-    var localNoticeDismissed by remember { mutableStateOf(false) }
+    val settingsRepository = remember { AppModule.settingsRepository }
+    var localNoticeDismissed by remember {
+        mutableStateOf(settingsRepository.getString("local_analytics_notice_dismissed") == "true")
+    }
 
     Column(modifier = androidx.compose.ui.Modifier.fillMaxSize()) {
         TopAppBar(
@@ -56,7 +60,7 @@ fun StatsInsightsExperience(
         AnalyticsWindowTabs(activeWindow = window, onSelect = statsViewModel::setWindow)
         if (window == ANALYTICS_THREE_MONTHS && !localNoticeDismissed) {
             LocalOnlyNotice(onDismiss = {
-                // NEEDS: persist this dismissal in AppSettings; no privacy-notice field is exposed yet.
+                settingsRepository.putString("local_analytics_notice_dismissed", "true")
                 localNoticeDismissed = true
             })
         }

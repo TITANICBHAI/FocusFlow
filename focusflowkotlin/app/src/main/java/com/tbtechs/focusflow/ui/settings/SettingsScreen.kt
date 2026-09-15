@@ -37,6 +37,8 @@ import com.tbtechs.focusflow.ui.FocusSessionViewModel
 import com.tbtechs.focusflow.ui.SettingsViewModel
 import com.tbtechs.focusflow.ui.TaskViewModel
 import com.tbtechs.focusflow.ui.support.ReportIssueModal
+import com.tbtechs.focusflow.data.model.DailyAllowanceEntry
+import org.json.JSONArray
 
 /** The "settings" destination from ARCHITECTURE.md §3.1. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -69,6 +71,8 @@ fun SettingsScreen(
     var clearAllConfirmationVisible by remember { mutableStateOf(false) }
     var importChoiceVisible by remember { mutableStateOf(false) }
     var reportIssueVisible by remember { mutableStateOf(false) }
+    var allowedAppsVisible by remember { mutableStateOf(false) }
+    var allowedAppsDraft by remember { mutableStateOf("") }
     var notice by remember { mutableStateOf<SettingsNotice?>(null) }
 
     val requestNotifications = rememberLauncherForActivityResult(
@@ -141,16 +145,11 @@ fun SettingsScreen(
                         label = "Enable Reminders",
                         description = "Get alerts before and during tasks",
                     ) {
-                        // NEEDS: a dedicated task-reminder preference. The current model only
-                        // exposes individual analytics notification categories, not this setting.
                         Switch(
-                            checked = false,
-                            onCheckedChange = {
-                                unavailable(
-                                    "Reminder setting unavailable",
-                                    "The current SettingsViewModel does not expose the task-reminder preference needed to save this choice.",
-                                )
-                            },
+                             checked = settings.taskRemindersEnabled,
+                             onCheckedChange = { enabled ->
+                                 settingsViewModel.updateSettings(settings.copy(taskRemindersEnabled = enabled))
+                             },
                         )
                     }
                     SettingsAction(
@@ -185,10 +184,8 @@ fun SettingsScreen(
                             OutlinedButton(
                                 modifier = Modifier.weight(1f),
                                 onClick = {
-                                    // NEEDS: default task duration in AppSettings and a matching repository setter.
-                                    unavailable(
-                                        "Default duration unavailable",
-                                        "The current SettingsViewModel has no default task duration field to persist ${minutes} minutes.",
+                                    settingsViewModel.updateSettings(
+                                        settings.copy(defaultDurationMinutes = minutes),
                                     )
                                 },
                             ) { Text("${minutes}m") }
@@ -202,15 +199,10 @@ fun SettingsScreen(
                         label = "Auto-enable Focus Mode",
                         description = "Activate when a focus task starts",
                     ) {
-                        // NEEDS: an auto-focus setting in AppSettings. Do not repurpose an
-                        // enforcement flag because it changes a different feature.
                         Switch(
-                            checked = false,
-                            onCheckedChange = {
-                                unavailable(
-                                    "Auto-focus unavailable",
-                                    "The current SettingsViewModel does not expose a persisted auto-enable Focus Mode setting.",
-                                )
+                            checked = settings.autoFocusEnabled,
+                            onCheckedChange = { enabled ->
+                                settingsViewModel.updateSettings(settings.copy(autoFocusEnabled = enabled))
                             },
                         )
                     }
@@ -218,12 +210,8 @@ fun SettingsScreen(
                         label = "Manage Allowed Apps",
                         description = "Choose apps permitted during Focus Mode",
                         onClick = {
-                            // NEEDS: default allowed-in-focus packages and a setter. A live
-                            // FocusSession exposes its own temporary packages only.
-                            unavailable(
-                                "Allowed apps unavailable",
-                                "The current ViewModels do not expose the default allowed-app list needed to save this setting.",
-                            )
+                            allowedAppsDraft = settings.allowedFocusPackages.joinToString(", ")
+                            allowedAppsVisible = true
                         },
                     )
                 }
@@ -259,15 +247,10 @@ fun SettingsScreen(
                         label = "Enable Pomodoro",
                         description = "Auto-cycle work and break sessions",
                     ) {
-                        // NEEDS: Pomodoro enabled/work/break fields in AppSettings plus a
-                        // scheduler backed by those values.
                         Switch(
-                            checked = false,
-                            onCheckedChange = {
-                                unavailable(
-                                    "Pomodoro unavailable",
-                                    "The current Kotlin settings contract does not expose Pomodoro settings.",
-                                )
+                            checked = settings.pomodoroEnabled,
+                            onCheckedChange = { enabled ->
+                                settingsViewModel.updateSettings(settings.copy(pomodoroEnabled = enabled))
                             },
                         )
                     }
@@ -382,6 +365,30 @@ fun SettingsScreen(
         onClose = { reportIssueVisible = false },
     )
 
+    if (allowedAppsVisible) {
+        AlertDialog(
+            onDismissRequest = { allowedAppsVisible = false },
+            title = { Text("Allowed apps during Focus") },
+            text = {
+                OutlinedTextField(
+                    value = allowedAppsDraft,
+                    onValueChange = { allowedAppsDraft = it },
+                    label = { Text("Package names, comma separated") },
+                    supportingText = { Text("Leave empty to allow all apps.") },
+                    minLines = 2,
+                )
+            },
+            confirmButton = {
+                Button(onClick = {
+                    val packages = allowedAppsDraft.split(",").map(String::trim).filter(String::isNotBlank)
+                    settingsViewModel.updateSettings(settings.copy(allowedFocusPackages = packages))
+                    allowedAppsVisible = false
+                }) { Text("Save") }
+            },
+            dismissButton = { TextButton(onClick = { allowedAppsVisible = false }) { Text("Cancel") } },
+        )
+    }
+
     if (importChoiceVisible) {
         AlertDialog(
             onDismissRequest = { importChoiceVisible = false },
@@ -422,20 +429,12 @@ fun SettingsScreen(
                 Button(onClick = {
                     clearAllConfirmationVisible = false
                     if (focusSession?.isActive == true) {
-                        // NEEDS: a Focus-session PIN verification API and an atomic clear that
-                        // keeps the protected active task if verification is cancelled.
                         unavailable(
                             "Focus session password required",
-                            "FocusFlow cannot safely clear tasks during an active focus session until the Kotlin focus-password and atomic-clear APIs are exposed.",
+                            "Stop Focus before clearing tasks so the active protection state is not deleted underneath the enforcement service.",
                         )
                     } else {
-                        // NEEDS: TaskViewModel.clearAllTasks() with reminder cancellation.
-                        // Do not loop over deleteTask(): that would omit the source's atomic
-                        // reminder handling and its active-session protection.
-                        unavailable(
-                            "Clear all tasks unavailable",
-                            "The current TaskViewModel has no safe bulk-delete API with reminder cancellation.",
-                        )
+                        taskViewModel.clearAllTasks()
                     }
                 }) { Text("Clear all") }
             },
@@ -515,3 +514,23 @@ private fun SettingsAction(
 }
 
 private data class SettingsNotice(val title: String, val body: String)
+
+private fun dailyAllowanceEntriesFromJson(json: String?): List<DailyAllowanceEntry> =
+    runCatching {
+        val array = JSONArray(json ?: "[]")
+        (0 until array.length()).mapNotNull { index ->
+            val value = array.optJSONObject(index) ?: return@mapNotNull null
+            val packageName = value.optString("package").ifBlank {
+                value.optString("packageName")
+            }.takeIf(String::isNotBlank) ?: return@mapNotNull null
+            DailyAllowanceEntry(
+                packageName = packageName,
+                dailyAllowanceMs = value.optLong("dailyAllowanceMs", 30L * 60_000L),
+                mode = value.optString("mode", "time_budget"),
+                countPerDay = value.optInt("countPerDay", 1),
+                budgetMinutes = value.optInt("budgetMinutes", 30),
+                intervalMinutes = value.optInt("intervalMinutes", 5),
+                intervalHours = value.optInt("intervalHours", 1),
+            )
+        }
+    }.getOrDefault(emptyList())

@@ -40,6 +40,7 @@ fun ErrorBoundary(
                 reportVisible = false
             },
             onReportIssue = { reportVisible = true },
+            onClose = { error = null },
         )
         ReportIssueModal(
             visible = reportVisible,

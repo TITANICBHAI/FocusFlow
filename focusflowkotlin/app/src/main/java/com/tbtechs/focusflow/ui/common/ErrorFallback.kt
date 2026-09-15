@@ -1,6 +1,5 @@
 package com.tbtechs.focusflow.ui.common
 
-import android.app.Activity
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -17,6 +16,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.AlertDialog
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -28,6 +29,9 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
+import com.tbtechs.focusflow.ui.support.DiagnosticsReport
+import com.tbtechs.focusflow.ui.support.DiagnosticsReportType
+import com.tbtechs.focusflow.ui.support.ReportIssueModal
 
 @Composable
 fun ErrorFallback(
@@ -35,10 +39,11 @@ fun ErrorFallback(
     error: Throwable?,
     onRetry: () -> Unit,
     onReportIssue: () -> Unit,
+    onClose: () -> Unit = {},
 ) {
-    val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
     var copied by remember { mutableStateOf(false) }
+    var detailsVisible by remember { mutableStateOf(false) }
     val details = buildString {
         appendLine("Screen: $screenName")
         appendLine("Message: ${error?.message ?: "Unknown error"}")
@@ -88,19 +93,35 @@ fun ErrorFallback(
                     Text(if (copied) "Copied logs" else "Copy logs", modifier = Modifier.padding(start = 8.dp))
                 }
                 OutlinedButton(
-                    onClick = onReportIssue,
+                    onClick = { detailsVisible = true },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Icon(Icons.Outlined.Send, contentDescription = null)
-                    Text("Report this issue", modifier = Modifier.padding(start = 8.dp))
+                    Text("View error details", modifier = Modifier.padding(start = 8.dp))
                 }
                 OutlinedButton(
-                    onClick = { (context as? Activity)?.finish() },
+                    onClick = onReportIssue,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text("Close app")
+                    Text("Report this issue")
                 }
+                TextButton(onClick = onClose, modifier = Modifier.fillMaxWidth()) { Text("Close") }
             }
         }
+    }
+    if (detailsVisible) {
+        AlertDialog(
+            onDismissRequest = { detailsVisible = false },
+            title = { Text("Error details") },
+            text = { Text(details, modifier = Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState())) },
+            confirmButton = {
+                TextButton(onClick = {
+                    clipboard.setText(AnnotatedString(details))
+                    copied = true
+                    detailsVisible = false
+                }) { Text("Copy details") }
+            },
+            dismissButton = { TextButton(onClick = { detailsVisible = false }) { Text("Close") } },
+        )
     }
 }

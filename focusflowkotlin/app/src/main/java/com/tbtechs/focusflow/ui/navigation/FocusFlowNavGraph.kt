@@ -294,6 +294,16 @@ fun FocusFlowNavGraph(
                 ScreenBoundary(Routes.REPORTS) {
                     ReportScreen(
                         taskViewModel = taskViewModel,
+                        settingsRepository = AppModule.settingsRepository,
+                        onBack = ::back,
+                    )
+                }
+            }
+            composable(Routes.REPORT) {
+                ScreenBoundary(Routes.REPORT) {
+                    ReportScreen(
+                        taskViewModel = taskViewModel,
+                        settingsRepository = AppModule.settingsRepository,
                         onBack = ::back,
                     )
                 }

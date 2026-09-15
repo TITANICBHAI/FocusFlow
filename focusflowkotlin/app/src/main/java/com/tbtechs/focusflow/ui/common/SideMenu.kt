@@ -23,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import com.tbtechs.focusflow.ui.navigation.Routes
 
 data class SideMenuItem(
     val route: String,
@@ -37,11 +38,11 @@ fun SideMenu(
     onClose: () -> Unit,
 ) {
     val items = listOf(
-        SideMenuItem("home", "Home", Icons.Outlined.Home),
-        SideMenuItem("focus", "Focus", Icons.Outlined.CalendarMonth),
-        SideMenuItem("stats", "Stats", Icons.Outlined.Analytics),
-        SideMenuItem("settings", "Settings", Icons.Outlined.Settings),
-        SideMenuItem("defense", "Defense", Icons.Outlined.Shield),
+        SideMenuItem(Routes.HOME, "Home", Icons.Outlined.Home),
+        SideMenuItem(Routes.FOCUS, "Focus", Icons.Outlined.CalendarMonth),
+        SideMenuItem(Routes.STATS, "Stats", Icons.Outlined.Analytics),
+        SideMenuItem(Routes.SETTINGS, "Settings", Icons.Outlined.Settings),
+        SideMenuItem(Routes.DEFENSE, "Defense", Icons.Outlined.Shield),
     )
     ModalDrawerSheet {
         Column(
@@ -70,9 +71,9 @@ fun SideMenu(
             HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
             NavigationDrawerItem(
                 label = { Text("How to use") },
-                selected = currentRoute == "how_to_use",
+                selected = currentRoute == Routes.HOW_TO_USE,
                 onClick = {
-                    onNavigate("how_to_use")
+                    onNavigate(Routes.HOW_TO_USE)
                     onClose()
                 },
                 icon = { Icon(Icons.Outlined.HelpOutline, contentDescription = null) },
@@ -80,9 +81,9 @@ fun SideMenu(
             )
             NavigationDrawerItem(
                 label = { Text("Privacy & Terms") },
-                selected = currentRoute == "privacy_policy",
+                selected = currentRoute == Routes.PRIVACY_POLICY,
                 onClick = {
-                    onNavigate("privacy_policy")
+                    onNavigate(Routes.PRIVACY_POLICY)
                     onClose()
                 },
                 icon = { Icon(Icons.Outlined.Lock, contentDescription = null) },

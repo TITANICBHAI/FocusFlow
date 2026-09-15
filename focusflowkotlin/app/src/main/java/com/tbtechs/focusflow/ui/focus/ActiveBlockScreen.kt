@@ -28,10 +28,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tbtechs.focusflow.data.model.AppSettings
 import com.tbtechs.focusflow.data.model.StandaloneBlockConfig
 import com.tbtechs.focusflow.data.model.Task
+import com.tbtechs.focusflow.domain.FocusPinManager
 import com.tbtechs.focusflow.ui.FocusSessionViewModel
 import com.tbtechs.focusflow.ui.SettingsViewModel
 import com.tbtechs.focusflow.ui.TaskViewModel
@@ -54,6 +56,7 @@ fun ActiveBlockScreen(
     onOpenKeywordBlocker: () -> Unit = {},
     onOpenVpnBlockList: () -> Unit = {},
 ) {
+    val focusPinManager = remember { FocusPinManager(LocalContext.current) }
     val tasks by taskViewModel.tasks.collectAsState()
     val settings by settingsViewModel.settings.collectAsState()
     val session by focusSessionViewModel.focusSession.collectAsState()
@@ -69,6 +72,7 @@ fun ActiveBlockScreen(
     var clearStandaloneConfirmation by remember { mutableStateOf(false) }
     var defensePinGate by remember { mutableStateOf(false) }
     var focusPinUnavailable by remember { mutableStateOf(false) }
+    var focusPin by remember { mutableStateOf("") }
 
     Column(modifier = androidx.compose.ui.Modifier.fillMaxSize()) {
         TopAppBar(
@@ -173,7 +177,6 @@ fun ActiveBlockScreen(
         text = { Text("This ends app blocking for the current task.") },
         confirmButton = { Button(onClick = {
             stopFocusConfirmation = false
-            // NEEDS: focus-session PIN verifier; SettingsViewModel.verifyPin is the defense PIN and must not be substituted.
             focusPinUnavailable = true
         }) { Text("Stop") } },
         dismissButton = { Button(onClick = { stopFocusConfirmation = false }) { Text("Cancel") } },
@@ -181,8 +184,23 @@ fun ActiveBlockScreen(
     if (focusPinUnavailable) AlertDialog(
         onDismissRequest = { focusPinUnavailable = false },
         title = { Text("Focus session password required") },
-        text = { Text("The focus-session PIN verifier is not exposed by the current ViewModels. Blocking remains active rather than bypassing that protection.") },
-        confirmButton = { Button(onClick = { focusPinUnavailable = false }) { Text("OK") } },
+        text = {
+            OutlinedTextField(
+                value = focusPin,
+                onValueChange = { focusPin = it },
+                label = { Text("Focus session password") },
+                singleLine = true,
+            )
+        },
+        confirmButton = {
+            Button(onClick = {
+                if (focusPinManager.verifyPin(focusPin)) {
+                    focusSessionViewModel.stopFocusMode(focusPinManager.hash(focusPin))
+                    focusPin = ""
+                    focusPinUnavailable = false
+                }
+            }) { Text("Stop Focus") }
+        },
     )
 }
 

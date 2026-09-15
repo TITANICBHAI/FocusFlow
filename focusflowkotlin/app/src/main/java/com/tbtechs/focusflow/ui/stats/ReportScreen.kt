@@ -25,6 +25,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tbtechs.focusflow.data.model.Task
+import com.tbtechs.focusflow.data.repository.SettingsRepository
 import com.tbtechs.focusflow.ui.TaskViewModel
 import java.time.Instant
 import java.time.LocalDate
@@ -33,20 +34,26 @@ import java.time.format.DateTimeFormatter
 
 enum class ReportType { Day, Week }
 
-/** "report" route. Uses TaskViewModel until a report repository exposes saved notes and date-range fetches. */
+/** Shared implementation for both the architecture "reports" route and the legacy "report" slug. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReportScreen(
     reportType: ReportType = ReportType.Day,
     referenceDate: LocalDate = LocalDate.now().minusDays(1),
     taskViewModel: TaskViewModel = viewModel(),
+    settingsRepository: SettingsRepository? = null,
     onBack: () -> Unit = {},
 ) {
     val tasks by taskViewModel.tasks.collectAsState()
     val range = remember(reportType, referenceDate) { reportRange(reportType, referenceDate) }
     val reportTasks = remember(tasks, range) { tasks.filter { it.startsIn(range.first, range.second) } }
     val baseline = remember(tasks, range, reportType) { tasks.filter { it.startsIn(range.first.minusDays(if (reportType == ReportType.Week) 7 else 30), range.first.minusDays(1)) } }
-    var note by remember { mutableStateOf("") }
+    val noteKey = remember(reportType, referenceDate) {
+        "${reportType.name.lowercase()}_${referenceDate}"
+    }
+    var note by remember(noteKey, settingsRepository) {
+        mutableStateOf(settingsRepository?.getReportNote(noteKey).orEmpty())
+    }
     val completed = reportTasks.filter { it.status == "completed" }
     val skipped = reportTasks.filter { it.status == "skipped" }
     val focusMinutes = completed.filter(Task::focusMode).sumOf(Task::durationMinutes)
@@ -82,15 +89,25 @@ fun ReportScreen(
                 Card {
                     Text("Your note", style = MaterialTheme.typography.titleMedium)
                     Text("Optional. Saved when you leave the field.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    OutlinedTextField(value = note, onValueChange = { note = it }, label = { Text("What do you want to remember?") }, modifier = androidx.compose.ui.Modifier.fillMaxWidth())
-                    // NEEDS: ReportRepository get/save report note methods and focus-loss persistence.
+                    OutlinedTextField(
+                        value = note,
+                        onValueChange = {
+                            note = it
+                            settingsRepository?.setReportNote(noteKey, it)
+                        },
+                        label = { Text("What do you want to remember?") },
+                        modifier = androidx.compose.ui.Modifier.fillMaxWidth(),
+                    )
                 }
                 Card {
                     Text("Task timeline", style = MaterialTheme.typography.titleMedium)
                     reportDays(range.first, range.second, reportTasks).forEach { (date, dayTasks) ->
                         if (reportType == ReportType.Week) {
                             Text("${date.format(DateTimeFormatter.ofPattern("EEE, MMM d"))} · ${dayTasks.count { it.status == "completed" }}/${dayTasks.size} complete")
-                            // NEEDS: daily report-note lookup for week rows.
+                            val dayNoteKey = "${ReportType.Day.name.lowercase()}_$date"
+                            settingsRepository?.getReportNote(dayNoteKey)?.takeIf { it.isNotBlank() }?.let {
+                                Text("Note: $it", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
                         }
                         if (dayTasks.isEmpty()) Text("No tasks scheduled.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                         else dayTasks.forEach { TaskTimelineRow(it) }

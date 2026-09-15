@@ -92,6 +92,16 @@ class SettingsRepository(context: Context) {
         private const val KEY_LAST_SESSION_RESULT_BY_TASK_ID = "last_session_result_by_task_id"
         private const val KEY_SHOWN_PATTERN_INSIGHT_IDS = "shown_pattern_insight_ids"
         private const val KEY_LAST_SHOWN_DEBRIEF_SESSION_ID = "last_shown_debrief_session_id"
+        private const val KEY_TASK_REMINDERS_ENABLED = "task_reminders_enabled"
+        private const val KEY_DEFAULT_DURATION_MINUTES = "default_duration_minutes"
+        private const val KEY_AUTO_FOCUS_ENABLED = "auto_focus_enabled"
+        private const val KEY_ALLOWED_FOCUS_PACKAGES = "allowed_focus_packages"
+        private const val KEY_POMODORO_ENABLED = "pomodoro_enabled"
+        private const val KEY_POMODORO_WORK_MINUTES = "pomodoro_work_minutes"
+        private const val KEY_POMODORO_BREAK_MINUTES = "pomodoro_break_minutes"
+        private const val KEY_FOCUS_DEFENSE_HINT_DISMISSED = "focus_defense_hint_dismissed"
+        private const val KEY_LOCAL_ANALYTICS_NOTICE_DISMISSED = "local_analytics_notice_dismissed"
+        private const val KEY_REPORT_NOTE_PREFIX = "report_note_"
         private const val KEY_LAUNCHER_DOCK_PACKAGES = "launcher_dock_packages"
         private const val KEY_LAUNCHER_HIDDEN_PACKAGES = "launcher_hidden_packages"
         private const val KEY_DRAWER_HIDDEN_PACKAGES = "drawer_hidden_packages"
@@ -687,6 +697,11 @@ class SettingsRepository(context: Context) {
                 put(JSONObject().apply {
                     put("package", entry.packageName)
                     put("dailyAllowanceMs", entry.dailyAllowanceMs)
+                    put("mode", entry.mode)
+                    put("countPerDay", entry.countPerDay)
+                    put("budgetMinutes", entry.budgetMinutes)
+                    put("intervalMinutes", entry.intervalMinutes)
+                    put("intervalHours", entry.intervalHours)
                 })
             }
         }.toString()
@@ -732,6 +747,15 @@ class SettingsRepository(context: Context) {
             .putBoolean(KEY_PRODUCTIVE_WINDOW_NUDGE_ENABLED, settings.productiveWindowNudgeEnabled)
             .putString(KEY_LAST_SESSION_RESULT_BY_TASK_ID, results.toString())
             .putString(KEY_SHOWN_PATTERN_INSIGHT_IDS, JSONArray(settings.shownPatternInsightIds).toString())
+            .putBoolean(KEY_TASK_REMINDERS_ENABLED, settings.taskRemindersEnabled)
+            .putInt(KEY_DEFAULT_DURATION_MINUTES, settings.defaultDurationMinutes.coerceIn(5, 480))
+            .putBoolean(KEY_AUTO_FOCUS_ENABLED, settings.autoFocusEnabled)
+            .putString(KEY_ALLOWED_FOCUS_PACKAGES, settings.allowedFocusPackages.toJsonArrayString())
+            .putBoolean(KEY_POMODORO_ENABLED, settings.pomodoroEnabled)
+            .putInt(KEY_POMODORO_WORK_MINUTES, settings.pomodoroWorkMinutes.coerceIn(1, 180))
+            .putInt(KEY_POMODORO_BREAK_MINUTES, settings.pomodoroBreakMinutes.coerceIn(1, 60))
+            .putBoolean(KEY_FOCUS_DEFENSE_HINT_DISMISSED, settings.focusDefenseHintDismissed)
+            .putBoolean(KEY_LOCAL_ANALYTICS_NOTICE_DISMISSED, settings.localAnalyticsNoticeDismissed)
             .apply {
                 if (settings.lastShownDebriefSessionId == null) {
                     remove(KEY_LAST_SHOWN_DEBRIEF_SESSION_ID)
@@ -810,20 +834,28 @@ class SettingsRepository(context: Context) {
             } else {
                 null
             },
+            taskRemindersEnabled = prefs.getBoolean(KEY_TASK_REMINDERS_ENABLED, true),
+            defaultDurationMinutes = prefs.getInt(KEY_DEFAULT_DURATION_MINUTES, 60).coerceIn(5, 480),
+            autoFocusEnabled = prefs.getBoolean(KEY_AUTO_FOCUS_ENABLED, false),
+            allowedFocusPackages = parseStringArray(prefs.getString(KEY_ALLOWED_FOCUS_PACKAGES, "[]")),
+            pomodoroEnabled = prefs.getBoolean(KEY_POMODORO_ENABLED, false),
+            pomodoroWorkMinutes = prefs.getInt(KEY_POMODORO_WORK_MINUTES, 25).coerceIn(1, 180),
+            pomodoroBreakMinutes = prefs.getInt(KEY_POMODORO_BREAK_MINUTES, 5).coerceIn(1, 60),
+            focusDefenseHintDismissed = prefs.getBoolean(KEY_FOCUS_DEFENSE_HINT_DISMISSED, false),
+            localAnalyticsNoticeDismissed = prefs.getBoolean(KEY_LOCAL_ANALYTICS_NOTICE_DISMISSED, false),
         )
     }
 
-    /** Generic overlay/config string setter; an empty value removes the key. */
-    suspend fun putString(key: String, value: String) {
-        if (value.isEmpty()) {
-            prefs.edit().remove(key).apply()
-        } else {
-            prefs.edit().putString(key, value).apply()
-        }
+    fun getReportNote(reportKey: String): String =
+        prefs.getString(KEY_REPORT_NOTE_PREFIX + reportKey.sanitizedPreferenceKey(), "") ?: ""
+
+    fun setReportNote(reportKey: String, note: String) {
+        prefs.edit()
+            .putString(KEY_REPORT_NOTE_PREFIX + reportKey.sanitizedPreferenceKey(), note.take(4_000))
+            .apply()
     }
 
-    suspend fun getString(key: String): String? = prefs.getString(key, null)
-
+    /** Generic overlay/config string setter; an empty value removes the key. */
     suspend fun getLong(key: String): Long = prefs.getLong(key, 0L)
 
     suspend fun getAllowanceSnapshot(): AllowanceSnapshot =
@@ -955,6 +987,9 @@ class SettingsRepository(context: Context) {
     }
 
     private fun List<String>.toJsonArrayString(): String = JSONArray(this).toString()
+
+private fun String.sanitizedPreferenceKey(): String =
+    replace(Regex("[^A-Za-z0-9_-]"), "_").take(120)
 
     private fun parseStringArray(json: String?): List<String> =
         runCatching {

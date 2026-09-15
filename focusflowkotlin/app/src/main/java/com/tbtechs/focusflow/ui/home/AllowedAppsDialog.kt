@@ -8,26 +8,26 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import com.tbtechs.focusflow.data.repository.InstalledAppsRepository
+import com.tbtechs.focusflow.ui.launcher.AppPickerSheet
 
 /**
- * Temporary package-entry fallback for the nested picker used by the reference UI.
- * NEEDS: InstalledAppsRepository-backed AppPickerSheet, including selection presets.
+ * Installed-app picker used by the nested focus-task editor.
  */
 @Composable
 internal fun AllowedAppsDialog(value: String, onDismiss: () -> Unit, onSave: (String) -> Unit) {
-    var packages by remember(value) { mutableStateOf(value) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Allowed apps") },
-        text = {
-            HomeTextField(
-                value = packages,
-                onValueChange = { packages = it },
-                label = "Package names (comma separated)",
-                singleLine = false,
-            )
-        },
-        confirmButton = { Button(onClick = { onSave(packages) }) { Text("Save") } },
-        dismissButton = { Button(onClick = onDismiss) { Text("Cancel") } },
+    val context = LocalContext.current
+    val repository = remember { InstalledAppsRepository(context) }
+    AppPickerSheet(
+        visible = true,
+        title = "Allowed apps",
+        initialSelected = value.split(",").map(String::trim).filter(String::isNotBlank),
+        presets = emptyList(),
+        installedAppsRepository = repository,
+        onSave = { onSave(it.joinToString(", ")); onDismiss() },
+        onSavePreset = {},
+        onDeletePreset = {},
+        onClose = onDismiss,
     )
 }

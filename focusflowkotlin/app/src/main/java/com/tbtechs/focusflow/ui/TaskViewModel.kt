@@ -76,6 +76,11 @@ class TaskViewModel(
         viewModelScope.launch { taskRepository.deleteTask(taskId) }
     }
 
+    /** Bulk deletion used by Settings; the screen gates this while Focus is active. */
+    fun clearAllTasks() {
+        viewModelScope.launch { taskRepository.deleteAllTasks() }
+    }
+
     /**
      * Marks the task with [taskId] as "completed" and stamps [updatedAt].
      * No-op if the task is not found in [tasks].

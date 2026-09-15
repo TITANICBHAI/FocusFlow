@@ -26,23 +26,18 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import com.tbtechs.focusflow.data.model.DailyAllowanceEntry
+import com.tbtechs.focusflow.data.repository.InstalledAppsRepository
+import com.tbtechs.focusflow.ui.launcher.AppPickerSheet
 import org.json.JSONArray
 
 /**
  * Per-app daily allowance editor.
  *
- * The currently shipped Kotlin contract can persist only a per-package daily
- * millisecond budget. The reference app also offers Count and Interval modes.
- * Those controls remain visible and editable here, but saving them is blocked
- * instead of silently converting them into a different kind of enforcement.
- *
- * NEEDS: a list of InstalledAppInfo from an existing ViewModel. The allowed
- * ViewModel set exposes no installed-app catalogue, so this screen uses a
- * package-name entry fallback rather than inventing a fifth ViewModel.
- * NEEDS: DailyAllowanceEntry mode/count/interval fields and usage snapshots
- * from the enforcement layer before Count and Interval can be saved or usage
- * can be displayed accurately.
+     * The JSON contract is shared with the accessibility and fallback services,
+     * so mode/count/interval values are persisted without converting them into a
+     * different kind of allowance.
  */
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -61,8 +56,15 @@ fun DailyAllowanceModal(
         selectedEntries.map { entry ->
             DailyAllowanceDraft(
                 packageName = entry.packageName,
-                mode = AllowanceMode.TimeBudget,
-                budgetMinutes = (entry.dailyAllowanceMs / MINUTE_MS).coerceAtLeast(1L).toInt(),
+                mode = when (entry.mode) {
+                    "count" -> AllowanceMode.Count
+                    "interval" -> AllowanceMode.Interval
+                    else -> AllowanceMode.TimeBudget
+                },
+                countPerDay = entry.countPerDay,
+                budgetMinutes = entry.budgetMinutes.coerceAtLeast(1),
+                intervalMinutes = entry.intervalMinutes.coerceAtLeast(1),
+                intervalHours = entry.intervalHours.coerceAtLeast(1),
             )
         }
     }
@@ -71,6 +73,7 @@ fun DailyAllowanceModal(
     var expandedPackage by remember { mutableStateOf<String?>(null) }
     var search by remember { mutableStateOf("") }
     var packageDraft by remember { mutableStateOf("") }
+    var pickerVisible by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<AllowanceMessage?>(null) }
     var pendingRemoval by remember { mutableStateOf<PendingAllowanceRemoval?>(null) }
     var pin by remember { mutableStateOf("") }
@@ -127,19 +130,24 @@ fun DailyAllowanceModal(
     }
 
     fun save() {
-        val unsupported = drafts.filter { it.mode != AllowanceMode.TimeBudget }
-        if (unsupported.isNotEmpty()) {
-            message = AllowanceMessage(
-                "Allowance mode not available",
-                "Count and Interval allowances cannot be saved yet because the current Android enforcement contract only supports a daily time budget. Change those apps to Time Budget before saving.",
-            )
-            return
-        }
         onSave(
             drafts.map {
                 DailyAllowanceEntry(
                     packageName = it.packageName,
-                    dailyAllowanceMs = it.budgetMinutes.coerceAtLeast(1).toLong() * MINUTE_MS,
+                    dailyAllowanceMs = when (it.mode) {
+                        AllowanceMode.TimeBudget -> it.budgetMinutes.coerceAtLeast(1).toLong() * MINUTE_MS
+                        AllowanceMode.Interval -> it.intervalMinutes.coerceAtLeast(1).toLong() * MINUTE_MS
+                        AllowanceMode.Count -> 0L
+                    },
+                    mode = when (it.mode) {
+                        AllowanceMode.Count -> "count"
+                        AllowanceMode.Interval -> "interval"
+                        AllowanceMode.TimeBudget -> "time_budget"
+                    },
+                    countPerDay = it.countPerDay.coerceAtLeast(1),
+                    budgetMinutes = it.budgetMinutes.coerceAtLeast(1),
+                    intervalMinutes = it.intervalMinutes.coerceAtLeast(1),
+                    intervalHours = it.intervalHours.coerceAtLeast(1),
                 )
             },
         )
@@ -198,8 +206,6 @@ fun DailyAllowanceModal(
                 )
             }
             item {
-                // NEEDS: replace this fallback with an InstalledAppsRepository-backed picker
-                // once an existing allowed ViewModel exposes the app catalogue.
                 Row(modifier = Modifier.fillMaxWidth()) {
                     OutlinedTextField(
                         value = packageDraft,
@@ -210,6 +216,9 @@ fun DailyAllowanceModal(
                         singleLine = true,
                     )
                     Button(onClick = ::addPackage, enabled = packageDraft.trim().isNotEmpty()) { Text("Add") }
+                }
+                OutlinedButton(onClick = { pickerVisible = true }) {
+                    Text("Choose installed apps")
                 }
             }
             if (shownDrafts.isEmpty()) {
@@ -322,6 +331,28 @@ fun DailyAllowanceModal(
             title = { Text(notice.title) },
             text = { Text(notice.body) },
             confirmButton = { Button(onClick = { message = null }) { Text("OK") } },
+        )
+    }
+
+    if (pickerVisible) {
+        val repository = remember { InstalledAppsRepository(LocalContext.current) }
+        AppPickerSheet(
+            visible = true,
+            title = "Choose allowance apps",
+            initialSelected = drafts.map { it.packageName },
+            noneWhenEmpty = true,
+            presets = emptyList(),
+            installedAppsRepository = repository,
+            onSave = { selected ->
+                val selectedPackages = selected.filter { it.isNotBlank() }.toSet()
+                drafts = drafts + selectedPackages
+                    .filterNot { packageName -> drafts.any { it.packageName == packageName } }
+                    .map { packageName -> DailyAllowanceDraft(packageName = packageName) }
+                pickerVisible = false
+            },
+            onSavePreset = {},
+            onDeletePreset = {},
+            onClose = { pickerVisible = false },
         )
     }
 }

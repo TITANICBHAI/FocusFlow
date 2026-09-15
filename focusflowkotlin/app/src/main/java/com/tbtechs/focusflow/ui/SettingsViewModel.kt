@@ -193,6 +193,11 @@ class SettingsViewModel(
                     arr.put(JSONObject().apply {
                         put("package", entry.packageName)
                         put("dailyAllowanceMs", entry.dailyAllowanceMs)
+                        put("mode", entry.mode)
+                        put("countPerDay", entry.countPerDay)
+                        put("budgetMinutes", entry.budgetMinutes)
+                        put("intervalMinutes", entry.intervalMinutes)
+                        put("intervalHours", entry.intervalHours)
                     })
                 }
             }.toString()
@@ -299,6 +304,11 @@ class SettingsViewModel(
                     arr.put(JSONObject().apply {
                         put("package", entry.packageName)
                         put("dailyAllowanceMs", entry.dailyAllowanceMs)
+                        put("mode", entry.mode)
+                        put("countPerDay", entry.countPerDay)
+                        put("budgetMinutes", entry.budgetMinutes)
+                        put("intervalMinutes", entry.intervalMinutes)
+                        put("intervalHours", entry.intervalHours)
                     })
                 }
             }.toString()

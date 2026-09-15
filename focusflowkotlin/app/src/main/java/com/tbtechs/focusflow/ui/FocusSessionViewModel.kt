@@ -155,6 +155,8 @@ class FocusSessionViewModel(
             //   null                              → use global "allowed_packages" key (FLAG-5)
             val allowedPackages: List<String> = task.focusAllowedPackages
                 ?: run {
+                    val configured = settingsRepository.readAppSettings().allowedFocusPackages
+                    if (configured.isNotEmpty()) return@run configured
                     val raw = settingsRepository.getString("allowed_packages")
                     if (raw.isNullOrBlank()) emptyList()
                     else runCatching {
@@ -253,6 +255,17 @@ class FocusSessionViewModel(
      */
     fun onViolationDetected(packageName: String) {
         _focusViolationApp.value = packageName
+    }
+
+    /** Records an explicit emergency/temptation override before the session ends. */
+    fun recordOverride(taskId: String, reason: String) {
+        viewModelScope.launch {
+            focusSessionRepository.logFocusOverride(
+                taskId = taskId,
+                appName = "focus_session",
+                reason = reason,
+            )
+        }
     }
 
     /**

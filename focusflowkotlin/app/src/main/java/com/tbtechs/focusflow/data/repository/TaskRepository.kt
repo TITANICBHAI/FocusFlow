@@ -112,6 +112,11 @@ class TaskRepository(private val taskDao: TaskDao) {
         taskDao.deleteTask(taskId)
     }
 
+    /** Deletes the task table in one Room operation after callers clear active focus. */
+    suspend fun deleteAllTasks() {
+        taskDao.deleteAllTasks()
+    }
+
     /**
      * Counts tasks (and their completed subset) by local hour-of-day within
      * [[startISO], [endISO]). Forwarded from [TaskDao.getTasksByHourOfDay].
