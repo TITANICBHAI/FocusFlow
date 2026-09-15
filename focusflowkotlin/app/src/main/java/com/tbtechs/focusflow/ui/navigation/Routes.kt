@@ -76,6 +76,7 @@ object Routes {
             "vpn-block-list" -> VPN_BLOCK_LIST
             else -> normalized
         }
-        return if (route in architectureRoutes || route == ONBOARDING) route else HOME
+        if (normalized.isBlank()) return HOME
+        return if (route in architectureRoutes || route == ONBOARDING) route else NOT_FOUND
     }
 }

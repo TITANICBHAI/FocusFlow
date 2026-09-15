@@ -29,7 +29,6 @@ fun ErrorBoundary(
             content()
         } catch (throwable: Throwable) {
             error = throwable
-            AppErrorEvents.report(screenName, throwable.message ?: "Unexpected screen error", throwable)
             onError?.invoke(throwable)
         }
     } else {

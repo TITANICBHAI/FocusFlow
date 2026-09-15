@@ -28,7 +28,6 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
-import com.tbtechs.focusflow.ui.support.ReportIssueModal
 
 @Composable
 fun ErrorFallback(
@@ -40,7 +39,6 @@ fun ErrorFallback(
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
     var copied by remember { mutableStateOf(false) }
-    var reportVisible by remember { mutableStateOf(false) }
     val details = buildString {
         appendLine("Screen: $screenName")
         appendLine("Message: ${error?.message ?: "Unknown error"}")
@@ -90,7 +88,7 @@ fun ErrorFallback(
                     Text(if (copied) "Copied logs" else "Copy logs", modifier = Modifier.padding(start = 8.dp))
                 }
                 OutlinedButton(
-                    onClick = { reportVisible = true },
+                    onClick = onReportIssue,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Icon(Icons.Outlined.Send, contentDescription = null)
@@ -105,10 +103,4 @@ fun ErrorFallback(
             }
         }
     }
-
-    ReportIssueModal(
-        visible = reportVisible,
-        error = error,
-        onClose = { reportVisible = false },
-    )
 }

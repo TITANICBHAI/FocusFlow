@@ -12,7 +12,7 @@ import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Shield
-import androidx.compose.material.icons.outlined.Support
+import androidx.compose.material.icons.outlined.HelpOutline
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -75,7 +75,7 @@ fun SideMenu(
                     onNavigate("how_to_use")
                     onClose()
                 },
-                icon = { Icon(Icons.Outlined.Support, contentDescription = null) },
+                icon = { Icon(Icons.Outlined.HelpOutline, contentDescription = null) },
                 modifier = Modifier.padding(horizontal = 12.dp),
             )
             NavigationDrawerItem(

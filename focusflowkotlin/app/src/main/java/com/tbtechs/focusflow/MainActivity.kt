@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -20,18 +21,20 @@ import androidx.navigation.compose.rememberNavController
 import com.tbtechs.focusflow.data.repository.NetworkBlockSettings
 import com.tbtechs.focusflow.data.repository.VpnRepository
 import com.tbtechs.focusflow.di.AppModule
-import com.tbtechs.focusflow.domain.FocusPinManager
 import com.tbtechs.focusflow.ui.AppBootViewModel
 import com.tbtechs.focusflow.ui.FocusSessionViewModel
 import com.tbtechs.focusflow.ui.SettingsViewModel
 import com.tbtechs.focusflow.ui.TaskViewModel
 import com.tbtechs.focusflow.ui.alwayson.VpnPermissionLostBanner
 import com.tbtechs.focusflow.ui.common.AchievementCelebrationModal
+import com.tbtechs.focusflow.ui.common.AppErrorEvents
 import com.tbtechs.focusflow.ui.common.ErrorAlertBanner
 import com.tbtechs.focusflow.ui.common.ErrorBoundary
 import com.tbtechs.focusflow.ui.navigation.FocusFlowNavGraph
 import com.tbtechs.focusflow.ui.navigation.Routes
 import com.tbtechs.focusflow.ui.stats.StatsViewModel
+import com.tbtechs.focusflow.ui.support.DiagnosticLogEntry
+import com.tbtechs.focusflow.ui.support.DiagnosticLogLevel
 import com.tbtechs.focusflow.ui.support.DiagnosticsModal
 import kotlinx.coroutines.delay
 
@@ -101,15 +104,23 @@ private fun FocusFlowRoot(
         )
     }
     var networkSettings by remember { mutableStateOf<NetworkBlockSettings?>(null) }
+    var diagnosticEvents by remember { mutableStateOf(AppErrorEvents.snapshot()) }
     var diagnosticsVisible by remember { mutableStateOf(false) }
     var dismissedAchievementId by remember { mutableStateOf<String?>(null) }
-    val achievementState by statsViewModel.achievementState.collectAsStateCompat()
+    val achievementState by statsViewModel.achievementState.collectAsState()
     val newlyEarned = achievementState?.newlyEarnedIds.orEmpty()
         .firstOrNull()
         ?.let { id -> achievementState?.definitions?.firstOrNull { it.id == id } }
 
-    LaunchedEffect(appBootViewModel, focusSessionViewModel) {
-        appBootViewModel.onSessionRecovered = focusSessionViewModel::loadActiveSession
+    // Set this synchronously after both VMs exist. AppBootViewModel starts its
+    // coroutine from init, so assigning it later in LaunchedEffect could miss
+    // an active-session recovery on a fast database.
+    appBootViewModel.onSessionRecovered = focusSessionViewModel::loadActiveSession
+
+    LaunchedEffect(Unit) {
+        AppErrorEvents.events.collect {
+            diagnosticEvents = AppErrorEvents.snapshot()
+        }
     }
 
     LaunchedEffect(requestedRoute) {
@@ -170,15 +181,14 @@ private fun FocusFlowRoot(
 
     DiagnosticsModal(
         visible = diagnosticsVisible,
+        logs = diagnosticEvents.map { event ->
+            DiagnosticLogEntry(
+                timestamp = event.timestampMillis.toString(),
+                level = DiagnosticLogLevel.ERROR,
+                tag = event.tag,
+                message = event.message,
+            )
+        },
         onClose = { diagnosticsVisible = false },
     )
-}
-
-/**
- * Keeps the root host independent from lifecycle-compose version details while
- * still collecting the stats stream in the normal Compose way.
- */
-@Composable
-private fun <T> kotlinx.coroutines.flow.StateFlow<T>.collectAsStateCompat(): androidx.compose.runtime.State<T> {
-    return androidx.compose.runtime.collectAsState(this)
 }

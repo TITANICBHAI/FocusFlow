@@ -273,6 +273,7 @@ fun FocusFlowNavGraph(
                 ScreenBoundary(Routes.PERMISSIONS) {
                     PermissionsScreen(
                         settingsViewModel = settingsViewModel,
+                        isFocusActive = focusSessionViewModel.focusSession.value?.isActive == true,
                         onBack = ::back,
                         onConfigureLauncher = { navigate(Routes.HOME_LAUNCHER_SETUP) },
                     )
