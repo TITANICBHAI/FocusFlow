@@ -1,0 +1,45 @@
+larger source files.
+```
+app/privacy-policy.tsx                  → ui/legal/PrivacyPolicyScreen.kt      route: "privacy_policy"
+app/terms-of-service.tsx                → ui/legal/TermsOfServiceScreen.kt     route: "terms_of_service"
+app/how-to-use.tsx                      → ui/support/HowToUseScreen.kt         route: "how_to_use"
+app/changelog.tsx                       → ui/support/ChangelogScreen.kt        route: "changelog"
+src/components/DiagnosticsModal.tsx     → ui/support/DiagnosticsModal.kt
+src/components/TroubleshootModal.tsx    → ui/support/TroubleshootModal.kt
+src/components/ReportIssueModal.tsx     → ui/support/ReportIssueModal.kt
+```
+### Report for Prompt 10
+```
+| Screen/component | Interactive elements found | Elements matched in output | Flags |
+|---|---|---|---|
+```
+
+---
+
+## PROMPT 11 of 12 — Shared components and NavGraph assembly
+
+Same rules as Prompt 1. These components are used across multiple screens — that's
+why they're grouped separately rather than folded into one screen's file above.
+```
+src/components/ErrorBoundary.tsx              → ui/common/ErrorBoundary.kt
+src/components/ErrorFallback.tsx              → ui/common/ErrorFallback.kt
+src/components/ErrorAlertBanner.tsx           → ui/common/ErrorAlertBanner.kt
+src/components/SideMenu.tsx                   → ui/common/SideMenu.kt
+src/components/AchievementCelebrationModal.tsx → ui/common/AchievementCelebrationModal.kt
+src/components/withScreenErrorBoundary.tsx    → ui/common/withScreenErrorBoundary.kt
+components/KeyboardAwareScrollViewCompat.tsx  → ui/common/KeyboardAwareScrollViewCompat.kt
+```
+Also: assemble `ui/navigation/FocusFlowNavGraph.kt` and `ui/navigation/Routes.kt` now
+that every screen from Prompts 1–10 exists — wire every route string listed across
+this whole stage into one NavHost. Cross-check against `ARCHITECTURE.md` section 3.1
+for completeness; every route in that table needs an entry here.
+
+### Report for Prompt 11
+```
+| Screen/component | Interactive elements found | Elements matched in output | Flags |
+|---|---|---|---|
+```
+Plus: confirm every route string from ARCHITECTURE.md section 3.1 appears in the
+NavGraph — list any that don't.
+
+---
