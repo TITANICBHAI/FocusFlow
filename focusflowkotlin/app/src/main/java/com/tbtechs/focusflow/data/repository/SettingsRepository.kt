@@ -10,6 +10,7 @@ import com.tbtechs.focusflow.enforcement.AppBlockerAccessibilityService
 import com.tbtechs.focusflow.enforcement.NetworkBlockerVpnService
 import com.tbtechs.focusflow.enforcement.VpnPolicyCoordinator
 import com.tbtechs.focusflow.widget.FocusFlowWidget
+import com.tbtechs.focusflow.data.model.AllowedAppPreset
 import com.tbtechs.focusflow.data.model.AppSettings
 import com.tbtechs.focusflow.data.model.DailyAllowanceEntry
 import com.tbtechs.focusflow.data.model.RecurringBlockSchedule
@@ -753,6 +754,19 @@ class SettingsRepository(context: Context) {
             standaloneBlockActive = prefs.getBoolean(KEY_STANDALONE_ACTIVE, false),
             standaloneBlockPackages = parseStringArray(prefs.getString(KEY_STANDALONE_PACKAGES, "[]")),
             standaloneBlockUntilMs = prefs.getLong(KEY_STANDALONE_UNTIL_MS, 0L),
+            launcherTheme = prefs.getString(KEY_LAUNCHER_THEME, "glassy") ?: "glassy",
+            launcherWallpaperUri = prefs.getString("launcher_wallpaper_uri", null),
+            focusToolPackages = parseStringArray(
+                prefs.getString(KEY_FOCUS_TOOL_PACKAGES, "[]"),
+            ),
+            launcherHiddenPackages = parseStringArray(
+                prefs.getString(KEY_LAUNCHER_HIDDEN_PACKAGES, "[]"),
+            ),
+            launcherLockDuringStandalone = prefs.getBoolean(
+                KEY_LAUNCHER_LOCK_DURING_STANDALONE,
+                true,
+            ),
+            launcherPresets = parsePresets(prefs.getString("allowed_app_presets", "[]")),
             dailyAllowanceConfigJson = prefs.getString(KEY_DAILY_ALLOWANCE_CONFIG, null),
             recurringBlockSchedules = parseRecurringSchedules(
                 prefs.getString(KEY_RECURRING_BLOCK_SCHEDULES, "[]"),
@@ -836,6 +850,26 @@ class SettingsRepository(context: Context) {
             .putString(KEY_LAUNCHER_HIDDEN_PACKAGES, packagesJson)
             .putString(KEY_DRAWER_HIDDEN_PACKAGES, packagesJson)
             .apply()
+    }
+
+    suspend fun setLauncherWallpaperUri(uri: String?) {
+        val editor = prefs.edit()
+        if (uri.isNullOrBlank()) editor.remove("launcher_wallpaper_uri")
+        else editor.putString("launcher_wallpaper_uri", uri)
+        editor.apply()
+    }
+
+    suspend fun setLauncherPresets(presets: List<AllowedAppPreset>) {
+        val json = JSONArray().apply {
+            presets.forEach { preset ->
+                put(JSONObject().apply {
+                    put("id", preset.id)
+                    put("name", preset.name)
+                    put("packages", JSONArray(preset.packages))
+                })
+            }
+        }.toString()
+        prefs.edit().putString("allowed_app_presets", json).apply()
     }
 
     suspend fun setLauncherTheme(theme: String) {
@@ -940,6 +974,22 @@ class SettingsRepository(context: Context) {
                     endHour = item.optInt("endHour").coerceIn(0, 23),
                     daysOfWeek = (0 until days.length()).map { days.optInt(it) },
                     enabled = item.optBoolean("enabled", true),
+                )
+            }
+        }.getOrDefault(emptyList())
+
+    private fun parsePresets(json: String?): List<AllowedAppPreset> =
+        runCatching {
+            val array = JSONArray(json ?: "[]")
+            (0 until array.length()).mapNotNull { index ->
+                val item = array.optJSONObject(index) ?: return@mapNotNull null
+                val packages = item.optJSONArray("packages") ?: JSONArray()
+                val id = item.optString("id").takeIf { it.isNotBlank() }
+                    ?: return@mapNotNull null
+                AllowedAppPreset(
+                    id = id,
+                    name = item.optString("name"),
+                    packages = parseStringArray(packages.toString()),
                 )
             }
         }.getOrDefault(emptyList())

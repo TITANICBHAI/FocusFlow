@@ -27,3 +27,4 @@
 - [FocusFlow bug-fix bundle](focusflow-bugfix-bundle.md) — verified diagnosis and ordered tracker for session PIN, scheduling, and launcher fixes.
 - [FocusFlow stats and insights plan](stats-insights-plan.md) — local-only analytics redesign with a separate tracker for source implementation and device validation.
 - [Stats insights data quality](stats-insights-data-quality.md) — zero-fill fixed trend charts, but gate confidence on weeks with real records and preserve source failures.
+- [Kotlin validation toolchain](kotlin-validation-toolchain.md) — the current workspace shell lacks a JDK, so Kotlin verification must be reported as source-level only.

@@ -152,6 +152,26 @@ class SettingsViewModel(
             if (newSettings.recurringBlockSchedules != current.recurringBlockSchedules) {
                 settingsRepository.setRecurringBlockSchedules(newSettings.recurringBlockSchedules)
             }
+            if (newSettings.launcherTheme != current.launcherTheme) {
+                settingsRepository.setLauncherTheme(newSettings.launcherTheme)
+            }
+            if (newSettings.launcherWallpaperUri != current.launcherWallpaperUri) {
+                settingsRepository.setLauncherWallpaperUri(newSettings.launcherWallpaperUri)
+            }
+            if (newSettings.focusToolPackages != current.focusToolPackages) {
+                settingsRepository.setFocusToolPackages(JSONArray(newSettings.focusToolPackages).toString())
+            }
+            if (newSettings.launcherHiddenPackages != current.launcherHiddenPackages) {
+                settingsRepository.setLauncherHiddenPackages(
+                    JSONArray(newSettings.launcherHiddenPackages).toString(),
+                )
+            }
+            if (newSettings.launcherLockDuringStandalone != current.launcherLockDuringStandalone) {
+                settingsRepository.setLauncherLockDuringStandalone(newSettings.launcherLockDuringStandalone)
+            }
+            if (newSettings.launcherPresets != current.launcherPresets) {
+                settingsRepository.setLauncherPresets(newSettings.launcherPresets)
+            }
             if (newSettings != current) {
                 settingsRepository.setNotificationPreferences(newSettings)
             }

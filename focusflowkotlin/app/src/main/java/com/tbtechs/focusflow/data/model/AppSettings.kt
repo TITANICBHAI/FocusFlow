@@ -41,6 +41,14 @@ data class AppSettings(
     val standaloneBlockPackages: List<String> = emptyList(),
     val standaloneBlockUntilMs: Long = 0L,
 
+    // ── Launcher and app-picker preferences ───────────────────────────────────
+    val launcherTheme: String = "glassy",
+    val launcherWallpaperUri: String? = null,
+    val focusToolPackages: List<String> = emptyList(),
+    val launcherHiddenPackages: List<String> = emptyList(),
+    val launcherLockDuringStandalone: Boolean = true,
+    val launcherPresets: List<AllowedAppPreset> = emptyList(),
+
     // ── Daily allowance ───────────────────────────────────────────────────────
     /**
      * JSON-encoded allowance config.
@@ -85,6 +93,21 @@ data class AppSettings(
     val shownPatternInsightIds: List<String> = emptyList(),
     val lastShownDebriefSessionId: Int? = null,
 )
+
+/**
+ * Named app selection saved from the allowed-app picker.
+ *
+ * The empty list and [BLOCK_ALL_SENTINEL] are intentionally preserved as
+ * distinct values by the picker because they mean "allow none" and "block all"
+ * in different caller contexts.
+ */
+data class AllowedAppPreset(
+    val id: String,
+    val name: String,
+    val packages: List<String>,
+)
+
+const val BLOCK_ALL_SENTINEL = "__block_all__"
 
 /**
  * A time-windowed block schedule (e.g. "block social apps 10pm–7am daily").
