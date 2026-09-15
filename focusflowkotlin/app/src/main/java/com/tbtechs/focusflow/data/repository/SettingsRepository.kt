@@ -119,6 +119,15 @@ class SettingsRepository(context: Context) {
             Context.MODE_PRIVATE,
         )
 
+    /** Small typed escape hatch for profile metadata that is not enforcement state. */
+    fun getString(key: String): String? = prefs.getString(key, null)
+
+    fun putString(key: String, value: String) {
+        if (!prefs.edit().putString(key, value).commit()) {
+            throw IllegalStateException("WRITE_FAILED: settings string commit() returned false")
+        }
+    }
+
     /**
      * Tells native enforcement whether task focus mode is active.
      *

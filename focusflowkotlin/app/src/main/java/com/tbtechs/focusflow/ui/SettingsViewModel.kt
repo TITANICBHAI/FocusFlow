@@ -12,6 +12,7 @@ import com.tbtechs.focusflow.data.model.StandaloneBlockAndAllowanceConfig
 import com.tbtechs.focusflow.data.model.StandaloneBlockConfig
 import com.tbtechs.focusflow.data.repository.SettingsRepository
 import com.tbtechs.focusflow.domain.PinManager
+import com.tbtechs.focusflow.domain.FocusPinManager
 import com.tbtechs.focusflow.domain.PinReuseTracker
 import com.tbtechs.focusflow.domain.PinSessionState
 import com.tbtechs.focusflow.enforcement.AppBlockerAccessibilityService
@@ -58,10 +59,8 @@ import org.json.JSONObject
  *         setter in SettingsRepository. publishStandaloneSnapshot() is the
  *         closest but does not update allowance state.
  *
- * FLAG-5  [rotatePin] uses ReuseTrackerKey.FOCUS for the defense PIN. This
- *         semantic mapping is provisional — the reuse tracker was originally
- *         designed for focus-session and always-on PINs. Confirm whether a
- *         dedicated key is needed for the defense PIN.
+ * Defense PIN rotation uses ReuseTrackerKey.ALWAYSON. The source tracker has
+ * no dedicated defense bucket; FOCUS remains reserved for session PINs.
  *
  * GPT Terra: treat the public API surface here as the stable contract.
  * Do not change method signatures.
@@ -72,6 +71,7 @@ class SettingsViewModel(
     context: Context,
 ) : ViewModel() {
 
+    private val focusPinManager = FocusPinManager(context)
     private val prefs: SharedPreferences = context.applicationContext
         .getSharedPreferences(AppBlockerAccessibilityService.PREFS_NAME, Context.MODE_PRIVATE)
 
@@ -348,6 +348,22 @@ class SettingsViewModel(
         }
     }
 
+    /** Clears the defense PIN. The caller must have verified it first. */
+    fun clearPin() {
+        viewModelScope.launch {
+            pinManager.clearPin()
+            _settings.update { it.copy(pinProtectionEnabled = false) }
+        }
+    }
+
+    fun isFocusPinSet(): Boolean = focusPinManager.isPinSet()
+
+    fun setFocusPin(pin: String) = focusPinManager.setPin(pin)
+
+    fun verifyFocusPin(pin: String): Boolean = focusPinManager.verifyPin(pin)
+
+    fun clearFocusPin(pin: String): Boolean = focusPinManager.clearPin(pin)
+
     /**
      * Rotates the defense PIN from [oldPin] to [newPin].
      *
@@ -360,16 +376,16 @@ class SettingsViewModel(
      * Backing calls: [PinManager.verifyPin], [PinReuseTracker.getPinReuseInfo],
      *                [PinReuseTracker.recordPinReuse], [PinManager.setPin]
      *
-     * FLAG-5: uses ReuseTrackerKey.FOCUS for the defense PIN — confirm if a
-     * dedicated key is needed.
+     * The source has no dedicated defense bucket; the defense/protection PIN
+     * uses the Always-On counter, while FOCUS remains for session PINs.
      */
     fun rotatePin(oldPin: String, newPin: String): Boolean {
         if (!pinManager.verifyPin(oldPin)) return false
 
         if (newPin == oldPin) {
-            val reuseInfo = PinReuseTracker.getPinReuseInfo(prefs, PinReuseTracker.ReuseTrackerKey.FOCUS)
+            val reuseInfo = PinReuseTracker.getPinReuseInfo(prefs, PinReuseTracker.ReuseTrackerKey.ALWAYSON)
             if (!reuseInfo.canReuse) return false
-            PinReuseTracker.recordPinReuse(prefs, PinReuseTracker.ReuseTrackerKey.FOCUS)
+            PinReuseTracker.recordPinReuse(prefs, PinReuseTracker.ReuseTrackerKey.ALWAYSON)
             return true
         }
 

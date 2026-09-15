@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.ChevronRight
@@ -31,6 +32,7 @@ fun PermissionCard(
     expanded: Boolean,
     busy: Boolean,
     showTroubleshoot: Boolean = false,
+    showOpenWhenGranted: Boolean = false,
     onToggle: () -> Unit,
     onGrant: () -> Unit,
     onTroubleshoot: () -> Unit = {},
@@ -38,7 +40,10 @@ fun PermissionCard(
     Card(modifier = Modifier.fillMaxWidth()) {
         Column {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onToggle)
+                    .padding(16.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Icon(
@@ -86,9 +91,11 @@ fun PermissionCard(
                                 Text(item, modifier = Modifier.padding(start = 8.dp), style = MaterialTheme.typography.bodySmall)
                             }
                         }
+                    }
+                    if (status != PermissionStatus.GRANTED || showOpenWhenGranted) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Button(onClick = onGrant, enabled = !busy) { Text("Open settings") }
-                            if (showTroubleshoot) {
+                            if (showTroubleshoot && status != PermissionStatus.GRANTED) {
                                 OutlinedButton(onClick = onTroubleshoot) {
                                     Icon(Icons.Outlined.HelpOutline, contentDescription = null)
                                     Text("Troubleshoot")

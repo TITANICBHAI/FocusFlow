@@ -43,6 +43,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tbtechs.focusflow.ui.SettingsViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -77,9 +78,29 @@ fun PermissionsScreen(
     }
     LaunchedEffect(Unit) { refresh() }
     DisposableEffect(owner) {
-        val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_RESUME) refresh() }
+        var delayedRefreshOne: Job? = null
+        var delayedRefreshTwo: Job? = null
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                refresh()
+                delayedRefreshOne?.cancel()
+                delayedRefreshTwo?.cancel()
+                delayedRefreshOne = scope.launch {
+                    kotlinx.coroutines.delay(2_000)
+                    refresh()
+                }
+                delayedRefreshTwo = scope.launch {
+                    kotlinx.coroutines.delay(4_000)
+                    refresh()
+                }
+            }
+        }
         owner.lifecycle.addObserver(observer)
-        onDispose { owner.lifecycle.removeObserver(observer) }
+        onDispose {
+            delayedRefreshOne?.cancel()
+            delayedRefreshTwo?.cancel()
+            owner.lifecycle.removeObserver(observer)
+        }
     }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { refresh() }
     val vpnLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { refresh() }
@@ -156,6 +177,7 @@ fun PermissionsScreen(
                         expanded = expanded == permission.id,
                         busy = checking,
                         showTroubleshoot = statuses[permission.id] != PermissionStatus.GRANTED,
+                        showOpenWhenGranted = true,
                         onToggle = { expanded = if (expanded == permission.id) null else permission.id },
                         onGrant = { grant(permission.id) },
                         onTroubleshoot = { troubleshooting = permission.id },

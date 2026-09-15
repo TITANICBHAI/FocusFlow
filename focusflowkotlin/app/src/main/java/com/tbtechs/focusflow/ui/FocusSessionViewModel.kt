@@ -58,9 +58,9 @@ import java.time.Instant
  *         at least once (guaranteed after TaskViewModel.init completes).
  *
  * FLAG-5  The "use global allowed_packages" fallback (when task.focusAllowedPackages
- *         is null) reads the raw SharedPreferences key "allowed_packages" via
- *         SettingsRepository.getString(). Brittle — fix by adding
- *         SettingsRepository.getAllowedPackages(): List<String>.
+ *         is null) reads the raw SharedPreferences key "allowed_packages" through
+ *         the repository's compatibility string accessor. A typed list accessor
+ *         would still be preferable for future cleanup.
  *
  * GPT Terra: treat the public API here as the stable contract.
  */
@@ -206,16 +206,14 @@ class FocusSessionViewModel(
      * Stops the currently active focus session.
      *
      * Sequence:
-     *   1. End the session row in Room.
-     *   2. Clear enforcement SharedPreferences (focus_active=false, clearActiveTask).
-     *   3. Stop ForegroundTaskService via the internal (non-PIN-gated) path.
+     *   1. Validate and clear enforcement SharedPreferences (focus_active=false).
+     *   2. End the session row in Room and clear its active-task snapshot.
+     *   3. Stop ForegroundTaskService via the internal lifecycle path.
      *   4. Clear [focusSession] and [focusViolationApp] StateFlows.
      *
-     * Uses [ForegroundServiceController.stopServiceInternal] — the PIN gate is
-     * bypassed intentionally because this path is triggered by the app UI after
-     * the user's intent is already confirmed. For user-facing "stop early" actions
-     * that are PIN-gated, callers must verify via [SettingsViewModel.verifyPin] first,
-     * then call this method.
+     * [pinHash] is the SHA-256 hex digest of the verified focus-session PIN.
+     * The repository enforces it before clearing the active session, so a
+     * missing hash fails closed when a focus PIN is configured.
      *
      * Backing calls:
      *   [FocusSessionRepository.endFocusSession]
@@ -223,15 +221,16 @@ class FocusSessionViewModel(
      *   [SettingsRepository.clearActiveTask]
      *   [ForegroundServiceController.stopServiceInternal]
      */
-    fun stopFocusMode() {
+    fun stopFocusMode(pinHash: String? = null) {
         viewModelScope.launch {
             val current = _focusSession.value ?: return@launch
 
-            // Step 1 — Room write
-            focusSessionRepository.endFocusSession(current.taskId)
+            // Step 1 — validate the PIN before any Room mutation, then clear
+            // the enforcement flag. The repository fails closed here.
+            settingsRepository.setFocusActive(active = false, pinHash = pinHash)
 
-            // Step 2 — clear enforcement SharedPreferences
-            settingsRepository.setFocusActive(active = false)
+            // Step 2 — Room write and active-task cleanup
+            focusSessionRepository.endFocusSession(current.taskId)
             settingsRepository.clearActiveTask()
 
             // Step 3 — stop foreground service (internal / non-PIN-gated path)

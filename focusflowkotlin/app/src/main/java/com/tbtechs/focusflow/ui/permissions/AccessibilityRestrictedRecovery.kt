@@ -26,6 +26,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -37,7 +38,7 @@ import com.tbtechs.focusflow.data.repository.UsageStatsRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
-private enum class RecoveryStage { QUESTION, GREYED_ENTRY, APP_INFO, ENABLE, CHECKING }
+private enum class RecoveryStage { QUESTION, GREYED_ENTRY, APP_INFO, FALLBACK, ENABLE, CHECKING, SKIPPED }
 
 @Composable
 fun AccessibilityRestrictedRecovery(
@@ -50,10 +51,12 @@ fun AccessibilityRestrictedRecovery(
     var returned by remember { mutableStateOf(false) }
     var stage by remember { mutableStateOf(RecoveryStage.QUESTION) }
     var greyedReturned by remember { mutableStateOf(false) }
+    var fallbackReturned by remember { mutableStateOf(false) }
     var fallbackExpanded by remember { mutableStateOf(false) }
     var restricted by remember { mutableStateOf(false) }
     var completed by remember { mutableStateOf(false) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val currentStage by rememberUpdatedState(stage)
 
     DisposableEffect(owner, accessibilityAttempted) {
         val observer = LifecycleEventObserver { _, event ->
@@ -62,7 +65,7 @@ fun AccessibilityRestrictedRecovery(
                 Lifecycle.Event.ON_RESUME -> if (leftAfterAttempt) {
                     returned = true
                     leftAfterAttempt = false
-                    if (stage == RecoveryStage.CHECKING) {
+                    if (currentStage == RecoveryStage.CHECKING) {
                         scope.launch {
                             val granted = UsageStatsRepository(context).hasAccessibilityPermission()
                             val stillRestricted = UsageStatsRepository(context).isRestrictedSettingsBlocked()
@@ -72,8 +75,11 @@ fun AccessibilityRestrictedRecovery(
                                 stage = if (stillRestricted) RecoveryStage.APP_INFO else RecoveryStage.ENABLE
                             }
                         }
-                    } else if (stage == RecoveryStage.GREYED_ENTRY) {
+                    } else if (currentStage == RecoveryStage.GREYED_ENTRY) {
                         greyedReturned = true
+                    } else if (currentStage == RecoveryStage.FALLBACK) {
+                        fallbackReturned = true
+                        stage = RecoveryStage.APP_INFO
                     }
                 }
                 else -> Unit
@@ -83,7 +89,7 @@ fun AccessibilityRestrictedRecovery(
         onDispose { owner.lifecycle.removeObserver(observer) }
     }
 
-    if (!accessibilityAttempted || !returned || completed) return
+    if (!accessibilityAttempted || !returned || completed || stage == RecoveryStage.SKIPPED) return
 
     fun openAccessibility(pendingStage: RecoveryStage) {
         stage = if (pendingStage == RecoveryStage.ENABLE) RecoveryStage.CHECKING else pendingStage
@@ -95,14 +101,22 @@ fun AccessibilityRestrictedRecovery(
     }
 
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = {
+            completed = true
+            stage = RecoveryStage.SKIPPED
+            onDismiss()
+        },
         title = {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Row {
                     Icon(Icons.Outlined.Lock, contentDescription = null)
                     Text(" Accessibility recovery", modifier = Modifier.padding(start = 8.dp))
                 }
-                IconButton(onClick = onDismiss) { Icon(Icons.Outlined.Close, "Dismiss") }
+                IconButton(onClick = {
+                    completed = true
+                    stage = RecoveryStage.SKIPPED
+                    onDismiss()
+                }) { Icon(Icons.Outlined.Close, "Dismiss") }
             }
         },
         text = {
@@ -113,7 +127,11 @@ fun AccessibilityRestrictedRecovery(
                         Text("Did you tap the greyed-out FocusFlow entry in Accessibility settings?")
                         Button(onClick = { stage = RecoveryStage.APP_INFO }) { Text("Yes, I tapped it") }
                         OutlinedButton(onClick = { stage = RecoveryStage.GREYED_ENTRY }) { Text("No, I haven't tapped it") }
-                        TextButton(onClick = onDismiss) { Text("Skip Accessibility") }
+                        TextButton(onClick = {
+                            completed = true
+                            stage = RecoveryStage.SKIPPED
+                            onDismiss()
+                        }) { Text("Skip Accessibility") }
                     }
                     RecoveryStage.GREYED_ENTRY -> {
                         Text("Open Accessibility settings, tap the greyed-out FocusFlow entry, read Android's explanation, then return here.")
@@ -140,7 +158,27 @@ fun AccessibilityRestrictedRecovery(
                             TextButton(onClick = { fallbackExpanded = true }) { Text("Didn't tap the greyed-out entry?") }
                         } else {
                             Text("Open Accessibility settings, tap the greyed-out FocusFlow entry, then come back.")
-                            TextButton(onClick = { openAccessibility(RecoveryStage.GREYED_ENTRY) }) { Text("Open Accessibility Settings") }
+                            if (!fallbackReturned) {
+                                Button(onClick = {
+                                    fallbackReturned = false
+                                    openAccessibility(RecoveryStage.FALLBACK)
+                                }) {
+                                    Icon(Icons.Outlined.OpenInNew, contentDescription = null)
+                                    Text("Open Accessibility Settings")
+                                }
+                            } else {
+                                OutlinedButton(onClick = {
+                                    fallbackReturned = false
+                                    stage = RecoveryStage.CHECKING
+                                    scope.launch {
+                                        restricted = UsageStatsRepository(context).isRestrictedSettingsBlocked()
+                                        stage = if (restricted) RecoveryStage.APP_INFO else RecoveryStage.ENABLE
+                                    }
+                                }) {
+                                    Icon(Icons.Outlined.CheckCircle, contentDescription = null)
+                                    Text("I tapped it — check again")
+                                }
+                            }
                         }
                         OutlinedButton(onClick = {
                             stage = RecoveryStage.CHECKING

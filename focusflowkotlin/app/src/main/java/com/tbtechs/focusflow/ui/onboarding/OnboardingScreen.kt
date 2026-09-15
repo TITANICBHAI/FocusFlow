@@ -75,6 +75,7 @@ fun OnboardingScreen(
     var loading by remember { mutableStateOf<PermissionId?>(null) }
     var accessibilityAttempted by remember { mutableStateOf(false) }
     var pinChoice by remember { mutableStateOf(false) }
+    var defensePinSet by remember { mutableStateOf(false) }
     var pinDialog by remember { mutableStateOf(false) }
     var pin by remember { mutableStateOf("") }
     var pinConfirm by remember { mutableStateOf("") }
@@ -87,6 +88,11 @@ fun OnboardingScreen(
         }
     }
     LaunchedEffect(Unit) { refresh() }
+    LaunchedEffect(settings.pinProtectionEnabled) {
+        if (settings.pinProtectionEnabled) {
+            defensePinSet = true
+        }
+    }
     DisposableEffect(owner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) refresh()
@@ -226,11 +232,29 @@ fun OnboardingScreen(
                             }
                             Switch(checked = pinChoice, onCheckedChange = {
                                 pinChoice = it
-                                if (it && !settings.pinProtectionEnabled) pinDialog = true
                             })
                         }
-                        if (pinChoice && settings.pinProtectionEnabled) Text("Defense Password set — your protections are locked.", modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), color = MaterialTheme.colorScheme.primary)
-                        if (pinChoice && !settings.pinProtectionEnabled) Text("Set your Defense Password now, or add it later from Settings.", modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), style = MaterialTheme.typography.bodySmall)
+                        if (pinChoice && defensePinSet) {
+                            Text(
+                                "Defense Password set — your protections are locked.",
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                        if (pinChoice && !defensePinSet) {
+                            Column(
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                Text(
+                                    "Set your Defense Password now — or add it later in Block Enforcement.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                                Button(onClick = { pinDialog = true }) {
+                                    Text("Set Password Now")
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -247,7 +271,18 @@ fun OnboardingScreen(
                     },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text(if (step == OnboardingStep.CORE) "Continue to optional setup →" else "$optionalReady optional permissions enabled — let's start")
+                     Text(
+                         if (step == OnboardingStep.CORE) {
+                             "Continue to optional setup →"
+                         } else {
+                             when {
+                                 optionalReady == 0 -> "Skip optional setup — let’s start"
+                                 optionalReady == optional.size -> "All optional access ready — let’s start"
+                                 optionalReady == 1 -> "1 optional permission enabled — let’s start"
+                                 else -> "$optionalReady optional permissions enabled — let’s start"
+                             }
+                         },
+                     )
                 }
             }
             item {
@@ -274,15 +309,16 @@ fun OnboardingScreen(
             confirmButton = {
                 Button(onClick = {
                     if (pin.length >= 4 && pin == pinConfirm) {
-                        settingsViewModel.setPin(pin)
-                        pinChoice = true
+                         settingsViewModel.setPin(pin)
+                         defensePinSet = true
+                         pinChoice = true
                         pinDialog = false
                         pin = ""
                         pinConfirm = ""
                     }
                 }, enabled = pin.length >= 4 && pin == pinConfirm) { Text("Set Password") }
             },
-            dismissButton = { TextButton(onClick = { pinChoice = false; pinDialog = false }) { Text("Set later") } },
+             dismissButton = { TextButton(onClick = { pinDialog = false }) { Text("Set later") } },
         )
     }
 }

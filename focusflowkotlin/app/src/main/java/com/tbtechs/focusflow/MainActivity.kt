@@ -24,7 +24,12 @@ import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import com.tbtechs.focusflow.data.repository.NetworkBlockSettings
 import com.tbtechs.focusflow.data.repository.VpnRepository
+import com.tbtechs.focusflow.di.AppModule
 import com.tbtechs.focusflow.ui.alwayson.VpnPermissionLostBanner
+import com.tbtechs.focusflow.ui.profile.PasswordProtectionScreen
+import com.tbtechs.focusflow.ui.profile.UserProfileScreen
+import com.tbtechs.focusflow.domain.FocusPinManager
+import com.tbtechs.focusflow.ui.SettingsViewModel
 import kotlinx.coroutines.delay
 
 /**
@@ -65,6 +70,30 @@ private fun FocusFlowRoot(
     route: String,
     vpnRepository: VpnRepository,
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var currentRoute by remember(route) { mutableStateOf(route) }
+    val settingsViewModel = remember {
+        SettingsViewModel(AppModule.settingsRepository, AppModule.pinManager, context)
+    }
+
+    if (currentRoute == "user_profile") {
+        UserProfileScreen(
+            settingsRepository = AppModule.settingsRepository,
+            isEditMode = true,
+            onBack = { currentRoute = "settings" },
+            onFinished = { currentRoute = "settings" },
+        )
+        return
+    }
+    if (currentRoute == "password_protection") {
+        PasswordProtectionScreen(
+            settingsViewModel = settingsViewModel,
+            focusPinManager = remember { FocusPinManager(context) },
+            onBack = { currentRoute = "defense" },
+        )
+        return
+    }
+
     var networkSettings by remember { mutableStateOf<NetworkBlockSettings?>(null) }
 
     // The policy is SharedPreferences-backed because native enforcement services
@@ -99,7 +128,7 @@ private fun FocusFlowRoot(
                     modifier = Modifier.padding(top = 8.dp),
                 )
                 Text(
-                    text = "Route: $route",
+                    text = "Route: $currentRoute",
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.padding(top = 16.dp),
                 )
