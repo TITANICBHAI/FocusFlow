@@ -130,6 +130,37 @@ class FocusSessionRepository(
     }
 
     /**
+     * Returns the longest consecutive run of days with at least 50% completion.
+     * The profile journey uses this instead of presenting the current streak as
+     * a best-ever value.
+     */
+    suspend fun getBestStreakDays(): Int {
+        val rows = dailyCompletionDao.getAllCompletionsAsc()
+        var best = 0
+        var current = 0
+        var previousDate: LocalDate? = null
+        for (row in rows) {
+            val date = runCatching { LocalDate.parse(row.date) }.getOrNull() ?: continue
+            val successful = row.total > 0 && row.completed.toDouble() / row.total >= 0.5
+            if (!successful) {
+                current = 0
+                previousDate = date
+                continue
+            }
+            current = if (previousDate != null &&
+                ChronoUnit.DAYS.between(previousDate, date) == 1L
+            ) {
+                current + 1
+            } else {
+                1
+            }
+            best = maxOf(best, current)
+            previousDate = date
+        }
+        return best
+    }
+
+    /**
      * Returns the most recently completed session within [maxAgeMinutes] of now,
      * with its override count and joined task fields.
      * Maps to `dbGetRecentCompletedFocusSession`.

@@ -75,16 +75,40 @@ fun PasswordProtectionScreen(
                 isSet = focusSet,
                 description = if (focusSet) "Set — required to end an active focus session" else "Not set — focus sessions can be ended freely",
                 onSet = { modal = PasswordModal.Setup(PinType.FOCUS) },
-                onChange = { modal = PasswordModal.Verify(PinType.FOCUS, "Verify Current Password") },
-                onRemove = { modal = PasswordModal.Verify(PinType.FOCUS, "Remove Focus Session Password") },
+                onChange = {
+                    modal = PasswordModal.Verify(
+                        PinType.FOCUS,
+                        "Verify Current Password",
+                        "Enter your current Focus Session Password to change it.",
+                    )
+                },
+                onRemove = {
+                    modal = PasswordModal.Verify(
+                        PinType.FOCUS,
+                        "Remove Focus Session Password",
+                        "Enter your current Focus Session Password to remove it.",
+                    )
+                },
             )
             PasswordCard(
                 title = "Defense Password",
                 isSet = settings.pinProtectionEnabled,
                 description = if (settings.pinProtectionEnabled) "Set — required before disabling protection" else "Not set — protection settings can be changed freely",
                 onSet = { modal = PasswordModal.Setup(PinType.DEFENSE) },
-                onChange = { modal = PasswordModal.Verify(PinType.DEFENSE, "Verify Current Password") },
-                onRemove = { modal = PasswordModal.Verify(PinType.DEFENSE, "Remove Defense Password") },
+                onChange = {
+                    modal = PasswordModal.Verify(
+                        PinType.DEFENSE,
+                        "Verify Current Password",
+                        "Enter your current Defense Password to change it.",
+                    )
+                },
+                onRemove = {
+                    modal = PasswordModal.Verify(
+                        PinType.DEFENSE,
+                        "Remove Defense Password",
+                        "Enter your current Defense Password to remove it.",
+                    )
+                },
             )
             notice?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         }
@@ -109,6 +133,7 @@ fun PasswordProtectionScreen(
             visible = true,
             pinType = active.pinType,
             title = active.title,
+            description = active.description,
             verify = { raw -> if (active.pinType == PinType.FOCUS) focusPinManager.verifyPin(raw) else settingsViewModel.verifyPin(raw) },
             onVerified = { verifiedPin ->
                 modal = if (active.title.startsWith("Remove")) {
@@ -146,7 +171,7 @@ fun PasswordProtectionScreen(
 
 private sealed interface PasswordModal {
     data class Setup(val pinType: PinType) : PasswordModal
-    data class Verify(val pinType: PinType, val title: String) : PasswordModal
+    data class Verify(val pinType: PinType, val title: String, val description: String) : PasswordModal
     data class Remove(val pinType: PinType, val verifiedPin: String) : PasswordModal
 }
 

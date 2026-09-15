@@ -45,6 +45,10 @@ interface DailyCompletionDao {
     @Query("SELECT * FROM daily_completions ORDER BY date DESC LIMIT 60")
     suspend fun getRecentCompletionsDesc(): List<DailyCompletionEntity>
 
+    /** Complete completion history used for the profile's all-time best streak. */
+    @Query("SELECT * FROM daily_completions ORDER BY date ASC")
+    suspend fun getAllCompletionsAsc(): List<DailyCompletionEntity>
+
     // ── Writes ────────────────────────────────────────────────────────────────
 
     /**

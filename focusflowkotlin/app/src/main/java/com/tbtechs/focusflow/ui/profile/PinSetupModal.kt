@@ -167,8 +167,9 @@ private fun PasswordField(
 
 private val COMMON_PASSWORDS = setOf(
     "password", "password1", "password123", "qwerty123", "qwerty",
+    "abc123def", "iloveyou1", "admin1234", "letmein1", "welcome1",
     "12345678", "123456789", "1234567890", "11111111", "00000000",
-    "focusflow", "focusflow1",
+    "aaaaaaaa", "bbbbbbbb", "zxcvbnm1", "focusflow", "focusflow1",
 )
 
 private fun passwordStrength(value: String): String {

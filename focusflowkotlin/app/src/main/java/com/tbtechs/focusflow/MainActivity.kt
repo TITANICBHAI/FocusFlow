@@ -82,6 +82,7 @@ private fun FocusFlowRoot(
             isEditMode = true,
             onBack = { currentRoute = "settings" },
             onFinished = { currentRoute = "settings" },
+            focusSessionRepository = AppModule.focusSessionRepository,
         )
         return
     }
