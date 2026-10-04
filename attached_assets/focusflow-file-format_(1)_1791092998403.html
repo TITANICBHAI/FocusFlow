@@ -1,0 +1,2982 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0D0D14">
+<meta name="description" content="Canonical FocusFlow .focusflow V1 file format reference: complete envelope, fields, semantics, validation, import behavior, canonical examples, and builder rules.">
+<title>.focusflow File Format — Complete V1 Reference | FocusFlow</title>
+<style>
+:root{
+  --accent:#6C63FF;--accent-2:#8D86FF;--bg:#0D0D14;--surface:#15151F;--surface-2:#1C1C29;
+  --code:#090910;--text:#F1F1FF;--muted:#9A9AB7;--border:rgba(108,99,255,.20);
+  --good:#55D98D;--warn:#F6C65B;--danger:#FF7373;--max:1160px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.68}
+a{color:var(--accent-2);text-decoration:none}a:hover{color:#fff}
+nav{position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.9rem 1.4rem;border-bottom:1px solid var(--border);background:rgba(13,13,20,.93);backdrop-filter:blur(16px)}
+.brand{display:flex;align-items:center;gap:.65rem;color:#fff;font-weight:850;white-space:nowrap}.brand-mark{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--accent),#9E98FF);display:grid;place-items:center;font-size:.82rem;font-weight:900}
+.nav-right{display:flex;gap:.55rem;align-items:center}.nav-pill{padding:.38rem .7rem;border:1px solid var(--border);background:var(--surface);border-radius:999px;color:var(--muted);font-size:.78rem}
+.layout{width:min(var(--max),calc(100% - 36px));margin:0 auto;display:grid;grid-template-columns:250px minmax(0,1fr);gap:2rem}
+aside{position:sticky;top:76px;height:calc(100vh - 96px);overflow:auto;padding:1.4rem .2rem 2rem 0}.toc-title{font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;color:var(--accent-2);font-weight:800;margin-bottom:.7rem}
+#toc{display:grid;gap:.1rem}#toc a{display:block;padding:.28rem .55rem;border-radius:7px;color:var(--muted);font-size:.76rem;line-height:1.35}#toc a:hover,#toc a.active{background:var(--surface);color:#fff}#toc a.h3{padding-left:1.05rem;font-size:.71rem}
+main{min-width:0;padding:3rem 0 5rem}.hero{padding:1.5rem 0 2rem}.eyebrow{color:var(--accent-2);font-size:.73rem;text-transform:uppercase;letter-spacing:.12em;font-weight:800}h1{font-size:clamp(2.1rem,5vw,3.7rem);line-height:1.06;letter-spacing:-.04em;margin:.6rem 0 .85rem}.lede{font-size:1.04rem;color:var(--muted);max-width:790px}
+.hero-grid{display:grid;grid-template-columns:1.25fr .75fr;gap:1rem;margin-top:1.3rem}.hero-card,.meta-card,.callout{background:var(--surface);border:1px solid var(--border);border-radius:15px;padding:1rem 1.1rem}.meta-card strong{display:block;color:#fff;margin-bottom:.3rem}.meta-card span{color:var(--muted);font-size:.84rem}
+.search-wrap{position:sticky;top:72px;z-index:30;margin:0 0 1.5rem}#search{width:100%;padding:.75rem .9rem;border-radius:10px;border:1px solid var(--border);background:rgba(21,21,31,.96);color:#fff;outline:none}#search:focus{border-color:var(--accent)}
+.content{font-size:.94rem}.content h2{font-size:1.75rem;line-height:1.18;letter-spacing:-.025em;margin:3rem 0 .75rem;padding-top:.5rem;border-top:1px solid rgba(108,99,255,.1)}.content h3{font-size:1.15rem;line-height:1.25;margin:2rem 0 .6rem}.content h4{font-size:1rem;margin:1.25rem 0 .45rem}.content p,.content li{color:var(--muted)}.content strong{color:#fff}.content ul,.content ol{padding-left:1.25rem}.content li{margin:.3rem 0}.content hr{border:0;border-top:1px solid var(--border);margin:2rem 0}
+.content code{background:var(--surface-2);border:1px solid var(--border);border-radius:5px;padding:.12rem .34rem;color:#E6E4FF;font:500 .84em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.code-shell{position:relative;margin:1rem 0}.content pre{overflow:auto;margin:0;padding:1rem 1.1rem;background:var(--code);border:1px solid rgba(108,99,255,.23);border-radius:12px;color:#E7E7FA;font:500 .82rem/1.65 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}.content pre code{background:none;border:0;padding:0;color:inherit;font-size:inherit}
+.copy-btn{position:absolute;right:.55rem;top:.55rem;border:1px solid var(--border);background:rgba(28,28,41,.9);color:var(--muted);padding:.32rem .55rem;border-radius:7px;font-size:.7rem;cursor:pointer}.copy-btn:hover{color:#fff;border-color:var(--accent)}
+.table-scroll{overflow:auto;border:1px solid var(--border);border-radius:12px;margin:1rem 0}.content table{width:100%;border-collapse:collapse;min-width:680px;background:var(--surface)}.content th{background:rgba(108,99,255,.15);color:#fff;text-align:left;font-size:.75rem;text-transform:uppercase;letter-spacing:.06em}.content th,.content td{padding:.7rem .8rem;border-bottom:1px solid var(--border);vertical-align:top}.content td{color:var(--muted);font-size:.82rem}.content tr:last-child td{border-bottom:0}
+.content blockquote{margin:1rem 0;padding:.85rem 1rem;border-left:3px solid var(--accent);background:rgba(108,99,255,.08);border-radius:0 10px 10px 0;color:#D8D6FF}.content blockquote p{color:#D8D6FF}
+.check-box{display:inline-grid;place-items:center;width:1.05em;height:1.05em;border:1px solid var(--border);border-radius:3px;color:var(--muted);margin-right:.25rem}.check-box.done{color:var(--good);border-color:rgba(85,217,141,.4)}
+.callout.danger{border-color:rgba(255,115,115,.28);background:rgba(255,115,115,.06)}.footer{margin-top:3rem;padding-top:1rem;border-top:1px solid var(--border);color:var(--muted);font-size:.78rem}
+.hidden-by-search{display:none!important}
+@media(max-width:900px){.layout{grid-template-columns:1fr}aside{display:none}.hero-grid{grid-template-columns:1fr}main{padding-top:2rem}.search-wrap{top:67px}}
+@media(max-width:600px){.layout{width:min(100% - 22px,var(--max))}nav{padding:.8rem 1rem}.nav-pill:nth-child(n+2){display:none}.content{font-size:.91rem}.content h2{font-size:1.5rem}}
+</style>
+</head>
+<body>
+<nav>
+  <a class="brand" href="../"><span class="brand-mark">✓</span>FocusFlow</a>
+  <div class="nav-right"><span class="nav-pill">.focusflow</span><span class="nav-pill">V1 reference</span><a class="nav-pill" href="../focusflow-backup-builder.html">Builder</a></div>
+</nav>
+<div class="layout">
+  <aside>
+    <div class="toc-title">On this page</div>
+    <nav id="toc" aria-label="Table of contents"></nav>
+  </aside>
+  <main>
+    <section class="hero">
+      <div class="eyebrow">Canonical file specification</div>
+      <h1>The <span style="color:var(--accent)">.focusflow</span> File Format</h1>
+      <p class="lede">The complete FocusFlow V1 JSON reference: envelope, every documented field and constraint, portability rules, import normalization, Merge/Replace semantics, canonical examples, and builder requirements.</p>
+      <div class="hero-grid">
+        <div class="hero-card"><strong>File identity</strong><div style="color:var(--muted);margin-top:.35rem"><code>.focusflow</code> filename · plain UTF-8 JSON · <code>kind = FocusFlowBackupV1</code> · V1 = <code>version: 1</code></div></div>
+        <div class="meta-card"><strong>What is authoritative?</strong><span><code>settings</code> and <code>tasks</code> carry portable persistent data. Runtime, device-local, derived, and external-resource state is handled separately.</span></div>
+      </div>
+    </section>
+    <div class="search-wrap"><input id="search" type="search" placeholder="Search this .focusflow reference…" aria-label="Search documentation"></div>
+    <article class="content" id="doc-content"><h1 id="focusflow-focusflow-complete-v1-file-format-reference">FocusFlow <code>.focusflow</code> — Complete V1 File Format Reference</h1>
+<h2 id="0-purpose">0. Purpose</h2>
+<p>This document is the <strong>content and behavior master specification</strong> for every public HTML page that documents, generates, validates, edits, or explains a FocusFlow <code>.focusflow</code> file.</p>
+<p>The goal is stronger than “explain the format.” An implementation agent that receives the finished HTML pages, without access to the source repository, must have enough information to:</p>
+<ul>
+<li>understand exactly what a V1 <code>.focusflow</code> file is;</li>
+<li>generate a valid canonical V1 file;</li>
+<li>generate a useful full backup containing all portable V1 settings and task data;</li>
+<li>validate hand-written files before download;</li>
+<li>understand which fields are portable, ignored, device-local, runtime, derived, or informational;</li>
+<li>preserve the important three-way semantics of fields such as <code>focusAllowedPackages</code>;</li>
+<li>generate task, reminder, preset, allowance, recurring-schedule, greyout, and profile objects correctly;</li>
+<li>understand how FocusFlow will normalize, ignore, reject, skip, merge, or replace data during import;</li>
+<li>avoid reproducing old TypeScript/Kotlin bugs or stale documentation claims;</li>
+<li>distinguish the actual <code>.focusflow</code> wire format from Android runtime behavior that is <strong>not</strong> serialized in the file.</li>
+</ul>
+<p>This document is intended to be the authoritative source for the <strong>HTML content</strong>. It is not itself the Kotlin implementation contract, although it incorporates the file-format portions of the final FocusFlow V1 implementation contract.</p>
+<hr />
+<h1 id="1-source-hierarchy-and-truth-model">1. Source hierarchy and truth model</h1>
+<h2 id="1-1-sources-used">1.1 Sources used</h2>
+<p>The current content must be based on these supplied materials:</p>
+<ol>
+<li><strong>Final FocusFlow backup/import/alarm implementation contract</strong> (<code>FocusFlow_Implementation_Plan_FINAL v14.md</code>).</li>
+<li><strong>Current Kotlin source archive</strong> containing the backup exporter, parser, limits, settings adapter, task model, alarm/repository code, and related persistence code.</li>
+<li><strong>Current <code>.focusflow</code> documentation HTML</strong> supplied with the project.</li>
+<li><strong>Current <code>.focusflow</code> backup builder HTML</strong> supplied with the project.</li>
+</ol>
+<p>The current HTML pages are <strong>not</strong> automatically authoritative. They are the thing being improved and currently contain stale or misleading claims.</p>
+<h2 id="1-2-evidence-labels-for-documentation-authors">1.2 Evidence labels for documentation authors</h2>
+<p>When a statement is particularly implementation-specific, the source should be treated using these categories:</p>
+<ul>
+<li><code>[TS]</code> — verified legacy TypeScript behavior recorded in the final implementation contract.</li>
+<li><code>[KT]</code> — verified in the current Kotlin archive.</li>
+<li><code>[CONTRACT]</code> — explicit final V1 product/implementation decision.</li>
+<li><code>[DOC]</code> — Android documentation/platform requirement.</li>
+<li><code>[DEVICE]</code> — behavior that must be experimentally verified on a real device.</li>
+<li><code>[INFERENCE]</code> — derived explanation rather than a directly serialized field rule.</li>
+</ul>
+<p>Public HTML does not have to show these tags everywhere, but the content author must use them to avoid presenting an inference as a schema fact.</p>
+<h2 id="1-3-three-way-truth-model">1.3 Three-way truth model</h2>
+<p>Always keep these three concepts separate:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">Observed legacy TS behavior
+        ↓
+Intended FocusFlow product semantics
+        ↓
+Current/final Kotlin V1 behavior
+</code></pre></div>
+<p>A legacy bug is not automatically part of the V1 specification.</p>
+<p>Also keep these four file concepts separate:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">WIRE COMPATIBILITY
+    What JSON names/shapes a V1 reader accepts.
+
+PORTABILITY
+    What state is actually meaningful to move between devices.
+
+APPLICATION
+    What imported data is allowed to change on the destination device.
+
+RUNTIME / DERIVED STATE
+    What must be recreated by the Android app rather than serialized.
+</code></pre></div>
+<p>A field can be accepted for compatibility while being intentionally ignored during application.</p>
+<hr />
+<h1 id="2-what-a-focusflow-file-is">2. What a <code>.focusflow</code> file is</h1>
+<p>A <code>.focusflow</code> file is a <strong>plain UTF-8 JSON document</strong> using the <code>.focusflow</code> filename extension.</p>
+<p>It is <strong>not a ZIP archive</strong> and does not contain an internal directory structure.</p>
+<p>Canonical file properties:</p>
+<ul>
+<li>extension: <code>.focusflow</code>;</li>
+<li>content: JSON text;</li>
+<li>encoding: UTF-8;</li>
+<li>V1 envelope identity: <code>kind = &quot;FocusFlowBackupV1&quot;</code>;</li>
+<li>V1 version: <code>1</code>;</li>
+<li>main persistent payload: <code>settings</code> + <code>tasks</code>;</li>
+<li><code>presetSections</code> and <code>summary</code> are informational/inventory metadata, not authoritative live state;</li>
+<li>Android alarm registrations, notifications, current focus sessions, PIN state, live blocking state, permissions, and other runtime/derived state are not portable file state.</li>
+</ul>
+<p>Do <strong>not</strong> describe <code>.focusflow</code> as “a complete database dump” or “the entire device state.” It is a versioned portable representation of selected FocusFlow state.</p>
+<hr />
+<h1 id="3-filename-and-extension">3. Filename and extension</h1>
+<h2 id="3-1-extension">3.1 Extension</h2>
+<p>The canonical filename ends in:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">.focusflow
+</code></pre></div>
+<p>Example:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">focusflow-2026-10-04T10-44-00.focusflow
+</code></pre></div>
+<p>The filename is a discovery/convenience mechanism. The JSON envelope is the authoritative format identity.</p>
+<h2 id="3-2-file-content-does-not-depend-on-filename">3.2 File content does not depend on filename</h2>
+<p>The importer validates the content envelope. A file being named <code>.focusflow</code> does not make invalid JSON valid.</p>
+<p>Likewise, a valid V1 JSON document can be recognized by content even if a file provider gives it an unexpected MIME type; the application has explicit content validation.</p>
+<h2 id="3-3-file-provider-handling">3.3 File-provider handling</h2>
+<p>The Android app can receive the file through:</p>
+<ul>
+<li>the in-app document picker (<code>ACTION_OPEN_DOCUMENT</code>);</li>
+<li>an external <code>ACTION_VIEW</code> document flow from a file manager/provider.</li>
+</ul>
+<p>The HTML documentation should explain the file itself, not imply that a particular file manager or MIME type is part of the JSON schema.</p>
+<hr />
+<h1 id="4-encoding-and-json-syntax-rules">4. Encoding and JSON syntax rules</h1>
+<h2 id="4-1-utf-8">4.1 UTF-8</h2>
+<p>The V1 parser expects valid UTF-8.</p>
+<p>Malformed UTF-8 is a <strong>file-level rejection</strong>.</p>
+<p>The parser uses strict UTF-8 decoding rather than silently replacing invalid bytes.</p>
+<h2 id="4-2-bom">4.2 BOM</h2>
+<p>A leading UTF-8 BOM is stripped before JSON parsing.</p>
+<p>For a canonical generator, simply emit normal UTF-8 JSON without a BOM unless there is a specific reason not to.</p>
+<h2 id="4-3-json-syntax">4.3 JSON syntax</h2>
+<p>The document is standard JSON:</p>
+<ul>
+<li>no comments;</li>
+<li>no trailing commas;</li>
+<li>property names are quoted strings;</li>
+<li>strings use normal JSON escaping;</li>
+<li>JSON booleans are <code>true</code> / <code>false</code>;</li>
+<li>JSON null is <code>null</code>;</li>
+<li>numeric fields must be JSON numbers, not numeric strings, unless a field is explicitly defined as a string.</li>
+</ul>
+<h2 id="4-4-duplicate-json-keys">4.4 Duplicate JSON keys</h2>
+<p><strong>Duplicate object keys are rejected at any depth.</strong></p>
+<p>This includes duplicates that appear equivalent after JSON escaping, such as escaped spellings that decode to the same key.</p>
+<p>HTML builders must therefore never emit duplicate properties in a JSON object.</p>
+<h2 id="4-5-unknown-fields">4.5 Unknown fields</h2>
+<p>V1 readers tolerate unknown optional fields in compatible JSON objects.</p>
+<p>Unknown fields are <strong>not automatically applied</strong> and there is no promise that arbitrary unknown fields survive a future export.</p>
+<p>This means the HTML documentation should not say:</p>
+<blockquote>
+<p>“Every key in the file is required.”</p>
+</blockquote>
+<p>Instead, it should distinguish:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">required structural fields
+recognized portable fields
+ignored legacy/device-local fields
+unknown tolerated fields
+</code></pre></div>
+<hr />
+<h1 id="5-top-level-v1-envelope">5. Top-level V1 envelope</h1>
+<h2 id="5-1-required-structural-fields">5.1 Required structural fields</h2>
+<p>The top-level JSON object must contain:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-json">{
+  &quot;kind&quot;: &quot;FocusFlowBackupV1&quot;,
+  &quot;settings&quot;: {},
+  &quot;tasks&quot;: []
+}
+</code></pre></div>
+<p><code>version</code> is strongly recommended and is emitted by the exporter, but the V1 parser accepts a missing version and interprets it as version <code>1</code>.</p>
+<h2 id="5-2-exact-top-level-field-reference">5.2 Exact top-level field reference</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+  <th>Field</th>
+  <th>Type</th>
+  <th style="text-align:right">Required for acceptance</th>
+  <th>Canonical meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td><code>kind</code></td>
+  <td>string</td>
+  <td style="text-align:right">YES</td>
+  <td>Must equal exactly <code>FocusFlowBackupV1</code>.</td>
+</tr>
+<tr>
+  <td><code>version</code></td>
+  <td>integer</td>
+  <td style="text-align:right">NO</td>
+  <td><code>1</code> for V1. If present and not <code>1</code>, reject the file. If absent, treat as <code>1</code>.</td>
+</tr>
+<tr>
+  <td><code>exportedAt</code></td>
+  <td>string</td>
+  <td style="text-align:right">NO</td>
+  <td>Export timestamp; canonical form is UTC <code>.sssZ</code>. Informational metadata.</td>
+</tr>
+<tr>
+  <td><code>exportedAtHuman</code></td>
+  <td>string</td>
+  <td style="text-align:right">NO</td>
+  <td>Human-readable export timestamp. Informational only.</td>
+</tr>
+<tr>
+  <td><code>appVersion</code></td>
+  <td>string</td>
+  <td style="text-align:right">NO</td>
+  <td>Source app version metadata. Not a schema/version compatibility selector.</td>
+</tr>
+<tr>
+  <td><code>platform</code></td>
+  <td>object</td>
+  <td style="text-align:right">NO</td>
+  <td>Platform metadata. Current exporter uses <code>{ &quot;os&quot;: &quot;android&quot; }</code>. Informational only.</td>
+</tr>
+<tr>
+  <td><code>settings</code></td>
+  <td>object</td>
+  <td style="text-align:right">YES</td>
+  <td>Recognized portable settings payload.</td>
+</tr>
+<tr>
+  <td><code>tasks</code></td>
+  <td>array</td>
+  <td style="text-align:right">YES</td>
+  <td>Task records.</td>
+</tr>
+<tr>
+  <td><code>presetSections</code></td>
+  <td>array</td>
+  <td style="text-align:right">NO</td>
+  <td>Export inventory/summary sections. Never authoritative for live application.</td>
+</tr>
+<tr>
+  <td><code>summary</code></td>
+  <td>object</td>
+  <td style="text-align:right">NO</td>
+  <td>Informational counts. Never authoritative.</td>
+</tr>
+<tr>
+  <td>unknown top-level keys</td>
+  <td>any valid JSON value</td>
+  <td style="text-align:right">tolerated</td>
+  <td>Must not be assumed to be portable or applied.</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="5-3-top-level-version-rules">5.3 Top-level version rules</h2>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">version absent → interpret as 1
+version = 1    → accept as V1
+version ≠ 1    → reject file before mutation
+</code></pre></div>
+<p>Do not present this as “version 1 is always mandatory.” It is <strong>canonical output</strong>, but omission is <strong>accepted input</strong>.</p>
+<h2 id="5-4-minimum-valid-starter">5.4 Minimum valid starter</h2>
+<p>Canonical minimal file:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-json">{
+  &quot;kind&quot;: &quot;FocusFlowBackupV1&quot;,
+  &quot;version&quot;: 1,
+  &quot;settings&quot;: {},
+  &quot;tasks&quot;: []
+}
+</code></pre></div>
+<p>The current HTML must use this as the minimum example.</p>
+<hr />
+<h1 id="6-top-level-metadata-semantics">6. Top-level metadata semantics</h1>
+<h2 id="6-1-exportedat">6.1 <code>exportedAt</code></h2>
+<p>Canonical exporter representation:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">YYYY-MM-DDTHH:mm:ss.SSSZ
+</code></pre></div>
+<p>Example:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">2026-10-04T05:14:00.000Z
+</code></pre></div>
+<p>It is metadata. It does not control restore time.</p>
+<h2 id="6-2-exportedathuman">6.2 <code>exportedAtHuman</code></h2>
+<p>Human-readable metadata generated for display.</p>
+<p>Current exporter uses a localized/human-readable value such as:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">04/10/2026, 10:44:00
+</code></pre></div>
+<p>The importer does not use this field as an authoritative timestamp.</p>
+<p>A builder should generally generate it for a pleasant full example but should never derive scheduling semantics from it.</p>
+<h2 id="6-3-appversion">6.3 <code>appVersion</code></h2>
+<p>Optional string containing the originating app version.</p>
+<p>It is useful for diagnostics and migration analysis.</p>
+<p>It is <strong>not</strong> the schema version.</p>
+<h2 id="6-4-platform">6.4 <code>platform</code></h2>
+<p>Current canonical platform payload:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-json">{
+  &quot;os&quot;: &quot;android&quot;
+}
+</code></pre></div>
+<p>It is informational.</p>
+<p>Do not use the <code>platform</code> field to decide whether tasks are valid or whether settings are portable.</p>
+<h2 id="6-5-summary">6.5 <code>summary</code></h2>
+<p>Current exporter emits:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-json">{
+  &quot;taskCount&quot;: 0,
+  &quot;blockedWordCount&quot;: 0,
+  &quot;greyoutWindowCount&quot;: 0,
+  &quot;dailyAllowanceCount&quot;: 0
+}
+</code></pre></div>
+<p>These values are <strong>informational only</strong>.</p>
+<p>The importer does not trust them as the source of truth.</p>
+<p>The builder should calculate accurate values for human usefulness, but a mismatch is not the same thing as corrupt primary data.</p>
+<p><strong>Do not repeat the old HTML claim that <code>summary.taskCount</code> is authoritative or that a mismatch itself necessarily causes import failure.</strong></p>
+<p>The authoritative task count is <code>tasks.length</code>.</p>
+<hr />
+<h1 id="7-presetsections-exact-role-and-structure">7. <code>presetSections</code> — exact role and structure</h1>
+<p><code>presetSections</code> is an export-time <strong>inventory/summary representation</strong>.</p>
+<p>It is not the live settings store and it must never be applied as configuration during import.</p>
+<p>Current source-derived conceptual structure:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">[
+  {
+    id: &quot;focus-mode&quot;,
+    name: &quot;Focus Mode&quot;,
+    configured,
+    appPackages,
+    itemCount,
+    details: { allowedAppPresets }
+  },
+  {
+    id: &quot;standalone-block&quot;,
+    name: &quot;Standalone Block&quot;,
+    configured,
+    appPackages,
+    vpnPackages,
+    details: { runtimeState: &quot;local-only&quot; }
+  },
+  {
+    id: &quot;always-on&quot;,
+    name: &quot;Always-On Blocking&quot;,
+    configured,
+    appPackages,
+    vpnPackages
+  },
+  {
+    id: &quot;daily-allowance&quot;,
+    name: &quot;Daily Allowance&quot;,
+    configured,
+    itemCount,
+    details: { entries }
+  },
+  {
+    id: &quot;keyword-blocker&quot;,
+    name: &quot;Keyword Blocker&quot;,
+    configured,
+    itemCount,
+    details: { keywords }
+  },
+  {
+    id: &quot;block-schedules&quot;,
+    name: &quot;Block Schedules&quot;,
+    configured,
+    itemCount,
+    details: { windows: greyoutSchedule }
+  },
+  {
+    id: &quot;defense&quot;,
+    name: &quot;Defense&quot;,
+    configured,
+    itemCount,
+    details: {
+      blockPresets,
+      overlayQuotes,
+      overlayWallpaper
+    }
+  }
+]
+</code></pre></div>
+<p>Current Kotlin exporter constructs these sections from portable settings.</p>
+<p>For HTML:</p>
+<ul>
+<li>explain what the inventory means;</li>
+<li>show that it is descriptive metadata;</li>
+<li>show that the real import source is <code>settings</code> and <code>tasks</code>;</li>
+<li>never imply that editing <code>presetSections</code> changes the actual configuration.</li>
+</ul>
+<p>For a builder, <code>presetSections</code> can be generated automatically and should not be a primary manual editing surface.</p>
+<hr />
+<h1 id="8-task-object-canonical-v1-schema">8. Task object — canonical V1 schema</h1>
+<p>Each element of <code>tasks</code> is a Task record.</p>
+<p>Canonical task structure:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-json">{
+  &quot;id&quot;: &quot;MPzb6gCgQWmRJH3RuhTPE&quot;,
+  &quot;title&quot;: &quot;Plan the week&quot;,
+  &quot;description&quot;: &quot;Choose the three most important tasks.&quot;,
+  &quot;startTime&quot;: &quot;2026-10-05T04:00:00.000Z&quot;,
+  &quot;endTime&quot;: &quot;2026-10-05T05:00:00.000Z&quot;,
+  &quot;createdAt&quot;: &quot;2026-10-04T05:00:00.000Z&quot;,
+  &quot;updatedAt&quot;: &quot;2026-10-04T05:00:00.000Z&quot;,
+  &quot;durationMinutes&quot;: 60,
+  &quot;status&quot;: &quot;scheduled&quot;,
+  &quot;priority&quot;: &quot;medium&quot;,
+  &quot;tags&quot;: [&quot;planning&quot;],
+  &quot;reminders&quot;: [],
+  &quot;color&quot;: &quot;#6366f1&quot;,
+  &quot;focusMode&quot;: false,
+  &quot;focusAllowedPackages&quot;: null
+}
+</code></pre></div>
+<h2 id="8-1-task-field-table">8.1 Task field table</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+  <th>Field</th>
+  <th>JSON type</th>
+  <th>Canonical requirement</th>
+  <th>Import rule / semantics</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td><code>id</code></td>
+  <td>string</td>
+  <td>required; unique within file</td>
+  <td>Primary task identity. Current legacy IDs are nanoid-style, around 21 chars. V1 parser allows 1–128 chars and rejects control characters.</td>
+</tr>
+<tr>
+  <td><code>title</code></td>
+  <td>string</td>
+  <td>required; non-blank</td>
+  <td>Display title. Max 1,000 chars.</td>
+</tr>
+<tr>
+  <td><code>description</code></td>
+  <td>string or <code>null</code></td>
+  <td>canonical generator should use string</td>
+  <td>Missing/null becomes <code>&quot;&quot;</code>. Max 20,000 chars.</td>
+</tr>
+<tr>
+  <td><code>startTime</code></td>
+  <td>string</td>
+  <td>required</td>
+  <td>ISO-8601 date-time with <code>Z</code> or offset; normalized to UTC <code>.sssZ</code>.</td>
+</tr>
+<tr>
+  <td><code>endTime</code></td>
+  <td>string</td>
+  <td>required</td>
+  <td>ISO-8601 date-time with <code>Z</code> or offset; must not be earlier than <code>startTime</code>; normalized to UTC <code>.sssZ</code>.</td>
+</tr>
+<tr>
+  <td><code>createdAt</code></td>
+  <td>string</td>
+  <td>required</td>
+  <td>ISO-8601 date-time with <code>Z</code> or offset; normalized to UTC <code>.sssZ</code>.</td>
+</tr>
+<tr>
+  <td><code>updatedAt</code></td>
+  <td>string</td>
+  <td>required</td>
+  <td>ISO-8601 date-time with <code>Z</code> or offset; normalized to UTC <code>.sssZ</code>.</td>
+</tr>
+<tr>
+  <td><code>durationMinutes</code></td>
+  <td>integer</td>
+  <td>required</td>
+  <td>Must be an integer in <code>0..100000</code>.</td>
+</tr>
+<tr>
+  <td><code>status</code></td>
+  <td>string</td>
+  <td>required</td>
+  <td>One of <code>scheduled</code>, <code>active</code>, <code>completed</code>, <code>skipped</code>, <code>overdue</code>.</td>
+</tr>
+<tr>
+  <td><code>priority</code></td>
+  <td>string</td>
+  <td>required</td>
+  <td>One of <code>low</code>, <code>medium</code>, <code>high</code>, <code>critical</code>.</td>
+</tr>
+<tr>
+  <td><code>tags</code></td>
+  <td>array of strings</td>
+  <td>canonical generator should emit array</td>
+  <td>Max 100 entries; each max 100 chars. Missing means empty list.</td>
+</tr>
+<tr>
+  <td><code>reminders</code></td>
+  <td>array</td>
+  <td>canonical generator should emit array</td>
+  <td>Preserve as inert task data. Invalid reminder items are dropped with warnings rather than invalidating the whole task.</td>
+</tr>
+<tr>
+  <td><code>color</code></td>
+  <td>string</td>
+  <td>optional</td>
+  <td>Max 32 chars. Missing → <code>#6366f1</code>. V1 parser does not require a particular hex syntax.</td>
+</tr>
+<tr>
+  <td><code>focusMode</code></td>
+  <td>boolean</td>
+  <td>optional</td>
+  <td>Missing → <code>false</code>.</td>
+</tr>
+<tr>
+  <td><code>focusAllowedPackages</code></td>
+  <td>array, <code>null</code>, or omitted</td>
+  <td>optional</td>
+  <td>Three-way semantics; see §10.</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="8-2-task-ids">8.2 Task IDs</h2>
+<p>The current TS data commonly uses nanoid-style IDs around 21 characters from:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-regex">[A-Za-z0-9_-]
+</code></pre></div>
+<p>For <strong>new files generated by the HTML builder</strong>, prefer the same style:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">~21 URL-safe characters
+A-Z / a-z / 0-9 / _ / -
+</code></pre></div>
+<p>The V1 parser's actual acceptance rule is broader:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">1–128 characters
+no control characters
+</code></pre></div>
+<p>Do not artificially reject a valid imported ID merely because it is not exactly 21 characters.</p>
+<h2 id="8-3-uniqueness">8.3 Uniqueness</h2>
+<p>Task IDs must be unique within a generated file.</p>
+<p>Duplicate task IDs inside the incoming file are a <strong>whole-file rejection</strong>, before any restore mutation.</p>
+<p>This is a deliberate V1 safety rule even though the legacy TS database loop could silently ignore repeats.</p>
+<h2 id="8-4-title">8.4 Title</h2>
+<p><code>title</code> must be:</p>
+<ul>
+<li>a JSON string;</li>
+<li>non-blank after validation;</li>
+<li>at most 1,000 characters.</li>
+</ul>
+<p>The builder should visibly mark an empty title as invalid.</p>
+<h2 id="8-5-description">8.5 Description</h2>
+<p><code>description</code> can be an ordinary string.</p>
+<p>The importer also accepts <code>null</code> or absence and normalizes these to:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-json">&quot;description&quot;: &quot;&quot;
+</code></pre></div>
+<p>For canonical generated files, use a string consistently.</p>
+<h2 id="8-6-time-ordering">8.6 Time ordering</h2>
+<p>The parser requires:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">endTime &gt;= startTime
+</code></pre></div>
+<p>It does <strong>not</strong> state a separate file-level requirement that the difference must exactly equal <code>durationMinutes</code>.</p>
+<p>For a generated file, the builder should nevertheless make the data internally coherent:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">durationMinutes
+= exact whole-minute difference between endTime and startTime
+</code></pre></div>
+<p>This is a <strong>canonical generation invariant</strong>, not a claim that a mismatch is necessarily a V1 parser rejection.</p>
+<h2 id="8-7-zero-duration-tasks">8.7 Zero-duration tasks</h2>
+<p>The current V1 parser permits:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">durationMinutes = 0
+</code></pre></div>
+<p>and only constrains it to <code>0..100000</code>.</p>
+<p>For normal generated scheduling examples, prefer a positive duration unless the user explicitly wants an instantaneous/zero-duration task.</p>
+<hr />
+<h1 id="9-timestamps-and-utc">9. Timestamps and UTC</h1>
+<h2 id="9-1-canonical-timestamp-representation">9.1 Canonical timestamp representation</h2>
+<p>All four task timestamps should be emitted as:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">YYYY-MM-DDTHH:mm:ss.SSSZ
+</code></pre></div>
+<p>Example:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">2026-10-04T05:14:37.125Z
+</code></pre></div>
+<p>Canonical formatting is always UTC.</p>
+<h2 id="9-2-accepted-input">9.2 Accepted input</h2>
+<p>The importer accepts ISO-8601 timestamps containing:</p>
+<ul>
+<li><code>Z</code>; or</li>
+<li>an explicit UTC offset such as <code>+05:30</code> or <code>-04:00</code>.</li>
+</ul>
+<p>They are normalized to canonical UTC <code>.sssZ</code> before storage.</p>
+<p>Example:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">2026-10-04T10:44:00+05:30
+</code></pre></div>
+<p>normalizes to:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">2026-10-04T05:14:00.000Z
+</code></pre></div>
+<h2 id="9-3-html-guidance">9.3 HTML guidance</h2>
+<p>The documentation should explain both:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">DISPLAY TIME → device local time
+WIRE TIME    → UTC
+</code></pre></div>
+<p>There is no task-timezone field in the V1 task schema.</p>
+<h2 id="9-4-india-ist-example">9.4 India / IST example</h2>
+<p>IST is UTC+05:30.</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">07:00 IST → 01:30Z
+10:00 IST → 04:30Z
+13:00 IST → 07:30Z
+22:30 IST → 17:00Z
+23:30 IST → 18:00Z
+</code></pre></div>
+<p>When generating a <code>.focusflow</code> task for a specified local time, convert the intended local instant to UTC rather than manually copying the local clock value into the file.</p>
+<h2 id="9-5-do-not-compare-timestamps-as-arbitrary-strings">9.5 Do not compare timestamps as arbitrary strings</h2>
+<p>Internal software should compare parsed time values (<code>Instant</code>/epoch semantics), not rely on unnormalized timestamp string ordering.</p>
+<p>The canonical HTML should teach file authors to emit normalized <code>.sssZ</code> values.</p>
+<hr />
+<h1 id="10-focusallowedpackages-critical-three-way-semantics">10. <code>focusAllowedPackages</code> — critical three-way semantics</h1>
+<p>This is one of the most important parts of the <code>.focusflow</code> format.</p>
+<p>There are <strong>three distinct states</strong>:</p>
+<h3 id="state-a-omitted">State A — omitted</h3>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-json">{
+  &quot;focusMode&quot;: true
+}
+</code></pre></div>
+<p>Meaning:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">Use the global FocusFlow setting `allowedInFocus`.
+</code></pre></div>
+<h3 id="state-b-explicit-null">State B — explicit <code>null</code></h3>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-json">{
+  &quot;focusMode&quot;: true,
+  &quot;focusAllowedPackages&quot;: null
+}
+</code></pre></div>
+<p>Meaning in the Kotlin/TS model:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">Use the global FocusFlow setting `allowedInFocus`.
+</code></pre></div>
+<p>The V1 model preserves the distinction between wire presence and value, even though both omitted and explicit null resolve to the global allow-list at runtime.</p>
+<h3 id="state-c-explicit-array">State C — explicit array</h3>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-json">{
+  &quot;focusMode&quot;: true,
+  &quot;focusAllowedPackages&quot;: [
+    &quot;com.example.reader&quot;,
+    &quot;com.example.notes&quot;
+  ]
+}
+</code></pre></div>
+<p>Meaning:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">Use this task-specific package allow-list.
+</code></pre></div>
+<h3 id="state-d-explicit-empty-array">State D — explicit empty array</h3>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-json">{
+  &quot;focusMode&quot;: true,
+  &quot;focusAllowedPackages&quot;: []
+}
+</code></pre></div>
+<p>Meaning in the current model:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">All apps are allowed for this task's focus session.
+</code></pre></div>
+<p>This is <strong>not</strong> the same as <code>null</code>.</p>
+<p>It is also <strong>not</strong> the legacy preset block-all sentinel.</p>
+<h2 id="10-1-crucial-warning-for-the-html-builder">10.1 Crucial warning for the HTML builder</h2>
+<p>Do <strong>not</strong> tell users:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">focusAllowedPackages: [] → block all apps
+</code></pre></div>
+<p>That is incorrect for Task records.</p>
+<p>The special sentinel concept appears in <strong>allowed presets</strong> and is separate from the task-level <code>focusAllowedPackages</code> semantics.</p>
+<h2 id="10-2-package-validation">10.2 Package validation</h2>
+<p>Canonical package names must match:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-regex">^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)+$
+</code></pre></div>
+<p>Maximum package-name length:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">255 characters
+</code></pre></div>
+<p>Maximum list size:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">5,000 entries
+</code></pre></div>
+<p>Invalid package entries are dropped with warnings by V1 normalization rather than necessarily invalidating the whole task/list.</p>
+<p>For generated files, never generate invalid package identifiers.</p>
+<hr />
+<h1 id="11-task-status-semantics">11. Task status semantics</h1>
+<p>V1 recognizes five status values:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">scheduled
+active
+completed
+skipped
+overdue
+</code></pre></div>
+<h2 id="11-1-imported-scheduled">11.1 Imported <code>scheduled</code></h2>
+<p>If the task's end time is still in the future at the captured restore planning time:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">scheduled → scheduled
+</code></pre></div>
+<p>If the end time has already passed:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">scheduled → skipped
+</code></pre></div>
+<p>and:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">updatedAt = planNow
+</code></pre></div>
+<p>The import-time downgrade is intentional: it treats an already-finished scheduled task as closed historical work rather than something the new device should immediately schedule.</p>
+<h2 id="11-2-imported-active">11.2 Imported <code>active</code></h2>
+<p><code>active</code> represents runtime state of the source device and is not restored as a live focus session.</p>
+<p>V1 import handling:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">active + future end → scheduled
+active + past end   → skipped
+</code></pre></div>
+<p>Never resurrect a source device's live session merely because a task was marked <code>active</code> in the file.</p>
+<h2 id="11-3-imported-completed">11.3 Imported <code>completed</code></h2>
+<p>Preserve as:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">completed
+</code></pre></div>
+<p>No task-end alarm should be recreated for it.</p>
+<h2 id="11-4-imported-skipped">11.4 Imported <code>skipped</code></h2>
+<p>Preserve as:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">skipped
+</code></pre></div>
+<p>No task-end alarm should be recreated.</p>
+<h2 id="11-5-imported-overdue">11.5 Imported <code>overdue</code></h2>
+<p>Preserve as:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">overdue
+</code></pre></div>
+<p>No task-end alarm should be recreated.</p>
+<h2 id="11-6-local-overdue-sweep-vs-import-downgrade">11.6 Local overdue sweep vs import downgrade</h2>
+<p>These are intentionally different:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">IMPORT:
+old scheduled/active task → skipped
+
+NORMAL LOCAL STARTUP SWEEP:
+unfinished scheduled/active task whose endTime has passed → overdue
+</code></pre></div>
+<p>The HTML must not conflate these states.</p>
+<hr />
+<h1 id="12-task-priority">12. Task priority</h1>
+<p>Valid values:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">low
+medium
+high
+critical
+</code></pre></div>
+<p>Priority is semantic task data and is included in duplicate-task comparison.</p>
+<p>The color assigned to a task is independent from priority.</p>
+<hr />
+<h1 id="13-tags">13. Tags</h1>
+<p><code>tags</code> is an array of strings.</p>
+<p>Canonical generated examples:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-json">&quot;tags&quot;: []
+</code></pre></div>
+<p>or:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-json">&quot;tags&quot;: [&quot;biology&quot;, &quot;revision&quot;]
+</code></pre></div>
+<p>V1 limits:</p>
+<ul>
+<li>maximum 100 tags per task;</li>
+<li>maximum 100 characters per tag.</li>
+</ul>
+<p>The current parser does not require tags to be unique. A generator may deduplicate them because tags are treated as set-like semantic data in canonical duplicate comparison, but this should be described as canonicalization rather than a schema requirement.</p>
+<hr />
+<h1 id="14-task-reminders-persistent-but-inert-in-scheduling">14. <code>Task.reminders[]</code> — persistent but inert in scheduling</h1>
+<h2 id="14-1-reminder-object">14.1 Reminder object</h2>
+<p>Canonical reminder shape:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-json">{
+  &quot;id&quot;: &quot;reminder-001&quot;,
+  &quot;taskId&quot;: &quot;task-001&quot;,
+  &quot;offsetMinutes&quot;: -5,
+  &quot;type&quot;: &quot;pre-start&quot;
+}
+</code></pre></div>
+<p>Supported fields:</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+  <th>Field</th>
+  <th>Type</th>
+  <th>Rule</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td><code>id</code></td>
+  <td>string</td>
+  <td>non-blank, max 128 chars</td>
+</tr>
+<tr>
+  <td><code>taskId</code></td>
+  <td>string</td>
+  <td>non-blank, max 128 chars; canonical generator should equal the parent task ID</td>
+</tr>
+<tr>
+  <td><code>offsetMinutes</code></td>
+  <td>integer</td>
+  <td>JSON integer; negative is before start, positive is after start according to the model</td>
+</tr>
+<tr>
+  <td><code>type</code></td>
+  <td>string</td>
+  <td><code>pre-start</code>, <code>at-start</code>, <code>post-start</code></td>
+</tr>
+<tr>
+  <td><code>notifId</code></td>
+  <td>string or <code>null</code></td>
+  <td>optional; max 128 chars if present</td>
+</tr>
+</tbody>
+</table></div>
+<p>Maximum reminders per task:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">100
+</code></pre></div>
+<h2 id="14-2-current-real-world-usage">14.2 Current real-world usage</h2>
+<p>Legacy TS initializes <code>Task.reminders</code> to <code>[]</code> and did not populate it through its normal task creation paths.</p>
+<p>The V1 contract therefore treats the array as <strong>persistent task data that should be preserved opaquely</strong>.</p>
+<h2 id="14-3-scheduling-rule">14.3 Scheduling rule</h2>
+<p><strong>Never generate or schedule Android reminder alarms from <code>Task.reminders[]</code>.</strong></p>
+<p>Current task-relative notification behavior is derived from the task's:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">id
+startTime
+endTime
+status
+</code></pre></div>
+<p>The HTML must explicitly teach this distinction because otherwise a future builder might generate a logically valid reminder array and incorrectly assume that the Android scheduler will use it.</p>
+<h2 id="14-4-invalid-reminder-items">14.4 Invalid reminder items</h2>
+<p>Malformed reminder entries are dropped with warnings rather than invalidating the whole task.</p>
+<p>If the entire <code>reminders</code> field is not an array, V1 normalization replaces it with an empty list and records a warning.</p>
+<p>A canonical builder should simply always emit a valid array.</p>
+<hr />
+<h1 id="15-task-color">15. Task <code>color</code></h1>
+<p>The current V1 parser requires only:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">string
+length ≤ 32 characters
+</code></pre></div>
+<p>Missing <code>color</code> becomes:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">#6366f1
+</code></pre></div>
+<p>The parser does not impose a strict hex-color grammar in the current source.</p>
+<p>Therefore:</p>
+<ul>
+<li>hex values such as <code>#6366f1</code> are the recommended user-facing form;</li>
+<li>the HTML should present palettes as <strong>examples</strong>, not as the complete allowed-value set;</li>
+<li>the HTML must not claim that a specific priority automatically determines the color.</li>
+</ul>
+<p>The old color palette can remain as a visual convenience, but must be labeled “common examples” rather than “the valid color codes.”</p>
+<hr />
+<h1 id="16-task-focusmode">16. Task <code>focusMode</code></h1>
+<p><code>focusMode</code> is boolean.</p>
+<p>Missing value:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">false
+</code></pre></div>
+<p>Typical generated examples:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-json">&quot;focusMode&quot;: true
+</code></pre></div>
+<p>or:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-json">&quot;focusMode&quot;: false
+</code></pre></div>
+<p>The important related field is <code>focusAllowedPackages</code> (§10).</p>
+<p><code>focusMode</code> itself does not encode the currently active Focus Session.</p>
+<hr />
+<h1 id="17-task-unknown-fields">17. Task unknown fields</h1>
+<p>A V1 task may contain additional object properties unknown to the current importer.</p>
+<p>The parser's normalized task retains the original object and rewrites recognized fields into canonical form.</p>
+<p>The HTML should therefore say:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">Unknown task fields may be tolerated in V1.
+Do not rely on unknown fields being portable or preserved by future exports.
+</code></pre></div>
+<p>For the builder, do not create arbitrary custom properties unless the user explicitly wants a compatibility experiment.</p>
+<hr />
+<h1 id="18-portable-settings-authoritative-v1-list">18. Portable settings — authoritative V1 list</h1>
+<p>The <code>.focusflow</code> settings object uses <strong>TypeScript V1 wire names</strong>, not Kotlin internal property names.</p>
+<p>These are the settings that belong to the V1 portable/apply boundary.</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+  <th>Wire key</th>
+  <th>JSON type</th>
+  <th>Canonical constraints / shape</th>
+  <th>Destination meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td><code>darkMode</code></td>
+  <td>boolean</td>
+  <td><code>true</code> / <code>false</code></td>
+  <td>Portable display preference.</td>
+</tr>
+<tr>
+  <td><code>defaultDuration</code></td>
+  <td>integer</td>
+  <td><code>5..480</code></td>
+  <td>Default task/focus duration in minutes.</td>
+</tr>
+<tr>
+  <td><code>pomodoroDuration</code></td>
+  <td>integer</td>
+  <td><code>1..180</code></td>
+  <td>Pomodoro work duration in minutes.</td>
+</tr>
+<tr>
+  <td><code>pomodoroBreak</code></td>
+  <td>integer</td>
+  <td><code>1..60</code></td>
+  <td>Pomodoro break duration in minutes.</td>
+</tr>
+<tr>
+  <td><code>allowedInFocus</code></td>
+  <td>string[]</td>
+  <td>package IDs; max 5,000</td>
+  <td>Global focus-mode allowed package list.</td>
+</tr>
+<tr>
+  <td><code>alwaysOnPackages</code></td>
+  <td>string[]</td>
+  <td>package IDs; max 5,000</td>
+  <td>Portable always-on package configuration.</td>
+</tr>
+<tr>
+  <td><code>alwaysOnVpnPackages</code></td>
+  <td>string[]</td>
+  <td>package IDs; max 5,000</td>
+  <td>Portable always-on VPN package configuration.</td>
+</tr>
+<tr>
+  <td><code>focusMirrorVpnEnabled</code></td>
+  <td>boolean</td>
+  <td>imported value wins when key is present, including <code>false</code></td>
+  <td>Portable Focus Mirror VPN preference.</td>
+</tr>
+<tr>
+  <td><code>blockedWords</code></td>
+  <td>string[]</td>
+  <td>max 5,000; each max 200 chars</td>
+  <td>Portable blocked-word list.</td>
+</tr>
+<tr>
+  <td><code>dailyAllowanceEntries</code></td>
+  <td>object[]</td>
+  <td>max 1,000</td>
+  <td>Daily allowance configuration.</td>
+</tr>
+<tr>
+  <td><code>allowedAppPresets</code></td>
+  <td>object[]</td>
+  <td>max 500</td>
+  <td>Named allowed-app presets.</td>
+</tr>
+<tr>
+  <td><code>blockPresets</code></td>
+  <td>object[]</td>
+  <td>max 500</td>
+  <td>Named block presets.</td>
+</tr>
+<tr>
+  <td><code>recurringBlockSchedules</code></td>
+  <td>object[]</td>
+  <td>max 500</td>
+  <td>Authoritative recurring block schedules.</td>
+</tr>
+<tr>
+  <td><code>greyoutSchedule</code></td>
+  <td>object[]</td>
+  <td>max 5,000</td>
+  <td>User-authored greyout windows plus export-time derived windows.</td>
+</tr>
+<tr>
+  <td><code>userProfile</code></td>
+  <td>object</td>
+  <td>all fields optional; see §24</td>
+  <td>Portable user profile subset.</td>
+</tr>
+<tr>
+  <td><code>launcherTheme</code></td>
+  <td>string</td>
+  <td><code>classic</code> or <code>glassy</code></td>
+  <td>Launcher theme.</td>
+</tr>
+<tr>
+  <td><code>focusToolPackages</code></td>
+  <td>string[]</td>
+  <td>package IDs; max 5,000</td>
+  <td>Portable focus-tool package selection.</td>
+</tr>
+<tr>
+  <td><code>launcherHiddenPackages</code></td>
+  <td>string[]</td>
+  <td>package IDs; max 5,000</td>
+  <td>Portable hidden package selection.</td>
+</tr>
+<tr>
+  <td><code>launcherDockPackages</code></td>
+  <td>string[]</td>
+  <td>package IDs; max 5,000</td>
+  <td>Portable launcher dock configuration.</td>
+</tr>
+<tr>
+  <td><code>launcherClockStyle</code></td>
+  <td>string</td>
+  <td>non-blank, max 128 chars</td>
+  <td>Portable launcher clock style.</td>
+</tr>
+<tr>
+  <td><code>launcherBlockUninstall</code></td>
+  <td>boolean</td>
+  <td>boolean</td>
+  <td>Portable launcher uninstall lock preference.</td>
+</tr>
+<tr>
+  <td><code>launcherLockDuringStandalone</code></td>
+  <td>boolean</td>
+  <td>boolean</td>
+  <td>Portable standalone-lock preference.</td>
+</tr>
+<tr>
+  <td><code>keepFocusActiveUntilTaskEnd</code></td>
+  <td>boolean</td>
+  <td>boolean</td>
+  <td>Portable task/focus behavior preference.</td>
+</tr>
+<tr>
+  <td><code>autoRescheduleEnabled</code></td>
+  <td>boolean</td>
+  <td>boolean</td>
+  <td>Portable auto-reschedule preference.</td>
+</tr>
+<tr>
+  <td><code>overlayQuotes</code></td>
+  <td>string[]</td>
+  <td>max 500; strings ≤ 20,000 chars</td>
+  <td>Portable overlay quote list.</td>
+</tr>
+<tr>
+  <td><code>protectionMode</code></td>
+  <td>string</td>
+  <td><code>standard</code> or <code>iron</code> only</td>
+  <td>Portable protection mode. Invalid enum is a fatal import error.</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="18-1-settings-omission-semantics">18.1 Settings omission semantics</h2>
+<p>For APPLY fields:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">key present + valid → overwrite destination value
+key absent         → leave destination value unchanged
+</code></pre></div>
+<p>Settings are not a blanket object replacement; each recognized field has its own application policy.</p>
+<h2 id="18-2-collections-are-overwritten-wholesale">18.2 Collections are overwritten wholesale</h2>
+<p>For recognized portable arrays/collections, the import contract is:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">backup collection present
+    → replace the corresponding portable collection
+</code></pre></div>
+<p>Do not describe this as a union/append operation.</p>
+<hr />
+<h1 id="19-settings-that-must-never-be-applied">19. Settings that must NEVER be applied</h1>
+<p>These 21 keys are device-local/runtime state and <strong>must never be applied during import</strong>, even if an old V1 file contains them.</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">standaloneBlockPackages
+standaloneBlockUntil
+standaloneVpnPackages
+autoCopiedAlwaysOnPackages
+alwaysOnEnforcementEnabled
+focusModeEnabled
+pomodoroEnabled
+notificationsEnabled
+weeklyReportEnabled
+launcherEnabled
+aversionDimmerEnabled
+aversionVibrateEnabled
+aversionSoundEnabled
+systemGuardEnabled
+blockInstallActionsEnabled
+blockYoutubeShortsEnabled
+blockInstagramReelsEnabled
+vpnBlockEnabled
+autoCopyToAlwaysOn
+vpnSelfHealEnabled
+pinProtectionEnabled
+</code></pre></div>
+<p>This is a critical security rule.</p>
+<p>Older V1 exports may contain some or all of these because historical exporters did not always strip them correctly. Their mere presence in a file must never allow an imported backup to disable destination-device enforcement or secrets.</p>
+<p>The current HTML builder should therefore <strong>not include these keys in canonical examples</strong>.</p>
+<p>It may show them in a dedicated “legacy/device-local fields that are ignored” section so developers understand compatibility behavior.</p>
+<hr />
+<h1 id="20-consent-and-security-local-fields-that-are-not-applied">20. Consent and security-local fields that are not applied</h1>
+<p>These are also not imported into the destination device's state:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">onboardingComplete
+privacyAccepted
+</code></pre></div>
+<p>They represent destination-local consent/setup state.</p>
+<p>Also never import:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">PIN hash / defense password
+active focus session
+current runtime lock state
+</code></pre></div>
+<p>The HTML should explain this as a portability boundary, not as a file corruption rule.</p>
+<hr />
+<h1 id="21-accept-and-ignore-legacy-compatibility-fields">21. Accept-and-ignore legacy/compatibility fields</h1>
+<p>The V1 settings adapter accepts these names for compatibility but does not persist/apply them:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">weekStartDay
+defaultReminderOffsets
+launcherWallpaperUri
+overlayWallpaper
+launcherPinnedPackages
+beginnerMode
+tipsCardDismissed
+tipsCardFirstShownAt
+lastShownStreakMilestone
+pendingAchievementCelebration
+pendingPresets
+onboardingComplete
+privacyAccepted
+</code></pre></div>
+<p>Important distinctions:</p>
+<h3 id="weekstartday"><code>weekStartDay</code></h3>
+<p>Legacy TS exported a value that was effectively always <code>0</code> and had no meaningful UI-written source value.</p>
+<p>Importing it must not overwrite the destination user's actual week-start preference.</p>
+<h3 id="defaultreminderoffsets"><code>defaultReminderOffsets</code></h3>
+<p>Defined/exported in legacy settings but not consumed by the legacy notification service.</p>
+<p>Treat as compatibility metadata, not active V1 scheduler configuration.</p>
+<h3 id="pendingpresets"><code>pendingPresets</code></h3>
+<p>Dead/session-local legacy code. Do not implement a temporary-preset import model based on it.</p>
+<h3 id="launcherwallpaperuri-overlaywallpaper"><code>launcherWallpaperUri</code> / <code>overlayWallpaper</code></h3>
+<p>These are external/device-local resource references, not portable file content.</p>
+<p>The destination keeps its local value and reports the resource as unresolved when appropriate; the importer must not install a dangling foreign-device URI.</p>
+<hr />
+<h1 id="22-focusmirrorvpnenabled-presence-sensitive-boolean">22. <code>focusMirrorVpnEnabled</code> — presence-sensitive boolean</h1>
+<p>This field is intentionally portable.</p>
+<p>Correct import semantics are equivalent to:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">if the backup contains the key:
+    use the backup value
+else:
+    keep the destination value
+</code></pre></div>
+<p>This means:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">backup = false, local = true
+→ result = false
+</code></pre></div>
+<p>and:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">backup key absent, local = true
+→ result = true
+</code></pre></div>
+<p>The common Kotlin mistake that behaves like:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-kotlin">imported || current
+</code></pre></div>
+<p>is wrong because it cannot represent an imported <code>false</code> winning over a local <code>true</code>.</p>
+<p>The HTML should make this a concrete example because it is an easy field to implement incorrectly.</p>
+<hr />
+<h1 id="23-dailyallowanceentries">23. <code>dailyAllowanceEntries</code></h1>
+<h2 id="23-1-canonical-shape">23.1 Canonical shape</h2>
+<p>Each entry is an object containing:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-json">{
+  &quot;packageName&quot;: &quot;com.example.video&quot;,
+  &quot;mode&quot;: &quot;time_budget&quot;,
+  &quot;budgetMinutes&quot;: 30
+}
+</code></pre></div>
+<p>The supported modes are:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">count
+time_budget
+interval
+</code></pre></div>
+<p>Optional numeric fields:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">countPerDay
+budgetMinutes
+intervalMinutes
+intervalHours
+</code></pre></div>
+<h2 id="23-2-validation-limits">23.2 Validation limits</h2>
+<p>Maximum entries:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">1,000
+</code></pre></div>
+<p>For numeric fields:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">countPerDay     1..100000
+budgetMinutes   1..100000
+intervalMinutes 1..100000
+intervalHours   1..8760
+</code></pre></div>
+<p>Legacy <code>dailyAllowanceMs</code> is also understood by the normalizer as a compatibility representation in certain inputs, but it is <strong>not part of the canonical TS V1 shape</strong> shown to users.</p>
+<p>For canonical generated files, use the portable wire names:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">packageName
+mode
+countPerDay
+budgetMinutes
+intervalMinutes
+intervalHours
+</code></pre></div>
+<h2 id="23-3-package-name">23.3 Package name</h2>
+<p><code>packageName</code> must be a valid package identifier according to the package regex in §10.</p>
+<p>The legacy normalizer also understands <code>package</code> as an alias in compatibility input, but the HTML builder should generate <code>packageName</code>.</p>
+<h2 id="23-4-mode-guidance">23.4 Mode guidance</h2>
+<p>The builder should display the appropriate numeric controls according to the selected <code>mode</code>.</p>
+<p>The schema does not require every optional numeric field to be present.</p>
+<p>A clean generated entry should include only the numeric field(s) relevant to the selected mode.</p>
+<hr />
+<h1 id="24-named-presets">24. Named presets</h1>
+<h2 id="24-1-allowedapppresets">24.1 <code>allowedAppPresets</code></h2>
+<p>Canonical shape:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-json">{
+  &quot;id&quot;: &quot;study-apps&quot;,
+  &quot;name&quot;: &quot;Study apps&quot;,
+  &quot;packages&quot;: [
+    &quot;com.example.reader&quot;,
+    &quot;com.example.notes&quot;
+  ]
+}
+</code></pre></div>
+<p>Maximum presets:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">500
+</code></pre></div>
+<p>Maximum packages per preset:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">5,000
+</code></pre></div>
+<p>IDs are strings up to 128 characters and names up to 1,000 characters under the current normalizer.</p>
+<h3 id="special-legacy-sentinel">Special legacy sentinel</h3>
+<p>The Kotlin model defines:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">__block_all__
+</code></pre></div>
+<p>as a special sentinel accepted in <strong>allowedAppPresets</strong> package lists.</p>
+<p>The current adapter does not document a general UI meaning here that should be invented by the HTML. Therefore:</p>
+<ul>
+<li>the builder should <strong>not invent a new semantic</strong> for this sentinel;</li>
+<li>show it only in an advanced compatibility section if necessary;</li>
+<li>never confuse it with task-level <code>focusAllowedPackages: []</code>.</li>
+</ul>
+<h2 id="24-2-blockpresets">24.2 <code>blockPresets</code></h2>
+<p>Canonical shape is identical in object structure:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-json">{
+  &quot;id&quot;: &quot;social-apps&quot;,
+  &quot;name&quot;: &quot;Social apps&quot;,
+  &quot;packages&quot;: [
+    &quot;com.example.social&quot;
+  ]
+}
+</code></pre></div>
+<p>The two preset collections are separate and must never be merged into one store.</p>
+<hr />
+<h1 id="25-recurringblockschedules">25. <code>recurringBlockSchedules</code></h1>
+<p>This is the <strong>authoritative user-authored source</strong> for recurring block schedules.</p>
+<p>Canonical shape:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-json">{
+  &quot;id&quot;: &quot;evening&quot;,
+  &quot;name&quot;: &quot;Evening block&quot;,
+  &quot;packages&quot;: [
+    &quot;com.example.social&quot;
+  ],
+  &quot;days&quot;: [1, 3, 5],
+  &quot;startHour&quot;: 21,
+  &quot;startMin&quot;: 0,
+  &quot;endHour&quot;: 22,
+  &quot;endMin&quot;: 30,
+  &quot;enabled&quot;: true,
+  &quot;vpnEnabled&quot;: false,
+  &quot;vpnPackages&quot;: []
+}
+</code></pre></div>
+<h2 id="25-1-fields">25.1 Fields</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+  <th>Field</th>
+  <th>Type</th>
+  <th>Rule</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td><code>id</code></td>
+  <td>string</td>
+  <td>required, non-blank, max 128 chars</td>
+</tr>
+<tr>
+  <td><code>name</code></td>
+  <td>string</td>
+  <td>required/non-blank in the current normalizer, max 1,000 chars</td>
+</tr>
+<tr>
+  <td><code>packages</code></td>
+  <td>string[]</td>
+  <td>package IDs; max 5,000</td>
+</tr>
+<tr>
+  <td><code>days</code></td>
+  <td>integer[]</td>
+  <td>1–7, distinct</td>
+</tr>
+<tr>
+  <td><code>startHour</code></td>
+  <td>integer</td>
+  <td>0–23</td>
+</tr>
+<tr>
+  <td><code>startMin</code></td>
+  <td>integer</td>
+  <td>0–59</td>
+</tr>
+<tr>
+  <td><code>endHour</code></td>
+  <td>integer</td>
+  <td>0–23</td>
+</tr>
+<tr>
+  <td><code>endMin</code></td>
+  <td>integer</td>
+  <td>0–59</td>
+</tr>
+<tr>
+  <td><code>enabled</code></td>
+  <td>boolean</td>
+  <td>defaults to <code>true</code> if omitted by compatibility input</td>
+</tr>
+<tr>
+  <td><code>vpnEnabled</code></td>
+  <td>boolean</td>
+  <td>defaults to <code>false</code></td>
+</tr>
+<tr>
+  <td><code>vpnPackages</code></td>
+  <td>string[]</td>
+  <td>optional; package IDs; max 5,000</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="25-2-day-numbering">25.2 Day numbering</h2>
+<p>For the V1 wire format:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">1 = Sunday
+2 = Monday
+3 = Tuesday
+4 = Wednesday
+5 = Thursday
+6 = Friday
+7 = Saturday
+</code></pre></div>
+<p>This is <strong>not</strong> the same convention used by the Kotlin internal <code>daysOfWeek</code> model, which uses <code>0 = Sunday</code> through <code>6 = Saturday</code>.</p>
+<p>The HTML page must emphasize this because it is an easy migration bug.</p>
+<h2 id="25-3-overnight-schedules">25.3 Overnight schedules</h2>
+<p>If:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">endHour/endMin &lt; startHour/startMin
+</code></pre></div>
+<p>that represents a window crossing midnight.</p>
+<p>Do not normalize it into a different schedule shape merely to make the clock ordering look ascending.</p>
+<p>Example:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">22:00 → 07:00
+</code></pre></div>
+<p>is a valid conceptual overnight window.</p>
+<h2 id="25-4-package-requirement-for-enabled-schedules">25.4 Package requirement for enabled schedules</h2>
+<p>An enabled recurring schedule must have at least one valid package under the current normalizer.</p>
+<p>Disabled schedules may have an empty package list in compatibility input.</p>
+<hr />
+<h1 id="26-greyoutschedule-two-different-kinds-of-entries">26. <code>greyoutSchedule</code> — two different kinds of entries</h1>
+<p><code>greyoutSchedule</code> is a mixed export representation.</p>
+<p>It can contain:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">A. user-authored greyout windows
+B. derived windows generated from recurringBlockSchedules
+</code></pre></div>
+<p>These must not be treated the same way during import.</p>
+<h2 id="26-1-user-authored-window">26.1 User-authored window</h2>
+<p>A user-authored window has <strong>no <code>scheduleId</code></strong>.</p>
+<p>Conceptual shape:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-json">{
+  &quot;pkgs&quot;: [
+    &quot;com.example.social&quot;
+  ],
+  &quot;startHour&quot;: 22,
+  &quot;startMin&quot;: 0,
+  &quot;endHour&quot;: 23,
+  &quot;endMin&quot;: 30,
+  &quot;days&quot;: [1, 2, 3, 4, 5]
+}
+</code></pre></div>
+<p>A legacy/user-created single-package representation may use <code>pkg</code> instead of <code>pkgs</code>:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-json">{
+  &quot;pkg&quot;: &quot;com.example.social&quot;,
+  &quot;startHour&quot;: 22,
+  &quot;startMin&quot;: 0,
+  &quot;endHour&quot;: 23,
+  &quot;endMin&quot;: 30,
+  &quot;days&quot;: [1, 2, 3, 4, 5]
+}
+</code></pre></div>
+<p>Both shapes exist in the legacy model.</p>
+<p>For new generated files, using <code>pkgs</code> consistently is straightforward and clear.</p>
+<h2 id="26-2-derived-window">26.2 Derived window</h2>
+<p>A derived window carries:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">scheduleId
+scheduleName
+</code></pre></div>
+<p>and is generated from the authoritative recurring schedule.</p>
+<p>Conceptually:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-json">{
+  &quot;pkgs&quot;: [&quot;com.example.social&quot;],
+  &quot;startHour&quot;: 22,
+  &quot;startMin&quot;: 0,
+  &quot;endHour&quot;: 23,
+  &quot;endMin&quot;: 30,
+  &quot;days&quot;: [1, 2, 3, 4, 5],
+  &quot;scheduleId&quot;: &quot;evening&quot;,
+  &quot;scheduleName&quot;: &quot;Evening block&quot;,
+  &quot;vpnEnabled&quot;: false
+}
+</code></pre></div>
+<h2 id="26-3-import-rule">26.3 Import rule</h2>
+<p>On import:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">greyoutSchedule entry with NO scheduleId
+    → portable user window
+    → preserve/import
+
+ greyoutSchedule entry WITH scheduleId
+    → derived copy
+    → discard
+</code></pre></div>
+<p>Then:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">recurringBlockSchedules
+    → restore authoritative schedules
+    → regenerate derived greyout windows
+</code></pre></div>
+<p>This prevents duplicated/stale derived windows.</p>
+<h2 id="26-4-greyout-field-validation">26.4 Greyout field validation</h2>
+<p>Window times use the same clock ranges:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">startHour/endHour = 0..23
+startMin/endMin   = 0..59
+days              = distinct 1..7
+</code></pre></div>
+<p>A user window must contain either a valid <code>pkg</code> or a non-empty valid <code>pkgs</code> array.</p>
+<p>Maximum greyout window count:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">5,000
+</code></pre></div>
+<hr />
+<h1 id="27-userprofile">27. <code>userProfile</code></h1>
+<p>All recognized profile fields are optional.</p>
+<p>Canonical shape:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-json">{
+  &quot;name&quot;: &quot;Alex&quot;,
+  &quot;occupation&quot;: &quot;student&quot;,
+  &quot;dailyGoalHours&quot;: 4,
+  &quot;wakeUpTime&quot;: &quot;07:00&quot;,
+  &quot;sleepTime&quot;: &quot;23:00&quot;,
+  &quot;focusGoals&quot;: [&quot;study consistently&quot;],
+  &quot;chronotype&quot;: &quot;morning&quot;,
+  &quot;focusSessionLength&quot;: 60,
+  &quot;breakStyle&quot;: &quot;balanced&quot;,
+  &quot;distractionTriggers&quot;: [&quot;short videos&quot;],
+  &quot;motivationStyle&quot;: [&quot;progress&quot;],
+  &quot;weeklyReviewDay&quot;: &quot;sun&quot;
+}
+</code></pre></div>
+<h2 id="27-1-recognized-fields">27.1 Recognized fields</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+  <th>Field</th>
+  <th>Type</th>
+  <th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td><code>name</code></td>
+  <td>string or null</td>
+  <td>max 1,000 chars</td>
+</tr>
+<tr>
+  <td><code>occupation</code></td>
+  <td>string or null</td>
+  <td>max 1,000 chars</td>
+</tr>
+<tr>
+  <td><code>dailyGoalHours</code></td>
+  <td>integer or null</td>
+  <td><code>1..16</code></td>
+</tr>
+<tr>
+  <td><code>wakeUpTime</code></td>
+  <td>string or null</td>
+  <td><code>HH:mm</code>, 24-hour clock</td>
+</tr>
+<tr>
+  <td><code>sleepTime</code></td>
+  <td>string or null</td>
+  <td><code>HH:mm</code></td>
+</tr>
+<tr>
+  <td><code>focusGoals</code></td>
+  <td>string[]</td>
+  <td>max 100 entries; each max 200 chars</td>
+</tr>
+<tr>
+  <td><code>chronotype</code></td>
+  <td>string or null</td>
+  <td><code>morning</code>, <code>midday</code>, <code>afternoon</code>, <code>evening</code>, <code>night</code>, <code>flexible</code></td>
+</tr>
+<tr>
+  <td><code>focusSessionLength</code></td>
+  <td>integer or null</td>
+  <td><code>1..480</code></td>
+</tr>
+<tr>
+  <td><code>breakStyle</code></td>
+  <td>string or null</td>
+  <td><code>short_frequent</code>, <code>balanced</code>, <code>long_infrequent</code>, <code>no_break</code></td>
+</tr>
+<tr>
+  <td><code>distractionTriggers</code></td>
+  <td>string[]</td>
+  <td>max 100 entries; each max 200 chars</td>
+</tr>
+<tr>
+  <td><code>motivationStyle</code></td>
+  <td>string[]</td>
+  <td>max 100 entries; each max 200 chars</td>
+</tr>
+<tr>
+  <td><code>weeklyReviewDay</code></td>
+  <td>string or null</td>
+  <td><code>sun</code>, <code>mon</code>, <code>tue</code>, <code>wed</code>, <code>thu</code>, <code>fri</code>, <code>sat</code></td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="27-2-invalid-profile-rule">27.2 Invalid profile rule</h2>
+<p>Unlike independent settings fields, a recognized-field validation failure causes the <strong>whole <code>userProfile</code> object to be ignored</strong>, with a warning.</p>
+<p>The rest of the backup can still continue.</p>
+<h2 id="27-3-focussessionlength-write-through-warning">27.3 <code>focusSessionLength</code> write-through warning</h2>
+<p>Legacy UI code could write <code>focusSessionLength</code> through to other duration settings when saved interactively.</p>
+<p>Import does <strong>not</strong> repeat that UI write-through.</p>
+<p>Imported:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">focusSessionLength
+</code></pre></div>
+<p>and:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">defaultDuration
+pomodoroDuration
+</code></pre></div>
+<p>are handled according to their own explicit wire keys.</p>
+<p>Do not have the HTML builder silently copy one value into the others.</p>
+<hr />
+<h1 id="28-launchertheme">28. <code>launcherTheme</code></h1>
+<p>Supported values:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">classic
+glassy
+</code></pre></div>
+<p>Other values are invalid for this recognized field and are ignored with a warning.</p>
+<hr />
+<h1 id="29-launcherclockstyle">29. <code>launcherClockStyle</code></h1>
+<p>The field is a non-blank string with a maximum of 128 characters under the current normalizer.</p>
+<p>The schema does not freeze a small enum for clock styles in the current adapter.</p>
+<p>Therefore the HTML should not invent a hardcoded list unless the UI implementation later establishes one as a separate contract.</p>
+<hr />
+<h1 id="30-overlayquotes">30. <code>overlayQuotes</code></h1>
+<p><code>overlayQuotes</code> is a string array.</p>
+<p>Limits:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">maximum 500 entries
+maximum 20,000 characters per string
+</code></pre></div>
+<p>Canonical example:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-json">&quot;overlayQuotes&quot;: [
+  &quot;Stay focused.&quot;,
+  &quot;One task at a time.&quot;
+]
+</code></pre></div>
+<hr />
+<h1 id="31-protectionmode">31. <code>protectionMode</code></h1>
+<p>V1 recognizes exactly:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">standard
+iron
+</code></pre></div>
+<p>Any other value is a <strong>fatal backup validation error</strong> rather than a field-local warning.</p>
+<p>This should be clearly marked in the HTML because it differs from most malformed settings.</p>
+<p>Example:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-json">&quot;protectionMode&quot;: &quot;iron&quot;
+</code></pre></div>
+<hr />
+<h1 id="32-package-reference-behavior">32. Package-reference behavior</h1>
+<p>Package-name settings represent Android package identifiers.</p>
+<p>They are portable identifiers, not promises that the destination device currently has the same app installed.</p>
+<p>Therefore:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">package referenced in backup
+    ≠
+package currently installed
+</code></pre></div>
+<p>The V1 policy is generally to preserve valid package references even when the package is absent on the destination.</p>
+<p>Do not substitute an app label, package family, or “similar app.”</p>
+<p>The HTML builder should validate <strong>syntax</strong>, not require the package to be installed on the machine running the web page.</p>
+<hr />
+<h1 id="33-external-resources-wallpaper-uris">33. External resources: wallpaper URIs</h1>
+<p>The backup may historically carry fields such as:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">launcherWallpaperUri
+overlayWallpaper
+</code></pre></div>
+<p>These refer to external/device-local resources.</p>
+<p>A <code>.focusflow</code> file does not contain the referenced image bytes.</p>
+<p>Therefore importing a foreign-device URI would create a dangling reference.</p>
+<p>V1 policy:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">keep the destination device's local wallpaper value
+record the imported resource as unresolved
+report the unresolved-resource count
+</code></pre></div>
+<p>Do not silently turn the backup URI into the destination's local URI.</p>
+<p>Do not claim the <code>.focusflow</code> format embeds wallpapers.</p>
+<hr />
+<h1 id="34-persistent-data-vs-runtime-derived-state">34. Persistent data vs runtime/derived state</h1>
+<p>This distinction must appear somewhere on the HTML documentation page because it explains why the file does not contain certain seemingly important things.</p>
+<h2 id="portable-persistent-data">Portable persistent data</h2>
+<p>Examples:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">tasks
+portable settings
+user profile
+named presets
+blocked words
+allowance configuration
+recurring schedules
+user-authored greyout windows
+package references
+</code></pre></div>
+<h2 id="persistent-but-inert-data">Persistent but inert data</h2>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">Task.reminders[]
+</code></pre></div>
+<p>It is kept for task-data round-trip but does not drive Android scheduling in V1.</p>
+<h2 id="runtime-device-local-data-not-imported">Runtime/device-local data not imported</h2>
+<p>Examples:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">active FocusSession
+live enforcement toggles
+PIN/protection secrets
+onboarding/privacy consent
+current notification permission
+current accessibility/VPN live state
+</code></pre></div>
+<h2 id="derived-android-state">Derived Android state</h2>
+<p>Examples:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">AlarmManager registrations
+PendingIntents
+posted notifications
+notification channels
+alarm registry
+reminder delivery ledger
+</code></pre></div>
+<p>These are reconstructed from persistent truth by the Android app and are not serialized into the <code>.focusflow</code> file as authoritative state.</p>
+<hr />
+<h1 id="35-import-validation-file-level-failures">35. Import validation: file-level failures</h1>
+<p>The V1 parser performs a bounded preflight before allocating the JSON tree.</p>
+<p>The following cause <strong>whole-file rejection before mutation</strong>:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">not valid JSON
+invalid/malformed UTF-8
+root is not a JSON object
+kind missing/wrong
+settings missing/not object
+tasks missing/not array
+version present and not 1
+duplicate JSON key at any depth
+resource/size limit exceeded
+duplicate task ID within tasks[]
+unsupported protectionMode enum
+</code></pre></div>
+<p>The exact parser also enforces the limits in §36.</p>
+<p>The HTML builder should show these as “cannot download/import safely” errors rather than task-local warnings.</p>
+<hr />
+<h1 id="36-v1-parser-limits">36. V1 parser limits</h1>
+<p>These are hard V1 limits from the current Kotlin parser contract.</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">MAX_FILE_BYTES          = 8 MiB
+MAX_DEPTH               = 12
+MAX_TASKS               = 20,000
+MAX_STRING_CHARS        = 20,000
+MAX_TITLE_CHARS         = 1,000
+MAX_TAG_CHARS           = 100
+MAX_PACKAGE_CHARS       = 255
+MAX_ID_CHARS            = 128
+MAX_PACKAGES_PER_LIST   = 5,000
+MAX_BLOCKED_WORDS       = 5,000
+MAX_BLOCKED_WORD_CHARS  = 200
+MAX_ALLOWANCE_ENTRIES   = 1,000
+MAX_RECURRING_SCHEDULES = 500
+MAX_GREYOUT_WINDOWS     = 5,000
+MAX_PRESETS             = 500
+MAX_OVERLAY_QUOTES      = 500
+MAX_TAGS_PER_TASK       = 100
+MAX_REMINDERS_PER_TASK  = 100
+MAX_JSON_NODES           = 2,000,000
+</code></pre></div>
+<p>The builder should enforce the useful subset interactively and should clearly state that FocusFlow itself remains the final validator.</p>
+<hr />
+<h1 id="37-per-task-invalidity-vs-whole-file-invalidity">37. Per-task invalidity vs whole-file invalidity</h1>
+<p>This distinction is essential for an accurate builder/documentation page.</p>
+<h2 id="whole-file-rejection-examples">Whole-file rejection examples</h2>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">duplicate task IDs in file
+duplicate JSON object keys
+invalid UTF-8
+unsupported version
+invalid protectionMode enum
+file/structural limits exceeded
+</code></pre></div>
+<h2 id="individual-task-invalidity-examples">Individual-task invalidity examples</h2>
+<p>A task can be rejected/omitted while the rest of the import continues when it has invalid:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">id
+title
+dates
+duration
+status
+priority
+tags
+color
+focusMode
+focusAllowedPackages
+</code></pre></div>
+<p>depending on the specific validation rule.</p>
+<h2 id="field-local-warning-examples">Field-local warning examples</h2>
+<p>Some nested objects are normalized more permissively:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">invalid reminder element → drop reminder + warning
+invalid package list item → drop item + warning
+invalid setting value → ignore setting + warning
+</code></pre></div>
+<p>The HTML should explain this so users understand why a file can be accepted but still have import warnings.</p>
+<hr />
+<h1 id="38-import-preview-semantics">38. Import preview semantics</h1>
+<p>FocusFlow shows an import preview before persistent mutation.</p>
+<p>Relevant preview concepts include:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">tasksInFile
+newTasks
+identicalDuplicates
+conflictingTasks
+invalidByReason
+pastScheduledToSkipped
+settingsSectionsPresent
+externalResourcesUnresolved
+weakeningDetected
+warnings
+</code></pre></div>
+<p>Preview information is advisory; the generated <code>RestorePlan</code> is authoritative.</p>
+<p>For the HTML builder, the equivalent preflight can show:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">valid / invalid
+number of tasks
+number of portable settings
+number of ignored legacy fields
+number of warnings
+number of invalid task records
+</code></pre></div>
+<p>It should not pretend to know the destination device's local conflict state unless that device data is actually supplied.</p>
+<hr />
+<h1 id="39-task-merge-semantics">39. Task merge semantics</h1>
+<h2 id="39-1-new-task-id">39.1 New task ID</h2>
+<p>If the incoming task ID does not exist locally:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">preserve incoming ID
+insert task
+</code></pre></div>
+<h2 id="39-2-same-id-identical-content">39.2 Same ID + identical content</h2>
+<p>If the task ID already exists and its semantic duplicate projection is equivalent:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">duplicate
+skip incoming record
+existing task wins
+</code></pre></div>
+<h2 id="39-3-same-id-divergent-content">39.3 Same ID + divergent content</h2>
+<p>In V1 Merge mode:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">whole restore is rejected before mutation
+PlanFailure.IdConflict
+journal is not written
+persistent state is unchanged
+</code></pre></div>
+<p>The UI should show which tasks conflict (up to the configured display limit) and guide the user toward Replace mode when appropriate.</p>
+<p>This is deliberate product semantics; it is not merely copying the legacy <code>INSERT OR IGNORE</code> database behavior.</p>
+<hr />
+<h1 id="40-duplicate-task-comparison-projection">40. Duplicate-task comparison projection</h1>
+<p>For merge conflict detection, semantic task comparison includes:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">title
+description
+startTime
+endTime
+durationMinutes
+status
+priority
+tags
+color
+focusMode
+focusAllowedPackages
+</code></pre></div>
+<p><code>createdAt</code> and <code>updatedAt</code> are excluded from this projection.</p>
+<p><code>Task.reminders[]</code> is intentionally excluded from the V1 conflict projection while being preserved as opaque task data.</p>
+<p>This means reminder-only differences do not create an ID conflict in V1.</p>
+<p>The HTML should explain this clearly if it offers a technical import-behavior section.</p>
+<h2 id="40-1-canonical-comparison-rules">40.1 Canonical comparison rules</h2>
+<p>For semantic comparison:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">strings → exact / case-sensitive / no implicit trim / no Unicode normalization
+set-like lists → deterministic canonical ordering for comparison
+timestamps → compare normalized instants
+</code></pre></div>
+<p>The HTML does not need to expose the hashing implementation, but a developer-focused page may explain that repeated-import detection is semantic rather than byte-for-byte JSON equality.</p>
+<hr />
+<h1 id="41-replace-mode">41. Replace mode</h1>
+<p>The UI label is:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">Replace tasks
+</code></pre></div>
+<p>It does <strong>not</strong> mean “replace the entire app.”</p>
+<p>Replace semantics concern the persistent task-owned task list.</p>
+<h2 id="41-1-what-replace-changes">41.1 What Replace changes</h2>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">existing task rows
+    → deleted
+
+incoming valid backup tasks
+    → restored
+</code></pre></div>
+<h2 id="41-2-what-replace-does-not-touch">41.2 What Replace does NOT touch</h2>
+<p>It does not intentionally delete:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">analytics
+history tables
+focus session history
+PIN state
+local consent
+other device-local runtime state
+</code></pre></div>
+<h2 id="41-3-active-session-guard">41.3 Active session guard</h2>
+<p>Replace is prohibited while a Focus Session is active.</p>
+<p>This condition is checked against runtime/DB session state, not merely a UI timer.</p>
+<hr />
+<h1 id="42-repeated-import-behavior">42. Repeated import behavior</h1>
+<p>Deliberately importing the same V1 file again is allowed.</p>
+<p>Expected task behavior:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">new tasks on first import
+identical task IDs → skipped on subsequent import
+</code></pre></div>
+<p>Portable settings are re-applied according to their field policies.</p>
+<p>There is no permanent “this file was imported once, never import again” file-level dedupe rule.</p>
+<p>This also means the HTML should not add an artificial backup fingerprint requirement to the format itself.</p>
+<hr />
+<h1 id="43-import-time-normalization-of-old-scheduled-tasks">43. Import-time normalization of old scheduled tasks</h1>
+<p>At restore-plan creation, capture a single planning time:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">planNow
+</code></pre></div>
+<p>Then:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">scheduled/active + endTime &gt; planNow
+    → scheduled
+
+scheduled/active + endTime &lt;= planNow
+    → skipped
+    → updatedAt = planNow
+</code></pre></div>
+<p>Other statuses remain unchanged.</p>
+<p>A generated file may contain old tasks with past timestamps; that does not automatically make the file invalid.</p>
+<p>The import behavior, however, means the generated example should generally use future or current timestamps if it is intended to demonstrate a live scheduled task.</p>
+<hr />
+<h1 id="44-alarm-and-notification-information-what-belongs-in-the-html-format-page">44. Alarm and notification information: what belongs in the HTML format page</h1>
+<p>The <code>.focusflow</code> file itself does <strong>not</strong> contain authoritative Android AlarmManager registrations.</p>
+<p>Nevertheless, the HTML may contain a concise “what happens after import” section because it explains why task data in a file can recreate useful behavior without serializing OS objects.</p>
+<h2 id="44-1-task-end-alarms-are-derived">44.1 Task-end alarms are derived</h2>
+<p>For future imported tasks in scheduled/active-compatible state, the destination app recreates task-end alarms from task persistent truth.</p>
+<h2 id="44-2-exact-timing-policy">44.2 Exact timing policy</h2>
+<p>Final V1 product contract:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">task-end alarm = exact-timing product commitment
+</code></pre></div>
+<p>If exact capability is unavailable:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">persist task normally
+→ do NOT silently downgrade task-end timing
+→ mark DEFERRED_EXACT_UNAVAILABLE
+→ surface capability guidance
+→ retry when exact capability returns
+</code></pre></div>
+<p>The inexact <code>setAndAllowWhileIdle()</code> ladder is not the task-end V1 policy.</p>
+<p>Advisory reminder notifications may use a degraded/inexact tier because their timing is approximate by nature.</p>
+<h2 id="44-3-task-reminders-does-not-drive-the-android-scheduler">44.3 Task.reminders[] does not drive the Android scheduler</h2>
+<p>Generic reminder notifications are derived from task times through the separate reminder planner/chain.</p>
+<p>The format page should keep this separate from the persistent <code>reminders</code> field.</p>
+<hr />
+<h1 id="45-reminder-notification-derivation-after-import">45. Reminder notification derivation after import</h1>
+<p>This is useful context for a complete format page but should be labeled as <strong>runtime behavior</strong>, not wire data.</p>
+<p>Current slot identifiers are based on task identity and relative times:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">&lt;taskId&gt;-pre-600000   10 minutes before start
+&lt;taskId&gt;-pre-300000   5 minutes before start
+&lt;taskId&gt;-pre-60000    1 minute before start
+&lt;taskId&gt;-pre0         at start
+&lt;taskId&gt;-mid900000    15 minutes after start
+&lt;taskId&gt;-mid1800000   30 minutes after start
+&lt;taskId&gt;-almost       endTime − 60 seconds
+&lt;taskId&gt;-end          at endTime (task-end alarm, not generic reminder)
+</code></pre></div>
+<p>Scheduling rules include:</p>
+<ul>
+<li>do not schedule slots that are effectively already due (under the runtime scheduler's minimum lead time);</li>
+<li>mid-session check-ins only when still before <code>endTime</code> and enough time remains;</li>
+<li>global reminder slot budget: 450;</li>
+<li>task-end alarm is handled separately from the generic reminder chain.</li>
+</ul>
+<p>These identifiers do <strong>not</strong> belong in the <code>.focusflow</code> envelope as OS registrations.</p>
+<hr />
+<h1 id="46-the-single-alarm-reminder-chain">46. The single-alarm reminder chain</h1>
+<p>The current runtime contract uses a single chain alarm for generic reminder notifications:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">ReminderPlanner
+    → earliest future reminder slot
+    → one AlarmManager chain alarm
+    → ReminderReceiver
+    → recompute from DB
+    → post due slots
+    → ledger dedupe
+    → re-arm next slot
+</code></pre></div>
+<p>The chain is runtime infrastructure.</p>
+<p>The <code>.focusflow</code> generator should never attempt to serialize the chain's PendingIntent, registry, or ledger state.</p>
+<hr />
+<h1 id="47-device-system-protected-packages-how-the-html-should-handle-this-topic">47. Device/system protected packages — how the HTML should handle this topic</h1>
+<p>The older <code>.focusflow</code> HTML page includes a <code>SYSTEM_NEVER_BLOCK</code> package list and describes several Android package IDs as permanently exempt.</p>
+<p>For this <strong>authoritative V1 file-format specification</strong>, do <strong>not</strong> treat that hardcoded package list as part of the <code>.focusflow</code> wire format unless the corresponding current source list is independently verified.</p>
+<p>The important portable-format fact is:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">package references are serialized as package IDs
+</code></pre></div>
+<p>and valid package syntax is enforced as described in §10.</p>
+<p>System-level exemptions are runtime enforcement behavior, not fields inside the JSON envelope.</p>
+<p>If the public website wants a separate “FocusFlow protected system apps” article, that can exist independently of the <code>.focusflow</code> format specification and must use independently verified current source.</p>
+<hr />
+<h1 id="48-exact-canonical-export-construction">48. Exact canonical export construction</h1>
+<p>A canonical V1 exporter should conceptually build the file in this order.</p>
+<h2 id="step-1-gather-portable-settings">Step 1 — gather portable settings</h2>
+<p>Include every field in the APPLY table (§18) that has a meaningful current value.</p>
+<p>Use <strong>TS V1 wire names</strong> exactly.</p>
+<p>Examples:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">defaultDuration
+pomodoroDuration
+pomodoroBreak
+allowedInFocus
+alwaysOnPackages
+alwaysOnVpnPackages
+...
+</code></pre></div>
+<p>Do not use Kotlin names such as:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">defaultDurationMinutes
+pomodoroWorkMinutes
+pomodoroBreakMinutes
+</code></pre></div>
+<p>inside the V1 JSON.</p>
+<h2 id="step-2-construct-greyoutschedule">Step 2 — construct <code>greyoutSchedule</code></h2>
+<p>Conceptually:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">user-authored windows
++
+derived windows generated from recurringBlockSchedules
+</code></pre></div>
+<h2 id="step-3-preserve-recurringblockschedules">Step 3 — preserve <code>recurringBlockSchedules</code></h2>
+<p>Place the authoritative recurring schedules under:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-json">&quot;recurringBlockSchedules&quot;: [ ... ]
+</code></pre></div>
+<p>Do not serialize them under <code>greyoutSchedule</code> as a substitute.</p>
+<h2 id="step-4-remove-non-portable-fields">Step 4 — remove non-portable fields</h2>
+<p>Do not export the 21 live-state keys.</p>
+<p>Do not export:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">onboardingComplete
+privacyAccepted
+</code></pre></div>
+<p>The current exporter also omits the wallpaper URI fields from the canonical portable settings payload.</p>
+<h2 id="step-5-canonicalize-task-timestamps">Step 5 — canonicalize task timestamps</h2>
+<p>All four timestamps must be emitted as <code>.sssZ</code> UTC.</p>
+<h2 id="step-6-preserve-task-data">Step 6 — preserve task data</h2>
+<p>Export task rows with their persistent fields, including <code>reminders</code> as task data.</p>
+<p>Do not invent scheduler registrations.</p>
+<h2 id="step-7-build-optional-metadata">Step 7 — build optional metadata</h2>
+<p>Generate:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">exportedAt
+exportedAtHuman
+platform
+presetSections
+summary
+appVersion (when known)
+</code></pre></div>
+<h2 id="step-8-serialize-valid-json">Step 8 — serialize valid JSON</h2>
+<p>Do not include comments.</p>
+<h2 id="step-9-save-with-focusflow">Step 9 — save with <code>.focusflow</code></h2>
+<p>Recommended filename pattern:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">focusflow-YYYY-MM-DDTHH-mm-ss.focusflow
+</code></pre></div>
+<hr />
+<h1 id="49-canonical-generated-settings-example">49. Canonical generated settings example</h1>
+<p>A builder should have a valid, clean settings example closer to this than the current legacy example:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-json">{
+  &quot;darkMode&quot;: true,
+  &quot;defaultDuration&quot;: 60,
+  &quot;pomodoroDuration&quot;: 25,
+  &quot;pomodoroBreak&quot;: 5,
+  &quot;allowedInFocus&quot;: [
+    &quot;com.example.reader&quot;,
+    &quot;com.example.notes&quot;
+  ],
+  &quot;alwaysOnPackages&quot;: [],
+  &quot;alwaysOnVpnPackages&quot;: [],
+  &quot;focusMirrorVpnEnabled&quot;: false,
+  &quot;blockedWords&quot;: [
+    &quot;example&quot;
+  ],
+  &quot;dailyAllowanceEntries&quot;: [
+    {
+      &quot;packageName&quot;: &quot;com.example.video&quot;,
+      &quot;mode&quot;: &quot;time_budget&quot;,
+      &quot;budgetMinutes&quot;: 30
+    }
+  ],
+  &quot;allowedAppPresets&quot;: [
+    {
+      &quot;id&quot;: &quot;study-apps&quot;,
+      &quot;name&quot;: &quot;Study apps&quot;,
+      &quot;packages&quot;: [
+        &quot;com.example.reader&quot;,
+        &quot;com.example.notes&quot;
+      ]
+    }
+  ],
+  &quot;blockPresets&quot;: [
+    {
+      &quot;id&quot;: &quot;social-apps&quot;,
+      &quot;name&quot;: &quot;Social apps&quot;,
+      &quot;packages&quot;: [
+        &quot;com.example.social&quot;
+      ]
+    }
+  ],
+  &quot;recurringBlockSchedules&quot;: [
+    {
+      &quot;id&quot;: &quot;evening&quot;,
+      &quot;name&quot;: &quot;Evening block&quot;,
+      &quot;packages&quot;: [
+        &quot;com.example.social&quot;
+      ],
+      &quot;days&quot;: [1, 2, 3, 4, 5],
+      &quot;startHour&quot;: 21,
+      &quot;startMin&quot;: 0,
+      &quot;endHour&quot;: 23,
+      &quot;endMin&quot;: 0,
+      &quot;enabled&quot;: true,
+      &quot;vpnEnabled&quot;: false,
+      &quot;vpnPackages&quot;: []
+    }
+  ],
+  &quot;greyoutSchedule&quot;: [
+    {
+      &quot;pkgs&quot;: [
+        &quot;com.example.reader&quot;
+      ],
+      &quot;startHour&quot;: 20,
+      &quot;startMin&quot;: 0,
+      &quot;endHour&quot;: 20,
+      &quot;endMin&quot;: 30,
+      &quot;days&quot;: [1, 2, 3, 4, 5]
+    }
+  ],
+  &quot;userProfile&quot;: {
+    &quot;name&quot;: &quot;Alex&quot;,
+    &quot;occupation&quot;: &quot;student&quot;,
+    &quot;dailyGoalHours&quot;: 4,
+    &quot;wakeUpTime&quot;: &quot;07:00&quot;,
+    &quot;sleepTime&quot;: &quot;23:00&quot;,
+    &quot;focusGoals&quot;: [
+      &quot;study consistently&quot;
+    ],
+    &quot;chronotype&quot;: &quot;morning&quot;,
+    &quot;focusSessionLength&quot;: 60,
+    &quot;breakStyle&quot;: &quot;balanced&quot;,
+    &quot;distractionTriggers&quot;: [
+      &quot;short videos&quot;
+    ],
+    &quot;motivationStyle&quot;: [
+      &quot;progress&quot;
+    ],
+    &quot;weeklyReviewDay&quot;: &quot;sun&quot;
+  },
+  &quot;launcherTheme&quot;: &quot;glassy&quot;,
+  &quot;focusToolPackages&quot;: [],
+  &quot;launcherHiddenPackages&quot;: [],
+  &quot;launcherDockPackages&quot;: [],
+  &quot;launcherClockStyle&quot;: &quot;digital&quot;,
+  &quot;launcherBlockUninstall&quot;: false,
+  &quot;launcherLockDuringStandalone&quot;: true,
+  &quot;keepFocusActiveUntilTaskEnd&quot;: true,
+  &quot;autoRescheduleEnabled&quot;: false,
+  &quot;overlayQuotes&quot;: [
+    &quot;Stay focused.&quot;
+  ],
+  &quot;protectionMode&quot;: &quot;standard&quot;
+}
+</code></pre></div>
+<p>The exact values are illustrative. The field names and shapes are the important part.</p>
+<hr />
+<h1 id="50-canonical-generated-task-example">50. Canonical generated task example</h1>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-json">{
+  &quot;id&quot;: &quot;MPzb6gCgQWmRJH3RuhTPE&quot;,
+  &quot;title&quot;: &quot;Study biology&quot;,
+  &quot;description&quot;: &quot;Read the chapter and make active-recall notes.&quot;,
+  &quot;startTime&quot;: &quot;2026-10-05T04:00:00.000Z&quot;,
+  &quot;endTime&quot;: &quot;2026-10-05T05:00:00.000Z&quot;,
+  &quot;createdAt&quot;: &quot;2026-10-04T05:00:00.000Z&quot;,
+  &quot;updatedAt&quot;: &quot;2026-10-04T05:00:00.000Z&quot;,
+  &quot;durationMinutes&quot;: 60,
+  &quot;status&quot;: &quot;scheduled&quot;,
+  &quot;priority&quot;: &quot;high&quot;,
+  &quot;tags&quot;: [
+    &quot;biology&quot;,
+    &quot;revision&quot;
+  ],
+  &quot;reminders&quot;: [],
+  &quot;color&quot;: &quot;#6366f1&quot;,
+  &quot;focusMode&quot;: true,
+  &quot;focusAllowedPackages&quot;: [
+    &quot;com.example.reader&quot;,
+    &quot;com.example.notes&quot;
+  ]
+}
+</code></pre></div>
+<p>For a task whose focus rules should follow the global list, use either omission or explicit <code>null</code> according to the intended wire representation. For canonical generated files, choose one representation consistently and document it in the builder UI rather than silently changing semantics.</p>
+<hr />
+<h1 id="51-full-canonical-envelope-example">51. Full canonical envelope example</h1>
+<p>A full documentation page should contain one end-to-end example that is internally coherent and uses only canonical portable/apply fields.</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-json">{
+  &quot;kind&quot;: &quot;FocusFlowBackupV1&quot;,
+  &quot;version&quot;: 1,
+  &quot;exportedAt&quot;: &quot;2026-10-04T05:14:00.000Z&quot;,
+  &quot;exportedAtHuman&quot;: &quot;04/10/2026, 10:44:00&quot;,
+  &quot;appVersion&quot;: &quot;1.1.0&quot;,
+  &quot;platform&quot;: {
+    &quot;os&quot;: &quot;android&quot;
+  },
+  &quot;settings&quot;: {
+    &quot;darkMode&quot;: true,
+    &quot;defaultDuration&quot;: 60,
+    &quot;pomodoroDuration&quot;: 25,
+    &quot;pomodoroBreak&quot;: 5,
+    &quot;allowedInFocus&quot;: [
+      &quot;com.example.reader&quot;
+    ],
+    &quot;alwaysOnPackages&quot;: [],
+    &quot;alwaysOnVpnPackages&quot;: [],
+    &quot;focusMirrorVpnEnabled&quot;: false,
+    &quot;blockedWords&quot;: [],
+    &quot;dailyAllowanceEntries&quot;: [],
+    &quot;allowedAppPresets&quot;: [],
+    &quot;blockPresets&quot;: [],
+    &quot;recurringBlockSchedules&quot;: [],
+    &quot;greyoutSchedule&quot;: [],
+    &quot;userProfile&quot;: {
+      &quot;name&quot;: &quot;Alex&quot;,
+      &quot;occupation&quot;: &quot;student&quot;,
+      &quot;dailyGoalHours&quot;: 4,
+      &quot;wakeUpTime&quot;: &quot;07:00&quot;,
+      &quot;sleepTime&quot;: &quot;23:00&quot;,
+      &quot;focusGoals&quot;: [
+        &quot;study consistently&quot;
+      ],
+      &quot;chronotype&quot;: &quot;morning&quot;,
+      &quot;focusSessionLength&quot;: 60,
+      &quot;breakStyle&quot;: &quot;balanced&quot;,
+      &quot;distractionTriggers&quot;: [],
+      &quot;motivationStyle&quot;: [
+        &quot;progress&quot;
+      ],
+      &quot;weeklyReviewDay&quot;: &quot;sun&quot;
+    },
+    &quot;launcherTheme&quot;: &quot;glassy&quot;,
+    &quot;focusToolPackages&quot;: [],
+    &quot;launcherHiddenPackages&quot;: [],
+    &quot;launcherDockPackages&quot;: [],
+    &quot;launcherClockStyle&quot;: &quot;digital&quot;,
+    &quot;launcherBlockUninstall&quot;: false,
+    &quot;launcherLockDuringStandalone&quot;: true,
+    &quot;keepFocusActiveUntilTaskEnd&quot;: true,
+    &quot;autoRescheduleEnabled&quot;: false,
+    &quot;overlayQuotes&quot;: [],
+    &quot;protectionMode&quot;: &quot;standard&quot;
+  },
+  &quot;tasks&quot;: [
+    {
+      &quot;id&quot;: &quot;MPzb6gCgQWmRJH3RuhTPE&quot;,
+      &quot;title&quot;: &quot;Study biology&quot;,
+      &quot;description&quot;: &quot;Read the chapter and make active-recall notes.&quot;,
+      &quot;startTime&quot;: &quot;2026-10-05T04:00:00.000Z&quot;,
+      &quot;endTime&quot;: &quot;2026-10-05T05:00:00.000Z&quot;,
+      &quot;createdAt&quot;: &quot;2026-10-04T05:00:00.000Z&quot;,
+      &quot;updatedAt&quot;: &quot;2026-10-04T05:00:00.000Z&quot;,
+      &quot;durationMinutes&quot;: 60,
+      &quot;status&quot;: &quot;scheduled&quot;,
+      &quot;priority&quot;: &quot;high&quot;,
+      &quot;tags&quot;: [
+        &quot;biology&quot;,
+        &quot;revision&quot;
+      ],
+      &quot;reminders&quot;: [],
+      &quot;color&quot;: &quot;#6366f1&quot;,
+      &quot;focusMode&quot;: true,
+      &quot;focusAllowedPackages&quot;: [
+        &quot;com.example.reader&quot;
+      ]
+    }
+  ],
+  &quot;presetSections&quot;: [],
+  &quot;summary&quot;: {
+    &quot;taskCount&quot;: 1,
+    &quot;blockedWordCount&quot;: 0,
+    &quot;greyoutWindowCount&quot;: 0,
+    &quot;dailyAllowanceCount&quot;: 0
+  }
+}
+</code></pre></div>
+<p>A real generated file must not contain comments such as <code>// this is UTC</code> inside the JSON.</p>
+<hr />
+<h1 id="52-what-the-current-html-gets-wrong-and-must-be-corrected">52. What the current HTML gets wrong and must be corrected</h1>
+<p>This section is specifically for the next HTML rewrite.</p>
+<h2 id="52-1-exactly-these-top-level-keys-is-wrong">52.1 “Exactly these top-level keys” is wrong</h2>
+<p>The current docs say every <code>.focusflow</code> file must contain exactly the listed top-level keys.</p>
+<p>Correct statement:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">kind, settings, and tasks are the structural core.
+version is canonical but optional on input.
+recognized metadata fields are optional.
+unknown top-level fields are tolerated in compatible V1 input.
+</code></pre></div>
+<h2 id="52-2-summary-taskcount-is-not-authoritative">52.2 <code>summary.taskCount</code> is not authoritative</h2>
+<p>The current docs imply that a mismatch can make import fail.</p>
+<p>Correct:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">summary is informational.
+tasks.length is authoritative.
+</code></pre></div>
+<p>The builder should calculate summary values but should not use them as schema gates.</p>
+<h2 id="52-3-task-durationminutes-is-overclaimed">52.3 Task <code>durationMinutes</code> is overclaimed</h2>
+<p>The current HTML says the duration must match the timestamp difference as an importer requirement.</p>
+<p>The current parser verifies only:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">0 &lt;= durationMinutes &lt;= 100000
+endTime &gt;= startTime
+</code></pre></div>
+<p>The builder should still generate coherent values, but the docs must not claim a stricter parser rule than the source implements.</p>
+<h2 id="52-4-focusallowedpackages-is-misexplained-in-old-material">52.4 <code>focusAllowedPackages: []</code> is misexplained in old material</h2>
+<p>For Task records:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">null/omitted → global allow-list
+[]           → all apps allowed for that task
+[packages]   → those specific packages
+</code></pre></div>
+<p>Do not teach <code>[]</code> as “block everything.”</p>
+<h2 id="52-5-current-example-includes-non-portable-live-state-keys">52.5 Current example includes non-portable live-state keys</h2>
+<p>Old examples include fields like:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">focusModeEnabled
+pomodoroEnabled
+notificationsEnabled
+onboardingComplete
+standaloneBlockPackages
+</code></pre></div>
+<p>These do not belong in canonical portable V1 settings.</p>
+<p>They should appear only in an explicit “legacy/device-local fields that are ignored” section.</p>
+<h2 id="52-6-defaultreminderoffsets-is-not-active-scheduler-configuration">52.6 <code>defaultReminderOffsets</code> is not active scheduler configuration</h2>
+<p>Do not present it as the way to configure current task reminder delivery.</p>
+<p>It is accepted/ignored compatibility data.</p>
+<h2 id="52-7-dailyallowancems-should-not-be-the-primary-public-wire-example">52.7 <code>dailyAllowanceMs</code> should not be the primary public wire example</h2>
+<p>The current builder uses:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-json">&quot;dailyAllowanceMs&quot;: 0
+</code></pre></div>
+<p>The canonical public shape should instead use:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">packageName
+mode
+countPerDay
+budgetMinutes
+intervalMinutes
+intervalHours
+</code></pre></div>
+<p><code>dailyAllowanceMs</code> is an internal/legacy compatibility representation.</p>
+<h2 id="52-8-import-replaces-all-existing-data-is-wrong">52.8 “Import replaces all existing data” is wrong</h2>
+<p>The app has:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">MERGE
+REPLACE TASKS
+</code></pre></div>
+<p>Portable settings use their own field policies.</p>
+<p>Replace does not mean wiping analytics/history/PIN/runtime state.</p>
+<h2 id="52-9-the-file-contains-the-whole-state-is-wrong">52.9 “The file contains the whole state” is wrong</h2>
+<p>The format intentionally excludes runtime/device-local information.</p>
+<p>The documentation should say:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">portable persistent state
+</code></pre></div>
+<p>not:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">entire device/app state
+</code></pre></div>
+<h2 id="52-10-color-codes-reference-must-be-labeled-correctly">52.10 Color “codes reference” must be labeled correctly</h2>
+<p>The current parser does not impose a formal hex-color enumeration.</p>
+<p>Recommended colors may be shown as design examples, but the page must not imply that only those six colors are legal.</p>
+<h2 id="52-11-system-protected-package-list-should-not-be-part-of-the-core-format-contract">52.11 System-protected package list should not be part of the core format contract</h2>
+<p>A hardcoded runtime exemption list is not a JSON field.</p>
+<p>Keep it separate from the wire-format page unless its current source is independently verified.</p>
+<hr />
+<h1 id="53-html-builder-requirements">53. HTML builder requirements</h1>
+<p>The backup-builder HTML is not just a text editor. It should behave like a format-aware generator.</p>
+<h2 id="53-1-required-builder-capabilities">53.1 Required builder capabilities</h2>
+<p>The page should provide:</p>
+<ol>
+<li><strong>Starter file</strong> — minimal valid envelope.</li>
+<li><strong>Full example</strong> — canonical settings/task example.</li>
+<li><strong>Generate task</strong> — form-driven creation of task records.</li>
+<li><strong>Edit JSON</strong> — advanced direct editing.</li>
+<li><strong>Generate/settings controls</strong> — portable settings only.</li>
+<li><strong>Validation</strong> — structural and known V1 semantic validation.</li>
+<li><strong>Format JSON</strong> — safe pretty-printing without changing meaning.</li>
+<li><strong>Copy JSON</strong> — copy exact JSON content.</li>
+<li><strong>Download <code>.focusflow</code></strong> — save valid UTF-8 JSON with the correct extension.</li>
+<li><strong>Human-readable validation messages</strong> — clearly separate fatal errors from warnings.</li>
+</ol>
+<h2 id="53-2-the-builder-must-know-three-classes-of-fields">53.2 The builder must know three classes of fields</h2>
+<p>The settings UI should classify fields as:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">Portable / Applied
+Accepted but ignored
+Never applied / device-local
+</code></pre></div>
+<p>The user should not accidentally generate a “portable” file that contains fake device runtime state.</p>
+<h2 id="53-3-builder-defaults">53.3 Builder defaults</h2>
+<p>Recommended default generated state:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">kind = FocusFlowBackupV1
+version = 1
+settings = canonical portable fields with safe empty/default values
+tasks = []
+presetSections = []
+summary = calculated
+</code></pre></div>
+<p>The builder should not manufacture live runtime state.</p>
+<h2 id="53-4-builder-task-form">53.4 Builder task form</h2>
+<p>At minimum expose:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">id
+title
+description
+start/end
+duration
+status
+priority
+tags
+color
+focusMode
+focusAllowedPackages
+reminders
+</code></pre></div>
+<p>The UI must make the three-way <code>focusAllowedPackages</code> choice explicit:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">Use global list
+All apps allowed
+Custom package list
+</code></pre></div>
+<p>Mapping could be:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">Use global list → omit or null
+All apps allowed → []
+Custom          → [packages]
+</code></pre></div>
+<p>Do not force users to understand JSON null semantics to create a correct task.</p>
+<hr />
+<h1 id="54-builder-validation-requirements">54. Builder validation requirements</h1>
+<p>The web validator should check at least:</p>
+<h2 id="file-level">File-level</h2>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">valid JSON
+root object
+kind exact
+version valid/omitted
+settings object
+tasks array
+duplicate object keys
+file-size limit
+maximum depth
+maximum node count
+duplicate task IDs
+</code></pre></div>
+<h2 id="task-level">Task-level</h2>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">id
+unique ID
+title
+ISO timestamps
+end &gt;= start
+duration range
+status enum
+priority enum
+tags shape/count/length
+reminders shape/count
+color string length
+focusMode boolean
+focusAllowedPackages shape/package syntax/list size
+</code></pre></div>
+<h2 id="settings-level">Settings-level</h2>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">recognized scalar types/ranges
+package arrays
+blocked word limits
+allowance object validation
+preset object validation
+recurring schedule validation
+greyout window validation
+profile validation
+launcher theme enum
+protectionMode enum
+</code></pre></div>
+<h2 id="warnings">Warnings</h2>
+<p>The builder may warn about:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">old/ignored fields present
+dangling external resource fields
+active task status that will not be imported as live
+a past scheduled task that will become skipped
+legacy alias fields
+unknown optional fields
+</code></pre></div>
+<p>These should not all be escalated to fatal errors.</p>
+<hr />
+<h1 id="55-builder-canonicalization-requirements">55. Builder canonicalization requirements</h1>
+<p>A “perfectly generated” file should be canonicalized before download.</p>
+<h2 id="55-1-timestamps">55.1 Timestamps</h2>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">parse input date/time
+→ convert to UTC
+→ output .sssZ
+</code></pre></div>
+<h2 id="55-2-duration">55.2 Duration</h2>
+<p>If start/end are edited in the builder, recalculate <code>durationMinutes</code> to the exact whole-minute span for generated tasks.</p>
+<h2 id="55-3-ids">55.3 IDs</h2>
+<p>Generate unique URL-safe IDs and check collisions before download.</p>
+<h2 id="55-4-packages">55.4 Packages</h2>
+<p>Validate syntax but do not require installation on the web page's machine.</p>
+<h2 id="55-5-arrays">55.5 Arrays</h2>
+<p>For canonical generated output:</p>
+<ul>
+<li>keep deterministic field ordering where practical;</li>
+<li>use stable ordering for semantically set-like collections when canonicalization is appropriate;</li>
+<li>never alter user strings merely for cosmetic normalization;</li>
+<li>do not silently turn <code>null</code> into <code>[]</code> for fields where the distinction matters.</li>
+</ul>
+<h2 id="55-6-unknown-fields">55.6 Unknown fields</h2>
+<p>A raw JSON editor should preserve unknown fields unless the user explicitly asks to normalize them away.</p>
+<p>A form-generated file should normally contain only known canonical fields.</p>
+<hr />
+<h1 id="56-documentation-page-structure">56. Documentation page structure</h1>
+<p>The public <code>.focusflow</code> reference page should be reorganized around the actual format rather than the current mixture of format + old app behavior.</p>
+<p>Recommended section order:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">1. What a .focusflow file is
+2. V1 envelope
+3. Encoding / syntax / limits
+4. Task object
+5. Timestamp and timezone handling
+6. focusAllowedPackages semantics
+7. Reminders
+8. Portable settings
+9. Daily allowances
+10. Presets
+11. Recurring schedules
+12. Greyout schedule
+13. User profile
+14. Device-local / ignored fields
+15. presetSections and summary metadata
+16. Import semantics
+17. Merge vs Replace
+18. External resource behavior
+19. Runtime/alarm reconstruction
+20. Full canonical example
+21. Builder / validation guide
+</code></pre></div>
+<p>The navigation should make it possible to jump directly to a specific field class.</p>
+<hr />
+<h1 id="57-exact-wording-principles-for-the-html">57. Exact wording principles for the HTML</h1>
+<p>Use precise wording such as:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">“accepted on input”
+“canonical output”
+“applied on import”
+“accepted but ignored”
+“never applied”
+“informational only”
+“derived at runtime”
+“source-proven”
+</code></pre></div>
+<p>Avoid vague wording such as:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">“everything is restored”
+“all settings are imported”
+“all existing data is replaced”
+“any valid color is supported”
+“reminders are stored and scheduled”
+</code></pre></div>
+<p>unless the statement is actually supported by the V1 contract.</p>
+<hr />
+<h1 id="58-canonical-import-examples-the-html-should-show">58. Canonical import examples the HTML should show</h1>
+<h2 id="58-1-global-focus-allow-list">58.1 Global focus allow-list</h2>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-json">{
+  &quot;settings&quot;: {
+    &quot;allowedInFocus&quot;: [
+      &quot;com.example.reader&quot;,
+      &quot;com.example.notes&quot;
+    ]
+  },
+  &quot;tasks&quot;: [
+    {
+      &quot;id&quot;: &quot;task-1&quot;,
+      &quot;title&quot;: &quot;Study&quot;,
+      &quot;description&quot;: &quot;&quot;,
+      &quot;startTime&quot;: &quot;2026-10-05T04:00:00.000Z&quot;,
+      &quot;endTime&quot;: &quot;2026-10-05T05:00:00.000Z&quot;,
+      &quot;createdAt&quot;: &quot;2026-10-04T05:00:00.000Z&quot;,
+      &quot;updatedAt&quot;: &quot;2026-10-04T05:00:00.000Z&quot;,
+      &quot;durationMinutes&quot;: 60,
+      &quot;status&quot;: &quot;scheduled&quot;,
+      &quot;priority&quot;: &quot;high&quot;,
+      &quot;tags&quot;: [],
+      &quot;reminders&quot;: [],
+      &quot;color&quot;: &quot;#6366f1&quot;,
+      &quot;focusMode&quot;: true
+    }
+  ]
+}
+</code></pre></div>
+<p>Here <code>focusAllowedPackages</code> is omitted, so the task uses the global focus allow-list.</p>
+<h2 id="58-2-task-specific-focus-allow-list">58.2 Task-specific focus allow-list</h2>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-json">&quot;focusAllowedPackages&quot;: [
+  &quot;com.example.reader&quot;
+]
+</code></pre></div>
+<h2 id="58-3-all-apps-allowed-for-that-task">58.3 All apps allowed for that task</h2>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-json">&quot;focusAllowedPackages&quot;: []
+</code></pre></div>
+<h2 id="58-4-preserve-global-semantics-explicitly">58.4 Preserve global semantics explicitly</h2>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-json">&quot;focusAllowedPackages&quot;: null
+</code></pre></div>
+<p>The builder may let the user choose whether the generated representation is omitted or explicit null, as long as it preserves the intended semantics.</p>
+<hr />
+<h1 id="59-canonical-recurring-schedule-derived-greyout-explanation">59. Canonical recurring schedule + derived greyout explanation</h1>
+<p>A documentation example should show both pieces:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">recurringBlockSchedules
+    = authoritative recurring source
+
+       ↓ export / runtime derivation
+
+greyoutSchedule entries with scheduleId
+    = derived copies
+</code></pre></div>
+<p>and:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">greyoutSchedule entries without scheduleId
+    = user-authored portable windows
+</code></pre></div>
+<p>On import:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">no scheduleId → keep
+scheduleId present → discard as derived
+recurring schedules → restore + regenerate derived windows
+</code></pre></div>
+<p>This is one of the most important missing explanations in the current pages.</p>
+<hr />
+<h1 id="60-canonical-warning-reference-table-for-the-html-validator">60. Canonical warning/reference table for the HTML validator</h1>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+  <th>Condition</th>
+  <th>Builder severity</th>
+  <th>FocusFlow V1 behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>invalid JSON</td>
+  <td>ERROR</td>
+  <td>whole file rejected</td>
+</tr>
+<tr>
+  <td>invalid UTF-8</td>
+  <td>ERROR</td>
+  <td>whole file rejected</td>
+</tr>
+<tr>
+  <td>duplicate JSON key</td>
+  <td>ERROR</td>
+  <td>whole file rejected</td>
+</tr>
+<tr>
+  <td>wrong <code>kind</code></td>
+  <td>ERROR</td>
+  <td>whole file rejected</td>
+</tr>
+<tr>
+  <td>version other than 1</td>
+  <td>ERROR</td>
+  <td>whole file rejected</td>
+</tr>
+<tr>
+  <td>duplicate task ID in file</td>
+  <td>ERROR</td>
+  <td>whole file rejected</td>
+</tr>
+<tr>
+  <td>missing settings</td>
+  <td>ERROR</td>
+  <td>whole file rejected</td>
+</tr>
+<tr>
+  <td>missing tasks</td>
+  <td>ERROR</td>
+  <td>whole file rejected</td>
+</tr>
+<tr>
+  <td>invalid task ID</td>
+  <td>ERROR</td>
+  <td>task omitted/invalid</td>
+</tr>
+<tr>
+  <td>blank task title</td>
+  <td>ERROR</td>
+  <td>task omitted/invalid</td>
+</tr>
+<tr>
+  <td>invalid task timestamp</td>
+  <td>ERROR</td>
+  <td>task omitted/invalid</td>
+</tr>
+<tr>
+  <td><code>endTime &lt; startTime</code></td>
+  <td>ERROR</td>
+  <td>task omitted/invalid</td>
+</tr>
+<tr>
+  <td>unknown task status</td>
+  <td>ERROR</td>
+  <td>task omitted/invalid</td>
+</tr>
+<tr>
+  <td>unknown priority</td>
+  <td>ERROR</td>
+  <td>task omitted/invalid</td>
+</tr>
+<tr>
+  <td>invalid reminder entry</td>
+  <td>WARNING</td>
+  <td>reminder dropped</td>
+</tr>
+<tr>
+  <td>invalid package entry in list</td>
+  <td>WARNING</td>
+  <td>item dropped</td>
+</tr>
+<tr>
+  <td>invalid ordinary setting</td>
+  <td>WARNING</td>
+  <td>setting ignored</td>
+</tr>
+<tr>
+  <td>invalid <code>userProfile</code> recognized field</td>
+  <td>WARNING</td>
+  <td>whole profile ignored</td>
+</tr>
+<tr>
+  <td>invalid <code>protectionMode</code></td>
+  <td>ERROR</td>
+  <td>whole import rejected</td>
+</tr>
+<tr>
+  <td><code>scheduleId</code> greyout entry</td>
+  <td>INFO/WARNING</td>
+  <td>derived window discarded on import</td>
+</tr>
+<tr>
+  <td>wallpaper URI present</td>
+  <td>INFO/WARNING</td>
+  <td>unresolved; local destination value preserved</td>
+</tr>
+<tr>
+  <td>unknown optional field</td>
+  <td>INFO</td>
+  <td>tolerated</td>
+</tr>
+<tr>
+  <td>past scheduled task</td>
+  <td>INFO</td>
+  <td>imported as skipped</td>
+</tr>
+<tr>
+  <td>active task</td>
+  <td>INFO</td>
+  <td>normalized to scheduled/skipped depending on end time</td>
+</tr>
+<tr>
+  <td>non-installed package reference</td>
+  <td>INFO</td>
+  <td>valid reference preserved</td>
+</tr>
+</tbody>
+</table></div>
+<p>The web validator does not have the destination device's current state, so it cannot fully simulate merge conflicts or PIN weakening checks.</p>
+<hr />
+<h1 id="61-destination-device-behavior-that-cannot-be-simulated-purely-from-the-html">61. Destination-device behavior that cannot be simulated purely from the HTML</h1>
+<p>The HTML builder can validate the file itself, but cannot know without app/device state:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">whether an incoming task ID already exists locally
+whether a same-ID task is identical or divergent
+whether Replace is currently blocked by an active Focus Session
+whether the imported settings weaken the destination's protected configuration
+whether the destination has exact alarm capability
+whether notifications are currently permitted
+whether FSI is available
+whether imported package IDs are installed
+</code></pre></div>
+<p>The UI should therefore phrase these as:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">“FocusFlow will check this on import.”
+</code></pre></div>
+<p>not as browser-side facts.</p>
+<hr />
+<h1 id="62-security-guidance-for-the-public-documentation">62. Security guidance for the public documentation</h1>
+<p>The <code>.focusflow</code> format is a user-controlled input format.</p>
+<p>The HTML should recommend:</p>
+<ul>
+<li>keep backup files private if they contain personal task titles, profile data, package lists, or blocked words;</li>
+<li>do not edit security/runtime fields expecting them to disable destination protections;</li>
+<li>understand that old files may contain legacy device-local fields that FocusFlow intentionally ignores;</li>
+<li>preserve a copy of an original backup before hand-editing it.</li>
+</ul>
+<p>Do not describe <code>.focusflow</code> as encrypted or cryptographically authenticated unless that is separately implemented. V1 is plain JSON.</p>
+<hr />
+<h1 id="63-interoperability-goal">63. Interoperability goal</h1>
+<p>The core interoperability target is:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">TS V1 export
+    ↓
+Kotlin V1 parser
+    ↓
+Normalized V1 model
+    ↓
+Kotlin V1 restore
+</code></pre></div>
+<p>and, where supported:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">Kotlin V1 export
+    ↓
+TS V1-compatible representation
+</code></pre></div>
+<p>Cross-platform interoperability is about <strong>semantic parity</strong>, not byte-for-byte identical JSON formatting.</p>
+<p>A canonical generator should therefore optimize for:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">same schema
+same meaning
+same time instants
+same persistent task state
+same portable setting values
+</code></pre></div>
+<p>rather than relying on field order or whitespace.</p>
+<hr />
+<h1 id="64-html-implementation-details-for-the-validator">64. HTML implementation details for the validator</h1>
+<p>The current builder uses a hand-written JavaScript duplicate-key scanner and structural checks. A future rewrite may use the same approach, but the content contract requires the behavior rather than a specific implementation.</p>
+<h2 id="64-1-required-duplicate-key-detection">64.1 Required duplicate-key detection</h2>
+<p>A normal <code>JSON.parse()</code> is insufficient because duplicate keys may be silently last-write-wins.</p>
+<p>The browser-side validator must detect duplicates before accepting the document as clean.</p>
+<h2 id="64-2-limits">64.2 Limits</h2>
+<p>Do not allocate an arbitrarily huge JSON tree before applying the file-size/complexity bounds.</p>
+<p>A production-strength validator can apply:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">byte count
+maximum nesting
+node count
+task count
+collection counts
+string limits
+</code></pre></div>
+<p>before or during parsing.</p>
+<h2 id="64-3-json-escaping">64.3 JSON escaping</h2>
+<p>The builder must preserve valid JSON string escaping when formatting or downloading.</p>
+<p>Do not “pretty format” by string manipulation that can break escaped quotes, newlines, backslashes, or Unicode.</p>
+<hr />
+<h1 id="65-html-content-that-should-not-be-presented-as-part-of-the-focusflow-schema">65. HTML content that should NOT be presented as part of the <code>.focusflow</code> schema</h1>
+<p>Keep these outside the core JSON schema reference or label them as separate runtime/site information:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">Android Manifest intent filters
+ACTION_VIEW routing
+onNewIntent()
+PendingIntent identity
+AlarmManager request codes
+notification channel IDs
+FSI behavior
+WorkManager reconciliation
+RestoreGate
+RestoreJournal
+legacy settings migration SQL
+Kotlin class names
+</code></pre></div>
+<p>Those are <strong>implementation/runtime concerns</strong>, not fields inside <code>.focusflow</code>.</p>
+<p>They may appear in a separate developer “Import pipeline” section or page, but the format reference itself should center the JSON contract.</p>
+<hr />
+<h1 id="66-what-absolutely-must-not-appear-in-canonical-builder-examples">66. What absolutely must not appear in canonical builder examples</h1>
+<p>Do not put these in the normal generated example unless they are deliberately being demonstrated in a “legacy fields ignored” panel:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">alwaysOnEnforcementEnabled
+focusModeEnabled
+pomodoroEnabled
+notificationsEnabled
+weeklyReportEnabled
+launcherEnabled
+systemGuardEnabled
+vpnBlockEnabled
+pinProtectionEnabled
+standaloneBlockPackages
+standaloneBlockUntil
+standaloneVpnPackages
+autoCopiedAlwaysOnPackages
+onboardingComplete
+privacyAccepted
+defaultReminderOffsets
+launcherWallpaperUri
+overlayWallpaper
+pendingPresets
+</code></pre></div>
+<p>Do not put internal Kotlin field names in V1 JSON examples.</p>
+<hr />
+<h1 id="67-canonical-v1-wire-name-mapping-that-html-developers-must-memorize">67. Canonical V1 wire-name mapping that HTML developers must memorize</h1>
+<p>These are especially easy to get wrong during a Kotlin rewrite.</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">Kotlin/internal                     V1 wire
+--------------------------------------------------------------
+defaultDurationMinutes         →   defaultDuration
+pomodoroWorkMinutes            →   pomodoroDuration
+pomodoroBreakMinutes           →   pomodoroBreak
+allowedFocusPackages            →   allowedInFocus
+alwaysBlockPackages             →   alwaysOnPackages
+</code></pre></div>
+<p>For recurring schedules:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">Kotlin/internal                 V1 wire
+--------------------------------------------------------------
+startMinute                     →   startMin
+endMinute                       →   endMin
+daysOfWeek (0..6)               →   days (1..7)
+</code></pre></div>
+<p>For greyout windows:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">Kotlin/internal                 V1 wire
+--------------------------------------------------------------
+user_greyout_windows            →   greyoutSchedule (user windows only on import)
+</code></pre></div>
+<p>The HTML should explicitly call these out because schema-name mistakes are more dangerous than cosmetic formatting differences.</p>
+<hr />
+<h1 id="68-canonical-file-generation-checklist">68. Canonical file-generation checklist</h1>
+<p>Before the builder enables <strong>Download <code>.focusflow</code></strong>, it should be able to answer “yes” to all of these:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text"><span class="check-box">□</span> kind = &quot;FocusFlowBackupV1&quot;
+<span class="check-box">□</span> version absent or exactly 1
+<span class="check-box">□</span> settings is an object
+<span class="check-box">□</span> tasks is an array
+<span class="check-box">□</span> no duplicate JSON keys
+<span class="check-box">□</span> task IDs are unique within the file
+<span class="check-box">□</span> task IDs satisfy 1–128 character/no-control rule
+<span class="check-box">□</span> every generated task has a non-blank title
+<span class="check-box">□</span> task timestamps are valid ISO instants
+<span class="check-box">□</span> task timestamps are normalized to .sssZ UTC
+<span class="check-box">□</span> endTime &gt;= startTime
+<span class="check-box">□</span> durationMinutes is an integer in range
+<span class="check-box">□</span> status is one of the five V1 statuses
+<span class="check-box">□</span> priority is one of the four V1 priorities
+<span class="check-box">□</span> tag counts/lengths are in range
+<span class="check-box">□</span> reminder counts and structures are valid
+<span class="check-box">□</span> package references have valid package syntax
+<span class="check-box">□</span> package list sizes are in range
+<span class="check-box">□</span> userProfile is valid if present
+<span class="check-box">□</span> protectionMode is standard or iron if present
+<span class="check-box">□</span> portable settings use TS V1 wire names
+<span class="check-box">□</span> live-state fields are absent from canonical output
+<span class="check-box">□</span> onboarding/privacy fields are absent from canonical output
+<span class="check-box">□</span> recurringBlockSchedules uses wire day numbering 1..7
+<span class="check-box">□</span> greyoutSchedule does not incorrectly replace recurringBlockSchedules
+<span class="check-box">□</span> summary values are calculated from primary data
+<span class="check-box">□</span> presetSections are descriptive only
+<span class="check-box">□</span> resulting JSON is valid UTF-8
+<span class="check-box">□</span> filename ends with .focusflow
+</code></pre></div>
+<hr />
+<h1 id="69-builder-ux-recommendations">69. Builder UX recommendations</h1>
+<p>The current builder can remain an advanced JSON editor, but a genuinely complete builder should make common operations easier.</p>
+<p>Recommended UI modes:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">QUICK BUILD
+    Task + common settings form
+
+ADVANCED BUILD
+    All portable V1 settings
+    nested objects
+    reminders
+    schedules
+    profiles
+
+RAW JSON
+    full control
+</code></pre></div>
+<p>Validation should appear beside the editor rather than requiring a separate online service.</p>
+<p>The page is intended to work offline; the backup text itself does not need to be uploaded anywhere.</p>
+<hr />
+<h1 id="70-canonical-what-will-happen-on-import-explanation-for-the-html">70. Canonical “what will happen on import?” explanation for the HTML</h1>
+<p>The public page should contain a compact sequence similar to:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">1. FocusFlow reads the `.focusflow` JSON.
+2. It validates the envelope, duplicate keys, limits, settings, and task records.
+3. Valid data is normalized into the V1 model.
+4. You see an import preview before persistent changes.
+5. Portable settings are applied according to their per-field policy.
+6. Tasks use Merge or Replace semantics.
+7. Old scheduled/active tasks whose end time has passed are converted to skipped.
+8. Device-local/runtime fields are not imported.
+9. External wallpaper references are kept local and reported as unresolved.
+10. Future task-end alarms and reminder notifications are reconstructed from persistent task data and current device capabilities.
+</code></pre></div>
+<p>This is much more accurate than saying simply “all existing data is replaced.”</p>
+<hr />
+<h1 id="71-final-agent-can-build-it-perfectly-rule">71. Final “agent can build it perfectly” rule</h1>
+<p>Any agent receiving the finished HTML should be able to reconstruct the file format without guessing.</p>
+<p>The HTML therefore needs to expose, at minimum:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">EXACT envelope identity
+EXACT required fields
+ALL portable setting names
+ALL ignored/non-portable setting names
+ALL task fields
+ALL nested object shapes
+ALL supported enums
+ALL numeric limits
+ALL package validation rules
+ALL day-numbering rules
+ALL timestamp rules
+ALL three-way focusAllowedPackages semantics
+ALL reminder persistence semantics
+ALL greyout-vs-recurring rules
+ALL userProfile fields
+ALL merge/replace implications
+ALL task-status normalization
+ALL fatal-vs-warning validation behavior
+ALL file-size/complexity limits
+A canonical full example
+A canonical minimal example
+</code></pre></div>
+<p>If any of those are absent from the final HTML, the HTML is not yet a complete format reference.</p>
+<hr />
+<h1 id="72-final-implementation-content-principle">72. Final implementation/content principle</h1>
+<p>The finished public HTML should communicate this model:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">.focusflow
+   = versioned UTF-8 JSON
+   = portable FocusFlow persistent state
+   + informational metadata
+   - runtime state
+   - device-local secrets/state
+   - Android scheduler registrations
+   - external resource contents
+</code></pre></div>
+<p>The core object model is:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">Envelope
+ ├── settings
+ │    ├── portable scalar settings
+ │    ├── package lists
+ │    ├── allowance entries
+ │    ├── presets
+ │    ├── recurring schedules
+ │    ├── greyout windows
+ │    ├── userProfile
+ │    └── launcher/protection preferences
+ │
+ ├── tasks[]
+ │    ├── identity + content
+ │    ├── absolute UTC timestamps
+ │    ├── persistent status/priority
+ │    ├── tags
+ │    ├── inert reminders[]
+ │    └── optional focus configuration
+ │
+ ├── presetSections    → inventory only
+ └── summary            → informational only
+</code></pre></div>
+<p>The single most important design rule is:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">Persistent portable truth
+        ≠
+Runtime/device state
+        ≠
+Derived Android state
+</code></pre></div>
+<p>That distinction is what keeps a <code>.focusflow</code> file portable, safe to edit, and predictable to import.</p>
+<hr />
+<h1 id="73-deliverable-requirement-for-the-next-html-rewrite">73. Deliverable requirement for the next HTML rewrite</h1>
+<p>The eventual HTML rewrite should be checked against this document as a <strong>content completeness checklist</strong>, not merely for visual polish.</p>
+<p>A page is considered content-complete only when:</p>
+<div class="code-shell"><button class="copy-btn" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">Every field is documented.
+Every field has a type.
+Every constrained field has its constraints.
+Every compatibility exception is identified.
+Every non-portable field is clearly separated.
+Every critical semantic distinction has an example.
+Every destructive/import policy is accurately described.
+Every canonical example is itself valid.
+No obsolete claim from the current HTML remains.
+</code></pre></div>
+<p>The next HTML implementation should therefore be treated as a rendering of this specification, not as a fresh rewrite from memory.</p>
+</article>
+    <div class="footer">FocusFlow `.focusflow` V1 reference. Generated from the project’s HTML master specification. The page is documentation; the Android app remains the final runtime validator.</div>
+  </main>
+</div>
+<script>
+(function(){
+  const doc=document.getElementById('doc-content');
+  const toc=document.getElementById('toc');
+  const headings=[...doc.querySelectorAll('h2,h3')];
+  for(const h of headings){
+    const a=document.createElement('a'); a.href='#'+h.id; a.textContent=h.textContent; a.className=h.tagName==='H3'?'h3':''; toc.appendChild(a);
+  }
+  const links=[...toc.querySelectorAll('a')];
+  const io=new IntersectionObserver(entries=>{entries.forEach(e=>{if(e.isIntersecting){links.forEach(a=>a.classList.toggle('active',a.getAttribute('href')==='#'+e.target.id));}})},{rootMargin:'-15% 0px -75% 0px',threshold:0});
+  headings.forEach(h=>io.observe(h));
+  document.querySelectorAll('.copy-btn').forEach(btn=>btn.addEventListener('click',async()=>{
+    const code=btn.parentElement.querySelector('code').innerText;
+    try{await navigator.clipboard.writeText(code);btn.textContent='Copied';setTimeout(()=>btn.textContent='Copy',900);}catch{btn.textContent='Copy failed';setTimeout(()=>btn.textContent='Copy',1100);}
+  }));
+  const search=document.getElementById('search');
+  const blocks=[...doc.children];
+  search.addEventListener('input',()=>{
+    const q=search.value.trim().toLowerCase();
+    if(!q){blocks.forEach(b=>b.classList.remove('hidden-by-search'));return;}
+    blocks.forEach(b=>{b.classList.toggle('hidden-by-search',!b.innerText.toLowerCase().includes(q));});
+  });
+})();
+</script>
+</body>
+</html>

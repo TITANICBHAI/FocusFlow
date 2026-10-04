@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>.focusflow File Format — FocusFlow</title>
+<meta name="description" content="Practical reference for creating, reading, editing, and importing FocusFlow .focusflow V1 files.">
+<style>
+:root{--bg:#0d0d14;--card:#151520;--card2:#1c1c29;--text:#f1f1ff;--muted:#9b9bb7;--line:rgba(108,99,255,.22);--accent:#6c63ff;--accent2:#4b44cc;--good:#55d68a;--warn:#f4c95d;--danger:#ff7272;--code:#090910;--radius:16px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}a{color:#9f9aff;text-decoration:none}a:hover{color:#fff}code,pre{font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}code{background:var(--card2);padding:.08rem .34rem;border-radius:5px;border:1px solid var(--line);font-size:.88em}.wrap{max-width:1120px;margin:auto;padding:0 22px}
+nav{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:18px;padding:14px 22px;background:rgba(13,13,20,.9);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}.brand{font-weight:800;color:var(--text)}.navlinks{display:flex;gap:12px;flex-wrap:wrap;align-items:center}.navlinks a{font-size:13px;color:var(--muted)}.navlinks a:hover{color:#fff}.search{width:220px;max-width:42vw;background:var(--card);border:1px solid var(--line);border-radius:9px;padding:8px 10px;color:var(--text);outline:none}.search:focus{border-color:var(--accent)}
+.hero{padding:58px 0 30px}.eyebrow{color:#aaa4ff;font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;margin:0 0 10px}.hero h1{font-size:clamp(2.2rem,6vw,4rem);line-height:1.05;letter-spacing:-.04em;margin:0 0 16px}.hero p{max-width:760px;color:var(--muted);font-size:1.03rem}.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}.chip{display:inline-flex;padding:6px 10px;border-radius:999px;background:var(--card);border:1px solid var(--line);color:var(--muted);font-size:12px}.call{margin:24px 0;padding:16px 18px;border-radius:13px}.info{background:rgba(108,99,255,.09);border:1px solid var(--line)}.warn{background:rgba(244,201,93,.07);border:1px solid rgba(244,201,93,.22)}.danger{background:rgba(255,114,114,.07);border:1px solid rgba(255,114,114,.2)}.good{background:rgba(85,214,138,.07);border:1px solid rgba(85,214,138,.18)}
+.toc{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:26px 0 12px}.toc a{display:block;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:11px 13px;color:var(--muted);font-size:13px}.toc a:hover{border-color:var(--accent);color:var(--text)}
+section{padding:44px 0 10px}.section-head{display:flex;justify-content:space-between;gap:20px;align-items:end;margin-bottom:18px}.section-head h2{margin:0;font-size:clamp(1.55rem,3vw,2.2rem);letter-spacing:-.025em}.section-head p{margin:0;max-width:620px;color:var(--muted);font-size:14px}.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px}.card h3{margin:0 0 8px;font-size:15px}.card p{color:var(--muted);font-size:13px;margin:0 0 9px}.card p:last-child{margin-bottom:0}
+pre{margin:12px 0 0;background:var(--code);border:1px solid var(--line);border-radius:12px;padding:15px;overflow:auto;color:#e9e9ff;font-size:12.5px;line-height:1.6}.code-wrap{position:relative}.copy{position:absolute;right:8px;top:8px;background:var(--card2);border:1px solid var(--line);color:var(--muted);padding:5px 8px;border-radius:7px;font-size:11px;cursor:pointer}.copy:hover{color:#fff;border-color:var(--accent)}
+.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:13px}.table{width:100%;border-collapse:collapse;min-width:760px;font-size:13px}.table th{background:var(--card2);color:#ddd;padding:10px 11px;text-align:left;font-size:11px;letter-spacing:.05em;text-transform:uppercase}.table td{padding:10px 11px;border-top:1px solid var(--line);vertical-align:top;color:var(--muted)}.table td:first-child{color:var(--text);white-space:nowrap;font-weight:700}.pill{display:inline-block;padding:2px 7px;border-radius:999px;font-size:10px;font-weight:800}.req{background:rgba(255,114,114,.13);color:#ff8c8c}.opt{background:rgba(244,201,93,.11);color:#f5d76d}.apply{background:rgba(85,214,138,.11);color:#79eaa4}.ignore{background:rgba(155,155,183,.12);color:#c3c3d7}
+ul.clean{list-style:none;padding:0;margin:10px 0}.clean li{padding:8px 0;border-bottom:1px solid rgba(108,99,255,.12);color:var(--muted);font-size:13px}.clean li:last-child{border-bottom:0}.clean strong{color:var(--text)}
+.small{font-size:12px;color:var(--muted)}.mono-list{display:grid;gap:6px}.mono-list code{display:block;padding:8px 10px}.cols{columns:2;column-gap:35px}.cols code{display:block;margin-bottom:6px}
+.hidden{display:none!important}.footer{margin-top:54px;padding:28px 0 48px;border-top:1px solid var(--line);color:var(--muted);font-size:12px}.footer strong{color:var(--text)}
+@media(max-width:850px){.toc,.grid3{grid-template-columns:1fr 1fr}.grid2{grid-template-columns:1fr}.section-head{display:block}.section-head p{margin-top:8px}.navlinks{display:none}.search{max-width:55vw}}
+@media(max-width:560px){.wrap{padding:0 14px}.toc,.grid3{grid-template-columns:1fr}.hero{padding-top:36px}.hero h1{font-size:2.4rem}}
+</style>
+</head>
+<body>
+<nav><div class="brand">FocusFlow · <code>.focusflow</code></div><div class="navlinks"><a href="#file">File</a><a href="#task">Tasks</a><a href="#settings">Settings</a><a href="#rules">Import</a><a href="#examples">Examples</a></div><input class="search" id="search" placeholder="Search this page…" aria-label="Search documentation"></nav>
+<main class="wrap" id="page">
+<header class="hero">
+<p class="eyebrow">FocusFlow V1 format</p>
+<h1>The <span style="color:#8f88ff">.focusflow</span> file</h1>
+<p>A practical reference for anyone who needs to <strong>create, read, edit, validate, or import</strong> a FocusFlow backup. You do not need to learn an entire internal schema: the tables below are the parts that actually matter.</p>
+<div class="chips"><span class="chip">UTF-8 JSON</span><span class="chip">V1</span><span class="chip">Portable settings + tasks</span><span class="chip">Human-editable</span></div>
+<div class="call info"><strong>Core idea:</strong> a <code>.focusflow</code> file is a JSON document. The extension identifies it for users/providers, while the JSON envelope is what FocusFlow actually validates.</div>
+<div class="toc">
+<a href="#file"><strong>1. File structure</strong><br>Envelope, metadata, encoding</a>
+<a href="#task"><strong>2. Tasks</strong><br>Fields, times, statuses, focus rules</a>
+<a href="#settings"><strong>3. Settings</strong><br>Portable fields and nested objects</a>
+<a href="#rules"><strong>4. Import rules</strong><br>Validation, merge, replace, compatibility</a>
+<a href="#examples"><strong>5. Examples</strong><br>Minimal, task, settings, full</a>
+<a href="#builder"><strong>6. Creating files</strong><br>Rules for a builder/integration</a>
+</div>
+</header>
+
+<section id="file"><div class="section-head"><h2>1. File structure</h2><p>Only a few top-level fields are structural. Metadata and summaries are optional and non-authoritative.</p></div>
+<div class="grid2">
+<div class="card"><h3>Minimum valid V1 file</h3><div class="code-wrap"><button class="copy" data-copy="min">Copy</button><pre id="min">{
+  "kind": "FocusFlowBackupV1",
+  "version": 1,
+  "settings": {},
+  "tasks": []
+}</pre></div></div>
+<div class="card"><h3>JSON rules</h3><ul class="clean"><li><strong>Encoding:</strong> valid UTF-8. A leading UTF-8 BOM may be stripped by the importer.</li><li><strong>Syntax:</strong> normal JSON; no comments or trailing commas.</li><li><strong>Duplicate keys:</strong> rejected anywhere in the JSON object tree.</li><li><strong>Unknown fields:</strong> compatible unknown fields may be accepted, but are not guaranteed to be portable.</li><li><strong>Extension:</strong> use <code>.focusflow</code>; the extension alone does not make invalid content valid.</li></ul></div>
+</div>
+<div class="table-wrap" style="margin-top:14px"><table class="table"><thead><tr><th>Top-level field</th><th>Type</th><th>Required?</th><th>Meaning</th></tr></thead><tbody>
+<tr><td><code>kind</code></td><td>string</td><td><span class="pill req">YES</span></td><td>Must be exactly <code>FocusFlowBackupV1</code>.</td></tr>
+<tr><td><code>version</code></td><td>integer</td><td><span class="pill opt">OPTIONAL INPUT</span></td><td>V1 is <code>1</code>. Missing means <code>1</code>; any present value other than <code>1</code> rejects the file.</td></tr>
+<tr><td><code>exportedAt</code></td><td>string</td><td>optional</td><td>Export timestamp. Canonical form: UTC <code>.sssZ</code>.</td></tr>
+<tr><td><code>exportedAtHuman</code></td><td>string</td><td>optional</td><td>Human-readable timestamp. Informational only.</td></tr>
+<tr><td><code>appVersion</code></td><td>string</td><td>optional</td><td>Source app version. Not the schema version.</td></tr>
+<tr><td><code>platform</code></td><td>object</td><td>optional</td><td>Informational metadata. Current exporter uses <code>{"os":"android"}</code>.</td></tr>
+<tr><td><code>settings</code></td><td>object</td><td><span class="pill req">YES</span></td><td>Portable settings payload.</td></tr>
+<tr><td><code>tasks</code></td><td>array</td><td><span class="pill req">YES</span></td><td>Task records. The real task count is <code>tasks.length</code>.</td></tr>
+<tr><td><code>presetSections</code></td><td>array</td><td>optional</td><td>Descriptive export inventory. Never use it as live configuration.</td></tr>
+<tr><td><code>summary</code></td><td>object</td><td>optional</td><td>Informational counts only. Never authoritative.</td></tr>
+</tbody></table></div>
+<div class="call warn"><strong>Do not treat <code>summary</code> as truth.</strong> A summary can say there are 12 tasks, but the actual records are still the objects in <code>tasks</code>.</div>
+</section>
+
+<section id="task"><div class="section-head"><h2>2. Tasks</h2><p>Tasks are the main portable records. Generate them consistently; read their fields literally.</p></div>
+<div class="table-wrap"><table class="table"><thead><tr><th>Field</th><th>Type</th><th>Rules</th></tr></thead><tbody>
+<tr><td><code>id</code></td><td>string</td><td>1–128 chars, no control chars. Must be unique within the file. Current FocusFlow IDs are commonly ~21-character nanoid-style values.</td></tr>
+<tr><td><code>title</code></td><td>string</td><td>Non-blank. Max 1,000 chars.</td></tr>
+<tr><td><code>description</code></td><td>string / null</td><td>Missing or <code>null</code> becomes <code>""</code>. Max 20,000 chars.</td></tr>
+<tr><td><code>startTime</code></td><td>string</td><td>ISO-8601 with <code>Z</code> or explicit offset. Store/export as UTC <code>.sssZ</code>.</td></tr>
+<tr><td><code>endTime</code></td><td>string</td><td>Same timestamp rules. Must be ≥ <code>startTime</code>.</td></tr>
+<tr><td><code>createdAt</code></td><td>string</td><td>ISO-8601; canonical output is UTC <code>.sssZ</code>.</td></tr>
+<tr><td><code>updatedAt</code></td><td>string</td><td>ISO-8601; canonical output is UTC <code>.sssZ</code>.</td></tr>
+<tr><td><code>durationMinutes</code></td><td>integer</td><td><code>0..100000</code>. A canonical builder should keep it consistent with the start/end times.</td></tr>
+<tr><td><code>status</code></td><td>string</td><td><code>scheduled</code>, <code>active</code>, <code>completed</code>, <code>skipped</code>, <code>overdue</code>.</td></tr>
+<tr><td><code>priority</code></td><td>string</td><td><code>low</code>, <code>medium</code>, <code>high</code>, <code>critical</code>.</td></tr>
+<tr><td><code>tags</code></td><td>string[]</td><td>Up to 100 per task; each up to 100 chars.</td></tr>
+<tr><td><code>reminders</code></td><td>object[]</td><td>Persistent but inert scheduling data. See reminder section below.</td></tr>
+<tr><td><code>color</code></td><td>string</td><td>Max 32 chars. Missing defaults to <code>#6366f1</code>. Hex is recommended, but V1 does not require a strict hex grammar.</td></tr>
+<tr><td><code>focusMode</code></td><td>boolean</td><td>Missing defaults to <code>false</code>.</td></tr>
+<tr><td><code>focusAllowedPackages</code></td><td>array / null / omitted</td><td>Critical three-way behavior; see below.</td></tr>
+</tbody></table></div>
+
+<div class="grid2" style="margin-top:14px">
+<div class="card"><h3>Timestamps</h3><p>Use UTC in the file. IST (UTC+05:30) is a display/local-time concern, not a separate task timezone field.</p><div class="code-wrap"><button class="copy" data-copy="time">Copy</button><pre id="time">07:00 IST
+→ 01:30Z
+
+2026-10-04T10:44:00+05:30
+→ 2026-10-04T05:14:00.000Z</pre></div><p class="small">For software, compare parsed instants/epoch values rather than arbitrary timestamp strings.</p></div>
+<div class="card"><h3>Status on import</h3><ul class="clean"><li><strong>scheduled + future end</strong> → stays <code>scheduled</code></li><li><strong>scheduled + past end</strong> → becomes <code>skipped</code>, with <code>updatedAt = planNow</code></li><li><strong>active + future end</strong> → becomes <code>scheduled</code></li><li><strong>active + past end</strong> → becomes <code>skipped</code></li><li><strong>completed / skipped / overdue</strong> → preserved</li></ul><p class="small">Importing a past task is different from FocusFlow's normal local overdue sweep.</p></div>
+</div>
+
+<div class="card" style="margin-top:14px"><h3><code>focusAllowedPackages</code> — do not get this wrong</h3><div class="grid2"><div><ul class="clean"><li><strong>Omitted</strong> → use the global <code>allowedInFocus</code> list.</li><li><strong><code>null</code></strong> → also use the global list.</li><li><strong>Array with packages</strong> → use this task-specific list.</li><li><strong><code>[]</code></strong> → all apps allowed for this task.</li></ul></div><div class="call danger" style="margin:0"><strong>Important:</strong> task-level <code>focusAllowedPackages: []</code> is <strong>not</strong> the same thing as the legacy <code>__block_all__</code> preset sentinel.</div></div></div>
+
+<div class="grid2" style="margin-top:14px">
+<div class="card"><h3>Reminders</h3><div class="code-wrap"><button class="copy" data-copy="rem">Copy</button><pre id="rem">"reminders": [
+  {
+    "id": "reminder-001",
+    "taskId": "task-001",
+    "offsetMinutes": -5,
+    "type": "pre-start"
+  }
+]</pre></div><p>Types: <code>pre-start</code>, <code>at-start</code>, <code>post-start</code>. Optional <code>notifId</code> may be string/null. Max 100 reminders per task.</p></div>
+<div class="card"><h3>Reminder meaning</h3><p><code>Task.reminders[]</code> is preserved as task data, but it does <strong>not</strong> drive Android notification scheduling in V1. Notification timing is derived from task times/status.</p><p>Canonical files should simply emit a valid array, commonly <code>[]</code>.</p></div>
+</div>
+</section>
+
+<section id="settings"><div class="section-head"><h2>3. Portable settings</h2><p>These are the V1 settings that belong in a portable backup. The names here are the actual wire names.</p></div>
+<div class="call info"><strong>Rule:</strong> a recognized setting that is present and valid overwrites the destination value. A recognized setting that is absent leaves the destination value alone. Recognized collections are overwritten wholesale, not merged item-by-item.</div>
+<div class="table-wrap"><table class="table"><thead><tr><th>Wire key</th><th>Type</th><th>What it contains</th></tr></thead><tbody>
+<tr><td><code>darkMode</code></td><td>boolean</td><td>Display preference.</td></tr>
+<tr><td><code>defaultDuration</code></td><td>integer</td><td>5–480 minutes.</td></tr>
+<tr><td><code>pomodoroDuration</code></td><td>integer</td><td>1–180 minutes.</td></tr>
+<tr><td><code>pomodoroBreak</code></td><td>integer</td><td>1–60 minutes.</td></tr>
+<tr><td><code>allowedInFocus</code></td><td>string[]</td><td>Global allowed package IDs; max 5,000.</td></tr>
+<tr><td><code>alwaysOnPackages</code></td><td>string[]</td><td>Always-on package IDs; max 5,000.</td></tr>
+<tr><td><code>alwaysOnVpnPackages</code></td><td>string[]</td><td>Always-on VPN package IDs; max 5,000.</td></tr>
+<tr><td><code>focusMirrorVpnEnabled</code></td><td>boolean</td><td>Presence-sensitive boolean; explicit <code>false</code> must win over local <code>true</code>.</td></tr>
+<tr><td><code>blockedWords</code></td><td>string[]</td><td>Max 5,000 words; each max 200 chars.</td></tr>
+<tr><td><code>dailyAllowanceEntries</code></td><td>object[]</td><td>Allowance rules; max 1,000.</td></tr>
+<tr><td><code>allowedAppPresets</code></td><td>object[]</td><td>Named allowed-app presets; max 500.</td></tr>
+<tr><td><code>blockPresets</code></td><td>object[]</td><td>Named block presets; max 500.</td></tr>
+<tr><td><code>recurringBlockSchedules</code></td><td>object[]</td><td>Authoritative recurring schedules; max 500.</td></tr>
+<tr><td><code>greyoutSchedule</code></td><td>object[]</td><td>User-created greyout windows plus derived export-time windows; max 5,000.</td></tr>
+<tr><td><code>userProfile</code></td><td>object</td><td>Portable profile subset.</td></tr>
+<tr><td><code>launcherTheme</code></td><td>string</td><td><code>classic</code> or <code>glassy</code>.</td></tr>
+<tr><td><code>focusToolPackages</code></td><td>string[]</td><td>Package IDs; max 5,000.</td></tr>
+<tr><td><code>launcherHiddenPackages</code></td><td>string[]</td><td>Package IDs; max 5,000.</td></tr>
+<tr><td><code>launcherDockPackages</code></td><td>string[]</td><td>Package IDs; max 5,000.</td></tr>
+<tr><td><code>launcherClockStyle</code></td><td>string</td><td>Non-blank, max 128 chars.</td></tr>
+<tr><td><code>launcherBlockUninstall</code></td><td>boolean</td><td>Launcher uninstall-lock preference.</td></tr>
+<tr><td><code>launcherLockDuringStandalone</code></td><td>boolean</td><td>Standalone lock preference.</td></tr>
+<tr><td><code>keepFocusActiveUntilTaskEnd</code></td><td>boolean</td><td>Task/focus behavior preference.</td></tr>
+<tr><td><code>autoRescheduleEnabled</code></td><td>boolean</td><td>Auto-reschedule preference.</td></tr>
+<tr><td><code>overlayQuotes</code></td><td>string[]</td><td>Max 500 strings; each max 20,000 chars.</td></tr>
+<tr><td><code>protectionMode</code></td><td>string</td><td>Exactly <code>standard</code> or <code>iron</code>. Unknown value rejects the import.</td></tr>
+</tbody></table></div>
+
+<div class="grid2" style="margin-top:14px">
+<div class="card"><h3>Daily allowance</h3><div class="code-wrap"><button class="copy" data-copy="allow">Copy</button><pre id="allow">"dailyAllowanceEntries": [
+  {
+    "packageName": "com.example.video",
+    "mode": "time_budget",
+    "budgetMinutes": 30
+  }
+]</pre></div><p>Modes: <code>count</code>, <code>time_budget</code>, <code>interval</code>. Numeric fields: <code>countPerDay</code>, <code>budgetMinutes</code>, <code>intervalMinutes</code>, <code>intervalHours</code>. Canonical files use <code>packageName</code>.</p></div>
+<div class="card"><h3>Presets</h3><div class="code-wrap"><button class="copy" data-copy="preset">Copy</button><pre id="preset">"blockPresets": [
+  {
+    "id": "social-apps",
+    "name": "Social apps",
+    "packages": ["com.example.social"]
+  }
+]</pre></div><p>Both allowed-app presets and block presets use <code>id</code>, <code>name</code>, and <code>packages[]</code>. The legacy <code>__block_all__</code> sentinel belongs only to allowed-app presets and should not be invented or confused with task focus lists.</p></div>
+</div>
+
+<div class="card" style="margin-top:14px"><h3>Recurring schedules and greyout windows</h3><div class="grid2"><div><p><strong>Recurring schedule:</strong></p><div class="code-wrap"><button class="copy" data-copy="sched">Copy</button><pre id="sched">{
+  "id": "evening",
+  "name": "Evening block",
+  "packages": ["com.example.social"],
+  "days": [1, 3, 5],
+  "startHour": 21,
+  "startMin": 0,
+  "endHour": 22,
+  "endMin": 30,
+  "enabled": true,
+  "vpnEnabled": false,
+  "vpnPackages": []
+}</pre></div></div><div><p><strong>Day numbers:</strong> <code>1=Sunday</code> … <code>7=Saturday</code>. Hours are <code>0..23</code>, minutes <code>0..59</code>. Overnight windows are allowed when end time is earlier than start time.</p><p><strong>Greyout rule:</strong> <code>greyoutSchedule</code> contains two kinds of windows. Windows <em>without</em> <code>scheduleId</code> are user-authored portable windows. Windows with <code>scheduleId</code> are derived copies. On import, preserve the user-authored ones, discard derived ones, then regenerate the derived windows from <code>recurringBlockSchedules</code>.</p></div></div></div>
+
+<div class="card" style="margin-top:14px"><h3><code>userProfile</code></h3><p>Recognized fields:</p><div class="mono-list"><code>name</code><code>occupation</code><code>dailyGoalHours</code><code>wakeUpTime</code><code>sleepTime</code><code>focusGoals[]</code><code>chronotype</code><code>focusSessionLength</code><code>breakStyle</code><code>distractionTriggers[]</code><code>motivationStyle[]</code><code>weeklyReviewDay</code></div><p style="margin-top:10px"><code>wakeUpTime</code>/<code>sleepTime</code> use <code>HH:mm</code>. <code>chronotype</code>: <code>morning</code>, <code>midday</code>, <code>afternoon</code>, <code>evening</code>, <code>night</code>, <code>flexible</code>. <code>breakStyle</code>: <code>short_frequent</code>, <code>balanced</code>, <code>long_infrequent</code>, <code>no_break</code>. <code>weeklyReviewDay</code>: <code>sun</code> … <code>sat</code>.</p></div>
+</section>
+
+<section id="ignored"><div class="section-head"><h2>4. What is not portable</h2><p>A correct `.focusflow` file is not a dump of every device state.</p></div>
+<div class="grid2">
+<div class="card"><h3>Never apply</h3><p>These 21 legacy/live-state keys must never change the destination device, even when present in an old V1 file:</p><div class="cols"><code>standaloneBlockPackages</code><code>standaloneBlockUntil</code><code>standaloneVpnPackages</code><code>autoCopiedAlwaysOnPackages</code><code>alwaysOnEnforcementEnabled</code><code>focusModeEnabled</code><code>pomodoroEnabled</code><code>notificationsEnabled</code><code>weeklyReportEnabled</code><code>launcherEnabled</code><code>aversionDimmerEnabled</code><code>aversionVibrateEnabled</code><code>aversionSoundEnabled</code><code>systemGuardEnabled</code><code>blockInstallActionsEnabled</code><code>blockYoutubeShortsEnabled</code><code>blockInstagramReelsEnabled</code><code>vpnBlockEnabled</code><code>autoCopyToAlwaysOn</code><code>vpnSelfHealEnabled</code><code>pinProtectionEnabled</code></div></div>
+<div class="card"><h3>Accept/ignore for compatibility</h3><div class="mono-list"><code>weekStartDay</code><code>defaultReminderOffsets</code><code>launcherPinnedPackages</code><code>beginnerMode</code><code>tipsCardDismissed</code><code>tipsCardFirstShownAt</code><code>lastShownStreakMilestone</code><code>pendingAchievementCelebration</code><code>pendingPresets</code></div><p style="margin-top:10px"><strong>Wallpaper:</strong> <code>launcherWallpaperUri</code> and <code>overlayWallpaper</code> are device-local external references. Keep the destination's local value; do not import a dangling URI from another device. Report it as unresolved when applicable.</p><p><strong>Consent:</strong> <code>onboardingComplete</code> and <code>privacyAccepted</code> remain destination-local.</p></div>
+</div>
+<div class="call danger"><strong>Also not stored in the file:</strong> active Focus Sessions, PIN secrets, live enforcement state, AlarmManager registrations, PendingIntents, posted notifications, notification channels, and reminder ledgers. These are recreated or remain local rather than being imported from the backup.</div>
+</section>
+
+<section id="rules"><div class="section-head"><h2>5. Import rules</h2><p>These are the rules an implementation, validator, or AI agent should follow when handling a V1 file.</p></div>
+<div class="grid2">
+<div class="card"><h3>Reject the whole file</h3><ul class="clean"><li>Invalid/malformed JSON or UTF-8.</li><li>Top-level value is not an object.</li><li>Wrong or missing <code>kind</code>.</li><li><code>settings</code> is not an object.</li><li><code>tasks</code> is not an array.</li><li>Present <code>version</code> is not <code>1</code>.</li><li>Duplicate JSON keys anywhere.</li><li>Any hard parser limit is exceeded.</li><li>Duplicate task IDs occur inside the same <code>tasks[]</code> array.</li></ul></div>
+<div class="card"><h3>Task-level problems</h3><ul class="clean"><li>Bad task timestamp → that task is invalid.</li><li>Unknown status/priority → that task is invalid.</li><li>Bad schedule/window → that object is dropped with a warning.</li><li>Bad package entries → invalid entries may be dropped with a warning.</li><li>Bad reminder items → invalid reminder items are dropped with a warning.</li><li>The remaining valid tasks can still continue through import.</li></ul></div>
+</div>
+<div class="card" style="margin-top:14px"><h3>Merge vs Replace</h3><div class="table-wrap"><table class="table"><thead><tr><th>Situation</th><th>MERGE</th><th>REPLACE</th></tr></thead><tbody>
+<tr><td>New task ID</td><td>Insert it.</td><td>Insert it.</td></tr>
+<tr><td>Same ID + identical content</td><td>Skip as <code>identicalDuplicate</code>.</td><td>Existing task is deleted as part of replacement, then incoming task is inserted.</td></tr>
+<tr><td>Same ID + different content</td><td><strong>Abort entire import before mutation.</strong> Show <code>ID_CONFLICT</code> and suggest Replace.</td><td>No conflict check is needed because the task list is replaced.</td></tr>
+<tr><td>Existing tasks not in backup</td><td>Keep them.</td><td>Delete them from the task list.</td></tr>
+<tr><td>History / analytics</td><td>Untouched.</td><td>Untouched.</td></tr>
+</tbody></table></div><p class="small" style="margin-top:10px">Replace is specifically “replace tasks”, not “reset the whole app”. An active Focus Session blocks Replace.</p></div>
+
+<div class="card" style="margin-top:14px"><h3>Repeated import</h3><p>Deliberately importing the same file again is allowed. Identical task IDs become no-ops; settings are re-applied according to their field rules. There is no permanent backup-level “already imported” lock.</p></div>
+<div class="grid2" style="margin-top:14px"><div class="card"><h3>Package references</h3><p>Use exact Android package IDs. Do not substitute labels/names. A referenced package does not have to be installed on the destination; valid references may remain dormant/unresolved.</p><p>Canonical package regex:</p><div class="code-wrap"><button class="copy" data-copy="pkg">Copy</button><pre id="pkg">^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)+$</pre></div></div><div class="card"><h3>What happens to alarms?</h3><p>Alarm registrations are not stored in <code>.focusflow</code>. After persistent tasks are restored, FocusFlow rebuilds the task-end alarms and task-relative reminder notifications from the restored task data and current device capabilities.</p><p>This is why editing a backup file never requires you to invent PendingIntents or Android alarm IDs.</p></div></div>
+</section>
+
+<section id="limits"><div class="section-head"><h2>6. Practical limits</h2><p>Stay inside these limits when generating or validating a file.</p></div><div class="grid3"><div class="card"><h3>File</h3><ul class="clean"><li><strong>8 MiB</strong> maximum UTF-8 input</li><li><strong>12</strong> maximum JSON nesting depth</li><li><strong>2,000,000</strong> maximum JSON nodes</li><li>Strict duplicate-key detection</li></ul></div><div class="card"><h3>Tasks / lists</h3><ul class="clean"><li><strong>20,000</strong> tasks</li><li><strong>5,000</strong> package-list items</li><li><strong>5,000</strong> blocked words</li><li><strong>5,000</strong> greyout windows</li><li><strong>500</strong> presets</li><li><strong>500</strong> recurring schedules</li><li><strong>1,000</strong> daily-allowance entries</li><li><strong>100</strong> tags / task</li><li><strong>100</strong> reminders / task</li></ul></div><div class="card"><h3>Strings</h3><ul class="clean"><li><strong>20,000</strong> general string chars</li><li><strong>1,000</strong> title chars</li><li><strong>100</strong> tag chars</li><li><strong>255</strong> package-name chars</li><li><strong>200</strong> blocked-word chars</li><li><strong>128</strong> task/reminder ID chars</li></ul></div></div></section>
+
+<section id="examples"><div class="section-head"><h2>7. Canonical examples</h2><p>These examples show the wire format without dumping internal implementation details into the public documentation.</p></div>
+<div class="card"><h3>Task example</h3><div class="code-wrap"><button class="copy" data-copy="taskex">Copy</button><pre id="taskex">{
+  "id": "MPzb6gCgQWmRJH3RuhTPE",
+  "title": "Biology revision",
+  "description": "Review the cardiovascular system.",
+  "startTime": "2026-10-05T04:00:00.000Z",
+  "endTime": "2026-10-05T05:00:00.000Z",
+  "createdAt": "2026-10-04T05:00:00.000Z",
+  "updatedAt": "2026-10-04T05:00:00.000Z",
+  "durationMinutes": 60,
+  "status": "scheduled",
+  "priority": "high",
+  "tags": ["biology", "revision"],
+  "reminders": [],
+  "color": "#6366f1",
+  "focusMode": true,
+  "focusAllowedPackages": ["com.example.reader"]
+}</pre></div></div>
+<div class="card" style="margin-top:14px"><h3>Small settings example</h3><div class="code-wrap"><button class="copy" data-copy="setex">Copy</button><pre id="setex">{
+  "darkMode": true,
+  "defaultDuration": 50,
+  "allowedInFocus": ["com.example.reader"],
+  "alwaysOnPackages": ["com.example.calendar"],
+  "blockedWords": ["shorts"],
+  "focusMirrorVpnEnabled": false,
+  "launcherTheme": "classic",
+  "protectionMode": "standard"
+}</pre></div></div>
+<div class="card" style="margin-top:14px"><h3>Full-envelope shape</h3><div class="code-wrap"><button class="copy" data-copy="fullshape">Copy</button><pre id="fullshape">{
+  "kind": "FocusFlowBackupV1",
+  "version": 1,
+  "exportedAt": "2026-10-04T05:14:00.000Z",
+  "exportedAtHuman": "04/10/2026, 10:44:00",
+  "appVersion": "1.1.2",
+  "platform": { "os": "android" },
+  "settings": { /* portable settings */ },
+  "tasks": [ /* task records */ ],
+  "presetSections": [ /* informational inventory */ ],
+  "summary": {
+    "taskCount": 1,
+    "blockedWordCount": 1,
+    "greyoutWindowCount": 0,
+    "dailyAllowanceCount": 0
+  }
+}</pre></div><p class="small">The snippet above is an annotated shape, not literal JSON because the comments are for explanation only. Real files must not contain comments.</p></div>
+</section>
+
+<section id="builder"><div class="section-head"><h2>8. Rules for a builder or integration</h2><p>These are the few implementation rules an agent actually needs to remember.</p></div>
+<div class="grid2">
+<div class="card"><h3>When generating</h3><ul class="clean"><li>Emit <code>kind: "FocusFlowBackupV1"</code> and <code>version: 1</code>.</li><li>Use the exact TS V1 wire names from the settings table.</li><li>Emit canonical task timestamps as UTC <code>.sssZ</code>.</li><li>Generate unique task IDs.</li><li>Do not emit the 21 never-apply live-state keys.</li><li>Do not emit dangling wallpaper paths.</li><li>Use valid package identifiers.</li><li>Keep <code>presetSections</code> and <code>summary</code> descriptive, not authoritative.</li><li>Write normal UTF-8 JSON with no comments or trailing commas.</li><li>Save with the <code>.focusflow</code> extension.</li></ul></div>
+<div class="card"><h3>When reading</h3><ul class="clean"><li>Validate the envelope before using settings/tasks.</li><li>Reject duplicate keys and duplicate task IDs.</li><li>Accept missing <code>version</code> as V1.</li><li>Normalize timestamps before comparison/storage.</li><li>Apply only the recognized portable settings.</li><li>Never let an imported live-state key weaken destination protections.</li><li>Distinguish user greyout windows from derived schedule copies.</li><li>Do not schedule from <code>Task.reminders[]</code>.</li><li>Treat malformed individual tasks according to task-level validation rules.</li><li>Remember: persistent file data ≠ device runtime state.</li></ul></div>
+</div>
+<div class="call good"><strong>Interoperability goal:</strong> a developer, normal user, or AI agent should be able to look at this page, construct a valid V1 document, and understand exactly what FocusFlow will preserve, ignore, transform, or reject—without needing to understand FocusFlow's Kotlin internals.</div>
+</section>
+
+<footer class="footer"><strong>FocusFlow <code>.focusflow</code> V1 reference</strong><br>This page describes the file format and user-visible import semantics. Android scheduler internals, database implementation, recovery journals, and other implementation details are intentionally outside this document.</footer>
+</main>
+<script>
+const $=s=>document.querySelector(s);
+document.querySelectorAll('.copy').forEach(btn=>btn.addEventListener('click',async()=>{const id=btn.dataset.copy;const el=document.getElementById(id);if(!el)return;try{await navigator.clipboard.writeText(el.textContent);btn.textContent='Copied';setTimeout(()=>btn.textContent='Copy',900)}catch{btn.textContent='Copy failed';setTimeout(()=>btn.textContent='Copy',900)}}));
+const search=$('#search');search.addEventListener('input',()=>{const q=search.value.trim().toLowerCase();document.querySelectorAll('section,.card').forEach(el=>{if(!q){el.classList.remove('hidden');return}el.classList.toggle('hidden',!el.textContent.toLowerCase().includes(q))})});
+</script>
+</body>
+</html>

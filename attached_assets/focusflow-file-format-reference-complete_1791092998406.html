@@ -1,0 +1,1498 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>FocusFlow .focusflow — Complete V1 Format Reference</title>
+<meta name="description" content="Complete canonical FocusFlow .focusflow V1 format reference for developers, migration agents, validators, backup builders, and integrations.">
+<style>
+:root{--bg:#0b0e13;--panel:#121721;--panel2:#171d29;--text:#eef2f7;--muted:#9aa7b7;--line:#273140;--accent:#7c83ff;--accent2:#a8adff;--good:#57d49a;--warn:#f3c969;--danger:#ff7b8b;--code:#090c11;--shadow:0 20px 60px rgba(0,0,0,.22);--radius:16px;--max:1240px;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+*{box-sizing:border-box} html{scroll-behavior:smooth} body{margin:0;background:linear-gradient(180deg,#090c11 0%,#0d1118 45%,#0b0e13 100%);color:var(--text);line-height:1.65}
+a{color:var(--accent2);text-decoration:none} a:hover{color:#fff}
+.topbar{position:sticky;top:0;z-index:40;backdrop-filter:blur(14px);background:rgba(9,12,17,.86);border-bottom:1px solid var(--line)}
+.topbar-inner{max-width:var(--max);margin:auto;padding:14px 24px;display:flex;gap:18px;align-items:center;justify-content:space-between}
+.brand{font-weight:850;letter-spacing:-.02em;display:flex;align-items:center;gap:10px} .dot{width:11px;height:11px;border-radius:50%;background:var(--accent);box-shadow:0 0 18px rgba(124,131,255,.55)}
+.tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap} .search{width:min(320px,45vw);background:var(--panel);border:1px solid var(--line);border-radius:10px;color:var(--text);padding:9px 11px;outline:none} .search:focus{border-color:var(--accent)}
+.layout{max-width:var(--max);margin:0 auto;display:grid;grid-template-columns:280px minmax(0,1fr);gap:26px;padding:26px 24px 80px}
+aside{position:sticky;top:79px;height:calc(100vh - 100px);overflow:auto;padding:8px 6px 20px 0;border-right:1px solid var(--line);scrollbar-width:thin}
+.aside-label{font-size:11px;font-weight:850;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);padding:8px 8px 12px}
+.toc-h2,.toc-h3{display:block;padding:7px 9px;border-radius:8px;color:#aeb7c5;font-size:12px;line-height:1.35} .toc-h2{font-weight:780;margin-top:4px} .toc-h3{padding-left:22px;font-size:11px;color:#8793a4} .toc-h2:hover,.toc-h3:hover{background:var(--panel);color:#fff}
+.hero{padding:48px 0 25px;border-bottom:1px solid var(--line);margin-bottom:28px} .eyebrow{font-size:12px;text-transform:uppercase;letter-spacing:.14em;color:var(--accent);font-weight:850} h1{font-size:clamp(38px,6vw,68px);line-height:1.02;letter-spacing:-.05em;margin:.25em 0 .3em} .hero p{color:var(--muted);max-width:850px} .meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px} .badge{border:1px solid var(--line);background:var(--panel);padding:7px 10px;border-radius:999px;font-size:11px;font-weight:750;color:#b9c3d1}
+.callout{padding:16px 18px;border:1px solid var(--line);border-radius:14px;background:var(--panel);margin:18px 0} .callout strong{color:#fff} .callout.warn{border-color:#5c4b20;background:rgba(243,201,105,.06)} .callout.good{border-color:#244e3d;background:rgba(87,212,154,.06)} .callout.danger{border-color:#5a2830;background:rgba(255,123,139,.05)}
+article{min-width:0} article h2{font-size:30px;letter-spacing:-.035em;margin:48px 0 12px;padding-top:14px;border-top:1px solid var(--line)} article h3{font-size:21px;margin:32px 0 10px;letter-spacing:-.02em} article h4{font-size:16px;margin:22px 0 8px} article p{color:#c1cad7;margin:0 0 14px} article ul,article ol{color:#c1cad7;padding-left:24px} article li{margin:4px 0}
+code{font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace;font-size:.88em;background:#1a2130;border:1px solid #293243;border-radius:5px;padding:1px 5px;color:#dbe0ff}
+.code-wrap{position:relative;margin:14px 0} pre{margin:0;padding:17px 18px;overflow:auto;border:1px solid #222b38;border-radius:14px;background:var(--code);color:#e7edf7;font:12.5px/1.65 "SFMono-Regular",Consolas,"Liberation Mono",monospace;box-shadow:var(--shadow)}
+.copy-code{position:absolute;right:10px;top:10px;z-index:2;background:#171e2a;border:1px solid #334052;color:#bcc7d7;border-radius:8px;padding:6px 9px;font-size:11px;font-weight:750;cursor:pointer} .copy-code:hover{background:#202939;color:#fff}
+table{width:100%;border-collapse:collapse;margin:14px 0;background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;display:table} th,td{padding:10px 11px;border-bottom:1px solid var(--line);vertical-align:top;text-align:left;font-size:12.5px} th{background:var(--panel2);color:#e4eaf2;font-size:11px;text-transform:uppercase;letter-spacing:.05em} td{color:#bcc6d4} tr:last-child td{border-bottom:none} td:first-child code{color:#d4d8ff}
+hr{border:none;border-top:1px solid var(--line);margin:30px 0} blockquote{margin:16px 0;padding:13px 16px;border-left:3px solid var(--accent);background:rgba(124,131,255,.06);color:#c8d0df} 
+.footer{margin-top:60px;padding-top:22px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
+.no-results{display:none;padding:20px;border:1px dashed var(--line);border-radius:12px;color:var(--muted)}
+@media(max-width:960px){.layout{grid-template-columns:1fr}aside{position:relative;top:auto;height:auto;border-right:none;border-bottom:1px solid var(--line);padding-bottom:12px}.toc-h2,.toc-h3{display:inline-block;margin:2px 3px}}
+@media(max-width:640px){.topbar-inner{padding-inline:14px}.layout{padding-inline:14px}.search{width:100%}.tools{width:100%}.hero{padding-top:28px} article h2{font-size:25px} table{font-size:12px} th,td{min-width:170px}}
+</style>
+</head>
+<body>
+<header class="topbar"><div class="topbar-inner">
+  <div class="brand"><span class="dot"></span>FocusFlow <span style="color:var(--muted);font-weight:700">.focusflow</span></div>
+  <div class="tools"><input id="search" class="search" type="search" placeholder="Search this specification…" aria-label="Search specification"></div>
+</div></header>
+<div class="layout">
+<aside aria-label="Table of contents">
+  <div class="aside-label">On this page</div>
+  <a class="toc-h2" href="#1-critical-rule-one-source-of-truth">1. Critical rule: one source of truth</a>
+<a class="toc-h2" href="#2-what-the-current-html-gets-wrong-must-be-corrected">2. What the current HTML gets wrong / must be corrected</a>
+<a class="toc-h3" href="#top-level-keys">Top-level keys</a>
+<a class="toc-h3" href="#entire-state">“Entire state”</a>
+<a class="toc-h3" href="#task-requiredness">Task requiredness</a>
+<a class="toc-h3" href="#reminders">Reminders</a>
+<a class="toc-h3" href="#focusallowedpackages">focusAllowedPackages: []</a>
+<a class="toc-h3" href="#time-format">Time format</a>
+<a class="toc-h3" href="#summary">Summary</a>
+<a class="toc-h3" href="#import-semantics">Import semantics</a>
+<a class="toc-h3" href="#preset-sections">Preset sections</a>
+<a class="toc-h3" href="#protected-packages">Protected packages</a>
+<a class="toc-h3" href="#validation-limits">Validation limits</a>
+<a class="toc-h2" href="#3-file-identity-and-transport">3. File identity and transport</a>
+<a class="toc-h2" href="#4-canonical-top-level-v1-schema">4. Canonical top-level V1 schema</a>
+<a class="toc-h3" href="#summary-rules">Summary rules</a>
+<a class="toc-h2" href="#5-task-object-canonical-field-reference">5. Task object — canonical field reference</a>
+<a class="toc-h3" href="#task-invariants">Task invariants</a>
+<a class="toc-h3" href="#past-scheduled-task-on-import">Past scheduled task on import</a>
+<a class="toc-h2" href="#6-reminder-object-canonical-shape">6. Reminder object — canonical shape</a>
+<a class="toc-h3" href="#critical-distinction">Critical distinction</a>
+<a class="toc-h2" href="#7-focus-mode-and-allowed-packages">7. Focus Mode and allowed packages</a>
+<a class="toc-h2" href="#8-portable-v1-settings-authoritative-public-field-list">8. Portable V1 settings — authoritative public field list</a>
+<a class="toc-h2" href="#9-settings-that-must-not-become-active-portable-state">9. Settings that must NOT become active portable state</a>
+<a class="toc-h2" href="#10-legacyignored-v1-compatibility-keys">10. Legacy/ignored V1 compatibility keys</a>
+<a class="toc-h2" href="#11-nested-settings-data-types">11. Nested settings data types</a>
+<a class="toc-h3" href="#111-allowedapppreset">11.1 AllowedAppPreset</a>
+<a class="toc-h3" href="#112-blockpreset">11.2 BlockPreset</a>
+<a class="toc-h3" href="#113-dailyallowanceentry">11.3 DailyAllowanceEntry</a>
+<a class="toc-h3" href="#114-recurringblockschedule">11.4 RecurringBlockSchedule</a>
+<a class="toc-h3" href="#115-greyoutwindow">11.5 GreyoutWindow</a>
+<a class="toc-h3" href="#116-userprofile">11.6 UserProfile</a>
+<a class="toc-h2" href="#12-presetsections-descriptive-inventory-not-activation">12. presetSections — descriptive inventory, not activation</a>
+<a class="toc-h2" href="#13-portable-vs-runtime-data-model">13. Portable vs runtime data model</a>
+<a class="toc-h2" href="#14-system-protected-packages">14. System-protected packages</a>
+<a class="toc-h2" href="#15-time-and-timezone-rules">15. Time and timezone rules</a>
+<a class="toc-h3" href="#151-absolute-task-timestamps">15.1 Absolute task timestamps</a>
+<a class="toc-h3" href="#152-ist-example">15.2 IST example</a>
+<a class="toc-h3" href="#153-recurring-schedules">15.3 Recurring schedules</a>
+<a class="toc-h2" href="#16-color-reference">16. Color reference</a>
+<a class="toc-h2" href="#17-validation-and-resource-limits-current-kotlin-v1">17. Validation and resource limits — current Kotlin V1</a>
+<a class="toc-h2" href="#18-import-semantics-for-users-and-agents">18. Import semantics for users and agents</a>
+<a class="toc-h3" href="#merge">Merge</a>
+<a class="toc-h3" href="#replace">Replace</a>
+<a class="toc-h3" href="#settings">Settings</a>
+<a class="toc-h2" href="#19-external-focusflow-opening-from-android">19. External .focusflow opening from Android</a>
+<a class="toc-h2" href="#20-export-semantics">20. Export semantics</a>
+<a class="toc-h2" href="#21-builder-page-requirements">21. Builder page requirements</a>
+<a class="toc-h3" href="#builder-must-generate-canonical-data-not-merely-accepted-data">Builder must generate canonical data, not merely accepted data</a>
+<a class="toc-h2" href="#22-canonical-minimal-example">22. Canonical minimal example</a>
+<a class="toc-h2" href="#23-full-feature-example-requirements">23. Full-feature example requirements</a>
+<a class="toc-h2" href="#24-agent-facing-do-not-make-these-mistakes-section">24. Agent-facing “do not make these mistakes” section</a>
+<a class="toc-h2" href="#25-html-page-architecture">25. HTML page architecture</a>
+<a class="toc-h3" href="#page-a-focusflow-file-format-reference">Page A — .focusflow File Format Reference</a>
+<a class="toc-h3" href="#page-b-focusflow-backup-builder">Page B — .focusflow Backup Builder</a>
+<a class="toc-h2" href="#26-required-cross-page-consistency-checks">26. Required cross-page consistency checks</a>
+<a class="toc-h2" href="#27-acceptance-tests-for-a-generated-focusflow">27. Acceptance tests for a generated .focusflow</a>
+<a class="toc-h2" href="#28-important-note-about-perfectly-valid">28. Important note about “perfectly valid”</a>
+<a class="toc-h2" href="#29-final-implementation-instruction-for-the-html-agent">29. Final implementation instruction for the HTML agent</a>
+</aside>
+<main>
+<section class="hero">
+  <div class="eyebrow">Canonical developer reference · V1</div>
+  <h1><span style="color:var(--accent2)">.focusflow</span> File Format</h1>
+  <p>This page is the rendered canonical specification for FocusFlow’s native backup/exchange document. It includes the wire contract, task/reminder structures, portable settings, runtime boundaries, validation rules, import/export semantics, Android external-file behavior, and builder requirements.</p>
+  <div class="meta"><span class="badge">UTF-8 JSON</span><span class="badge">Extension: .focusflow</span><span class="badge">Wire kind: FocusFlowBackupV1</span><span class="badge">Version: 1</span><span class="badge">No ZIP container</span></div>
+</section>
+<div class="callout good"><strong>Canonical generation rule:</strong> generate the stable TS V1 public field names, while satisfying the compatible Kotlin V1 parsing rules documented below. Kotlin internal property names are never public file-field names.</div>
+<div class="callout warn"><strong>Important:</strong> a valid .focusflow file is portable persistent configuration + task data. It is <strong>not</strong> a dump of active FocusFlow runtime state, current blocking state, PIN state, or live Android scheduler registrations.</div>
+<article id="spec-content"><p><strong>Purpose:</strong> This document is the authoritative content specification for rebuilding the <code>.focusflow</code> documentation/reference page and the <code>.focusflow</code> backup builder. An HTML agent given this document should be able to explain the format precisely and generate a valid FocusFlow V1 file without needing the TS source.</p>
+<p><strong>Source basis reviewed:</strong></p>
+<ul>
+<li>Existing TS hybrid: <code>focusflow.zip</code> — <code>src/services/backupService.ts</code>, <code>src/data/types.ts</code>, <code>src/data/defaultSettings.ts</code>, <code>src/services/protectedApps.ts</code>, task/focus services.</li>
+<li>Current Kotlin migration: <code>files.zip</code> — <code>BackupEnvelopeV1.kt</code>, <code>BackupV1Exporter.kt</code>, <code>TsSettingsAdapter.kt</code>, <code>BackupJsonLimits.kt</code>, <code>BackupSettingsPolicy.kt</code>, <code>Task.kt</code>, <code>AppSettings.kt</code>, notification/reminder scheduler code.</li>
+<li>Existing HTML pages: <code>focusflow-backup-builder.html</code> and <code>.focusflow File Format Reference</code> HTML.</li>
+</ul>
+<h2 id="1-critical-rule-one-source-of-truth">1. Critical rule: one source of truth</h2>
+<p>The current HTML pages contain several contradictions. The rebuilt documentation must not repeat them. The page content should distinguish:</p>
+<div class="code-wrap"><button class="copy-code" type="button" data-code="Observed TS V1 wire behavior
+Current Kotlin V1 reader/writer behavior
+Target/canonical `.focusflow` generation rules
+Runtime/device-local behavior
+">Copy</button><pre><code class="language-text">Observed TS V1 wire behavior
+Current Kotlin V1 reader/writer behavior
+Target/canonical `.focusflow` generation rules
+Runtime/device-local behavior
+</code></pre></div>
+<p>For a file-generation page, the <strong>canonical generated V1 profile</strong> is the stable TS wire naming plus the Kotlin V1 parsing rules that are compatible with that wire format. Kotlin internal property names must never become public file-field names.</p>
+<h2 id="2-what-the-current-html-gets-wrong-must-be-corrected">2. What the current HTML gets wrong / must be corrected</h2>
+<h3 id="top-level-keys">Top-level keys</h3>
+<p>The reference page says every file must contain exactly the listed keys. That is too strong: <code>appVersion</code> is optional in the TS envelope, <code>version</code> may be omitted by the current V1 reader and interpreted as <code>1</code>, and metadata fields are not all authoritative. For generated files, emit <code>version: 1</code>, <code>appVersion</code> when known, <code>presetSections</code>, and <code>summary</code>.</p>
+<h3 id="entire-state">“Entire state”</h3>
+<p>Do not say <code>.focusflow</code> exports the entire runtime/device state. It exports portable persistent configuration + task data. Active focus, live blocking, notification/master runtime switches, PIN state, and other device-local state are deliberately not restored.</p>
+<h3 id="task-requiredness">Task requiredness</h3>
+<p>The existing reference page marks <code>description</code>, <code>tags</code>, <code>reminders</code>, <code>color</code>, and <code>focusMode</code> as required. The Kotlin V1 parser accepts these as missing and applies defaults (<code>description -&gt; </code>, <code>tags -&gt; []</code>, <code>reminders -&gt; []</code>, <code>color -&gt; #6366f1</code>, <code>focusMode -&gt; false</code>). The canonical generator SHOULD emit them explicitly anyway.</p>
+<h3 id="reminders">Reminders</h3>
+<p>The reference page incorrectly describes <code>reminders</code> as integer offsets. The actual TS/Kotlin V1 wire shape is an array of reminder objects with <code>id</code>, <code>taskId</code>, <code>offsetMinutes</code>, <code>type</code>, and optional <code>notifId</code>.</p>
+<h3 id="focusallowedpackages"><code>focusAllowedPackages: []</code></h3>
+<p>Do not describe empty array as “all apps allowed”. The TS UI comment says that, but the actual focus enforcement path converts an empty effective allow-list to <code>com.focusflow.internal.blockall</code>, so the effective native behavior is block-all except protected packages. Generated files should omit the key to inherit the global setting unless an explicit empty custom allow-list is intentionally desired.</p>
+<h3 id="time-format">Time format</h3>
+<p>The current reference page says all input times must be UTC with <code>Z</code>. The Kotlin V1 reader accepts ISO-8601 offsets as well and normalizes them to canonical UTC. The generator should emit canonical <code>Z</code> timestamps.</p>
+<h3 id="summary">Summary</h3>
+<p><code>summary</code> is metadata, not the source of truth. Generated files should calculate it from payload data; import previews should calculate counts from validated payloads, not trust summary values.</p>
+<h3 id="import-semantics">Import semantics</h3>
+<p>The reference page says importing replaces all existing data. That is false. The product has a review step, settings/task section selection, task merge/replace semantics, and field-specific settings policies.</p>
+<h3 id="preset-sections">Preset sections</h3>
+<p><code>presetSections</code> are descriptive inventory/preview metadata. They are not commands to activate live blocking.</p>
+<h3 id="protected-packages">Protected packages</h3>
+<p>Do not use a short illustrative list only. The page should document the exact protected list used by the TS source and explain that these packages cannot be blocked by FocusFlow's blocking configuration.</p>
+<h3 id="validation-limits">Validation limits</h3>
+<p>The builder and Kotlin parser have concrete resource limits. The reference page currently omits several of them.</p>
+<h2 id="3-file-identity-and-transport">3. File identity and transport</h2>
+<table>
+<thead>
+<tr>
+  <th>Property</th>
+  <th>Canonical V1 value / rule</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>Extension</td>
+  <td><code>.focusflow</code></td>
+</tr>
+<tr>
+  <td>Internal encoding</td>
+  <td>JSON text, UTF-8</td>
+</tr>
+<tr>
+  <td>Current MIME</td>
+  <td><code>application/octet-stream</code></td>
+</tr>
+<tr>
+  <td>Wire kind</td>
+  <td><code>FocusFlowBackupV1</code></td>
+</tr>
+<tr>
+  <td>Wire version</td>
+  <td><code>1</code> for canonical generated files</td>
+</tr>
+<tr>
+  <td>Export filename</td>
+  <td><code>focusflow-YYYY-MM-DDTHH-mm-ss.focusflow</code></td>
+</tr>
+<tr>
+  <td>Archive/container</td>
+  <td>None. A <code>.focusflow</code> file is not a ZIP.</td>
+</tr>
+</tbody>
+</table>
+<p>The file may be copied through storage providers, email, Drive, Files, USB, etc. Provider MIME and filename metadata are discovery metadata; once FocusFlow receives the content, the actual envelope is authoritative.</p>
+<h2 id="4-canonical-top-level-v1-schema">4. Canonical top-level V1 schema</h2>
+<p>Canonical generated structure:</p>
+<div class="code-wrap"><button class="copy-code" type="button" data-code="{
+  &quot;kind&quot;: &quot;FocusFlowBackupV1&quot;,
+  &quot;version&quot;: 1,
+  &quot;exportedAt&quot;: &quot;2026-09-01T01:30:00.000Z&quot;,
+  &quot;exportedAtHuman&quot;: &quot;01/09/2026, 07:00:00&quot;,
+  &quot;appVersion&quot;: &quot;1.0.6&quot;,
+  &quot;platform&quot;: {
+    &quot;os&quot;: &quot;android&quot;
+  },
+  &quot;settings&quot;: {},
+  &quot;tasks&quot;: [],
+  &quot;presetSections&quot;: [],
+  &quot;summary&quot;: {
+    &quot;taskCount&quot;: 0,
+    &quot;blockedWordCount&quot;: 0,
+    &quot;greyoutWindowCount&quot;: 0,
+    &quot;dailyAllowanceCount&quot;: 0
+  }
+}
+">Copy</button><pre><code class="language-json">{
+  &quot;kind&quot;: &quot;FocusFlowBackupV1&quot;,
+  &quot;version&quot;: 1,
+  &quot;exportedAt&quot;: &quot;2026-09-01T01:30:00.000Z&quot;,
+  &quot;exportedAtHuman&quot;: &quot;01/09/2026, 07:00:00&quot;,
+  &quot;appVersion&quot;: &quot;1.0.6&quot;,
+  &quot;platform&quot;: {
+    &quot;os&quot;: &quot;android&quot;
+  },
+  &quot;settings&quot;: {},
+  &quot;tasks&quot;: [],
+  &quot;presetSections&quot;: [],
+  &quot;summary&quot;: {
+    &quot;taskCount&quot;: 0,
+    &quot;blockedWordCount&quot;: 0,
+    &quot;greyoutWindowCount&quot;: 0,
+    &quot;dailyAllowanceCount&quot;: 0
+  }
+}
+</code></pre></div>
+<table>
+<thead>
+<tr>
+  <th>Field</th>
+  <th>Required for canonical generation</th>
+  <th>Semantics</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td><code>kind</code></td>
+  <td>Yes</td>
+  <td>Must be exactly <code>FocusFlowBackupV1</code>.</td>
+</tr>
+<tr>
+  <td><code>version</code></td>
+  <td>Yes</td>
+  <td>Integer <code>1</code>. Current Kotlin V1 reader also accepts omission as V1 for compatibility.</td>
+</tr>
+<tr>
+  <td><code>exportedAt</code></td>
+  <td>Yes</td>
+  <td>Export instant. Emit canonical UTC ISO-8601 with <code>Z</code>.</td>
+</tr>
+<tr>
+  <td><code>exportedAtHuman</code></td>
+  <td>Yes in exporter output</td>
+  <td>Human display string only; not used for restore semantics.</td>
+</tr>
+<tr>
+  <td><code>appVersion</code></td>
+  <td>Optional</td>
+  <td>Diagnostic metadata. Does not control schema compatibility.</td>
+</tr>
+<tr>
+  <td><code>platform</code></td>
+  <td>Optional metadata</td>
+  <td>Informational, e.g. <code>{ &quot;os&quot;: &quot;android&quot; }</code>; not a basic validity gate.</td>
+</tr>
+<tr>
+  <td><code>settings</code></td>
+  <td>Yes</td>
+  <td>Object containing portable V1 settings fields.</td>
+</tr>
+<tr>
+  <td><code>tasks</code></td>
+  <td>Yes</td>
+  <td>Array of task objects.</td>
+</tr>
+<tr>
+  <td><code>presetSections</code></td>
+  <td>Strongly recommended / exporter emits</td>
+  <td>Descriptive inventory; not live activation commands.</td>
+</tr>
+<tr>
+  <td><code>summary</code></td>
+  <td>Strongly recommended / exporter emits</td>
+  <td>Derived metadata; never authoritative during import.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="summary-rules">Summary rules</h3>
+<p>For generated files:</p>
+<ul>
+<li><code>summary.taskCount</code> MUST equal <code>tasks.length</code>.</li>
+<li><code>blockedWordCount</code> SHOULD equal the number of exported <code>settings.blockedWords</code> entries.</li>
+<li><code>greyoutWindowCount</code> SHOULD equal the number of actual exported <code>settings.greyoutSchedule</code> windows.</li>
+<li><code>dailyAllowanceCount</code> SHOULD equal the number of exported <code>settings.dailyAllowanceEntries</code> entries.</li>
+<li>The importer must still calculate real counts from payload content.</li>
+</ul>
+<h2 id="5-task-object-canonical-field-reference">5. Task object — canonical field reference</h2>
+<p>Canonical generator output should include all core fields explicitly.</p>
+<table>
+<thead>
+<tr>
+  <th>Field</th>
+  <th>Type</th>
+  <th>Canonical rule</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td><code>id</code></td>
+  <td>string</td>
+  <td>Stable task identifier. Non-empty; max 128 chars; no control chars. Existing FocusFlow IDs are nanoid-style, but the parser does not require a specific alphabet beyond string/control checks. Must be unique within the file.</td>
+</tr>
+<tr>
+  <td><code>title</code></td>
+  <td>string</td>
+  <td>Non-blank; max 1,000 chars.</td>
+</tr>
+<tr>
+  <td><code>description</code></td>
+  <td>string</td>
+  <td>Emit a string; <code>&quot;&quot;</code> is valid. Current reader also converts missing/null to <code>&quot;&quot;</code>.</td>
+</tr>
+<tr>
+  <td><code>startTime</code></td>
+  <td>string</td>
+  <td>ISO-8601 instant. Generator should emit <code>YYYY-MM-DDTHH:mm:ss.SSSZ</code>. Reader accepts <code>Z</code> or explicit offset.</td>
+</tr>
+<tr>
+  <td><code>endTime</code></td>
+  <td>string</td>
+  <td>ISO-8601 instant; must not be before <code>startTime</code>; generator should satisfy <code>end-start = durationMinutes</code>.</td>
+</tr>
+<tr>
+  <td><code>durationMinutes</code></td>
+  <td>integer</td>
+  <td>Whole minutes. Kotlin V1 parser accepts <code>0..100000</code>; normal product-created tasks should normally be positive. Generator should derive it from start/end rather than inventing an inconsistent value.</td>
+</tr>
+<tr>
+  <td><code>status</code></td>
+  <td>enum</td>
+  <td><code>scheduled</code> / <code>active</code> / <code>completed</code> / <code>skipped</code> / <code>overdue</code>.</td>
+</tr>
+<tr>
+  <td><code>priority</code></td>
+  <td>enum</td>
+  <td><code>low</code> / <code>medium</code> / <code>high</code> / <code>critical</code>.</td>
+</tr>
+<tr>
+  <td><code>tags</code></td>
+  <td>string[]</td>
+  <td>Emit array; max 100 tags/task, each max 100 chars. <code>[]</code> allowed.</td>
+</tr>
+<tr>
+  <td><code>reminders</code></td>
+  <td>Reminder[]</td>
+  <td>Emit array of reminder objects, not integer offsets. Max 100/task in current Kotlin parser.</td>
+</tr>
+<tr>
+  <td><code>color</code></td>
+  <td>string</td>
+  <td>Hex/task color string; current parser allows up to 32 chars and defaults missing to <code>#6366f1</code>.</td>
+</tr>
+<tr>
+  <td><code>focusMode</code></td>
+  <td>boolean</td>
+  <td><code>true</code> activates task-time blocking behavior; <code>false</code> does not. Missing defaults to <code>false</code>.</td>
+</tr>
+<tr>
+  <td><code>focusAllowedPackages</code></td>
+  <td>string[] / null / absent</td>
+  <td>Absent or null means no per-task override; effective policy comes from global <code>settings.allowedInFocus</code>. Non-empty array is a task-specific allow-list. Empty array is an explicit empty allow-list and can lead to the native block-all sentinel; do not use casually.</td>
+</tr>
+<tr>
+  <td><code>createdAt</code></td>
+  <td>string</td>
+  <td>ISO-8601 instant.</td>
+</tr>
+<tr>
+  <td><code>updatedAt</code></td>
+  <td>string</td>
+  <td>ISO-8601 instant.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="task-invariants">Task invariants</h3>
+<div class="code-wrap"><button class="copy-code" type="button" data-code="task.id unique within file
+endTime &gt;= startTime
+durationMinutes = (endTime - startTime) / 60_000
+all four timestamps parse as instants
+known status/priority enums only
+">Copy</button><pre><code class="language-text">task.id unique within file
+endTime &gt;= startTime
+durationMinutes = (endTime - startTime) / 60_000
+all four timestamps parse as instants
+known status/priority enums only
+</code></pre></div>
+<h3 id="past-scheduled-task-on-import">Past scheduled task on import</h3>
+<p>If an imported task has <code>status = scheduled</code> and its <code>endTime</code> is earlier than the captured import <code>now</code>, the target restore contract normalizes it to <code>skipped</code> and does not create a future alarm for it. This is not a reason to change historical completed/skipped/overdue tasks.</p>
+<h2 id="6-reminder-object-canonical-shape">6. Reminder object — canonical shape</h2>
+<div class="code-wrap"><button class="copy-code" type="button" data-code="{
+  &quot;id&quot;: &quot;reminder-001&quot;,
+  &quot;taskId&quot;: &quot;task-001&quot;,
+  &quot;offsetMinutes&quot;: -5,
+  &quot;type&quot;: &quot;pre-start&quot;,
+  &quot;notifId&quot;: &quot;optional-device-id&quot;
+}
+">Copy</button><pre><code class="language-json">{
+  &quot;id&quot;: &quot;reminder-001&quot;,
+  &quot;taskId&quot;: &quot;task-001&quot;,
+  &quot;offsetMinutes&quot;: -5,
+  &quot;type&quot;: &quot;pre-start&quot;,
+  &quot;notifId&quot;: &quot;optional-device-id&quot;
+}
+</code></pre></div>
+<table>
+<thead>
+<tr>
+  <th>Field</th>
+  <th>Rule</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td><code>id</code></td>
+  <td>Non-empty stable reminder identity; max 128 chars in current parser.</td>
+</tr>
+<tr>
+  <td><code>taskId</code></td>
+  <td>Parent task ID. On restore, rewrite this field if the parent task ID is remapped.</td>
+</tr>
+<tr>
+  <td><code>offsetMinutes</code></td>
+  <td>Integer offset relative to the task schedule. Preserve exactly. The current persistent model supports negative/zero/positive values.</td>
+</tr>
+<tr>
+  <td><code>type</code></td>
+  <td><code>pre-start</code>, <code>at-start</code>, or <code>post-start</code>.</td>
+</tr>
+<tr>
+  <td><code>notifId</code></td>
+  <td>Optional string/null. Treat as device-derived notification bookkeeping unless the current exporter explicitly preserves a value; do not invent one merely to generate a backup.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="critical-distinction">Critical distinction</h3>
+<p><code>Task.reminders[]</code> is persistent task data. It is <strong>not automatically identical to the generated Android notification/alarm registrations</strong>. The current Kotlin reminder scheduler independently derives task-relative notification slots. The docs must not claim that every <code>Reminder</code> object directly maps one-to-one to an Android <code>AlarmManager</code> registration.</p>
+<h2 id="7-focus-mode-and-allowed-packages">7. Focus Mode and allowed packages</h2>
+<p>Global list:</p>
+<div class="code-wrap"><button class="copy-code" type="button" data-code="&quot;allowedInFocus&quot;: [
+  &quot;com.android.phone&quot;,
+  &quot;com.whatsapp&quot;,
+  &quot;com.example.music&quot;
+]
+">Copy</button><pre><code class="language-json">&quot;allowedInFocus&quot;: [
+  &quot;com.android.phone&quot;,
+  &quot;com.whatsapp&quot;,
+  &quot;com.example.music&quot;
+]
+</code></pre></div>
+<p>Per-task override:</p>
+<div class="code-wrap"><button class="copy-code" type="button" data-code="{
+  &quot;focusMode&quot;: true,
+  &quot;focusAllowedPackages&quot;: [
+    &quot;com.whatsapp&quot;,
+    &quot;com.example.music&quot;
+  ]
+}
+">Copy</button><pre><code class="language-json">{
+  &quot;focusMode&quot;: true,
+  &quot;focusAllowedPackages&quot;: [
+    &quot;com.whatsapp&quot;,
+    &quot;com.example.music&quot;
+  ]
+}
+</code></pre></div>
+<p>Resolution model:</p>
+<div class="code-wrap"><button class="copy-code" type="button" data-code="focusAllowedPackages absent
+    → use settings.allowedInFocus
+
+focusAllowedPackages null
+    → no task-specific override; use global setting
+
+focusAllowedPackages non-empty
+    → use task-specific list
+
+focusAllowedPackages empty array
+    → explicit empty effective allow-list
+    → native focus service maps empty effective list to
+      com.focusflow.internal.blockall
+    → blocks every non-protected foreground app
+">Copy</button><pre><code class="language-text">focusAllowedPackages absent
+    → use settings.allowedInFocus
+
+focusAllowedPackages null
+    → no task-specific override; use global setting
+
+focusAllowedPackages non-empty
+    → use task-specific list
+
+focusAllowedPackages empty array
+    → explicit empty effective allow-list
+    → native focus service maps empty effective list to
+      com.focusflow.internal.blockall
+    → blocks every non-protected foreground app
+</code></pre></div>
+<p>Package names are exact Android package IDs. Never document label/name matching as a portability mechanism.</p>
+<h2 id="8-portable-v1-settings-authoritative-public-field-list">8. Portable V1 settings — authoritative public field list</h2>
+<p>The HTML must contain a full settings reference, not a five-row summary. The following fields are the portable V1 target contract.</p>
+<p>| <code>darkMode</code> | boolean | OVERWRITE | Portable appearance preference. |
+| <code>defaultDuration</code> | integer | OVERWRITE | Default task/focus duration in minutes; Kotlin reader range 5..480. |
+| <code>defaultReminderOffsets</code> | integer[] | OVERWRITE | Default reminder offsets used for creating new tasks; preserve as configuration data, not active alarms. |
+| <code>allowedInFocus</code> | string[] | OVERWRITE | Global focus allow-list; exact Android package IDs. |
+| <code>pomodoroDuration</code> | integer | OVERWRITE | Work duration; Kotlin reader range 1..180. |
+| <code>pomodoroBreak</code> | integer | OVERWRITE | Break duration; Kotlin reader range 1..60. |
+| <code>protectionMode</code> | <code>standard</code> | <code>iron</code> | OVERWRITE | Portable user preference. Invalid enum is a format/restore failure before mutation. |
+| <code>alwaysOnPackages</code> | string[] | OVERWRITE | Persistent Always-On package configuration; active enforcement switch itself is local. |
+| <code>alwaysOnVpnPackages</code> | string[] | OVERWRITE | Persistent Always-On VPN target package configuration. |
+| <code>focusMirrorVpnEnabled</code> | boolean | OVERWRITE | Imported value wins when field is present; do not merge with local using logical OR. |
+| <code>allowedAppPresets</code> | object[] | OVERWRITE | Distinct allowed-app preset collection. |
+| <code>blockPresets</code> | object[] | OVERWRITE | Distinct block preset collection. |
+| <code>dailyAllowanceEntries</code> | object[] | OVERWRITE | Per-package allowance definitions. |
+| <code>blockedWords</code> | string[] | OVERWRITE | Keyword/blocking vocabulary. |
+| <code>weekStartDay</code> | integer 0..6 | OVERWRITE | TS calendar anchor; target mapping must preserve its meaning. |
+| <code>greyoutSchedule</code> | GreyoutWindow[] | OVERWRITE | Actual user-defined greyout windows. Do not replace them with recurring schedule inventory. |
+| <code>recurringBlockSchedules</code> | RecurringBlockSchedule[] | OVERWRITE | Distinct recurring schedule definitions. |
+| <code>launcherTheme</code> | <code>classic</code> | <code>glassy</code> | OVERWRITE | Portable launcher theme selection. |
+| <code>focusToolPackages</code> | string[] | OVERWRITE | Focus Tools package list. |
+| <code>launcherHiddenPackages</code> | string[] | OVERWRITE | Exact package IDs. |
+| <code>launcherBlockUninstall</code> | boolean | OVERWRITE | Persistent launcher behavior preference. |
+| <code>launcherLockDuringStandalone</code> | boolean | OVERWRITE | Persistent launcher behavior preference. |
+| <code>keepFocusActiveUntilTaskEnd</code> | boolean | OVERWRITE | Persistent focus-session behavior preference; does not import an active session. |
+| <code>autoRescheduleEnabled</code> | boolean | OVERWRITE | Persistent scheduling preference. |
+| <code>overlayQuotes</code> | string[] | OVERWRITE | Portable overlay quote pool. |
+| <code>userProfile</code> | object | OVERWRITE | Portable user profile object with field-level validation. |</p>
+<h2 id="9-settings-that-must-not-become-active-portable-state">9. Settings that must NOT become active portable state</h2>
+<p>The current TS source deliberately omits or treats the following as device-local/runtime state. The rebuilt docs must explain this instead of telling an agent to populate them for a “full backup”.</p>
+<ul>
+<li><code>focusModeEnabled</code> — device-local/runtime or target-install state; do not restore as active state.</li>
+<li><code>pomodoroEnabled</code> — device-local/runtime or target-install state; do not restore as active state.</li>
+<li><code>notificationsEnabled</code> — device-local/runtime or target-install state; do not restore as active state.</li>
+<li><code>weeklyReportEnabled</code> — device-local/runtime or target-install state; do not restore as active state.</li>
+<li><code>standaloneBlockPackages</code> — device-local/runtime or target-install state; do not restore as active state.</li>
+<li><code>standaloneBlockUntil</code> — device-local/runtime or target-install state; do not restore as active state.</li>
+<li><code>standaloneVpnPackages</code> — device-local/runtime or target-install state; do not restore as active state.</li>
+<li><code>alwaysOnEnforcementEnabled</code> — device-local/runtime or target-install state; do not restore as active state.</li>
+<li><code>autoCopyToAlwaysOn</code> — device-local/runtime or target-install state; do not restore as active state.</li>
+<li><code>autoCopiedAlwaysOnPackages</code> — device-local/runtime or target-install state; do not restore as active state.</li>
+<li><code>aversionDimmerEnabled</code> — device-local/runtime or target-install state; do not restore as active state.</li>
+<li><code>aversionVibrateEnabled</code> — device-local/runtime or target-install state; do not restore as active state.</li>
+<li><code>aversionSoundEnabled</code> — device-local/runtime or target-install state; do not restore as active state.</li>
+<li><code>systemGuardEnabled</code> — device-local/runtime or target-install state; do not restore as active state.</li>
+<li><code>blockInstallActionsEnabled</code> — device-local/runtime or target-install state; do not restore as active state.</li>
+<li><code>blockYoutubeShortsEnabled</code> — device-local/runtime or target-install state; do not restore as active state.</li>
+<li><code>blockInstagramReelsEnabled</code> — device-local/runtime or target-install state; do not restore as active state.</li>
+<li><code>vpnBlockEnabled</code> — device-local/runtime or target-install state; do not restore as active state.</li>
+<li><code>vpnSelfHealEnabled</code> — device-local/runtime or target-install state; do not restore as active state.</li>
+<li><code>pinProtectionEnabled</code> — device-local/runtime or target-install state; do not restore as active state.</li>
+<li><code>launcherEnabled</code> — device-local/runtime or target-install state; do not restore as active state.</li>
+<li><code>launcherWallpaperUri</code> — device-local/runtime or target-install state; do not restore as active state.</li>
+<li><code>overlayWallpaper</code> — device-local/runtime or target-install state; do not restore as active state.</li>
+<li><code>onboardingComplete</code> — device-local/runtime or target-install state; do not restore as active state.</li>
+<li><code>privacyAccepted</code> — device-local/runtime or target-install state; do not restore as active state.</li>
+</ul>
+<p>Important: the source audit also has some TS legacy fields that are accepted for compatibility but have no active Kotlin target. Those belong in a separate <strong>legacy/ignored</strong> section, not in the portable generation form.</p>
+<h2 id="10-legacyignored-v1-compatibility-keys">10. Legacy/ignored V1 compatibility keys</h2>
+<p>The documentation should explicitly call out these keys so an agent understands why they may appear in older files but should not manufacture them for the current Kotlin target:</p>
+<ul>
+<li><code>launcherPinnedPackages</code> — <code>READ_IGNORE_LEGACY</code>; accept for compatible reads, do not rely on a Kotlin target persistence mapping.</li>
+<li><code>launcherDockPackages</code> — <code>READ_IGNORE_LEGACY</code>; accept for compatible reads, do not rely on a Kotlin target persistence mapping.</li>
+<li><code>launcherClockStyle</code> — <code>READ_IGNORE_LEGACY</code>; accept for compatible reads, do not rely on a Kotlin target persistence mapping.</li>
+<li><code>beginnerMode</code> — <code>READ_IGNORE_LEGACY</code>; accept for compatible reads, do not rely on a Kotlin target persistence mapping.</li>
+<li><code>tipsCardDismissed</code> — <code>READ_IGNORE_LEGACY</code>; accept for compatible reads, do not rely on a Kotlin target persistence mapping.</li>
+<li><code>tipsCardFirstShownAt</code> — <code>READ_IGNORE_LEGACY</code>; accept for compatible reads, do not rely on a Kotlin target persistence mapping.</li>
+<li><code>lastShownStreakMilestone</code> — <code>READ_IGNORE_LEGACY</code>; accept for compatible reads, do not rely on a Kotlin target persistence mapping.</li>
+<li><code>pendingAchievementCelebration</code> — <code>READ_IGNORE_LEGACY</code>; accept for compatible reads, do not rely on a Kotlin target persistence mapping.</li>
+<li><code>pendingPresets</code> — <code>READ_IGNORE_LEGACY</code>; accept for compatible reads, do not rely on a Kotlin target persistence mapping.</li>
+</ul>
+<p>Do not silently turn an ignored legacy key into a new Kotlin feature just because the old TS schema contained it.</p>
+<h2 id="11-nested-settings-data-types">11. Nested settings data types</h2>
+<h3 id="111-allowedapppreset">11.1 AllowedAppPreset</h3>
+<div class="code-wrap"><button class="copy-code" type="button" data-code="{
+  &quot;id&quot;: &quot;allowed-study&quot;,
+  &quot;name&quot;: &quot;Study tools&quot;,
+  &quot;packages&quot;: [
+    &quot;com.example.reader&quot;,
+    &quot;com.example.notes&quot;
+  ]
+}
+">Copy</button><pre><code class="language-json">{
+  &quot;id&quot;: &quot;allowed-study&quot;,
+  &quot;name&quot;: &quot;Study tools&quot;,
+  &quot;packages&quot;: [
+    &quot;com.example.reader&quot;,
+    &quot;com.example.notes&quot;
+  ]
+}
+</code></pre></div>
+<ul>
+<li><code>id</code>: non-blank, max 128 chars.</li>
+<li><code>name</code>: string, max 1,000 chars.</li>
+<li><code>packages</code>: Android package IDs; current parser allows an empty array for the allowed-preset case.</li>
+</ul>
+<h3 id="112-blockpreset">11.2 BlockPreset</h3>
+<div class="code-wrap"><button class="copy-code" type="button" data-code="{
+  &quot;id&quot;: &quot;social&quot;,
+  &quot;name&quot;: &quot;Social apps&quot;,
+  &quot;packages&quot;: [
+    &quot;com.instagram.android&quot;,
+    &quot;com.reddit.frontpage&quot;
+  ]
+}
+">Copy</button><pre><code class="language-json">{
+  &quot;id&quot;: &quot;social&quot;,
+  &quot;name&quot;: &quot;Social apps&quot;,
+  &quot;packages&quot;: [
+    &quot;com.instagram.android&quot;,
+    &quot;com.reddit.frontpage&quot;
+  ]
+}
+</code></pre></div>
+<ul>
+<li>Same identity/name rules.</li>
+<li><code>packages</code> are exact package IDs.</li>
+</ul>
+<h3 id="113-dailyallowanceentry">11.3 DailyAllowanceEntry</h3>
+<div class="code-wrap"><button class="copy-code" type="button" data-code="{
+  &quot;packageName&quot;: &quot;com.example.video&quot;,
+  &quot;mode&quot;: &quot;count&quot;,
+  &quot;countPerDay&quot;: 3,
+  &quot;budgetMinutes&quot;: 30,
+  &quot;intervalMinutes&quot;: 5,
+  &quot;intervalHours&quot;: 1
+}
+">Copy</button><pre><code class="language-json">{
+  &quot;packageName&quot;: &quot;com.example.video&quot;,
+  &quot;mode&quot;: &quot;count&quot;,
+  &quot;countPerDay&quot;: 3,
+  &quot;budgetMinutes&quot;: 30,
+  &quot;intervalMinutes&quot;: 5,
+  &quot;intervalHours&quot;: 1
+}
+</code></pre></div>
+<table>
+<thead>
+<tr>
+  <th>Field</th>
+  <th>Rule</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td><code>packageName</code></td>
+  <td>Exact Android package ID.</td>
+</tr>
+<tr>
+  <td><code>mode</code></td>
+  <td><code>count</code>, <code>time_budget</code>, <code>interval</code>.</td>
+</tr>
+<tr>
+  <td><code>countPerDay</code></td>
+  <td>Integer 1..100000 when used.</td>
+</tr>
+<tr>
+  <td><code>budgetMinutes</code></td>
+  <td>Integer 1..100000 when used.</td>
+</tr>
+<tr>
+  <td><code>intervalMinutes</code></td>
+  <td>Integer 1..100000 when used.</td>
+</tr>
+<tr>
+  <td><code>intervalHours</code></td>
+  <td>Integer 1..8760 when used.</td>
+</tr>
+</tbody>
+</table>
+<p>Compatibility note: the Kotlin adapter also understands a legacy/internal <code>package</code> alias and can derive <code>dailyAllowanceMs</code>, but a hand-generated canonical TS-wire file should use <code>packageName</code> and the documented mode-specific fields.</p>
+<h3 id="114-recurringblockschedule">11.4 RecurringBlockSchedule</h3>
+<div class="code-wrap"><button class="copy-code" type="button" data-code="{
+  &quot;id&quot;: &quot;evening&quot;,
+  &quot;name&quot;: &quot;Evening block&quot;,
+  &quot;packages&quot;: [&quot;com.example.social&quot;],
+  &quot;days&quot;: [1, 3, 5],
+  &quot;startHour&quot;: 21,
+  &quot;startMin&quot;: 0,
+  &quot;endHour&quot;: 22,
+  &quot;endMin&quot;: 30,
+  &quot;enabled&quot;: true,
+  &quot;vpnEnabled&quot;: false,
+  &quot;vpnPackages&quot;: []
+}
+">Copy</button><pre><code class="language-json">{
+  &quot;id&quot;: &quot;evening&quot;,
+  &quot;name&quot;: &quot;Evening block&quot;,
+  &quot;packages&quot;: [&quot;com.example.social&quot;],
+  &quot;days&quot;: [1, 3, 5],
+  &quot;startHour&quot;: 21,
+  &quot;startMin&quot;: 0,
+  &quot;endHour&quot;: 22,
+  &quot;endMin&quot;: 30,
+  &quot;enabled&quot;: true,
+  &quot;vpnEnabled&quot;: false,
+  &quot;vpnPackages&quot;: []
+}
+</code></pre></div>
+<ul>
+<li><code>days</code> are 1..7 using the TS/Java Calendar convention: 1=Sunday, 2=Monday, …, 7=Saturday.</li>
+<li><code>startHour/endHour</code>: 0..23.</li>
+<li><code>startMin/endMin</code>: 0..59.</li>
+<li><code>enabled</code>, <code>vpnEnabled</code>: booleans.</li>
+<li><code>vpnPackages</code>: optional package list; when empty and VPN is enabled, the schedule may use the schedule’s app package list according to current feature semantics.</li>
+</ul>
+<h3 id="115-greyoutwindow">11.5 GreyoutWindow</h3>
+<div class="code-wrap"><button class="copy-code" type="button" data-code="{
+  &quot;pkg&quot;: &quot;com.example.video&quot;,
+  &quot;pkgs&quot;: [&quot;com.example.video&quot;],
+  &quot;startHour&quot;: 9,
+  &quot;startMin&quot;: 0,
+  &quot;endHour&quot;: 10,
+  &quot;endMin&quot;: 0,
+  &quot;days&quot;: [2],
+  &quot;vpnEnabled&quot;: false
+}
+">Copy</button><pre><code class="language-json">{
+  &quot;pkg&quot;: &quot;com.example.video&quot;,
+  &quot;pkgs&quot;: [&quot;com.example.video&quot;],
+  &quot;startHour&quot;: 9,
+  &quot;startMin&quot;: 0,
+  &quot;endHour&quot;: 10,
+  &quot;endMin&quot;: 0,
+  &quot;days&quot;: [2],
+  &quot;vpnEnabled&quot;: false
+}
+</code></pre></div>
+<ul>
+<li><code>pkg</code> is the backward-compatible primary package field.</li>
+<li><code>pkgs</code> can contain multiple packages and overrides <code>pkg</code> when present.</li>
+<li><code>scheduleId</code> / <code>scheduleName</code> identify <strong>derived windows</strong> produced from recurring schedules; they should not be used for ordinary user-created greyout windows, and the Kotlin V1 normalizer drops derived windows containing <code>scheduleId</code> from direct <code>greyoutSchedule</code> application.</li>
+<li><code>days</code> use 1..7.</li>
+</ul>
+<h3 id="116-userprofile">11.6 UserProfile</h3>
+<p>Recognized profile fields:</p>
+<ul>
+<li><code>name</code> — <code>string</code></li>
+<li><code>occupation</code> — <code>string</code></li>
+<li><code>dailyGoalHours</code> — <code>number</code></li>
+<li><code>wakeUpTime</code> — <code>string</code></li>
+<li><code>focusGoals</code> — <code>string[]</code></li>
+<li><code>sleepTime</code> — <code>string</code></li>
+<li><code>chronotype</code> — <code>'morning' | 'midday' | 'afternoon' | 'evening' | 'night' | 'flexible'</code></li>
+<li><code>focusSessionLength</code> — <code>number</code></li>
+<li><code>breakStyle</code> — <code>'short_frequent' | 'balanced' | 'long_infrequent' | 'no_break'</code></li>
+<li><code>distractionTriggers</code> — <code>string[]</code></li>
+<li><code>motivationStyle</code> — <code>string[]</code></li>
+<li><code>weeklyReviewDay</code> — <code>'sun' | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat'</code></li>
+</ul>
+<p>Current Kotlin V1 validation rules for the profile include:</p>
+<ul>
+<li><code>wakeUpTime</code>, <code>sleepTime</code>: <code>HH:mm</code>.</li>
+<li><code>dailyGoalHours</code>: 1..16.</li>
+<li><code>focusSessionLength</code>: 1..480.</li>
+<li><code>chronotype</code>: <code>morning | midday | afternoon | evening | night | flexible</code>.</li>
+<li><code>breakStyle</code>: <code>short_frequent | balanced | long_infrequent | no_break</code>.</li>
+<li><code>weeklyReviewDay</code>: <code>sun | mon | tue | wed | thu | fri | sat</code>.</li>
+<li><code>focusGoals</code>, <code>distractionTriggers</code>, <code>motivationStyle</code>: bounded string arrays.</li>
+</ul>
+<h2 id="12-presetsections-descriptive-inventory-not-activation">12. <code>presetSections</code> — descriptive inventory, not activation</h2>
+<p>The current TS exporter builds these section IDs:</p>
+<ul>
+<li><code>focus-mode</code></li>
+<li><code>standalone-block</code></li>
+<li><code>always-on</code></li>
+<li><code>daily-allowance</code></li>
+<li><code>keyword-blocker</code></li>
+<li><code>block-schedules</code></li>
+<li><code>defense</code></li>
+</ul>
+<p>The structure is:</p>
+<div class="code-wrap"><button class="copy-code" type="button" data-code="{
+  &quot;id&quot;: &quot;focus-mode&quot;,
+  &quot;name&quot;: &quot;Focus Mode&quot;,
+  &quot;configured&quot;: true,
+  &quot;appPackages&quot;: [&quot;com.example.music&quot;],
+  &quot;itemCount&quot;: 2,
+  &quot;details&quot;: {
+    &quot;allowedAppPresets&quot;: []
+  }
+}
+">Copy</button><pre><code class="language-json">{
+  &quot;id&quot;: &quot;focus-mode&quot;,
+  &quot;name&quot;: &quot;Focus Mode&quot;,
+  &quot;configured&quot;: true,
+  &quot;appPackages&quot;: [&quot;com.example.music&quot;],
+  &quot;itemCount&quot;: 2,
+  &quot;details&quot;: {
+    &quot;allowedAppPresets&quot;: []
+  }
+}
+</code></pre></div>
+<p>Possible fields:</p>
+<ul>
+<li><code>id</code>: known section ID.</li>
+<li><code>name</code>: display name.</li>
+<li><code>configured</code>: boolean.</li>
+<li><code>appPackages</code>: optional string array.</li>
+<li><code>vpnPackages</code>: optional string array.</li>
+<li><code>itemCount</code>: optional integer.</li>
+<li><code>details</code>: optional descriptive object.</li>
+</ul>
+<p>Semantics:</p>
+<div class="code-wrap"><button class="copy-code" type="button" data-code="presetSections describe what the backup contains
+presetSections do NOT activate live blocking
+presetSections do NOT resurrect timers
+presetSections do NOT override the chosen import options
+">Copy</button><pre><code class="language-text">presetSections describe what the backup contains
+presetSections do NOT activate live blocking
+presetSections do NOT resurrect timers
+presetSections do NOT override the chosen import options
+</code></pre></div>
+<h2 id="13-portable-vs-runtime-data-model">13. Portable vs runtime data model</h2>
+<p>This distinction should be visible on the documentation page.</p>
+<table>
+<thead>
+<tr>
+  <th>Layer</th>
+  <th>Examples</th>
+  <th>In <code>.focusflow</code>?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>Persistent portable truth</td>
+  <td>tasks, portable settings, presets, schedules, profile</td>
+  <td>Yes</td>
+</tr>
+<tr>
+  <td>Derived OS state</td>
+  <td>AlarmManager registrations, notification requests</td>
+  <td>Recreated, not serialized as authoritative runtime state</td>
+</tr>
+<tr>
+  <td>Runtime/session state</td>
+  <td>active focus session, current blocking state, current task session allow-list</td>
+  <td>No</td>
+</tr>
+<tr>
+  <td>Device-local setup/security</td>
+  <td>onboarding/consent, PIN state, live enforcement switches</td>
+  <td>No</td>
+</tr>
+<tr>
+  <td>External resources</td>
+  <td>local wallpaper/file URIs</td>
+  <td>Only when an explicit transferable representation exists; never assume a local URI is portable</td>
+</tr>
+</tbody>
+</table>
+<p>This is one of the most important concepts for agents generating or modifying files.</p>
+<h2 id="14-system-protected-packages">14. System-protected packages</h2>
+<p>The documentation should provide the actual TS protected list, not a short hand-picked example:</p>
+<ul>
+<li><code>com.android.launcher</code></li>
+<li><code>com.android.launcher2</code></li>
+<li><code>com.android.launcher3</code></li>
+<li><code>com.sec.android.app.launcher</code></li>
+<li><code>com.google.android.apps.nexuslauncher</code></li>
+<li><code>com.miui.launcher</code></li>
+<li><code>com.huawei.android.launcher</code></li>
+<li><code>com.coloros.launcher</code></li>
+<li><code>com.oneplus.launcher</code></li>
+<li><code>com.oppo.launcher</code></li>
+<li><code>com.motorola.launcher3</code></li>
+<li><code>com.nothing.launcher</code></li>
+<li><code>com.realme.launcher</code></li>
+<li><code>com.iqoo.launcher</code></li>
+<li><code>com.vivo.launcher</code></li>
+<li><code>com.asus.launcher</code></li>
+<li><code>com.ZenUI.launcher</code></li>
+<li><code>com.lge.launcher3</code></li>
+<li><code>com.htc.launcher</code></li>
+<li><code>com.sonyericsson.home</code></li>
+<li><code>com.tcl.launcher</code></li>
+<li><code>com.nokia.launcher</code></li>
+<li><code>com.infinix.launcher</code></li>
+<li><code>com.transsion.launcher</code></li>
+<li><code>com.hihonor.launcher</code></li>
+<li><code>com.android.systemui</code></li>
+<li><code>com.android.phone</code></li>
+<li><code>com.android.server.telecom</code></li>
+<li><code>com.android.dialer</code></li>
+<li><code>com.samsung.android.incallui</code></li>
+<li><code>com.google.android.dialer</code></li>
+<li><code>com.google.android.apps.googledialer</code></li>
+<li><code>com.google.android.gms</code></li>
+<li><code>com.android.packageinstaller</code></li>
+<li><code>com.google.android.packageinstaller</code></li>
+<li><code>com.samsung.android.packageinstaller</code></li>
+<li><code>com.samsung.android.wallet</code></li>
+<li><code>com.samsung.android.samsungpay</code></li>
+<li><code>com.google.android.apps.walletnfcrel</code></li>
+<li><code>com.tbtechs.focusflow</code></li>
+</ul>
+<p>These package IDs are hardcoded as <code>SYSTEM_NEVER_BLOCK</code> in the TS source. The purpose is safety and app recoverability: launchers, System UI, phone/telecom, Google Play Services, package installers/wallets, and FocusFlow itself must remain accessible.</p>
+<p>Do not describe this as something the <code>.focusflow</code> file can override. It cannot.</p>
+<h2 id="15-time-and-timezone-rules">15. Time and timezone rules</h2>
+<h3 id="151-absolute-task-timestamps">15.1 Absolute task timestamps</h3>
+<ul>
+<li>Use ISO-8601 instants.</li>
+<li>Canonical generated form: UTC <code>Z</code>, e.g. <code>2026-09-01T01:30:00.000Z</code>.</li>
+<li>The Kotlin V1 reader accepts an explicit offset too and converts it to the same instant.</li>
+<li><code>exportedAtHuman</code> is display metadata and is not a timezone authority.</li>
+</ul>
+<h3 id="152-ist-example">15.2 IST example</h3>
+<table>
+<thead>
+<tr>
+  <th>Local IST</th>
+  <th>File UTC</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>07:00</td>
+  <td>01:30Z</td>
+</tr>
+<tr>
+  <td>10:00</td>
+  <td>04:30Z</td>
+</tr>
+<tr>
+  <td>22:30</td>
+  <td>17:00Z</td>
+</tr>
+</tbody>
+</table>
+<h3 id="153-recurring-schedules">15.3 Recurring schedules</h3>
+<p>Recurring schedules are wall-clock rules. The documentation must state the chosen timezone ownership clearly. For the current target, preserve explicit schedule data and let the destination device apply it in its local schedule context unless a future format version introduces an authoritative stored timezone.</p>
+<h2 id="16-color-reference">16. Color reference</h2>
+<p>The current HTML uses these common task colors:</p>
+<table>
+<thead>
+<tr>
+  <th>Hex</th>
+  <th>Typical priority</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td><code>#22c55e</code></td>
+  <td>medium</td>
+</tr>
+<tr>
+  <td><code>#86efac</code></td>
+  <td>low</td>
+</tr>
+<tr>
+  <td><code>#3b82f6</code></td>
+  <td>critical</td>
+</tr>
+<tr>
+  <td><code>#a855f7</code></td>
+  <td>critical/high</td>
+</tr>
+<tr>
+  <td><code>#f59e0b</code></td>
+  <td>high</td>
+</tr>
+<tr>
+  <td><code>#ec4899</code></td>
+  <td>critical/high</td>
+</tr>
+</tbody>
+</table>
+<p>These are <strong>visual conventions</strong>, not hard schema constraints. The Kotlin/TS task parser accepts a color string up to 32 characters.</p>
+<h2 id="17-validation-and-resource-limits-current-kotlin-v1">17. Validation and resource limits — current Kotlin V1</h2>
+<p>| <code>MAX_FILE_BYTES</code> | 8 MiB | whole UTF-8 input |
+| <code>MAX_DEPTH</code> | 12 | JSON nesting depth |
+| <code>MAX_JSON_NODES</code> | 2,000,000 | total parsed/scanned nodes |
+| <code>MAX_TASKS</code> | 20,000 | top-level tasks |
+| <code>MAX_STRING_CHARS</code> | 20,000 | generic string |
+| <code>MAX_TITLE_CHARS</code> | 1,000 | task/preset title |
+| <code>MAX_TAG_CHARS</code> | 100 | each tag |
+| <code>MAX_ID_CHARS</code> | 128 | task/reminder/preset IDs |
+| <code>MAX_PACKAGE_CHARS</code> | 255 | Android package strings |
+| <code>MAX_PACKAGES_PER_LIST</code> | 5,000 | package list |
+| <code>MAX_BLOCKED_WORDS</code> | 5,000 | blocked words |
+| <code>MAX_BLOCKED_WORD_CHARS</code> | 200 | each blocked word |
+| <code>MAX_ALLOWANCE_ENTRIES</code> | 1,000 | daily allowance entries |
+| <code>MAX_RECURRING_SCHEDULES</code> | 500 | recurring block schedules |
+| <code>MAX_GREYOUT_WINDOWS</code> | 5,000 | greyout windows |
+| <code>MAX_PRESETS</code> | 500 | preset arrays |
+| <code>MAX_OVERLAY_QUOTES</code> | 500 | overlay quote entries |
+| <code>MAX_TAGS_PER_TASK</code> | 100 | tags in one task |
+| <code>MAX_REMINDERS_PER_TASK</code> | 100 | reminders in one task |</p>
+<p>Strict input rules:</p>
+<ul>
+<li>Invalid UTF-8 is rejected; malformed bytes are not repaired with replacement characters.</li>
+<li>Duplicate JSON object keys are rejected before the JSON tree is treated as valid.</li>
+<li>Standard JSON only: no comments, no trailing commas.</li>
+<li>Unknown optional fields may be tolerated for compatible V1 reading.</li>
+<li>Unknown enum values must not silently fall back to a default meaning.</li>
+<li>Structural limits are checked before uncontrolled memory allocation.</li>
+</ul>
+<h2 id="18-import-semantics-for-users-and-agents">18. Import semantics for users and agents</h2>
+<p>The documentation must show the complete conceptual flow:</p>
+<div class="code-wrap"><button class="copy-code" type="button" data-code="obtain `.focusflow`
+      ↓
+FocusFlow validates envelope
+      ↓
+stages file for review
+      ↓
+ImportConfirmScreen
+      ↓
+choose sections:
+    portable settings
+    tasks/reminders
+      ↓
+choose task mode:
+    merge
+    replace
+      ↓
+preflight / restore plan
+      ↓
+persistent restore
+      ↓
+recreate derived reminder/alarm state
+      ↓
+result + warnings
+">Copy</button><pre><code class="language-text">obtain `.focusflow`
+      ↓
+FocusFlow validates envelope
+      ↓
+stages file for review
+      ↓
+ImportConfirmScreen
+      ↓
+choose sections:
+    portable settings
+    tasks/reminders
+      ↓
+choose task mode:
+    merge
+    replace
+      ↓
+preflight / restore plan
+      ↓
+persistent restore
+      ↓
+recreate derived reminder/alarm state
+      ↓
+result + warnings
+</code></pre></div>
+<h3 id="merge">Merge</h3>
+<ul>
+<li>Preserve an incoming task ID when it does not already exist.</li>
+<li>Same incoming ID + semantically equivalent local task → duplicate/skip.</li>
+<li>Same incoming ID + materially different local task → explicit conflict; never rely on Room <code>INSERT OR IGNORE</code> to decide.</li>
+<li>Deliberate re-import is allowed; there is no persistent backup-level dedupe requirement.</li>
+</ul>
+<h3 id="replace">Replace</h3>
+<ul>
+<li>Replace the complete task-owned persistent graph as defined by the app contract.</li>
+<li>Do not equate “replace tasks” with “replace all settings/runtime/security state”.</li>
+<li>AlarmManager registrations are derived and are reconciled separately from persistence.</li>
+</ul>
+<h3 id="settings">Settings</h3>
+<ul>
+<li>Matching portable fields use their field-specific import policy.</li>
+<li>Omitted fields remain local.</li>
+<li>Runtime/device-local fields are not activated from the file.</li>
+</ul>
+<h2 id="19-external-focusflow-opening-from-android">19. External <code>.focusflow</code> opening from Android</h2>
+<p>The documentation must explain that a <code>.focusflow</code> file can be opened directly from a file manager/provider.</p>
+<div class="code-wrap"><button class="copy-code" type="button" data-code="File Manager / Drive
+      ↓
+ACTION_VIEW
+      ↓
+FocusFlow receives URI
+      ↓
+read content
+      ↓
+validate/normalize
+      ↓
+PendingImport snapshot
+      ↓
+ImportConfirmScreen
+">Copy</button><pre><code class="language-text">File Manager / Drive
+      ↓
+ACTION_VIEW
+      ↓
+FocusFlow receives URI
+      ↓
+read content
+      ↓
+validate/normalize
+      ↓
+PendingImport snapshot
+      ↓
+ImportConfirmScreen
+</code></pre></div>
+<p>Required lifecycle coverage for the implementation:</p>
+<ul>
+<li>cold start</li>
+<li>warm start / <code>onNewIntent</code></li>
+<li>repeated delivery of the same URI</li>
+<li>two different files arriving rapidly</li>
+<li>cancellation and re-open</li>
+<li>provider read failure / disappearance</li>
+<li><code>content://</code> handling</li>
+<li>deterministic <code>file://</code> behavior</li>
+</ul>
+<p>Filename/MIME do not override a valid FocusFlow envelope once the file is delivered to the app. Conversely, a valid JSON file should not magically become discoverable as a handler solely because its content looks right; Android intent-filter/provider behavior controls discoverability.</p>
+<h2 id="20-export-semantics">20. Export semantics</h2>
+<p>Canonical export content:</p>
+<ul>
+<li>portable settings according to the V1 list above</li>
+<li>all task records</li>
+<li>descriptive presetSections</li>
+<li>summary counts</li>
+<li><code>exportedAt</code> / display metadata</li>
+</ul>
+<p>The exporter should canonicalize task timestamps to UTC <code>Z</code>.</p>
+<p>Suggested output filename:</p>
+<div class="code-wrap"><button class="copy-code" type="button" data-code="focusflow-2026-09-01T14-30-00.focusflow
+">Copy</button><pre><code class="language-text">focusflow-2026-09-01T14-30-00.focusflow
+</code></pre></div>
+<p>The current Android transport uses SAF <code>ACTION_CREATE_DOCUMENT</code> and writes <code>application/octet-stream</code> to the chosen document URI.</p>
+<h2 id="21-builder-page-requirements">21. Builder page requirements</h2>
+<p>The builder should be more than a free-text textarea. It should have:</p>
+<ol>
+<li>A canonical starter template.</li>
+<li>A full example file.</li>
+<li>Structural validator using the same published V1 rules.</li>
+<li>Human-readable field reference adjacent to the editor.</li>
+<li>Section-aware generation controls or at least copyable templates for tasks/settings/presets/schedules.</li>
+<li>Exact validation messages for unknown kind/version, missing settings/tasks, duplicate task IDs, invalid tasks, invalid package IDs, invalid enums, malformed reminders, oversized input, duplicate JSON keys, invalid UTF-8, and structural limits.</li>
+<li>A download action that always uses <code>.focusflow</code> extension.</li>
+<li>No network upload.</li>
+</ol>
+<h3 id="builder-must-generate-canonical-data-not-merely-accepted-data">Builder must generate canonical data, not merely accepted data</h3>
+<p>For example:</p>
+<ul>
+<li>always emit <code>version: 1</code></li>
+<li>emit canonical UTC <code>Z</code> timestamps</li>
+<li>emit <code>reminders</code> as objects</li>
+<li>emit <code>summary</code> calculated from payload</li>
+<li>avoid runtime-only settings</li>
+<li>avoid meaningless <code>notifId</code> generation</li>
+<li>keep recurring schedules and greyout windows separate</li>
+<li>preserve <code>focusAllowedPackages</code> absent/null semantics</li>
+</ul>
+<h2 id="22-canonical-minimal-example">22. Canonical minimal example</h2>
+<div class="code-wrap"><button class="copy-code" type="button" data-code="{
+  &quot;kind&quot;: &quot;FocusFlowBackupV1&quot;,
+  &quot;version&quot;: 1,
+  &quot;exportedAt&quot;: &quot;2026-09-01T01:30:00.000Z&quot;,
+  &quot;exportedAtHuman&quot;: &quot;01/09/2026, 07:00:00&quot;,
+  &quot;platform&quot;: {
+    &quot;os&quot;: &quot;android&quot;
+  },
+  &quot;settings&quot;: {
+    &quot;defaultDuration&quot;: 60,
+    &quot;defaultReminderOffsets&quot;: [-10, -5, 0],
+    &quot;allowedInFocus&quot;: [
+      &quot;com.android.phone&quot;,
+      &quot;com.android.contacts&quot;,
+      &quot;com.example.music&quot;
+    ],
+    &quot;pomodoroDuration&quot;: 25,
+    &quot;pomodoroBreak&quot;: 5,
+    &quot;protectionMode&quot;: &quot;standard&quot;,
+    &quot;alwaysOnPackages&quot;: [],
+    &quot;alwaysOnVpnPackages&quot;: [],
+    &quot;focusMirrorVpnEnabled&quot;: false,
+    &quot;allowedAppPresets&quot;: [],
+    &quot;blockPresets&quot;: [],
+    &quot;dailyAllowanceEntries&quot;: [],
+    &quot;blockedWords&quot;: [],
+    &quot;weekStartDay&quot;: 0,
+    &quot;greyoutSchedule&quot;: [],
+    &quot;recurringBlockSchedules&quot;: [],
+    &quot;launcherTheme&quot;: &quot;glassy&quot;,
+    &quot;focusToolPackages&quot;: [],
+    &quot;launcherHiddenPackages&quot;: [],
+    &quot;launcherBlockUninstall&quot;: false,
+    &quot;launcherLockDuringStandalone&quot;: true,
+    &quot;keepFocusActiveUntilTaskEnd&quot;: true,
+    &quot;autoRescheduleEnabled&quot;: false,
+    &quot;overlayQuotes&quot;: [],
+    &quot;userProfile&quot;: {
+      &quot;name&quot;: &quot;Example User&quot;,
+      &quot;focusSessionLength&quot;: 60,
+      &quot;breakStyle&quot;: &quot;short_frequent&quot;
+    }
+  },
+  &quot;tasks&quot;: [
+    {
+      &quot;id&quot;: &quot;task-example-001&quot;,
+      &quot;title&quot;: &quot;Plan the week&quot;,
+      &quot;description&quot;: &quot;Choose the three most important tasks.&quot;,
+      &quot;startTime&quot;: &quot;2026-09-01T01:30:00.000Z&quot;,
+      &quot;endTime&quot;: &quot;2026-09-01T02:30:00.000Z&quot;,
+      &quot;durationMinutes&quot;: 60,
+      &quot;status&quot;: &quot;scheduled&quot;,
+      &quot;priority&quot;: &quot;medium&quot;,
+      &quot;tags&quot;: [&quot;planning&quot;],
+      &quot;reminders&quot;: [
+        {
+          &quot;id&quot;: &quot;reminder-example-001&quot;,
+          &quot;taskId&quot;: &quot;task-example-001&quot;,
+          &quot;offsetMinutes&quot;: -5,
+          &quot;type&quot;: &quot;pre-start&quot;
+        }
+      ],
+      &quot;color&quot;: &quot;#3b82f6&quot;,
+      &quot;focusMode&quot;: true,
+      &quot;createdAt&quot;: &quot;2026-08-31T05:00:00.000Z&quot;,
+      &quot;updatedAt&quot;: &quot;2026-08-31T05:00:00.000Z&quot;
+    }
+  ],
+  &quot;presetSections&quot;: [],
+  &quot;summary&quot;: {
+    &quot;taskCount&quot;: 1,
+    &quot;blockedWordCount&quot;: 0,
+    &quot;greyoutWindowCount&quot;: 0,
+    &quot;dailyAllowanceCount&quot;: 0
+  }
+}
+">Copy</button><pre><code class="language-json">{
+  &quot;kind&quot;: &quot;FocusFlowBackupV1&quot;,
+  &quot;version&quot;: 1,
+  &quot;exportedAt&quot;: &quot;2026-09-01T01:30:00.000Z&quot;,
+  &quot;exportedAtHuman&quot;: &quot;01/09/2026, 07:00:00&quot;,
+  &quot;platform&quot;: {
+    &quot;os&quot;: &quot;android&quot;
+  },
+  &quot;settings&quot;: {
+    &quot;defaultDuration&quot;: 60,
+    &quot;defaultReminderOffsets&quot;: [-10, -5, 0],
+    &quot;allowedInFocus&quot;: [
+      &quot;com.android.phone&quot;,
+      &quot;com.android.contacts&quot;,
+      &quot;com.example.music&quot;
+    ],
+    &quot;pomodoroDuration&quot;: 25,
+    &quot;pomodoroBreak&quot;: 5,
+    &quot;protectionMode&quot;: &quot;standard&quot;,
+    &quot;alwaysOnPackages&quot;: [],
+    &quot;alwaysOnVpnPackages&quot;: [],
+    &quot;focusMirrorVpnEnabled&quot;: false,
+    &quot;allowedAppPresets&quot;: [],
+    &quot;blockPresets&quot;: [],
+    &quot;dailyAllowanceEntries&quot;: [],
+    &quot;blockedWords&quot;: [],
+    &quot;weekStartDay&quot;: 0,
+    &quot;greyoutSchedule&quot;: [],
+    &quot;recurringBlockSchedules&quot;: [],
+    &quot;launcherTheme&quot;: &quot;glassy&quot;,
+    &quot;focusToolPackages&quot;: [],
+    &quot;launcherHiddenPackages&quot;: [],
+    &quot;launcherBlockUninstall&quot;: false,
+    &quot;launcherLockDuringStandalone&quot;: true,
+    &quot;keepFocusActiveUntilTaskEnd&quot;: true,
+    &quot;autoRescheduleEnabled&quot;: false,
+    &quot;overlayQuotes&quot;: [],
+    &quot;userProfile&quot;: {
+      &quot;name&quot;: &quot;Example User&quot;,
+      &quot;focusSessionLength&quot;: 60,
+      &quot;breakStyle&quot;: &quot;short_frequent&quot;
+    }
+  },
+  &quot;tasks&quot;: [
+    {
+      &quot;id&quot;: &quot;task-example-001&quot;,
+      &quot;title&quot;: &quot;Plan the week&quot;,
+      &quot;description&quot;: &quot;Choose the three most important tasks.&quot;,
+      &quot;startTime&quot;: &quot;2026-09-01T01:30:00.000Z&quot;,
+      &quot;endTime&quot;: &quot;2026-09-01T02:30:00.000Z&quot;,
+      &quot;durationMinutes&quot;: 60,
+      &quot;status&quot;: &quot;scheduled&quot;,
+      &quot;priority&quot;: &quot;medium&quot;,
+      &quot;tags&quot;: [&quot;planning&quot;],
+      &quot;reminders&quot;: [
+        {
+          &quot;id&quot;: &quot;reminder-example-001&quot;,
+          &quot;taskId&quot;: &quot;task-example-001&quot;,
+          &quot;offsetMinutes&quot;: -5,
+          &quot;type&quot;: &quot;pre-start&quot;
+        }
+      ],
+      &quot;color&quot;: &quot;#3b82f6&quot;,
+      &quot;focusMode&quot;: true,
+      &quot;createdAt&quot;: &quot;2026-08-31T05:00:00.000Z&quot;,
+      &quot;updatedAt&quot;: &quot;2026-08-31T05:00:00.000Z&quot;
+    }
+  ],
+  &quot;presetSections&quot;: [],
+  &quot;summary&quot;: {
+    &quot;taskCount&quot;: 1,
+    &quot;blockedWordCount&quot;: 0,
+    &quot;greyoutWindowCount&quot;: 0,
+    &quot;dailyAllowanceCount&quot;: 0
+  }
+}
+</code></pre></div>
+<p>Notice that the example omits runtime-only fields and omits <code>focusAllowedPackages</code>, which intentionally makes the task inherit <code>settings.allowedInFocus</code>.</p>
+<h2 id="23-full-feature-example-requirements">23. Full-feature example requirements</h2>
+<p>The HTML should also provide a second, much richer example containing at least:</p>
+<ul>
+<li>two or more tasks</li>
+<li>one completed task</li>
+<li>one future scheduled task</li>
+<li>task tags/colors/priorities</li>
+<li>one task with global focus allow-list inheritance</li>
+<li>one task with a specific non-empty <code>focusAllowedPackages</code> list</li>
+<li>pre-start and at-start reminders</li>
+<li>one daily allowance entry for each mode</li>
+<li>at least one allowed-app preset</li>
+<li>at least one block preset</li>
+<li>one recurring block schedule</li>
+<li>one standalone/manual greyout window</li>
+<li>blocked words</li>
+<li>Always-On package configuration</li>
+<li>VPN package configuration</li>
+<li>focus mirror setting</li>
+<li>launcher theme and package lists</li>
+<li>profile fields</li>
+<li>protection mode</li>
+<li>descriptive <code>presetSections</code></li>
+<li>mathematically correct <code>summary</code></li>
+</ul>
+<p>The rich example should contain comments in the documentation explaining every non-obvious field, but the actual downloadable JSON must contain no comments.</p>
+<h2 id="24-agent-facing-do-not-make-these-mistakes-section">24. Agent-facing “do not make these mistakes” section</h2>
+<ul>
+<li>Do not turn <code>.focusflow</code> into a ZIP, SQLite dump, or binary database backup.</li>
+<li>Do not use Kotlin internal property names such as <code>allowedFocusPackages</code> in the public V1 wire format; use <code>allowedInFocus</code>.</li>
+<li>Do not encode reminders as integer offsets; use reminder objects.</li>
+<li>Do not use <code>presetSections</code> as live activation instructions.</li>
+<li>Do not serialize the current active focus session as if it were portable.</li>
+<li>Do not treat <code>AlarmManager</code> registrations as persistent backup truth.</li>
+<li>Do not generate a fake <code>notifId</code> merely to make a reminder object look complete.</li>
+<li>Do not merge <code>greyoutSchedule</code> and <code>recurringBlockSchedules</code> into one array.</li>
+<li>Do not use <code>summary</code> as the source of truth.</li>
+<li>Do not assume a package with the same app label is equivalent to a different package ID.</li>
+<li>Do not use an empty <code>focusAllowedPackages</code> list casually; it can resolve to block-all behavior.</li>
+<li>Do not claim that every persisted Reminder object directly schedules an Android notification.</li>
+<li>Do not silently interpret unsupported/legacy settings as active Kotlin features.</li>
+<li>Do not claim that importing the file restores live alarms or active blocking sessions verbatim; those are reconstructed/kept local according to the app contract.</li>
+</ul>
+<h2 id="25-html-page-architecture">25. HTML page architecture</h2>
+<h3 id="page-a-focusflow-file-format-reference">Page A — <code>.focusflow File Format Reference</code></h3>
+<p>This is the authoritative developer/reference page. Recommended section order:</p>
+<ol>
+<li>Overview / what the file is</li>
+<li>File identity and transport</li>
+<li>Top-level schema</li>
+<li>Task object</li>
+<li>Reminder object</li>
+<li>Focus Mode / allowed packages</li>
+<li>Portable settings — exhaustive field table</li>
+<li>Nested setting types</li>
+<li>Preset sections</li>
+<li>Portable vs runtime/device-local state</li>
+<li>Time/UTC/timezone</li>
+<li>Color conventions</li>
+<li>System-protected packages</li>
+<li>Validation/resource limits</li>
+<li>Import/restore semantics</li>
+<li>External File Manager/Drive opening</li>
+<li>Export semantics</li>
+<li>Compatibility / legacy fields</li>
+<li>Minimal example</li>
+<li>Full-feature example</li>
+<li>Agent mistakes / troubleshooting</li>
+</ol>
+<h3 id="page-b-focusflow-backup-builder">Page B — <code>.focusflow Backup Builder</code></h3>
+<p>This is the interactive generator/validator. It should link back to Page A and reuse the exact same vocabulary and validation rules.</p>
+<h2 id="26-required-cross-page-consistency-checks">26. Required cross-page consistency checks</h2>
+<p>The agent implementing the HTML should run a content diff/check so that:</p>
+<ul>
+<li>both pages use <code>FocusFlowBackupV1</code> exactly.</li>
+<li>both pages say reminders are objects.</li>
+<li>both pages use the same task field names.</li>
+<li>both pages use the same package and schedule day conventions.</li>
+<li>both pages publish the same parser limits.</li>
+<li>both pages list the same portable settings.</li>
+<li>both pages distinguish runtime/local fields.</li>
+<li>both pages describe the same <code>focusAllowedPackages</code> semantics.</li>
+<li>both pages describe <code>presetSections</code> as descriptive.</li>
+<li>both pages describe summary as non-authoritative.</li>
+<li>builder examples validate against the documented rules.</li>
+</ul>
+<h2 id="27-acceptance-tests-for-a-generated-focusflow">27. Acceptance tests for a generated <code>.focusflow</code></h2>
+<p>A generated file should pass all of the following before it is presented as a valid example:</p>
+<div class="code-wrap"><button class="copy-code" type="button" data-code="UTF-8 decode succeeds
+JSON parses
+no duplicate object keys
+top-level object
+kind == FocusFlowBackupV1
+version == 1
+settings is object
+tasks is array
+task IDs unique within file
+all task timestamps valid
+endTime &gt;= startTime
+duration matches time difference
+known task statuses/priorities
+reminders are valid objects
+all reminder taskIds point at their parent task or documented remap path
+package lists contain syntactically valid Android package IDs
+recognized settings have valid shapes/enums/ranges
+structural/file limits are respected
+summary counts are derived correctly
+no runtime-only state is being used as if it were portable
+presetSections are consistent with settings but are not required for restore semantics
+">Copy</button><pre><code class="language-text">UTF-8 decode succeeds
+JSON parses
+no duplicate object keys
+top-level object
+kind == FocusFlowBackupV1
+version == 1
+settings is object
+tasks is array
+task IDs unique within file
+all task timestamps valid
+endTime &gt;= startTime
+duration matches time difference
+known task statuses/priorities
+reminders are valid objects
+all reminder taskIds point at their parent task or documented remap path
+package lists contain syntactically valid Android package IDs
+recognized settings have valid shapes/enums/ranges
+structural/file limits are respected
+summary counts are derived correctly
+no runtime-only state is being used as if it were portable
+presetSections are consistent with settings but are not required for restore semantics
+</code></pre></div>
+<h2 id="28-important-note-about-perfectly-valid">28. Important note about “perfectly valid”</h2>
+<p>A syntactically valid <code>.focusflow</code> is not automatically semantically correct. The HTML should distinguish:</p>
+<div class="code-wrap"><button class="copy-code" type="button" data-code="FORMAT VALID
+    JSON/schema/limits are valid
+
+IMPORT SAFE
+    content will not trigger malformed/unsupported restore behavior
+
+PRODUCT SEMANTICALLY CORRECT
+    fields represent the intended FocusFlow behavior
+">Copy</button><pre><code class="language-text">FORMAT VALID
+    JSON/schema/limits are valid
+
+IMPORT SAFE
+    content will not trigger malformed/unsupported restore behavior
+
+PRODUCT SEMANTICALLY CORRECT
+    fields represent the intended FocusFlow behavior
+</code></pre></div>
+<p>The goal of the documentation and builder is the third level, not merely the first.</p>
+<h2 id="29-final-implementation-instruction-for-the-html-agent">29. Final implementation instruction for the HTML agent</h2>
+<p>Treat this Markdown as the content contract for the two HTML pages. Preserve the existing visual language where useful, but do not preserve factual inaccuracies merely for visual continuity. The pages should be able to stand alone: an agent should be able to construct a canonical V1 <code>.focusflow</code> file from the field tables, nested object schemas, examples, semantics, and validation rules without needing to inspect the TS application.</p>
+<p>When the HTML builder and reference page disagree with this document, this document is the authoritative content specification for the pages. When future application code changes the V1 wire format, update this document first, then update both HTML pages and their validators together.</p>
+</article>
+<div class="no-results" id="noResults">No matching sections. Try another term.</div>
+<div class="footer">FocusFlow .focusflow V1 reference. This page is derived from the canonical Markdown specification and is intended to be sufficient for an independent implementation agent to generate, validate, or document .focusflow files.</div>
+</main></div>
+<script>
+(function(){
+ const input=document.getElementById('search'); const article=document.getElementById('spec-content'); const no=document.getElementById('noResults');
+ const sections=[...article.querySelectorAll('h2,h3')];
+ function apply(q){
+   q=q.trim().toLowerCase(); let any=false;
+   sections.forEach(h=>{
+     let node=h, text=h.textContent.toLowerCase(), hit=text.includes(q);
+     let body=[]; while((node=node.nextElementSibling)&&!/^H[23]$/.test(node.tagName)) body.push(node);
+     const full=(h.textContent+' '+body.map(n=>n.textContent).join(' ')).toLowerCase();
+     hit=full.includes(q); h.style.display=hit||!q?'':'none'; body.forEach(n=>n.style.display=hit||!q?'':'none'); if(hit) any=true;
+   });
+   no.style.display=any||!q?'none':'block';
+ }
+ input.addEventListener('input',e=>apply(e.target.value));
+ document.querySelectorAll('.copy-code').forEach(btn=>btn.addEventListener('click',async()=>{
+   try{await navigator.clipboard.writeText(btn.dataset.code); const old=btn.textContent; btn.textContent='Copied'; setTimeout(()=>btn.textContent=old,1100);}
+   catch(e){btn.textContent='Copy failed'; setTimeout(()=>btn.textContent='Copy',1100);}
+ }));
+ // Mark the current section in the TOC.
+ const links=[...document.querySelectorAll('aside a')]; const heads=links.map(a=>document.getElementById(a.getAttribute('href').slice(1))).filter(Boolean);
+ const observer=new IntersectionObserver(entries=>{entries.forEach(en=>{if(en.isIntersecting){links.forEach(l=>l.classList.remove('active')); const l=document.querySelector('aside a[href="#'+en.target.id+'"]'); if(l){l.style.color='#fff'; l.style.background='var(--panel)';} } })},{rootMargin:'-20% 0px -70% 0px'}); heads.forEach(h=>observer.observe(h));
+})();
+</script>
+</body>
+</html>

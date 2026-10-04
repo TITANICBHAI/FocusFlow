@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>.focusflow — Simple File Format Guide | FocusFlow</title>
+<meta name="description" content="A practical guide to FocusFlow .focusflow files: what they contain, how tasks and settings work, and how to create a valid file without reading the full technical specification.">
+<style>
+:root{--bg:#0b0d12;--panel:#12161f;--panel2:#181d28;--text:#eef2f8;--muted:#9ba7b8;--line:#2a3140;--accent:#7c72ff;--accent2:#a59fff;--good:#59d39a;--warn:#f2c76e;--code:#0a0c11;--max:980px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.7 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}a{color:var(--accent2);text-decoration:none}a:hover{text-decoration:underline}
+.wrap{width:min(var(--max),calc(100% - 32px));margin:auto}.hero{padding:68px 0 38px}.eyebrow{text-transform:uppercase;letter-spacing:.12em;color:var(--accent2);font-size:12px;font-weight:800;margin:0 0 10px}.hero h1{font-size:clamp(38px,7vw,68px);line-height:1;letter-spacing:-.045em;margin:0 0 18px}.lead{max-width:720px;color:var(--muted);font-size:18px}.pills{display:flex;gap:8px;flex-wrap:wrap;margin-top:22px}.pill{padding:7px 11px;border:1px solid var(--line);border-radius:999px;background:var(--panel);color:#cbd3df;font-size:13px}
+nav{position:sticky;top:0;z-index:20;border-bottom:1px solid var(--line);background:rgba(11,13,18,.9);backdrop-filter:blur(12px)}nav .navin{display:flex;gap:16px;align-items:center;justify-content:space-between;padding:12px 0}.brand{font-weight:800;color:var(--text)}.links{display:flex;gap:14px;flex-wrap:wrap;font-size:13px}.links a{color:var(--muted)}
+section{padding:42px 0;border-top:1px solid rgba(42,49,64,.65)}h2{font-size:30px;letter-spacing:-.03em;line-height:1.15;margin:0 0 12px}h3{font-size:19px;margin:26px 0 8px}.muted{color:var(--muted)}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:20px}.card strong{color:var(--text)}
+pre{margin:16px 0;background:var(--code);border:1px solid var(--line);border-radius:14px;padding:18px;overflow:auto;color:#dfe7f3;font:13px/1.65 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}.code{font:0.92em ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--panel2);padding:2px 6px;border-radius:6px;border:1px solid var(--line)}
+.quick{display:grid;gap:10px}.row{display:grid;grid-template-columns:210px 1fr;gap:16px;padding:12px 0;border-bottom:1px solid var(--line)}.row:last-child{border-bottom:0}.key{font:700 13px ui-monospace,SFMono-Regular,Menlo,monospace;color:#c8c3ff}.val{color:var(--muted)}
+.badge-good{color:var(--good);font-weight:700}.badge-warn{color:var(--warn);font-weight:700}.note{padding:16px 18px;border-radius:14px;border:1px solid #514b7a;background:rgba(124,114,255,.08);margin:18px 0}.warn{border-color:#5d4f2b;background:rgba(242,199,110,.08)}
+ul{padding-left:22px;color:var(--muted)}li{margin:6px 0}table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}th,td{padding:11px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{background:var(--panel2);font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:#c3cbd8}td{color:var(--muted);font-size:14px}td:first-child{color:var(--text);font-family:ui-monospace,monospace}
+footer{padding:36px 0 50px;color:var(--muted);font-size:13px}.top{display:inline-block;margin-top:14px;font-size:13px}
+@media(max-width:720px){.grid{grid-template-columns:1fr}.row{grid-template-columns:1fr;gap:4px}.links{display:none}.hero{padding-top:42px}}
+</style>
+</head>
+<body>
+<nav><div class="wrap navin"><a class="brand" href="#top">FocusFlow · .focusflow</a><div class="links"><a href="#basics">Basics</a><a href="#task">Tasks</a><a href="#settings">Settings</a><a href="#rules">Rules</a><a href="#example">Example</a></div></div></nav>
+<main id="top" class="wrap">
+<header class="hero">
+<p class="eyebrow">Practical format guide</p>
+<h1><span style="color:var(--accent2)">.focusflow</span>, explained without the manual.</h1>
+<p class="lead">A human-readable guide for people and developer/AI agents who need to understand or generate a FocusFlow backup file. It covers the parts that matter; the full schema does not need to be memorized.</p>
+<div class="pills"><span class="pill">V1</span><span class="pill">UTF-8 JSON</span><span class="pill">.focusflow</span><span class="pill">Not a ZIP</span></div>
+</header>
+
+<section id="basics">
+<h2>1. What is a .focusflow file?</h2>
+<p class="muted">It is a plain UTF-8 JSON document with the <span class="code">.focusflow</span> extension. It carries portable FocusFlow data such as tasks, schedules, blocking configuration, presets and user profile information.</p>
+<div class="note"><strong>Important:</strong> a backup is <em>not</em> a dump of the live device. Active focus sessions, current blocking state, PIN/device security state, active notifications and other runtime-only state are intentionally not restored.</div>
+<div class="quick card">
+<div class="row"><div class="key">extension</div><div class="val"><span class="code">.focusflow</span></div></div>
+<div class="row"><div class="key">kind</div><div class="val"><span class="code">FocusFlowBackupV1</span></div></div>
+<div class="row"><div class="key">version</div><div class="val"><span class="code">1</span> for canonical generated files</div></div>
+<div class="row"><div class="key">encoding</div><div class="val">UTF-8 JSON</div></div>
+<div class="row"><div class="key">MIME</div><div class="val"><span class="code">application/octet-stream</span></div></div>
+</div>
+</section>
+
+<section id="shape">
+<h2>2. The shape of the file</h2>
+<p class="muted">A normal file has one top-level object. The important parts are <span class="code">settings</span> and <span class="code">tasks</span>. The other fields are metadata/inventory.</p>
+<pre>{
+  "kind": "FocusFlowBackupV1",
+  "version": 1,
+  "exportedAt": "2026-10-04T04:30:00.000Z",
+  "appVersion": "1.0.6",
+  "platform": { "os": "android" },
+  "settings": { /* portable settings */ },
+  "tasks": [ /* task objects */ ],
+  "presetSections": [ /* descriptive inventory */ ],
+  "summary": {
+    "taskCount": 1,
+    "blockedWordCount": 0,
+    "greyoutWindowCount": 0,
+    "dailyAllowanceCount": 0
+  }
+}</pre>
+<div class="grid">
+<div class="card"><strong>summary</strong><p class="muted">Helpful counts only. It is never the source of truth; FocusFlow recalculates real counts from the payload.</p></div>
+<div class="card"><strong>presetSections</strong><p class="muted">Describes what the backup contains. It does not activate blocking, timers or other live behavior.</p></div>
+</div>
+</section>
+
+<section id="task">
+<h2>3. Tasks</h2>
+<p class="muted">Each task is an object inside <span class="code">tasks</span>. The safest approach is to emit all core fields explicitly.</p>
+<table><thead><tr><th>Field</th><th>What it means</th></tr></thead><tbody>
+<tr><td>id</td><td>Stable task identifier. Non-empty, unique inside the file.</td></tr>
+<tr><td>title</td><td>Task name. Non-blank. Max 1,000 characters.</td></tr>
+<tr><td>description</td><td>Task details. Empty string is valid.</td></tr>
+<tr><td>startTime</td><td>ISO-8601 instant. Canonical generated files use UTC <span class="code">Z</span>.</td></tr>
+<tr><td>endTime</td><td>ISO-8601 instant; must not be earlier than <span class="code">startTime</span>.</td></tr>
+<tr><td>durationMinutes</td><td>Whole-minute duration. Keep it consistent with start/end.</td></tr>
+<tr><td>status</td><td><span class="code">scheduled</span>, <span class="code">active</span>, <span class="code">completed</span>, <span class="code">skipped</span>, or <span class="code">overdue</span>.</td></tr>
+<tr><td>priority</td><td><span class="code">low</span>, <span class="code">medium</span>, <span class="code">high</span>, or <span class="code">critical</span>.</td></tr>
+<tr><td>tags</td><td>Array of strings. Empty array is fine.</td></tr>
+<tr><td>reminders</td><td>Array of reminder objects. It is <strong>not</strong> an array of plain integers.</td></tr>
+<tr><td>color</td><td>Visual task color. A normal default is <span class="code">#6366f1</span>.</td></tr>
+<tr><td>focusMode</td><td>Whether this task uses Focus Mode behavior.</td></tr>
+<tr><td>focusAllowedPackages</td><td>Optional task-specific Android package allow-list.</td></tr>
+<tr><td>createdAt / updatedAt</td><td>ISO-8601 instants.</td></tr>
+</tbody></table>
+<div class="note warn"><strong>Past scheduled tasks:</strong> if a task arrives as <span class="code">scheduled</span> but its <span class="code">endTime</span> is already past when import is evaluated, FocusFlow normalizes it to <span class="code">skipped</span> and does not create a future alarm for it.</div>
+</section>
+
+<section>
+<h2>4. Reminders</h2>
+<p class="muted">A reminder is attached to a task and uses a stable reminder identity.</p>
+<pre>"reminders": [{
+  "id": "reminder-001",
+  "taskId": "task-001",
+  "offsetMinutes": -5,
+  "type": "pre-start"
+}]</pre>
+<div class="grid">
+<div class="card"><strong>type</strong><p class="muted"><span class="code">pre-start</span>, <span class="code">at-start</span>, or <span class="code">post-start</span>.</p></div>
+<div class="card"><strong>offsetMinutes</strong><p class="muted">Integer offset relative to the task schedule. Preserve it exactly.</p></div>
+<div class="card"><strong>taskId</strong><p class="muted">Must point to the parent task. If a task ID is remapped during import, this relationship is remapped too.</p></div>
+<div class="card"><strong>Android notifications</strong><p class="muted">The persistent <span class="code">Reminder</span> object is not automatically identical to an Android notification/alarm registration.</p></div>
+</div>
+</section>
+
+<section id="settings">
+<h2>5. Portable settings</h2>
+<p class="muted">You do not need every setting. The canonical V1 profile includes these important portable groups.</p>
+<div class="grid">
+<div class="card"><strong>Focus preferences</strong><p class="muted"><span class="code">darkMode</span>, <span class="code">defaultDuration</span>, <span class="code">defaultReminderOffsets</span>, <span class="code">pomodoroDuration</span>, <span class="code">pomodoroBreak</span>, <span class="code">keepFocusActiveUntilTaskEnd</span>, <span class="code">autoRescheduleEnabled</span>.</p></div>
+<div class="card"><strong>App lists</strong><p class="muted"><span class="code">allowedInFocus</span>, <span class="code">alwaysOnPackages</span>, <span class="code">alwaysOnVpnPackages</span>, <span class="code">focusToolPackages</span>, <span class="code">launcherHiddenPackages</span>.</p></div>
+<div class="card"><strong>Blocking & schedules</strong><p class="muted"><span class="code">blockedWords</span>, <span class="code">greyoutSchedule</span>, <span class="code">recurringBlockSchedules</span>, <span class="code">dailyAllowanceEntries</span>.</p></div>
+<div class="card"><strong>Presets</strong><p class="muted"><span class="code">allowedAppPresets</span> and <span class="code">blockPresets</span> are separate collections.</p></div>
+<div class="card"><strong>Launcher/profile</strong><p class="muted"><span class="code">launcherTheme</span>, <span class="code">launcherHiddenPackages</span>, <span class="code">launcherBlockUninstall</span>, <span class="code">launcherLockDuringStandalone</span>, <span class="code">userProfile</span>.</p></div>
+<div class="card"><strong>Protection</strong><p class="muted"><span class="code">protectionMode</span>, <span class="code">focusMirrorVpnEnabled</span> and related persistent preferences that are explicitly portable.</p></div>
+</div>
+<h3>What should stay on the device?</h3>
+<p class="muted">Do not manufacture or expect a portable file to turn live runtime/device state back on. Examples include active focus state, current blocking state, onboarding/privacy flags, PIN state, notification master state, live enforcement switches and raw local wallpaper URIs.</p>
+</section>
+
+<section id="rules">
+<h2>6. The rules that matter most</h2>
+<div class="quick card">
+<div class="row"><div class="key">time</div><div class="val">Use real ISO-8601 instants. Generated files should use UTC <span class="code">Z</span>.</div></div>
+<div class="row"><div class="key">package names</div><div class="val">Use exact Android package IDs such as <span class="code">com.example.app</span>. Never substitute by app label/name.</div></div>
+<div class="row"><div class="key">focusAllowedPackages</div><div class="val">Absent/null means “use the global setting”. An explicit empty array is meaningful and can map to FocusFlow's block-all behavior.</div></div>
+<div class="row"><div class="key">greyoutSchedule</div><div class="val">Keep actual greyout windows here. Do not replace this field with recurring schedule inventory.</div></div>
+<div class="row"><div class="key">recurringBlockSchedules</div><div class="val">Separate recurring rules. Do not collapse them into greyout windows.</div></div>
+<div class="row"><div class="key">presetSections</div><div class="val">Description/inventory only. Never treat these objects as commands.</div></div>
+<div class="row"><div class="key">protected apps</div><div class="val">FocusFlow's system-protected package list cannot be overridden by a backup file.</div></div>
+</div>
+</section>
+
+<section>
+<h2>7. Import in plain English</h2>
+<div class="grid">
+<div class="card"><strong>Merge</strong><p class="muted">Existing tasks remain. A task ID that is absent locally can be imported as-is. A same-ID equivalent task is a duplicate. A same-ID different task is a conflict; it is not silently overwritten.</p></div>
+<div class="card"><strong>Replace</strong><p class="muted">The existing task-owned persistent graph is replaced by the imported task graph. Runtime state is still not restored.</p></div>
+<div class="card"><strong>Settings</strong><p class="muted">Portable fields use field-specific policies. Omitted device-local/runtime fields stay local.</p></div>
+<div class="card"><strong>External file</strong><p class="muted">Opening a <span class="code">.focusflow</span> file from a file manager is just another import entry point: validate → review → confirm → restore.</p></div>
+</div>
+</section>
+
+<section id="example">
+<h2>8. Small valid example</h2>
+<p class="muted">This is enough to understand the format. A real export will usually contain more settings and metadata.</p>
+<pre>{
+  "kind": "FocusFlowBackupV1",
+  "version": 1,
+  "exportedAt": "2026-10-04T04:30:00.000Z",
+  "platform": { "os": "android" },
+  "settings": {
+    "darkMode": true,
+    "defaultDuration": 25,
+    "allowedInFocus": ["com.example.music"],
+    "blockedWords": ["social"],
+    "protectionMode": "standard"
+  },
+  "tasks": [{
+    "id": "task-001",
+    "title": "Write project outline",
+    "description": "Draft the first version.",
+    "startTime": "2026-10-04T05:00:00.000Z",
+    "endTime": "2026-10-04T05:25:00.000Z",
+    "durationMinutes": 25,
+    "status": "scheduled",
+    "priority": "high",
+    "tags": ["writing"],
+    "reminders": [{
+      "id": "rem-001",
+      "taskId": "task-001",
+      "offsetMinutes": -5,
+      "type": "pre-start"
+    }],
+    "color": "#6366f1",
+    "focusMode": true,
+    "createdAt": "2026-10-04T04:40:00.000Z",
+    "updatedAt": "2026-10-04T04:40:00.000Z"
+  }]
+}</pre>
+<div class="note"><strong>Best practice:</strong> generate the file from application data whenever possible. Hand-writing is useful for integrations, fixtures and testing, but the safest file is one produced from the canonical V1 model and then validated.</div>
+</section>
+
+<section>
+<h2>9. When you need the full technical reference</h2>
+<p class="muted">Use the full `.focusflow` reference when you are implementing a generator/parser, compatibility layer, validator, migration tool, or automated test suite. This page is intentionally the easier entry point; it is not a replacement for the exhaustive schema contract.</p>
+<div class="card"><strong>The short mental model</strong><pre style="margin-bottom:0">.focusflow
+  = portable persistent FocusFlow data
+  + task/reminder data
+  + enough information to rebuild derived scheduling
+
+NOT
+  = active session dump
+  = live device enforcement state
+  = raw AlarmManager state</pre></div>
+</section>
+
+<footer>
+<p>FocusFlow `.focusflow` V1 practical guide. Canonical wire identity: <span class="code">FocusFlowBackupV1</span>.</p>
+<a class="top" href="#top">Back to top ↑</a>
+</footer>
+</main>
+</body>
+</html>
