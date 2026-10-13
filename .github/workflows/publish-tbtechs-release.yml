@@ -1,4 +1,4 @@
-name: Publish tbtechs Universal APK
+name: Publish tbtechs APK Release
 
 on:
   workflow_dispatch:
@@ -95,7 +95,7 @@ jobs:
               .addTable([
                 ["Build run", `[${run.id}](${run.html_url})`],
                 ["Source commit", `\`${run.head_sha}\``],
-                ["Published APK", "tbtechs universal APK only"],
+                ["APK assets", "tbtechs ARM64, ARM32, and universal only"],
               ])
               .write();
 
@@ -113,6 +113,12 @@ jobs:
           ref: ${{ needs.select_build.outputs.head_sha }}
           fetch-depth: 0
 
+      - name: Set up Android SDK tools for APK verification
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools build-tools;35.0.0'
+          accept-android-sdk-licenses: true
+
       - name: Read version metadata from Gradle
         id: metadata
         env:
@@ -126,19 +132,23 @@ jobs:
           fi
 
           RELEASE_TAG="v${VERSION_NAME}-vc${VERSION_CODE}"
-          ARTIFACT_NAME="focusflow-tbtechs-universal-release-v${VERSION_NAME}-vc${VERSION_CODE}-run-${BUILD_RUN_NUMBER}"
+          ARTIFACT_ARM64="focusflow-tbtechs-arm64-v8a-release-v${VERSION_NAME}-vc${VERSION_CODE}-run-${BUILD_RUN_NUMBER}"
+          ARTIFACT_ARM32="focusflow-tbtechs-armeabi-v7a-release-v${VERSION_NAME}-vc${VERSION_CODE}-run-${BUILD_RUN_NUMBER}"
+          ARTIFACT_UNIVERSAL="focusflow-tbtechs-universal-release-v${VERSION_NAME}-vc${VERSION_CODE}-run-${BUILD_RUN_NUMBER}"
           {
             echo "version_name=$VERSION_NAME"
             echo "version_code=$VERSION_CODE"
             echo "release_tag=$RELEASE_TAG"
-            echo "artifact_name=$ARTIFACT_NAME"
+            echo "artifact_arm64=$ARTIFACT_ARM64"
+            echo "artifact_arm32=$ARTIFACT_ARM32"
+            echo "artifact_universal=$ARTIFACT_UNIVERSAL"
           } >> "$GITHUB_OUTPUT"
           {
             echo "### Release metadata"
             echo "- **Version:** $VERSION_NAME"
             echo "- **versionCode:** $VERSION_CODE"
             echo "- **Source build:** ${{ needs.select_build.outputs.run_url }}"
-            echo "- **Artifact selected:** $ARTIFACT_NAME"
+            echo "- **tbtechs APK artifacts:** ARM64, ARM32, universal"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Refuse to overwrite an existing release tag
@@ -158,34 +168,39 @@ jobs:
               if (error.status !== 404) throw error;
             }
 
-      - name: Download only the tbtechs universal APK
+      - name: Download the tbtechs ARM64 APK
         uses: actions/download-artifact@v4
         with:
-          name: ${{ steps.metadata.outputs.artifact_name }}
-          path: release-download
+          name: ${{ steps.metadata.outputs.artifact_arm64 }}
+          path: release-download/arm64-v8a
           run-id: ${{ needs.select_build.outputs.run_id }}
           github-token: ${{ github.token }}
           repository: ${{ github.repository }}
 
-      - name: Verify and stage the single production APK
+      - name: Download the tbtechs ARM32 APK
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ steps.metadata.outputs.artifact_arm32 }}
+          path: release-download/armeabi-v7a
+          run-id: ${{ needs.select_build.outputs.run_id }}
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+
+      - name: Download the tbtechs universal APK
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ steps.metadata.outputs.artifact_universal }}
+          path: release-download/universal
+          run-id: ${{ needs.select_build.outputs.run_id }}
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+
+      - name: Verify and stage all three tbtechs APKs
         id: stage
         env:
           EXPECTED_VERSION_NAME: ${{ steps.metadata.outputs.version_name }}
           EXPECTED_VERSION_CODE: ${{ steps.metadata.outputs.version_code }}
         run: |
-          mapfile -t APKS < <(find release-download -type f -name '*.apk' -print)
-          if [[ "${#APKS[@]}" -ne 1 ]]; then
-            echo "::error::Expected exactly one APK in the selected artifact, found ${#APKS[@]}."
-            find release-download -maxdepth 4 -type f -print || true
-            exit 1
-          fi
-
-          APK="${APKS[0]}"
-          if [[ "$(basename "$APK")" != "app-production-universal-release.apk" ]]; then
-            echo "::error::The selected artifact is not the tbtechs production universal APK."
-            exit 1
-          fi
-
           SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
           AAPT="$SDK_ROOT/build-tools/35.0.0/aapt"
           APKSIGNER="$SDK_ROOT/build-tools/35.0.0/apksigner"
@@ -194,34 +209,79 @@ jobs:
             exit 1
           fi
 
-          BADGING="$("$AAPT" dump badging "$APK")"
-          PACKAGE_NAME="$(sed -nE "s/^package: name='([^']+)'.*/\1/p" <<< "$BADGING" | head -n 1)"
-          APK_VERSION_CODE="$(sed -nE "s/^package:.*versionCode='([^']+)'.*/\1/p" <<< "$BADGING" | head -n 1)"
-          APK_VERSION_NAME="$(sed -nE "s/^package:.*versionName='([^']+)'.*/\1/p" <<< "$BADGING" | head -n 1)"
-          if [[ "$PACKAGE_NAME" != "com.tbtechs.focusflow" ]]; then
-            echo "::error::Expected tbtechs package com.tbtechs.focusflow, found '$PACKAGE_NAME'."
-            exit 1
-          fi
-          if [[ "$APK_VERSION_CODE" != "$EXPECTED_VERSION_CODE" || "$APK_VERSION_NAME" != "$EXPECTED_VERSION_NAME" ]]; then
-            echo "::error::APK version metadata does not match the selected build's Gradle version."
-            echo "Expected $EXPECTED_VERSION_NAME ($EXPECTED_VERSION_CODE); found $APK_VERSION_NAME ($APK_VERSION_CODE)."
-            exit 1
-          fi
-          "$APKSIGNER" verify "$APK"
-
-          ASSET_NAME="FocusFlow-tbtechs-universal-v${EXPECTED_VERSION_NAME}-vc${EXPECTED_VERSION_CODE}.apk"
           mkdir -p release-asset
-          cp "$APK" "release-asset/$ASSET_NAME"
-          SHA256="$(sha256sum "release-asset/$ASSET_NAME" | awk '{print $1}')"
-          echo "asset_path=release-asset/$ASSET_NAME" >> "$GITHUB_OUTPUT"
-          echo "asset_name=$ASSET_NAME" >> "$GITHUB_OUTPUT"
-          echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
+          verify_and_stage_apk() {
+            local variant="$1"
+            local expected_abi="$2"
+            local directory="release-download/$variant"
+            local expected_filename="app-production-${expected_abi}-release.apk"
+            local apk_count
+            local apk
+            local badging
+            local package_name
+            local apk_version_code
+            local apk_version_name
+            local asset_name
+            local asset_path
+            local sha256
+            local output_key
+            local -a apks
+
+            mapfile -t apks < <(find "$directory" -type f -name '*.apk' -print)
+            apk_count="${#apks[@]}"
+            if [[ "$apk_count" -ne 1 ]]; then
+              echo "::error::Expected one $variant tbtechs APK, found $apk_count."
+              find "$directory" -maxdepth 4 -type f -print || true
+              exit 1
+            fi
+
+            apk="${apks[0]}"
+            if [[ "$(basename "$apk")" != "$expected_filename" ]]; then
+              echo "::error::Unexpected APK for $variant: $(basename "$apk")"
+              exit 1
+            fi
+
+            badging="$("$AAPT" dump badging "$apk")"
+            package_name="$(sed -nE "s/^package: name='([^']+)'.*/\1/p" <<< "$badging" | head -n 1)"
+            apk_version_code="$(sed -nE "s/^package:.*versionCode='([^']+)'.*/\1/p" <<< "$badging" | head -n 1)"
+            apk_version_name="$(sed -nE "s/^package:.*versionName='([^']+)'.*/\1/p" <<< "$badging" | head -n 1)"
+            if [[ "$package_name" != "com.tbtechs.focusflow" ]]; then
+              echo "::error::Expected tbtechs package com.tbtechs.focusflow, found '$package_name'."
+              exit 1
+            fi
+            if [[ "$apk_version_code" != "$EXPECTED_VERSION_CODE" || "$apk_version_name" != "$EXPECTED_VERSION_NAME" ]]; then
+              echo "::error::APK version metadata does not match the selected build's Gradle version."
+              echo "Expected $EXPECTED_VERSION_NAME ($EXPECTED_VERSION_CODE); found $apk_version_name ($apk_version_code)."
+              exit 1
+            fi
+            "$APKSIGNER" verify "$apk"
+
+            asset_name="FocusFlow-tbtechs-${variant}-v${EXPECTED_VERSION_NAME}-vc${EXPECTED_VERSION_CODE}.apk"
+            asset_path="release-asset/$asset_name"
+            cp "$apk" "$asset_path"
+            sha256="$(sha256sum "$asset_path" | awk '{print $1}')"
+            output_key="${variant//-/_}"
+            {
+              echo "${output_key}_path=$asset_path"
+              echo "${output_key}_name=$asset_name"
+              echo "${output_key}_sha256=$sha256"
+            } >> "$GITHUB_OUTPUT"
+            printf '%s\t%s\t%s\n' "$variant" "$asset_name" "$sha256"
+          }
+
           {
-            echo "### APK verification"
-            echo "- Package: \`$PACKAGE_NAME\`"
-            echo "- Version: $APK_VERSION_NAME ($APK_VERSION_CODE)"
-            echo "- APK signature: verified"
-            echo "- SHA-256: \`$SHA256\`"
+            verify_and_stage_apk arm64-v8a arm64-v8a
+            verify_and_stage_apk armeabi-v7a armeabi-v7a
+            verify_and_stage_apk universal universal
+          } | tee /tmp/verified-tbtechs-apks.tsv
+          {
+            echo "### Verified tbtechs APKs"
+            echo "- Package: \`com.tbtechs.focusflow\`"
+            echo "- Version: $EXPECTED_VERSION_NAME ($EXPECTED_VERSION_CODE)"
+            echo "- APK signatures: verified for ARM64, ARM32, and universal"
+            while IFS=$'\t' read -r variant asset_name sha256; do
+              echo "- **$variant:** \`$asset_name\` — SHA-256 \`$sha256\`"
+            done < /tmp/verified-tbtechs-apks.tsv
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Generate changelog and install instructions
@@ -231,8 +291,12 @@ jobs:
           BUILD_RUN_URL: ${{ needs.select_build.outputs.run_url }}
           VERSION_NAME: ${{ steps.metadata.outputs.version_name }}
           VERSION_CODE: ${{ steps.metadata.outputs.version_code }}
-          APK_NAME: ${{ steps.stage.outputs.asset_name }}
-          APK_SHA256: ${{ steps.stage.outputs.sha256 }}
+          APK_ARM64_NAME: ${{ steps.stage.outputs.arm64_v8a_name }}
+          APK_ARM64_SHA256: ${{ steps.stage.outputs.arm64_v8a_sha256 }}
+          APK_ARM32_NAME: ${{ steps.stage.outputs.armeabi_v7a_name }}
+          APK_ARM32_SHA256: ${{ steps.stage.outputs.armeabi_v7a_sha256 }}
+          APK_UNIVERSAL_NAME: ${{ steps.stage.outputs.universal_name }}
+          APK_UNIVERSAL_SHA256: ${{ steps.stage.outputs.universal_sha256 }}
         run: |
           git fetch --force --tags origin
           PREVIOUS_TAG="$(git tag --list 'v*-vc*' --merged "$BUILD_SHA" --sort=-version:refname | head -n 1)"
@@ -249,8 +313,10 @@ jobs:
             printf '# FocusFlow v%s (versionCode %s)\n\n' "$VERSION_NAME" "$VERSION_CODE"
             printf '**tbtechs build:** [run #%s](%s)\n\n' "$BUILD_RUN_NUMBER" "$BUILD_RUN_URL"
             printf '**Source commit:** `%s`\n\n' "$BUILD_SHA"
-            printf '**APK asset:** `%s`\n' "$APK_NAME"
-            printf '**APK SHA-256:** `%s`\n\n' "$APK_SHA256"
+            echo '## APK downloads and SHA-256'
+            printf -- '- `%s` — `%s`\n' "$APK_ARM64_NAME" "$APK_ARM64_SHA256"
+            printf -- '- `%s` — `%s`\n' "$APK_ARM32_NAME" "$APK_ARM32_SHA256"
+            printf -- '- `%s` — `%s`\n\n' "$APK_UNIVERSAL_NAME" "$APK_UNIVERSAL_SHA256"
             echo '## Changelog'
             if [[ -n "$PREVIOUS_TAG" ]]; then
               printf 'Changes since `%s`:\n\n' "$PREVIOUS_TAG"
@@ -267,14 +333,14 @@ jobs:
           - Defense PIN, launcher protections, and system-control safeguards.
 
           ## Install on Android
-          This release attaches **one tbtechs universal APK** for ARM32 and ARM64. It is not a split-APK bundle; SAI is optional.
+          This release contains three separate tbtechs APKs: ARM64, ARM32, and universal. They are complete installable APKs, not split-APK bundles. **Install only one APK.** If unsure which architecture to choose, use the universal APK.
 
-          1. Download the attached `FocusFlow-tbtechs-universal` APK and confirm its SHA-256 against the value above if you want to verify the file.
-          2. Open it from Downloads or Files and tap **Install**.
+          1. Choose the universal APK for most devices, or the ARM64/ARM32 APK matching the device. Verify its SHA-256 against the matching value above if desired.
+          2. Open the chosen APK from Downloads or Files and tap **Install**.
           3. If Android asks, open **Settings → Apps → Special app access → Install unknown apps**, allow it for the app you used to open the APK, return, and retry.
-          4. Optional SAI route: open SAI, choose **Install APKs**, select this same single APK, and follow Android's installer prompt.
+          4. Optional SAI route: open SAI, choose **Install APKs**, select the one APK you chose, and follow Android's installer prompt. SAI is not required.
 
-          Keep Google Play Protect enabled when possible. If it warns, first confirm the download is from this official GitHub release and verify the SHA-256. If you choose to temporarily turn off scanning through **Play Store → profile → Play Protect → Settings**, install only this verified APK and turn scanning back on immediately.
+          Keep Google Play Protect enabled when possible. If it warns, first confirm the download is from this official GitHub release and verify the SHA-256. If you choose to temporarily turn off scanning through **Play Store → profile → Play Protect → Settings**, install only the verified APK and turn scanning back on immediately.
           EOF
           } > release-notes.md
 
@@ -286,7 +352,10 @@ jobs:
           target_commitish: ${{ needs.select_build.outputs.head_sha }}
           name: FocusFlow v${{ steps.metadata.outputs.version_name }} — TBTechs
           body_path: release-notes.md
-          files: ${{ steps.stage.outputs.asset_path }}
+          files: |
+            ${{ steps.stage.outputs.arm64_v8a_path }}
+            ${{ steps.stage.outputs.armeabi_v7a_path }}
+            ${{ steps.stage.outputs.universal_path }}
           fail_on_unmatched_files: true
           overwrite_files: false
           draft: false
@@ -301,4 +370,4 @@ jobs:
         run: |
           echo "### Published release" >> "$GITHUB_STEP_SUMMARY"
           echo "https://github.com/${GITHUB_REPOSITORY}/releases/tag/${RELEASE_TAG}" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Asset: ${{ steps.stage.outputs.asset_name }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Assets: ARM64, ARM32, and universal tbtechs APKs" >> "$GITHUB_STEP_SUMMARY"
