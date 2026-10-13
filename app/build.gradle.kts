@@ -5,6 +5,20 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
     id("com.google.devtools.ksp")
 }
+
+val releaseKeystorePath = System.getenv("RELEASE_KEYSTORE_PATH")
+val releaseStorePassword = System.getenv("RELEASE_STORE_PASSWORD")
+val releaseKeyAlias = System.getenv("RELEASE_KEY_ALIAS")
+val releaseKeyPassword = System.getenv("RELEASE_KEY_PASSWORD")
+val hasReleaseSigning = listOf(
+    releaseKeystorePath,
+    releaseStorePassword,
+    releaseKeyAlias,
+    releaseKeyPassword,
+).all { !it.isNullOrBlank() }
+val releaseApkSplitsEnabled =
+    project.findProperty("releaseApkSplits")?.toString()?.toBoolean() == true
+
 ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
 }
@@ -38,6 +52,17 @@ android {
         }
     }
 
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = file(requireNotNull(releaseKeystorePath))
+                storePassword = requireNotNull(releaseStorePassword)
+                keyAlias = requireNotNull(releaseKeyAlias)
+                keyPassword = requireNotNull(releaseKeyPassword)
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -45,10 +70,22 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
         debug {
             isDebuggable = true
             applicationIdSuffix = ""
+        }
+    }
+
+    splits {
+        abi {
+            isEnable = releaseApkSplitsEnabled
+            reset()
+            include("arm64-v8a", "armeabi-v7a")
+            isUniversalApk = true
         }
     }
 
