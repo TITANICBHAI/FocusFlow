@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">FocusFlow</string>
+    <string name="accessibility_service_description">FocusFlow monitors the foreground app during an active focus session and applies the configured blocking rules.</string>
+    <string name="widget_description">FocusFlow focus session and daily progress</string>
+    <string name="device_admin_description">Protects FocusFlow enforcement services from aggressive system cleanup during active focus sessions.</string>
+</resources>

@@ -1,307 +1,44 @@
 uploads = []
-
-[[generated]]
-id = "ySQFLWyEIUvVXdV__-do0"
-uri = "file://artifacts/mockup-sandbox/public/images/blocked-phone.png"
-type = "image"
-title = "Phone with Blocked overlay"
-
-[[generated]]
-id = "ncbs0oEZqJIVuziObtHMm"
-uri = "file://artifacts/mockup-sandbox/public/images/kinetic-texture.png"
-type = "image"
-title = "Abstract kinetic energy texture"
-
-[[generated]]
-id = "77zk23aDOxznOQ_kcSyp3"
-uri = "file://artifacts/video/public/assets/cinematic-bg.png"
-type = "image"
-title = "Purple cinematic particle field"
-
-[[generated]]
-id = "Nsg7LfjKoQ8UMlZEFymeE"
-uri = "file://artifacts/video/public/assets/focused-person.png"
-type = "image"
-title = "Focused person working in dark room"
-
-[[generated]]
-id = "Z7fViuNwOTpXhASqwBbgm"
-uri = "file://artifacts/video/public/assets/distraction-noise.png"
-type = "image"
-title = "Abstract digital distraction noise"
-
-[[generated]]
-id = "9H-M8SfvxJCsZloWLUYME"
-uri = "file://attached_assets/focusflow-logo.png"
-type = "image"
-title = "generated_image"
-
-[[generated]]
-id = "zqfb1rmStn-VZ_I0TZmD0"
-uri = "file://store-assets/logo-v1-shield.png"
-type = "image"
-title = "focusflow logo shield"
-
-[[generated]]
-id = "k69N0JnikbuPHRpHM2OaX"
-uri = "file://store-assets/logo-v2-timer.png"
-type = "image"
-title = "focusflow logo timer ring"
-
-[[generated]]
-id = "vu3iseTO90ZM7dPhGQ08-"
-uri = "file://store-assets/logo-v3-letter.png"
-type = "image"
-title = "focusflow logo F letter"
-
-[[generated]]
-id = "vdzZo22evHjYxpZaw9rMz"
-uri = "file://store-assets/logo-v4-eye.png"
-type = "image"
-title = "focusflow logo eye focus"
-
-[[generated]]
-id = "vAY7WcN9TOO4Oqm9aTI0h"
-uri = "file://store-assets/logo-v5-brain.png"
-type = "image"
-title = "focusflow logo brain shield"
-
-[[generated]]
-id = "2qn7UeOmSLTZ0YmVbVrVj"
-uri = "file://store-assets/logo-b1-bold-shield.png"
-type = "image"
-title = "bold shield icon"
-
-[[generated]]
-id = "u-OkXf7mHPS7FMbZ7aeKH"
-uri = "file://store-assets/logo-b2-premium-ring.png"
-type = "image"
-title = "premium ring icon"
-
-[[generated]]
-id = "9s24TIw9FIffZTWTqUloN"
-uri = "file://store-assets/logo-b3-lightning.png"
-type = "image"
-title = "lightning bolt power icon"
-
-[[generated]]
-id = "owTALUgmxB6dHgfz9ZUFR"
-uri = "file://store-assets/logo-b4-hourglass.png"
-type = "image"
-title = "hourglass split icon"
-
-[[generated]]
-id = "-2Rg7aCAVWNsJFThnulJT"
-uri = "file://store-assets/logo-b5-eye-lock.png"
-type = "image"
-title = "eye lock icon"
-
-[[generated]]
-id = "4YAHh7opRdZ4JTbW-wJ9u"
-uri = "file://store-assets/refined-focus-core.png"
-type = "image"
-title = "refined focus core icon"
-
-[[generated]]
-id = "u4_yAgfTYlTqBTNgTH-iy"
-uri = "file://store-assets/refined-timer-arc.png"
-type = "image"
-title = "refined timer arc icon"
-
-[[generated]]
-id = "_7lazM672XBgqKn86IISc"
-uri = "file://store-assets/refined-ring-dark.png"
-type = "image"
-title = "refined glowing ring dark"
-
-[[generated]]
-id = "DxPhlSZJggbqSivvRPx3Y"
-uri = "file://store-assets/icon-final-clean.png"
-type = "image"
-title = "clean timer arc final icon"
-
-[[generated]]
-id = "FjDLR2Qy4-HH7z3D7fXUj"
-uri = "file://store-assets/icon-final-v2.png"
-type = "image"
-title = "clean arc icon no dots"
-
-[[generated]]
-id = "HSlQW08f34Xg_cvJPHSCQ"
-uri = "file://store-assets/icon-final-v3.png"
-type = "image"
-title = "horseshoe arc icon clean"
-
-[[generated]]
-id = "UNF1LaZImEa3S8dKl57gD"
-uri = "file://artifacts/focusflow-accessibility-demo/public/images/tech-bg.png"
-type = "image"
-title = "dark technological data flow background"
-
-[[generated]]
-id = "75rRJzlr8sxBbk6BdqSXa"
-uri = "file://artifacts/focusflow-feature-videos/public/images/bg-tech.png"
-type = "image"
-title = "dark abstract tech texture"
-
-[[generated]]
-id = "nQT38yXhuxQOLAGD0cZhx"
-uri = "file://artifacts/focusflow-feature-videos/public/images/bg-focus.png"
-type = "image"
-title = "abstract calm focus nature"
+generated = []
 
 [[outputs]]
-id = "tgalAfT1-750LJk0Yh4R6"
-uri = "file://artifacts/focusflow/store-assets/STORE_LISTING.md"
+id = "Nf--PV6BERUwB_0gZicxZ"
+uri = "file://docs/focus-bugs.md"
 type = "text"
-title = "FocusFlow — Updated Store Listing with Full Reviewer Declarations"
+title = "Focus Bugs audit"
+description = "Markdown version of the verified FocusFlow Tasks and Focus Mode bug audit."
+logical_id = "535fb387-eca1-4de0-a4c3-97ed3acec314"
+content_hash = "sha256:7ee4ad707e558934795917b59403cc17f59834e19eb0f4d6aa3e7f970ae5e41f"
+size = 22325
+mtime_ms = 1790144066723
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d4f34917-4b09-40d5-b1d5-6781f579faa1/535fb387-eca1-4de0-a4c3-97ed3acec314/86b1897d-f27a-4bf7-95e3-2d741fe55dc6"
+storage_version_token = "1790144114132430"
+content_type = "text/markdown"
 
 [[outputs]]
-id = "rTNoHUsdnzroGuH3GE2_R"
-uri = "file://exports/focusflow-iphone-01-schedule.jpg"
-type = "image"
-title = "FocusFlow Screenshot 1 — Smart Daily Scheduling"
-
-[[outputs]]
-id = "1gGVlfipXAjZM2m6SE9R9"
-uri = "file://exports/focusflow-iphone-02-focus-blocking.jpg"
-type = "image"
-title = "FocusFlow Screenshot 2 — Pomodoro Timer Built In"
-
-[[outputs]]
-id = "5PXCnHUqoFlsKtw5dK5k9"
-uri = "file://exports/focusflow-iphone-03-blocked-overlay.jpg"
-type = "image"
-title = "FocusFlow Screenshot 3 — System-Level App Blocking"
-
-[[outputs]]
-id = "PqcEChUE6PHYd_hCpJ85X"
-uri = "file://exports/focusflow-iphone-04-stats.jpg"
-type = "image"
-title = "FocusFlow Screenshot 4 — Accountability & Progress"
-
-[[outputs]]
-id = "HMxUMIR1aw8aygbewd1Pj"
-uri = "file://exports/focusflow-iphone-05-permissions.jpg"
-type = "image"
-title = "FocusFlow Screenshot 5 — Simple Setup, Maximum Protection"
-
-[[outputs]]
-id = "NC7vwxHM9N-2KR15CxnyC"
-uri = "file://artifacts/focusflow/CUSTOM_NODE_RULES_JSON.md"
+id = "62vqatsTTpTZ9vmEG6e6U"
+uri = "file://docs/focus-bugs-tracker.md"
 type = "text"
-title = "FocusFlow Custom Node Rules JSON Guide"
+title = "Focus Bugs tracker"
+description = "Status tracker covering all 26 audit findings, recommended fix order, and verification checks."
+logical_id = "7e87aaa4-256a-4d8e-9514-39f26c5fa8ce"
+content_hash = "sha256:17c0d597b3fffa777634df90c32d12f1df839d6dafe7f3ce0eae1530ff4949b9"
+size = 5492
+mtime_ms = 1790144086055
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d4f34917-4b09-40d5-b1d5-6781f579faa1/7e87aaa4-256a-4d8e-9514-39f26c5fa8ce/4c039595-b7b8-4c7c-a795-e4ce759e2580"
+storage_version_token = "1790144115472731"
+content_type = "text/markdown"
 
 [[outputs]]
-id = "iP0BDwrOXTHyQj8dDGfBV"
-uri = "file://focusflow-competitive-analysis.pdf"
-type = "pdf"
-title = "FocusFlow Competitive Analysis — May 2026 (corrected)"
-
-[[outputs]]
-id = "WYeg5UJuCkAMIRtvx1bQR"
-uri = "file://store-assets/logo-v1-shield.png"
-type = "image"
-title = "Option 1 — Shield with Checkmark"
-
-[[outputs]]
-id = "JqC6Z7OKi_v21QVdDQmD9"
-uri = "file://store-assets/logo-v2-timer.png"
-type = "image"
-title = "Option 2 — Circular Timer Ring"
-
-[[outputs]]
-id = "7bLdMcwEonEejYUGUv9QD"
-uri = "file://store-assets/logo-v3-letter.png"
-type = "image"
-title = "Option 3 — Bold 'F' with Flow Arrow"
-
-[[outputs]]
-id = "zERYCoCYb5JRq8ji7xyAW"
-uri = "file://store-assets/logo-v4-eye.png"
-type = "image"
-title = "Option 4 — Focus Lens / Eye (Dark)"
-
-[[outputs]]
-id = "5F6ME0a60gOl3UpPS15w0"
-uri = "file://store-assets/logo-v5-brain.png"
-type = "image"
-title = "Option 5 — Brain Protected by Shield"
-
-[[outputs]]
-id = "Y9Lum71pti4Bme4DTvwpM"
-uri = "file://store-assets/logo-b1-bold-shield.png"
-type = "image"
-title = "Option A — Solid Shield (AppBlock-killer)"
-
-[[outputs]]
-id = "EMLCipzeeD2JuCRly4EtA"
-uri = "file://store-assets/logo-b2-premium-ring.png"
-type = "image"
-title = "Option B — Premium Dark Rings (Opal-level)"
-
-[[outputs]]
-id = "fVvN5kp6oMqa5pVc2Cjs8"
-uri = "file://store-assets/logo-b3-lightning.png"
-type = "image"
-title = "Option C — Lightning Bolt (Energy / Power)"
-
-[[outputs]]
-id = "V61oOPZVLVLhmvZ-jbmu5"
-uri = "file://store-assets/logo-b4-hourglass.png"
-type = "image"
-title = "Option D — Split Hourglass (Clever / Distinctive)"
-
-[[outputs]]
-id = "C-MNanLRQUBxQx_CR-AIU"
-uri = "file://store-assets/logo-b5-eye-lock.png"
-type = "image"
-title = "Option E — Eye + Lock (Focus + Protection)"
-
-[[outputs]]
-id = "V4nbEuGRcJ_Raa3IEjDQ6"
-uri = "file://store-assets/refined-focus-core.png"
-type = "image"
-title = "Refined #3 — Focus Core (your fav)"
-
-[[outputs]]
-id = "D9AbG5_ctwGuNBdCIWEWU"
-uri = "file://store-assets/refined-timer-arc.png"
-type = "image"
-title = "Refined Timer Arc (your icon.png)"
-
-[[outputs]]
-id = "YfS-83YFXCD7iwJdeG2ha"
-uri = "file://store-assets/refined-ring-dark.png"
-type = "image"
-title = "Refined Ring (your splash-icon.png — on dark bg)"
-
-[[outputs]]
-id = "dLUFyYW4I2U0xQeIeQTLW"
-uri = "file://COMPETITIVE_ANALYSIS.md"
-type = "text"
-title = "Competitive Analysis (Markdown source)"
-
-[[outputs]]
-id = "UmEprhvqhxqgaSzZ6Aqr0"
-uri = "file://research/android-uninstall-powermenu-blocking.md"
-type = "text"
-title = "Android Uninstall & Power Menu Blocking — Deep Research Report"
-
-[[outputs]]
-id = "iGCH82-DKkXWh7-QzHV0I"
-uri = "file://focusflow-vs-appblock-negatives.pdf"
-type = "pdf"
-title = "FocusFlow vs AppBlock — Comprehensive Negatives Report (v2)"
-
-[[outputs]]
-id = "X2_ZMBZj5S-aHsXz6lNi9"
-uri = "file://CLOUDFLARE_DEPLOY.md"
-type = "text"
-title = "Cloudflare Pages Deployment Guide"
-
-[[outputs]]
-id = "nZlt6VToM3l9rWcuhoFVj"
-uri = "file://button-audit.md"
-type = "text"
-title = "FocusFlow — Full Button Audit"
+id = "Puw620qOjd1qfClgxWvne"
+uri = "file://docs/focusflow-backup-builder.html"
+type = "html"
+title = "FocusFlow Backup Builder"
+description = "Self-contained offline HTML guide and JSON editor for creating and checking FocusFlow V1 .focusflow backups."
+logical_id = "77b687f3-f2c3-41ca-8887-af647ab78795"
+content_hash = "sha256:e2f982e1911052e7a97722ad04e6618145941833cf802ec34aa6c9a60a5ce765"
+size = 45783
+mtime_ms = 1791054013376
+storage_uri = "gcs://replit-rams-assets-sisko/rams/assets/repl:1fd268f0-2e6d-4429-91fb-304de9f5264e/77b687f3-f2c3-41ca-8887-af647ab78795/59a359c6-36bd-4a2e-8230-5516dba8303f"
+storage_version_token = "1791054031798590"
+content_type = "text/html"

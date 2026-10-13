@@ -1,0 +1,8 @@
+{
+  "name": "Remix FocusFlow-Kotlin",
+  "description": "Imported from GitHub: TITANICBHAI/FocusFlow-Kotlin",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

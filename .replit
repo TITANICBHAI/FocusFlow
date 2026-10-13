@@ -1,13 +1,10 @@
-modules = ["nodejs-20", "web", "bash", "python-base-3.13"]
+modules = ["bash", "nodejs-20", "python-base-3.13"]
 
-[deployment]
-router = "application"
-deploymentTarget = "static"
-publicDir = "docs"
+[nix]
+channel = "stable-25_05"
 
-[deployment.postBuild]
-args = ["pnpm", "store", "prune"]
-env = { "CI" = "true" }
+[agent]
+expertMode = true
 
 [workflows]
 runButton = "Project"
@@ -21,66 +18,19 @@ author = "agent"
 task = "workflow.run"
 args = "Push to GitHub"
 
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Start application"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Push FocusFlow-pc to GitHub"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Start FocusFlow Ad"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Serve Docs Website"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Start FocusFlow Accessibility Demo"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Start FocusFlow Feature Videos"
-
 [[workflows.workflow]]
 name = "Push to GitHub"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "pnpm --filter @workspace/scripts run github:push"
-
 [workflows.workflow.metadata]
 outputType = "console"
 
-[[workflows.workflow]]
-name = "Start application"
-author = "agent"
-
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "PORT=5000 BASE_PATH=/ pnpm --filter @workspace/mockup-sandbox run dev"
-waitForPort = 5000
-
-[workflows.workflow.metadata]
-outputType = "webview"
+args = "bash scripts/push-to-github.sh"
 
 [[workflows.workflow]]
-name = "Push FocusFlow-pc to GitHub"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "pnpm --filter @workspace/scripts run github:push-pc"
-
-[workflows.workflow.metadata]
-outputType = "console"
-
-[[workflows.workflow]]
-name = "Start FocusFlow Ad"
+name = "Run Android unit tests"
 author = "agent"
 
 [workflows.workflow.metadata]
@@ -88,88 +38,8 @@ outputType = "console"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "PORT=3002 BASE_PATH=/ pnpm --filter @workspace/focusflow-ad run dev"
-waitForPort = 3002
-
-[[workflows.workflow]]
-name = "Serve Docs Website"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "npx -y serve docs --listen 3000 --no-clipboard"
-waitForPort = 3000
-
-[workflows.workflow.metadata]
-outputType = "console"
-
-[[workflows.workflow]]
-name = "Start FocusFlow Accessibility Demo"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "PORT=3003 BASE_PATH=/ pnpm --filter @workspace/focusflow-accessibility-demo run dev"
-waitForPort = 3003
-
-[workflows.workflow.metadata]
-outputType = "console"
-
-[[workflows.workflow]]
-name = "Start FocusFlow Feature Videos"
-author = "agent"
-
-[workflows.workflow.metadata]
-outputType = "console"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "PORT=6000 BASE_PATH=/ pnpm --filter @workspace/focusflow-feature-videos run dev"
-waitForPort = 6000
-
-[agent]
-stack = "BEST_EFFORT_FALLBACK"
-expertMode = true
-
-[postMerge]
-path = "scripts/post-merge.sh"
-timeoutMs = 20000
+args = "bash scripts/test-unit.sh"
 
 [[ports]]
-localPort = 3000
-externalPort = 3000
-
-[[ports]]
-localPort = 3002
-externalPort = 3002
-
-[[ports]]
-localPort = 3003
-externalPort = 3003
-
-[[ports]]
-localPort = 5000
+localPort = 22876
 externalPort = 80
-
-[[ports]]
-localPort = 5001
-externalPort = 3002
-
-[[ports]]
-localPort = 6000
-externalPort = 5173
-
-[[ports]]
-localPort = 8081
-externalPort = 80
-
-[[ports]]
-localPort = 25040
-externalPort = 3001
-
-[[ports]]
-localPort = 25669
-externalPort = 3000
-
-[nix]
-channel = "stable-25_05"

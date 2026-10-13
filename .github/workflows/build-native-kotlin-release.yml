@@ -1,0 +1,224 @@
+name: Build Native Kotlin Release (APK × 3 + AAB)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release-apks:
+    name: Release APKs — ${{ matrix.flavorLabel }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - flavor: production
+            flavorLabel: tbtechs
+            taskSuffix: Production
+          - flavor: tbtechsdev
+            flavorLabel: tbtechsdev
+            taskSuffix: Tbtechsdev
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Read app version
+        id: app-version
+        run: |
+          VERSION=$(sed -nE 's/^[[:space:]]*versionName[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' app/build.gradle.kts | head -n 1)
+          VERSION_CODE=$(sed -nE 's/^[[:space:]]*versionCode[[:space:]]*=[[:space:]]*([0-9]+).*/\1/p' app/build.gradle.kts | head -n 1)
+          if [[ -z "$VERSION" || -z "$VERSION_CODE" ]]; then
+            echo "::error::Could not read versionName and versionCode from app/build.gradle.kts."
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "versionCode=$VERSION_CODE" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Build Info"
+            echo "- **App:** ${{ matrix.flavorLabel }}"
+            echo "- **Version:** $VERSION"
+            echo "- **versionCode:** $VERSION_CODE"
+            echo "- **Type:** Signed release APKs (ARM64, ARM32, universal)"
+            echo "- **Build number:** ${{ github.run_number }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+          accept-android-sdk-licenses: true
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Check signing secrets and decode keystore
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          if [[ -z "$RELEASE_KEYSTORE_BASE64" || -z "$RELEASE_STORE_PASSWORD" || \
+                -z "$RELEASE_KEY_ALIAS" || -z "$RELEASE_KEY_PASSWORD" ]]; then
+            echo "::error::Configure RELEASE_KEYSTORE_BASE64, RELEASE_STORE_PASSWORD, RELEASE_KEY_ALIAS, and RELEASE_KEY_PASSWORD as GitHub Actions secrets."
+            exit 1
+          fi
+          printf '%s' "$RELEASE_KEYSTORE_BASE64" | base64 --decode > app/release.keystore
+          test -s app/release.keystore
+          chmod 600 app/release.keystore
+
+      - name: Build ABI APKs and universal APK
+        env:
+          RELEASE_KEYSTORE_PATH: release.keystore
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          ./gradlew ":app:assemble${{ matrix.taskSuffix }}Release" \
+            -PreleaseApkSplits=true --no-daemon --stacktrace
+
+          apk_dir="app/build/outputs/apk/${{ matrix.flavor }}/release"
+          apk_count=$(find "$apk_dir" -maxdepth 1 -type f -name '*.apk' | wc -l)
+          if [[ "$apk_count" -ne 3 ]]; then
+            echo "::error::Expected three release APKs for ${{ matrix.flavorLabel }}, found $apk_count."
+            find "$apk_dir" -maxdepth 1 -type f -print || true
+            exit 1
+          fi
+          find "$apk_dir" -maxdepth 1 -type f -name '*.apk' -exec ls -lh {} \;
+
+      - name: Upload ARM64 release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: focusflow-${{ matrix.flavorLabel }}-arm64-v8a-release-v${{ steps.app-version.outputs.version }}-vc${{ steps.app-version.outputs.versionCode }}-run-${{ github.run_number }}
+          path: app/build/outputs/apk/${{ matrix.flavor }}/release/*arm64-v8a*.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload ARM32 release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: focusflow-${{ matrix.flavorLabel }}-armeabi-v7a-release-v${{ steps.app-version.outputs.version }}-vc${{ steps.app-version.outputs.versionCode }}-run-${{ github.run_number }}
+          path: app/build/outputs/apk/${{ matrix.flavor }}/release/*armeabi-v7a*.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload universal release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: focusflow-${{ matrix.flavorLabel }}-universal-release-v${{ steps.app-version.outputs.version }}-vc${{ steps.app-version.outputs.versionCode }}-run-${{ github.run_number }}
+          path: app/build/outputs/apk/${{ matrix.flavor }}/release/*universal*.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Remove keystore from runner
+        if: always()
+        run: rm -f app/release.keystore
+
+  release-aabs:
+    name: Release AAB — ${{ matrix.flavorLabel }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - flavor: production
+            flavorLabel: tbtechs
+            taskSuffix: Production
+          - flavor: tbtechsdev
+            flavorLabel: tbtechsdev
+            taskSuffix: Tbtechsdev
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Read app version
+        id: app-version
+        run: |
+          VERSION=$(sed -nE 's/^[[:space:]]*versionName[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' app/build.gradle.kts | head -n 1)
+          VERSION_CODE=$(sed -nE 's/^[[:space:]]*versionCode[[:space:]]*=[[:space:]]*([0-9]+).*/\1/p' app/build.gradle.kts | head -n 1)
+          if [[ -z "$VERSION" || -z "$VERSION_CODE" ]]; then
+            echo "::error::Could not read versionName and versionCode from app/build.gradle.kts."
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "versionCode=$VERSION_CODE" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Build Info"
+            echo "- **App:** ${{ matrix.flavorLabel }}"
+            echo "- **Version:** $VERSION"
+            echo "- **versionCode:** $VERSION_CODE"
+            echo "- **Type:** Signed release AAB (Play Store)"
+            echo "- **Build number:** ${{ github.run_number }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+          accept-android-sdk-licenses: true
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Check signing secrets and decode keystore
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          if [[ -z "$RELEASE_KEYSTORE_BASE64" || -z "$RELEASE_STORE_PASSWORD" || \
+                -z "$RELEASE_KEY_ALIAS" || -z "$RELEASE_KEY_PASSWORD" ]]; then
+            echo "::error::Configure RELEASE_KEYSTORE_BASE64, RELEASE_STORE_PASSWORD, RELEASE_KEY_ALIAS, and RELEASE_KEY_PASSWORD as GitHub Actions secrets."
+            exit 1
+          fi
+          printf '%s' "$RELEASE_KEYSTORE_BASE64" | base64 --decode > app/release.keystore
+          test -s app/release.keystore
+          chmod 600 app/release.keystore
+
+      - name: Build Play Store bundle
+        env:
+          RELEASE_KEYSTORE_PATH: release.keystore
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          ./gradlew ":app:bundle${{ matrix.taskSuffix }}Release" \
+            --no-daemon --stacktrace
+
+          aab_dir="app/build/outputs/bundle/${{ matrix.flavor }}Release"
+          aab_count=$(find "$aab_dir" -maxdepth 1 -type f -name '*.aab' | wc -l)
+          if [[ "$aab_count" -ne 1 ]]; then
+            echo "::error::Expected one release AAB for ${{ matrix.flavorLabel }}, found $aab_count."
+            find "$aab_dir" -maxdepth 1 -type f -print || true
+            exit 1
+          fi
+          find "$aab_dir" -maxdepth 1 -type f -name '*.aab' -exec ls -lh {} \;
+
+      - name: Upload release AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: focusflow-${{ matrix.flavorLabel }}-release-aab-v${{ steps.app-version.outputs.version }}-vc${{ steps.app-version.outputs.versionCode }}-run-${{ github.run_number }}
+          path: app/build/outputs/bundle/${{ matrix.flavor }}Release/*.aab
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Remove keystore from runner
+        if: always()
+        run: rm -f app/release.keystore

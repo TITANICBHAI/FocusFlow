@@ -1,27 +1,26 @@
-- [Android usage launch counts](usage-stats-launch-count.md) — derive app-entry counts from UsageEvents, not UsageStats.appLaunchCount, for this Android build.
-- [Android usage aggregation](usage-stats-aggregation.md) — aggregate UsageStats milliseconds before converting to display minutes; bucket-by-bucket flooring undercounts.
-- [Onboarding permission tiers](onboarding-permission-tiers.md) — keep first-run focused: three permissions gate readiness, while recommended access and personalization stay non-blocking.
-- [Android SQLite write serialization](android-sqlite-write-serialization.md) — single-flight database opening does not prevent concurrent Expo SQLite writes from contending.
-- [Android prebuild native patches](android-prebuild-native-patches.md) — release-critical Gradle changes must be mirrored in the Expo config plugin, not only install.sh.
-- [FocusFlow implementation plan](focusflow-implementation-plan.md) — use the final Kotlin-focused plan as the authoritative execution order for UsageStats and fallback enforcement work.
-- [Dependency installation timing](dependency-installation-timing.md) — read the applicable plan and do requested code edits before installing dependencies; install when the user asks or verification requires it.
-- [Workspace package firewall](workspace-package-firewall.md) — filtered frozen installs can still fail on the shared shell-quote tarball before workspace-local node_modules is linked.
-- [System-control enforcement gate](system-control-enforcement-gate.md) — installer and system-control interception must require the explicit Protect system controls toggle.
-- [Task deletion and focus cleanup](task-deletion-focus-cleanup.md) — clearing tasks must end active focus sessions before deleting their task rows, without changing block settings.
-- [Task operation ordering](task-operation-ordering.md) — task reads and mutations must share one AppContext ordering boundary to prevent stale refreshes from restoring old status.
-- [FocusFlow persistence migration](focusflow-persistence-plan.md) — PERSISTENCE_MIGRATION_PLAN.md is authoritative; the reliability plan and review are supporting references.
-- [FocusFlow database logging plan](agent-db-logging-plan.md) — structured, privacy-safe database health and failure logging with an artifact-local checklist.
-- [VPN enforcement plan authority](vpn-enforcement-independence.md) — read the background-enforcement plan and its code review together before implementing; the review supports the plan.
-- [VPN validation boundary](vpn-validation-boundary.md) — source contracts can run here, but real Kotlin/Gradle/device verification requires a generated Android project and toolchain.
-- [Receiver recovery dispatch](vpn-receiver-recovery-dispatch.md) — boot and watchdog VPN recovery must dispatch before a BroadcastReceiver returns, not only through a delayed handler.
-- [Android backup privacy](android-backup-privacy.md) — keep Android automatic backup disabled; user data moves only through explicit FocusFlow export/import.
-- [Native state snapshots](native-state-snapshots.md) — critical focus and standalone transitions must publish complete state in one strict synchronous commit.
-- [Accessibility restricted recovery](accessibility-restricted-recovery.md) — keep the retry UI after restricted settings unlock until Accessibility is actually granted.
-- [Daily Allowance review bundle](daily-allowance-review-bundle.md) — read the paired plain-English helper and source-pinned technical checklist before allowance work.
-- [Deferred enforcement fire-time checks](deferred-enforcement-fire-time.md) — handler callbacks must re-check the policy that scheduled them before navigation or dismissal actions.
-- [Agent navigation feedback](agent-navigation-feedback.md) — FocusFlow navigation reliability feedback and its artifact-local implementation tracker.
-- [Accessibility service liveness](accessibility-service-liveness.md) — enabled state is authorization, not proof the service is bound; use a heartbeat before trusting primary enforcement.
-- [GitHub push serialization](github-push-serialization.md) — serialize same-branch API push workflows to avoid stale-ref fast-forward failures.
-- [FocusFlow launcher two-theme system](focusflow-launcher-redesign.md) — Classic + Glassy plan is authoritative; use its separate tracker for implementation status.
-- [FocusFlow features plan](focusflow-features-plan.md) — audit the imported feature plan against the current artifact; content:// backup opening is only partially implemented.
-- [FocusFlow bug-fix bundle](focusflow-bugfix-bundle.md) — verified diagnosis and ordered tracker for session PIN, scheduling, and launcher fixes.
+- [Shared preference compatibility](shared-preference-compatibility.md) — user data can retain a key under an older Android preference type.
+- [GitHub Actions APK builds](github-actions-apk-build.md) — GitHub Actions provisions the Java and Android SDK needed for reliable APK verification.
+- [Artifact preview dependencies](artifact-preview-dependency-install.md) — generated artifact workflows may need package installation inside the artifact directory.
+- [Daily allowance visual states](daily-allowance-visual-states.md) — keep allowance apps as a flat list with inline Count, Time Budget, and Interval panels.
+- [Batched app catalog](batched-app-catalog.md) — share batched installed-app discovery while keeping each feature's selection and configuration state local.
+- [Profile usage sheet](profile-usage-sheet.md) — present profile fields as compact icon rows in a full-height dark bottom sheet.
+- [React sizing reference](react-sizing-reference.md) — use the React design tokens as the dimensional baseline for Kotlin UI.
+- [Android build and test environment](android-build-environment.md) — local Android verification needs JDK 17 and the SDK; use the bootstrap-backed test path and distinguish missing tools from code failures.
+- [Text size settings](text-size-settings.md) — per-tab text scales replace General; individual screens can inherit or override their tab scale.
+- [Stats fix plan](stats-fix-plan.md) — use calendar-time evidence, state-agnostic pacing, and persisted hourly data for Stats correctness.
+- [Rolling Stats dates](rolling-stats-dates.md) — rolling week charts must use ISO calendar-date series, not weekday-only aggregates.
+- [Portable backup authorization and legacy migration](backup-contract-authority.md) — keep authorized `.focusflow` backups separate from one-time settings migration.
+- [Replit config side effects](replit-config-side-effects.md) — runtime setup and workflow restarts may normalize `.replit`; use validated replacement after the last restart.
+- [Compose scope audits](kotlin-compose-scope-audits.md) — stop expression-bodied local functions at their expression end when checking `@Composable` call scope.
+- [Kotlin raw-string interpolation](kotlin-raw-string-interpolation.md) — triple-quoted Kotlin strings still parse `$` templates; preserve literal regex anchors near Markdown delimiters.
+- [Settings help and text-size destinations](settings-guides.md) — keep sliders on a separate Settings screen and integrate guarded-change help into the expanded How to Use guide.
+- [GitHub push and build polling](github-push-build-polling.md) — push/monitor only on explicit ask; inspect HEAD before reapplying after an automatic sync.
+- [Navigation icon states](navigation-icon-states.md) — Focus nav has separate Ionicons timer vectors; Ready artwork stays on its shared component, and Defense uses its supplied active shield.
+- [Always-on notification workflow](always-on-status-notification-workflow.md) — unknown health stays neutral; notification access is needed for a visible status card.
+- [VPN batch test deferral](vpn-batch-test-deferral.md) — defer all VPN batch test runs until final verification, even if an intermediate checklist says to run them; review each batch diff.
+- [Gradle test-filter verification](gradle-test-filter-verification.md) — confirm expected test classes appear in XML; a nonmatching `--tests` filter can still succeed.
+- [Coroutine test dispatchers](coroutine-test-dispatchers.md) — share the test scheduler with repository I/O in ViewModel tests to avoid stale assertions and late Main-dispatcher failures.
+- [Legacy 24:00 schedule ends](legacy-24-hour-schedules.md) — preserve midnight-exclusive ends in raw stored schedules without broadening UI or backup input.
+- [Patch application failures](patch-application-failures.md) — a failed multi-hunk patch may have applied earlier hunks; inspect the file before retrying.
+- [Force-stop alarm recovery](force-stop-alarm-recovery.md) — verify task-end alarms are re-armed after force-stop and app relaunch; JVM tests cannot validate Android alarm restoration.
+- [Fixes tracker ownership](fixes-tracker-ownership.md) — use `fixes/TRACKER.md` as the sole progress record; `allowance/TRACKER.md` is reference-only.

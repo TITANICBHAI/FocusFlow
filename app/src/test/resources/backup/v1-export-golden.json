@@ -1,0 +1,278 @@
+{
+  "kind": "FocusFlowBackupV1",
+  "version": 1,
+  "exportedAt": "2026-10-03T12:34:56.789Z",
+  "exportedAtHuman": "10/3/26, 12:34:56 PM",
+  "platform": {
+    "os": "android"
+  },
+  "settings": {
+    "darkMode": false,
+    "defaultDuration": 45,
+    "pomodoroDuration": 30,
+    "pomodoroBreak": 10,
+    "allowedInFocus": [
+      "com.example.focus"
+    ],
+    "alwaysOnPackages": [
+      "com.example.blocked"
+    ],
+    "alwaysOnVpnPackages": [],
+    "focusMirrorVpnEnabled": false,
+    "blockedWords": [],
+    "dailyAllowanceEntries": [
+      {
+        "packageName": "com.example.timer",
+        "mode": "count",
+        "countPerDay": 3,
+        "dailyAllowanceMs": 0
+      }
+    ],
+    "allowedAppPresets": [
+      {
+        "id": "allowed-1",
+        "name": "Focus",
+        "packages": [
+          "com.example.focus"
+        ]
+      }
+    ],
+    "blockPresets": [
+      {
+        "id": "blocked-1",
+        "name": "Block",
+        "packages": [
+          "com.example.blocked"
+        ]
+      }
+    ],
+    "recurringBlockSchedules": [
+      {
+        "id": "weekly",
+        "name": "Weekly",
+        "packages": [
+          "com.example.social"
+        ],
+        "days": [
+          1,
+          7
+        ],
+        "startHour": 21,
+        "startMin": 15,
+        "endHour": 6,
+        "endMin": 30,
+        "enabled": true,
+        "vpnEnabled": false,
+        "vpnPackages": []
+      }
+    ],
+    "greyoutSchedule": [
+      {
+        "pkg": "com.example.video",
+        "startHour": 9,
+        "startMin": 0,
+        "endHour": 10,
+        "endMin": 0,
+        "days": [
+          2
+        ]
+      },
+      {
+        "pkgs": [
+          "com.example.social"
+        ],
+        "startHour": 21,
+        "startMin": 15,
+        "endHour": 6,
+        "endMin": 30,
+        "days": [
+          1,
+          7
+        ],
+        "scheduleId": "weekly",
+        "scheduleName": "Weekly",
+        "vpnEnabled": false,
+        "vpnPackages": []
+      }
+    ],
+    "launcherTheme": "glassy",
+    "focusToolPackages": [],
+    "launcherHiddenPackages": [],
+    "launcherDockPackages": [],
+    "launcherClockStyle": "digital",
+    "launcherBlockUninstall": false,
+    "launcherLockDuringStandalone": true,
+    "keepFocusActiveUntilTaskEnd": true,
+    "autoRescheduleEnabled": false,
+    "overlayQuotes": [
+      "Stay focused"
+    ],
+    "userProfile": {
+      "name": "Morgan",
+      "focusGoals": [
+        "plan"
+      ]
+    },
+    "protectionMode": "iron"
+  },
+  "tasks": [
+    {
+      "id": "task-1",
+      "title": "Planning",
+      "description": "Plan the week",
+      "startTime": "2026-10-03T12:04:05.006Z",
+      "endTime": "2026-10-03T12:34:05.009Z",
+      "durationMinutes": 30,
+      "status": "scheduled",
+      "priority": "high",
+      "tags": [
+        "planning"
+      ],
+      "reminders": [
+        {
+          "id": "reminder-1",
+          "taskId": "task-1",
+          "offsetMinutes": -5,
+          "type": "pre-start",
+          "notifId": "notify-1"
+        }
+      ],
+      "color": "#22c55e",
+      "focusMode": true,
+      "focusAllowedPackages": [],
+      "createdAt": "2026-10-03T12:00:00.000Z",
+      "updatedAt": "2026-10-03T12:01:02.100Z"
+    }
+  ],
+  "presetSections": [
+    {
+      "id": "focus-mode",
+      "name": "Focus Mode",
+      "configured": true,
+      "appPackages": [
+        "com.example.focus"
+      ],
+      "itemCount": 1,
+      "details": {
+        "allowedAppPresets": [
+          {
+            "id": "allowed-1",
+            "name": "Focus",
+            "packages": [
+              "com.example.focus"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "standalone-block",
+      "name": "Standalone Block",
+      "configured": false,
+      "appPackages": [],
+      "vpnPackages": [],
+      "details": {
+        "runtimeState": "local-only"
+      }
+    },
+    {
+      "id": "always-on",
+      "name": "Always-On Blocking",
+      "configured": true,
+      "appPackages": [
+        "com.example.blocked"
+      ],
+      "vpnPackages": []
+    },
+    {
+      "id": "daily-allowance",
+      "name": "Daily Allowance",
+      "configured": true,
+      "itemCount": 1,
+      "details": {
+        "entries": [
+          {
+            "packageName": "com.example.timer",
+            "mode": "count",
+            "countPerDay": 3,
+            "dailyAllowanceMs": 0
+          }
+        ]
+      }
+    },
+    {
+      "id": "keyword-blocker",
+      "name": "Keyword Blocker",
+      "configured": false,
+      "itemCount": 0,
+      "details": {
+        "keywords": []
+      }
+    },
+    {
+      "id": "block-schedules",
+      "name": "Block Schedules",
+      "configured": true,
+      "itemCount": 2,
+      "details": {
+        "windows": [
+          {
+            "pkg": "com.example.video",
+            "startHour": 9,
+            "startMin": 0,
+            "endHour": 10,
+            "endMin": 0,
+            "days": [
+              2
+            ]
+          },
+          {
+            "pkgs": [
+              "com.example.social"
+            ],
+            "startHour": 21,
+            "startMin": 15,
+            "endHour": 6,
+            "endMin": 30,
+            "days": [
+              1,
+              7
+            ],
+            "scheduleId": "weekly",
+            "scheduleName": "Weekly",
+            "vpnEnabled": false,
+            "vpnPackages": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "defense",
+      "name": "Defense",
+      "configured": true,
+      "itemCount": 1,
+      "details": {
+        "blockPresets": [
+          {
+            "id": "blocked-1",
+            "name": "Block",
+            "packages": [
+              "com.example.blocked"
+            ]
+          }
+        ],
+        "overlayQuotes": [
+          "Stay focused"
+        ],
+        "overlayWallpaper": ""
+      }
+    }
+  ],
+  "summary": {
+    "taskCount": 1,
+    "blockedWordCount": 0,
+    "greyoutWindowCount": 2,
+    "dailyAllowanceCount": 1
+  },
+  "appVersion": "1.1.4"
+}

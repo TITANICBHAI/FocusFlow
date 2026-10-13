@@ -1,0 +1,1 @@
+# FocusFlow keeps minification disabled for the initial pure-Kotlin scaffold.

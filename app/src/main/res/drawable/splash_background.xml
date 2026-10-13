@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Archived FocusFlow Splash Screen layer drawable.
+  Source of Truth:
+    Image: __ARCHIVED_DO_NOT_INSPECT__/src/assets/splash.png
+    Config: __ARCHIVED_DO_NOT_INSPECT__/app.json (backgroundColor: #6366f1, resizeMode: contain)
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/focusflow_indigo" />
+    <item
+        android:drawable="@drawable/focusflow_splash"
+        android:gravity="center" />
+</layer-list>

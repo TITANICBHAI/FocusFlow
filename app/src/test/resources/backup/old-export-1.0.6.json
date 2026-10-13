@@ -1,0 +1,30 @@
+{
+  "kind": "FocusFlowBackupV1",
+  "version": 1,
+  "appVersion": "1.0.6",
+  "settings": {
+    "standaloneBlockPackages": ["com.example.social"],
+    "standaloneBlockUntil": 1800000000000,
+    "standaloneVpnPackages": ["com.example.video"],
+    "autoCopiedAlwaysOnPackages": ["com.example.game"],
+    "alwaysOnEnforcementEnabled": false,
+    "focusModeEnabled": false,
+    "pomodoroEnabled": true,
+    "notificationsEnabled": true,
+    "weeklyReportEnabled": false,
+    "launcherEnabled": true,
+    "aversionDimmerEnabled": true,
+    "aversionVibrateEnabled": true,
+    "aversionSoundEnabled": true,
+    "systemGuardEnabled": false,
+    "blockInstallActionsEnabled": false,
+    "blockYoutubeShortsEnabled": false,
+    "blockInstagramReelsEnabled": false,
+    "vpnBlockEnabled": false,
+    "autoCopyToAlwaysOn": false,
+    "vpnSelfHealEnabled": false,
+    "pinProtectionEnabled": false,
+    "allowedInFocus": ["com.example.calendar"]
+  },
+  "tasks": []
+}

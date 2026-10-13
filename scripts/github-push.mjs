@@ -1,5 +1,6 @@
-import { readFileSync, readdirSync } from 'fs';
-import { join, relative } from 'path';
+import { readFileSync, readdirSync, statSync } from 'fs';
+import { dirname, join, relative, resolve } from 'path';
+import { fileURLToPath } from 'url';
 import { createHash } from 'crypto';
 
 const TOKEN =
@@ -9,8 +10,9 @@ const TOKEN =
   process.env.PAT;
 const OWNER = 'TITANICBHAI';
 const REPO = 'FocusFlow';
-const BRANCH = 'main';
-const BASE = '/home/runner/workspace';
+const BRANCH = process.env.GITHUB_SYNC_BRANCH || 'main';
+const BASE = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const DELETE_MISSING = process.env.GITHUB_SYNC_DELETE_MISSING === 'true';
 // GitHub's secondary rate limit triggers around ~10 parallel POSTs to /git/blobs.
 // Keep concurrency low and rely on retries to absorb the occasional 403/429.
 const CONCURRENCY = 4;
@@ -18,6 +20,14 @@ const MAX_RETRIES = 6;
 
 const EXCLUDE_PATTERNS = [
   /node_modules/,
+  /(^|\/)attached_assets(\/|$)/,
+  /(^|\/)\.conversation(\/|$)/,
+  /^lib\//,
+  /^pnpm-workspace\.yaml$/,
+  /^tsconfig\.base\.json$/,
+  /^\.npmrc$/,
+  /^\.replitignore$/,
+  /^scripts\/src\/hello\.ts$/,
   /\/android\//,
   /\.cache\//,
   /\.local\//,
@@ -177,7 +187,8 @@ async function run() {
       const isText = !buf.slice(0, 512).includes(0);
       if (isText) { content = buf.toString('utf8'); encoding = 'utf-8'; }
       else { content = buf.toString('base64'); encoding = 'base64'; }
-      return { path: rel, content, encoding, gitSha: getGitBlobSha(buf) };
+      const mode = (statSync(fp).mode & 0o111) !== 0 ? '100755' : '100644';
+      return { path: rel, content, encoding, mode, gitSha: getGitBlobSha(buf) };
     } catch { return null; }
   }).filter(Boolean);
 
@@ -189,7 +200,7 @@ async function run() {
   await processInBatches(changedMetas, CONCURRENCY, async (meta) => {
     try {
       const sha = await createBlob(meta.content, meta.encoding);
-      treeItems.push({ path: meta.path, mode: '100644', type: 'blob', sha });
+      treeItems.push({ path: meta.path, mode: meta.mode, type: 'blob', sha });
     } catch (e) {
       console.warn(`  SKIP: ${meta.path} — ${e.message.slice(0, 200)}`);
       failures.push({ path: meta.path, message: e.message });
@@ -205,16 +216,22 @@ async function run() {
 
   const remotePaths = remoteTree.map(entry => entry.path);
   const localPaths = new Set(fileMetas.map(meta => meta.path));
-  const deletionItems = remotePaths
-    .filter(path => !localPaths.has(path) && !isExcludedRelativePath(path))
-    .map(path => ({ path, mode: '100644', type: 'blob', sha: null }));
+  const deletionItems = DELETE_MISSING
+    ? remotePaths
+        .filter(path => !localPaths.has(path) && !isExcludedRelativePath(path))
+        .map(path => ({ path, mode: '100644', type: 'blob', sha: null }))
+    : [];
 
   if (deletionItems.length > 0) {
     console.log(`Found ${deletionItems.length} deleted managed file(s) to remove from GitHub:`);
     for (const item of deletionItems.slice(0, 20)) console.log(`  DELETE: ${item.path}`);
     if (deletionItems.length > 20) console.log(`  ... and ${deletionItems.length - 20} more`);
   } else {
-    console.log('No deleted managed files found.');
+    console.log(
+      DELETE_MISSING
+        ? 'No deleted managed files found.'
+        : 'Remote-only files will be kept (set GITHUB_SYNC_DELETE_MISSING=true to opt in to deletions).',
+    );
   }
 
   if (treeItems.length === 0 && deletionItems.length === 0) {
@@ -248,7 +265,7 @@ async function run() {
     parents: [latestSha],
   });
 
-  console.log('Updating branch ref...');
+  console.log('Updating branch ref without force...');
   await ghFetch(`/repos/${OWNER}/${REPO}/git/refs/heads/${BRANCH}`, 'PATCH', {
     sha: newCommit.sha,
     force: false,
