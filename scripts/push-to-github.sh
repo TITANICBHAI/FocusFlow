@@ -9,13 +9,56 @@ readonly API_ROOT="https://api.github.com"
 readonly MAX_RETRIES=6
 readonly TREE_CHUNK=100
 readonly BASE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+readonly DELETE_MISSING="${GITHUB_SYNC_DELETE_MISSING:-false}"
+DRY_RUN="${GITHUB_SYNC_DRY_RUN:-false}"
+
+usage() {
+  cat <<'EOF'
+Usage: bash scripts/push-to-github.sh [--dry-run]
+
+By default, sync changed workspace files to the configured GitHub branch.
+--dry-run reads the branch and reports planned changes without writing to GitHub.
+Remote-only files are kept unless GITHUB_SYNC_DELETE_MISSING=true is set.
+EOF
+}
+
+if (( $# > 1 )); then
+  usage >&2
+  exit 2
+fi
+case "${1:-}" in
+  --dry-run) DRY_RUN=true ;;
+  --help|-h) usage; exit 0 ;;
+  "") ;;
+  *)
+    echo "ERROR: Unknown argument: $1" >&2
+    usage >&2
+    exit 2
+    ;;
+esac
+case "$DRY_RUN" in
+  true|1) DRY_RUN=true ;;
+  false|0) DRY_RUN=false ;;
+  *)
+    echo "ERROR: GITHUB_SYNC_DRY_RUN must be true, false, 1, or 0." >&2
+    exit 2
+    ;;
+esac
+case "$DELETE_MISSING" in
+  true|1) ;;
+  false|0) ;;
+  *)
+    echo "ERROR: GITHUB_SYNC_DELETE_MISSING must be true, false, 1, or 0." >&2
+    exit 2
+    ;;
+esac
 
 if [[ -z "${GITHUB_PERSONAL_ACCESS_TOKEN:-}" ]]; then
   echo "ERROR: GITHUB_PERSONAL_ACCESS_TOKEN is not configured." >&2
   exit 1
 fi
 
-for command in curl jq git find sort base64 stat; do
+for command in curl jq git find sort base64 awk sleep mktemp date; do
   if ! command -v "$command" >/dev/null 2>&1; then
     echo "ERROR: Required command not found: $command" >&2
     exit 1
@@ -44,8 +87,10 @@ api_request() {
     if [[ -n "$payload" ]]; then
       status="$(curl -sS -D "$headers_file" -o "$response_file" -w '%{http_code}' \
         -X "$method" \
+        --connect-timeout 15 --max-time 120 \
         -H "Authorization: Bearer $GITHUB_PERSONAL_ACCESS_TOKEN" \
         -H "Accept: application/vnd.github+json" \
+        -H "X-GitHub-Api-Version: 2022-11-28" \
         -H "Content-Type: application/json" \
         -H "User-Agent: focusflow-shell-sync" \
         --data-binary "$payload" \
@@ -53,8 +98,10 @@ api_request() {
     else
       status="$(curl -sS -D "$headers_file" -o "$response_file" -w '%{http_code}' \
         -X "$method" \
+        --connect-timeout 15 --max-time 120 \
         -H "Authorization: Bearer $GITHUB_PERSONAL_ACCESS_TOKEN" \
         -H "Accept: application/vnd.github+json" \
+        -H "X-GitHub-Api-Version: 2022-11-28" \
         -H "User-Agent: focusflow-shell-sync" \
         "$API_ROOT$path")" || status="000"
     fi
@@ -84,6 +131,13 @@ api_request() {
     fi
 
     echo "ERROR: GitHub $method $path returned HTTP $status." >&2
+    if [[ "$status" == "401" ]]; then
+      echo "Check that the GitHub token is valid and has not expired." >&2
+    elif [[ "$status" == "403" ]]; then
+      echo "Check that the token can access $OWNER/$REPO and has Contents read/write permission." >&2
+    elif [[ "$status" == "404" ]]; then
+      echo "Check that $OWNER/$REPO and branch '$BRANCH' exist and are accessible to this token." >&2
+    fi
     if [[ -n "$body" ]]; then
       printf '%s' "$body" | head -c 400 >&2
       printf '\n' >&2
@@ -101,7 +155,10 @@ should_exclude() {
     pnpm-workspace.yaml|tsconfig.base.json|.npmrc|.replitignore|scripts/src/hello.ts)
       return 0
       ;;
-    node_modules/*|*/node_modules/*|attached_assets/*|*/attached_assets/*|.conversation/*|*/.conversation/*)
+    node_modules/*|*/node_modules/*|attached_assets/*|*/attached_assets/*|.conversation/*|*/.conversation/*|.agents/*|*/.agents/*)
+      return 0
+      ;;
+    .env|.env.*|*/.env|*/.env.*|__pycache__/*|*/__pycache__/*|.pytest_cache/*|*/.pytest_cache/*)
       return 0
       ;;
     .git/*|*/.git/*|.cache/*|*/.cache/*|.local/*|*/.local/*|.expo/*|*/.expo/*|.gradle/*|*/.gradle/*)
@@ -148,8 +205,10 @@ done < <(jq -r '.tree[] | select(.type == "blob") | @base64' <<< "$remote_tree_r
 
 tree_entries_file="$TEMP_DIR/tree-entries.jsonl"
 deletions_preview_file="$TEMP_DIR/deletions-preview.txt"
+changes_preview_file="$TEMP_DIR/changes-preview.txt"
 : > "$tree_entries_file"
 : > "$deletions_preview_file"
+: > "$changes_preview_file"
 declare -A local_path_present=()
 local_count=0
 changed_count=0
@@ -172,6 +231,14 @@ while IFS= read -r -d '' file_path; do
     continue
   fi
 
+  ((changed_count += 1))
+  if [[ "$DRY_RUN" == true ]]; then
+    change_kind="ADD"
+    [[ -n "$remote_blob_sha" ]] && change_kind="UPDATE"
+    printf '%s\t%s\n' "$change_kind" "$relative_path" >> "$changes_preview_file"
+    continue
+  fi
+
   if [[ "$remote_blob_sha" == "$local_blob_sha" ]]; then
     blob_sha="$local_blob_sha"
   else
@@ -183,20 +250,23 @@ while IFS= read -r -d '' file_path; do
 
   jq -cn --arg path "$relative_path" --arg mode "$file_mode" --arg sha "$blob_sha" \
     '{path: $path, mode: $mode, type: "blob", sha: $sha}' >> "$tree_entries_file"
-  ((changed_count += 1))
 
   if (( changed_count % 25 == 0 )); then
     echo "  Uploaded $changed_count changed files..."
   fi
 done < <(
   find "$BASE" \
-    -type d \( -name .git -o -name node_modules -o -name attached_assets -o -name .conversation \
+      -type d \( -name .git -o -name node_modules -o -name attached_assets -o -name .conversation \
+        -o -name .agents -o -name __pycache__ -o -name .pytest_cache \
       -o -name .cache -o -name .local -o -name .expo -o -name .gradle -o -name dist \
       -o -name tmp -o -name out-tsc -o -name lib -o -name build \) -prune -o \
     -type f -print0 | sort -z
 )
 
 for remote_path in "${!remote_sha_by_path[@]}"; do
+  if [[ "$DELETE_MISSING" != "true" && "$DELETE_MISSING" != "1" ]]; then
+    break
+  fi
   if [[ -n "${local_path_present[$remote_path]+present}" ]] || should_exclude "$remote_path"; then
     continue
   fi
@@ -214,7 +284,22 @@ if (( deletion_count > 0 )); then
   echo "Deletion preview (up to 20 paths):"
   head -n 20 "$deletions_preview_file" | sed 's/^/  - /'
 fi
-echo "These removals are recorded in a new commit; existing commits are not rewritten."
+if [[ "$DELETE_MISSING" == "true" || "$DELETE_MISSING" == "1" ]]; then
+  echo "Remote-only managed files are eligible for deletion; existing commits are not rewritten."
+else
+  echo "Remote-only files are being kept. Set GITHUB_SYNC_DELETE_MISSING=true to opt in to removals."
+fi
+
+if [[ "$DRY_RUN" == true ]]; then
+  if [[ -s "$changes_preview_file" ]]; then
+    echo "Planned additions/updates (up to 30 paths):"
+    head -n 30 "$changes_preview_file" | while IFS=$'\t' read -r action path; do
+      printf '  - %s %s\n' "$action" "$path"
+    done
+  fi
+  echo "DRY RUN: no GitHub blobs, trees, commits, or refs were written."
+  exit 0
+fi
 
 if (( sync_count == 0 )); then
   echo "GitHub already matches the eligible workspace files; no commit needed."

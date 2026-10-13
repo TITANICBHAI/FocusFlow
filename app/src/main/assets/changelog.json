@@ -1,0 +1,305 @@
+[
+  {
+    "version": "1.1.4",
+    "date": "September 2026",
+    "sections": [
+      {
+        "heading": "Protection controls",
+        "items": [
+          "Improved app-list loading, scheduled block labels, VPN permission handling, and active-protection guidance."
+        ]
+      }
+    ]
+  },
+  {
+    "version": "1.1.3",
+    "date": "September 2026",
+    "sections": [
+      {
+        "heading": "Home Launcher",
+        "items": [
+          "Added Classic and Glassy launcher themes with wallpaper-aware styling, a focused home layout, and configurable app-drawer controls.",
+          "Updated the fixed FocusFlow launcher shortcut to use the official FocusFlow app icon in both themes and their configuration previews."
+        ]
+      },
+      {
+        "heading": "Focus Session Reliability",
+        "items": [
+          "Fixed stale Focus Mode and timed standalone state lingering after a session expired or the device restarted, so old sessions no longer keep apps blocked.",
+          "Deferred enforcement actions now re-check the current session state before redirecting or dismissing screens, preventing delayed callbacks from acting on an ended focus session."
+        ]
+      },
+      {
+        "heading": "Release Metadata",
+        "items": [
+          "Updated FocusFlow to v1.1.3 (build 14)."
+        ]
+      },
+      {
+        "heading": "Protect System Controls",
+        "items": [
+          "Fixed protected Android settings screens when the feature is enabled."
+        ]
+      },
+      {
+        "heading": "Daily Allowance",
+        "items": [
+          "Daily allowance enforcement improvements are still in progress and will be addressed in a later update."
+        ]
+      }
+    ]
+  },
+  {
+    "version": "1.1.1",
+    "date": "August 2026",
+    "sections": [
+      {
+        "heading": "Database Reliability",
+        "items": [
+          "Solved database errors that could interrupt loading and prevent settings or task changes from being saved."
+        ]
+      }
+    ]
+  },
+  {
+    "version": "1.1.0",
+    "date": "August 2026",
+    "sections": [
+      {
+        "heading": "More Reliable App Blocking",
+        "items": [
+          "Added a UsageStats foreground-app watchdog and improved recent-app return handling.",
+          "Improved OEM fallback behavior when Usage Access is unavailable."
+        ]
+      },
+      {
+        "heading": "FocusFlow Safety",
+        "items": [
+          "Focus, Stats, Settings, and onboarding remain exempt from app blocking while protection is active."
+        ]
+      }
+    ]
+  },
+  {
+    "version": "1.0.9",
+    "date": "August 2026",
+    "sections": [
+      {
+        "heading": "Block Overlay Cleanup",
+        "items": [
+          "Removed the duplicate React Native blocked-app banner; native blocking remains unchanged."
+        ]
+      },
+      {
+        "heading": "Navigation and Focus Workflow",
+        "items": [
+          "Reordered bottom navigation and improved task-form keyboard behavior."
+        ]
+      }
+    ]
+  },
+  {
+    "version": "1.0.8",
+    "date": "August 2026",
+    "sections": [
+      {
+        "heading": "Accessibility and Enforcement",
+        "items": [
+          "Improved recovery when Android restricts or stops AccessibilityService."
+        ]
+      }
+    ]
+  },
+  {
+    "version": "1.0.7",
+    "date": "August 2026",
+    "sections": [
+      {
+        "heading": "Focus and Defense",
+        "items": [
+          "Improved PIN protection, standalone blocks, and defense-state recovery."
+        ]
+      }
+    ]
+  },
+  {
+    "version": "1.0.6",
+    "date": "June 2026",
+    "sections": [
+      {
+        "heading": "Stability",
+        "items": [
+          "Improved boot recovery, alarms, notifications, and settings persistence."
+        ]
+      }
+    ]
+  },
+  {
+    "version": "1.0.5",
+    "date": "June 2026",
+    "sections": [
+      {
+        "heading": "Withdrawn release",
+        "items": [
+          "This release was withdrawn."
+        ]
+      }
+    ]
+  },
+  {
+    "version": "1.0.4",
+    "date": "May 2026",
+    "sections": [
+      {
+        "heading": "Blocking and Permissions",
+        "items": [
+          "Improved app blocking, permission guidance, launcher setup, and VPN protection."
+        ]
+      }
+    ]
+  },
+  {
+    "version": "1.0.3",
+    "date": "May 2026",
+    "sections": [
+      {
+        "heading": "Focus sessions",
+        "items": [
+          "Improved active-session controls, task alarms, and break handling."
+        ]
+      }
+    ]
+  },
+  {
+    "version": "1.0.2",
+    "date": "May 2026",
+    "sections": [
+      {
+        "heading": "Core features",
+        "items": [
+          "Added standalone blocks, daily allowance tools, blocked keywords, and stronger protection controls."
+        ]
+      }
+    ]
+  },
+  {
+    "version": "1.0.1",
+    "date": "May 2026",
+    "sections": [
+      {
+        "heading": "Fixes",
+        "items": [
+          "Improved startup reliability and task scheduling."
+        ]
+      }
+    ]
+  },
+  {
+    "version": "c1.0.9",
+    "date": "April 2026",
+    "sections": [
+      {
+        "heading": "Initial native hardening",
+        "items": [
+          "Improved AccessibilityService enforcement and native block overlays."
+        ]
+      }
+    ]
+  },
+  {
+    "version": "c1.0.9",
+    "date": "April 2026",
+    "sections": [
+      {
+        "heading": "Protection",
+        "items": [
+          "Added additional device and system-control protection."
+        ]
+      }
+    ]
+  },
+  {
+    "version": "c1.0.7",
+    "date": "April 2026",
+    "sections": [
+      {
+        "heading": "Launcher",
+        "items": [
+          "Added FocusLauncherActivity and launcher protection options."
+        ]
+      }
+    ]
+  },
+  {
+    "version": "c1.0.6",
+    "date": "April 2026",
+    "sections": [
+      {
+        "heading": "Widgets and reports",
+        "items": [
+          "Added the home-screen widget and weekly temptation report groundwork."
+        ]
+      }
+    ]
+  },
+  {
+    "version": "c1.0.5",
+    "date": "April 2026",
+    "sections": [
+      {
+        "heading": "Enforcement",
+        "items": [
+          "Added native foreground service and accessibility enforcement foundations."
+        ]
+      }
+    ]
+  },
+  {
+    "version": "c1.0.4",
+    "date": "April 2026",
+    "sections": [
+      {
+        "heading": "Permissions",
+        "items": [
+          "Added permission setup guidance and recovery paths."
+        ]
+      }
+    ]
+  },
+  {
+    "version": "c1.0.3",
+    "date": "April 2026",
+    "sections": [
+      {
+        "heading": "Tasks",
+        "items": [
+          "Added scheduled tasks, focus sessions, and reminders."
+        ]
+      }
+    ]
+  },
+  {
+    "version": "c1.0.2",
+    "date": "April 2026",
+    "sections": [
+      {
+        "heading": "FocusDay",
+        "items": [
+          "Added the first complete focus-session and app-blocking workflows."
+        ]
+      }
+    ]
+  },
+  {
+    "version": "1.0.0",
+    "date": "Initial Release",
+    "sections": [
+      {
+        "heading": "FocusFlow",
+        "items": [
+          "Initial release with focus sessions, app blocking, schedules, permissions, and settings."
+        ]
+      }
+    ]
+  }
+]

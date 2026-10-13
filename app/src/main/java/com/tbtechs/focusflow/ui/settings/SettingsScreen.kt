@@ -89,6 +89,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tbtechs.focusflow.BackupImportIntentRelay
+import com.tbtechs.focusflow.BuildConfig
 import com.tbtechs.focusflow.data.backup.BackupSerializer
 import com.tbtechs.focusflow.data.repository.InstalledAppsRepository
 import com.tbtechs.focusflow.ui.backup.BackupViewModel
@@ -717,7 +718,7 @@ fun SettingsScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Text(
-                        "FocusFlow v1.1.4 (build 13)",
+                        "FocusFlow v${BuildConfig.VERSION_NAME} (build ${BuildConfig.VERSION_CODE})",
                         fontSize = 12.5.scaledSp,
                         color = DarkTextMuted,
                         textAlign = TextAlign.Center,

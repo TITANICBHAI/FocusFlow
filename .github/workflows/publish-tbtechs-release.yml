@@ -298,51 +298,20 @@ jobs:
           APK_UNIVERSAL_NAME: ${{ steps.stage.outputs.universal_name }}
           APK_UNIVERSAL_SHA256: ${{ steps.stage.outputs.universal_sha256 }}
         run: |
-          git fetch --force --tags origin
-          PREVIOUS_TAG="$(git tag --list 'v*-vc*' --merged "$BUILD_SHA" --sort=-version:refname | head -n 1)"
-          if [[ -n "$PREVIOUS_TAG" ]]; then
-            CHANGELOG="$(git log --no-merges --format='- %s' "$PREVIOUS_TAG..$BUILD_SHA" -- app/src/main | head -n 20)"
-          else
-            CHANGELOG="$(git log --no-merges -n 15 --format='- %s' "$BUILD_SHA" -- app/src/main)"
-          fi
-          if [[ -z "$CHANGELOG" ]]; then
-            CHANGELOG="- No app-source commit messages were found since the previous tbtechs release."
-          fi
-
-          {
-            printf '# FocusFlow v%s (versionCode %s)\n\n' "$VERSION_NAME" "$VERSION_CODE"
-            printf '**tbtechs build:** [run #%s](%s)\n\n' "$BUILD_RUN_NUMBER" "$BUILD_RUN_URL"
-            printf '**Source commit:** `%s`\n\n' "$BUILD_SHA"
-            echo '## APK downloads and SHA-256'
-            printf -- '- `%s` — `%s`\n' "$APK_ARM64_NAME" "$APK_ARM64_SHA256"
-            printf -- '- `%s` — `%s`\n' "$APK_ARM32_NAME" "$APK_ARM32_SHA256"
-            printf -- '- `%s` — `%s`\n\n' "$APK_UNIVERSAL_NAME" "$APK_UNIVERSAL_SHA256"
-            echo '## Changelog'
-            if [[ -n "$PREVIOUS_TAG" ]]; then
-              printf 'Changes since `%s`:\n\n' "$PREVIOUS_TAG"
-            else
-              echo 'Initial release through this workflow; highlights are the 15 latest app-source commits at the selected build:'
-              echo
-            fi
-            printf '%s\n\n' "$CHANGELOG"
-            cat <<'EOF'
-          ## FocusFlow features
-          - Task-linked Focus Mode and timed standalone app blocking.
-          - Recurring group schedules and keyword blocking.
-          - Optional VPN-based network protection.
-          - Defense PIN, launcher protections, and system-control safeguards.
-
-          ## Install on Android
-          This release contains three separate tbtechs APKs: ARM64, ARM32, and universal. They are complete installable APKs, not split-APK bundles. **Install only one APK.** If unsure which architecture to choose, use the universal APK.
-
-          1. Choose the universal APK for most devices, or the ARM64/ARM32 APK matching the device. Verify its SHA-256 against the matching value above if desired.
-          2. Open the chosen APK from Downloads or Files and tap **Install**.
-          3. If Android asks, open **Settings → Apps → Special app access → Install unknown apps**, allow it for the app you used to open the APK, return, and retry.
-          4. Optional SAI route: open SAI, choose **Install APKs**, select the one APK you chose, and follow Android's installer prompt. SAI is not required.
-
-          Keep Google Play Protect enabled when possible. If it warns, first confirm the download is from this official GitHub release and verify the SHA-256. If you choose to temporarily turn off scanning through **Play Store → profile → Play Protect → Settings**, install only the verified APK and turn scanning back on immediately.
-          EOF
-          } > release-notes.md
+          python3 scripts/generate_github_release_notes.py \
+            --changelog app/src/main/assets/changelog.json \
+            --output release-notes.md \
+            --version-name "$VERSION_NAME" \
+            --version-code "$VERSION_CODE" \
+            --build-run-number "$BUILD_RUN_NUMBER" \
+            --build-run-url "$BUILD_RUN_URL" \
+            --source-sha "$BUILD_SHA" \
+            --apk-arm64-name "$APK_ARM64_NAME" \
+            --apk-arm64-sha256 "$APK_ARM64_SHA256" \
+            --apk-arm32-name "$APK_ARM32_NAME" \
+            --apk-arm32-sha256 "$APK_ARM32_SHA256" \
+            --apk-universal-name "$APK_UNIVERSAL_NAME" \
+            --apk-universal-sha256 "$APK_UNIVERSAL_SHA256"
 
       - name: Publish GitHub release
         id: release
