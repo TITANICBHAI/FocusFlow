@@ -83,6 +83,7 @@ jobs:
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: |
+          chmod +x ./gradlew
           ./gradlew ":app:assemble${{ matrix.taskSuffix }}Release" \
             -PreleaseApkSplits=true --no-daemon --stacktrace
 
@@ -199,6 +200,7 @@ jobs:
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: |
+          chmod +x ./gradlew
           ./gradlew ":app:bundle${{ matrix.taskSuffix }}Release" \
             --no-daemon --stacktrace
 
