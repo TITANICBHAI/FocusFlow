@@ -138,10 +138,12 @@ if [[ "$(jq -r '.truncated // false' <<< "$remote_tree_response")" == "true" ]];
 fi
 
 declare -A remote_sha_by_path=()
+declare -A remote_mode_by_path=()
 while IFS= read -r encoded_entry; do
   entry="$(printf '%s' "$encoded_entry" | base64 -d)"
   remote_path="$(jq -er '.path' <<< "$entry")"
   remote_sha_by_path["$remote_path"]="$(jq -er '.sha' <<< "$entry")"
+  remote_mode_by_path["$remote_path"]="$(jq -er '.mode' <<< "$entry")"
 done < <(jq -r '.tree[] | select(.type == "blob") | @base64' <<< "$remote_tree_response")
 
 tree_entries_file="$TEMP_DIR/tree-entries.jsonl"
@@ -162,16 +164,23 @@ while IFS= read -r -d '' file_path; do
   ((local_count += 1))
   local_path_present["$relative_path"]=1
   local_blob_sha="$(git hash-object --stdin < "$file_path")"
-  if [[ "${remote_sha_by_path[$relative_path]:-}" == "$local_blob_sha" ]]; then
+  file_mode="100644"
+  [[ -x "$file_path" ]] && file_mode="100755"
+  remote_blob_sha="${remote_sha_by_path[$relative_path]:-}"
+  remote_mode="${remote_mode_by_path[$relative_path]:-}"
+  if [[ "$remote_blob_sha" == "$local_blob_sha" && "$remote_mode" == "$file_mode" ]]; then
     continue
   fi
 
-  content_base64="$(base64 -w 0 < "$file_path")"
-  blob_payload="$(jq -cn --arg content "$content_base64" '{content: $content, encoding: "base64"}')"
-  blob_response="$(api_request "/repos/$OWNER/$REPO/git/blobs" POST "$blob_payload")"
-  blob_sha="$(jq -er '.sha' <<< "$blob_response")"
-  file_mode="100644"
-  [[ -x "$file_path" ]] && file_mode="100755"
+  if [[ "$remote_blob_sha" == "$local_blob_sha" ]]; then
+    blob_sha="$local_blob_sha"
+  else
+    content_base64="$(base64 -w 0 < "$file_path")"
+    blob_payload="$(jq -cn --arg content "$content_base64" '{content: $content, encoding: "base64"}')"
+    blob_response="$(api_request "/repos/$OWNER/$REPO/git/blobs" POST "$blob_payload")"
+    blob_sha="$(jq -er '.sha' <<< "$blob_response")"
+  fi
+
   jq -cn --arg path "$relative_path" --arg mode "$file_mode" --arg sha "$blob_sha" \
     '{path: $path, mode: $mode, type: "blob", sha: $sha}' >> "$tree_entries_file"
   ((changed_count += 1))
