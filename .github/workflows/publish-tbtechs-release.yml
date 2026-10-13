@@ -1,0 +1,304 @@
+name: Publish tbtechs Universal APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_id:
+        description: "Optional run ID from Build Native Kotlin Release. Leave blank to use the latest successful run on main."
+        required: false
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: publish-tbtechs-release
+  cancel-in-progress: false
+
+jobs:
+  select_build:
+    name: Select successful release build
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      run_id: ${{ steps.select.outputs.run_id }}
+      run_number: ${{ steps.select.outputs.run_number }}
+      head_sha: ${{ steps.select.outputs.head_sha }}
+      run_url: ${{ steps.select.outputs.run_url }}
+    steps:
+      - name: Select build run
+        id: select
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const requestedId = String(context.payload.inputs?.build_id ?? "").trim();
+            const workflow = await github.rest.actions.getWorkflow({
+              owner,
+              repo,
+              workflow_id: "build-native-kotlin-release.yml",
+            });
+
+            let run;
+            if (requestedId) {
+              if (!/^\d+$/.test(requestedId)) {
+                throw new Error("Build run ID must contain digits only.");
+              }
+
+              const response = await github.rest.actions.getWorkflowRun({
+                owner,
+                repo,
+                run_id: Number(requestedId),
+              });
+              run = response.data;
+              if (run.workflow_id !== workflow.data.id) {
+                throw new Error("That run does not belong to Build Native Kotlin Release.");
+              }
+            } else {
+              const response = await github.rest.actions.listWorkflowRuns({
+                owner,
+                repo,
+                workflow_id: workflow.data.id,
+                branch: "main",
+                status: "completed",
+                per_page: 100,
+              });
+              run = response.data.workflow_runs.find(
+                (candidate) =>
+                  candidate.head_branch === "main" &&
+                  candidate.conclusion === "success",
+              );
+            }
+
+            if (!run) {
+              throw new Error("No successful Build Native Kotlin Release run was found on main.");
+            }
+            if (
+              run.workflow_id !== workflow.data.id ||
+              run.head_branch !== "main" ||
+              run.status !== "completed" ||
+              run.conclusion !== "success"
+            ) {
+              throw new Error("The selected run must be a successful, completed release build from main.");
+            }
+
+            core.setOutput("run_id", String(run.id));
+            core.setOutput("run_number", String(run.run_number));
+            core.setOutput("head_sha", run.head_sha);
+            core.setOutput("run_url", run.html_url);
+            await core.summary
+              .addHeading("Selected tbtechs build")
+              .addTable([
+                ["Build run", `[${run.id}](${run.html_url})`],
+                ["Source commit", `\`${run.head_sha}\``],
+                ["Published APK", "tbtechs universal APK only"],
+              ])
+              .write();
+
+  publish:
+    name: Publish tbtechs release
+    needs: select_build
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: Check out selected build commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.select_build.outputs.head_sha }}
+          fetch-depth: 0
+
+      - name: Read version metadata from Gradle
+        id: metadata
+        env:
+          BUILD_RUN_NUMBER: ${{ needs.select_build.outputs.run_number }}
+        run: |
+          VERSION_NAME="$(sed -nE 's/^[[:space:]]*versionName[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' app/build.gradle.kts | head -n 1)"
+          VERSION_CODE="$(sed -nE 's/^[[:space:]]*versionCode[[:space:]]*=[[:space:]]*([0-9]+).*/\1/p' app/build.gradle.kts | head -n 1)"
+          if [[ -z "$VERSION_NAME" || ! "$VERSION_CODE" =~ ^[0-9]+$ ]]; then
+            echo "::error::Could not read versionName and versionCode from app/build.gradle.kts."
+            exit 1
+          fi
+
+          RELEASE_TAG="v${VERSION_NAME}-vc${VERSION_CODE}"
+          ARTIFACT_NAME="focusflow-tbtechs-universal-release-v${VERSION_NAME}-vc${VERSION_CODE}-run-${BUILD_RUN_NUMBER}"
+          {
+            echo "version_name=$VERSION_NAME"
+            echo "version_code=$VERSION_CODE"
+            echo "release_tag=$RELEASE_TAG"
+            echo "artifact_name=$ARTIFACT_NAME"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "### Release metadata"
+            echo "- **Version:** $VERSION_NAME"
+            echo "- **versionCode:** $VERSION_CODE"
+            echo "- **Source build:** ${{ needs.select_build.outputs.run_url }}"
+            echo "- **Artifact selected:** $ARTIFACT_NAME"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Refuse to overwrite an existing release tag
+        uses: actions/github-script@v7
+        env:
+          RELEASE_TAG: ${{ steps.metadata.outputs.release_tag }}
+        with:
+          script: |
+            try {
+              await github.rest.git.getRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: `tags/${process.env.RELEASE_TAG}`,
+              });
+              throw new Error(`Tag ${process.env.RELEASE_TAG} already exists; refusing to overwrite a release.`);
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
+
+      - name: Download only the tbtechs universal APK
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ steps.metadata.outputs.artifact_name }}
+          path: release-download
+          run-id: ${{ needs.select_build.outputs.run_id }}
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+
+      - name: Verify and stage the single production APK
+        id: stage
+        env:
+          EXPECTED_VERSION_NAME: ${{ steps.metadata.outputs.version_name }}
+          EXPECTED_VERSION_CODE: ${{ steps.metadata.outputs.version_code }}
+        run: |
+          mapfile -t APKS < <(find release-download -type f -name '*.apk' -print)
+          if [[ "${#APKS[@]}" -ne 1 ]]; then
+            echo "::error::Expected exactly one APK in the selected artifact, found ${#APKS[@]}."
+            find release-download -maxdepth 4 -type f -print || true
+            exit 1
+          fi
+
+          APK="${APKS[0]}"
+          if [[ "$(basename "$APK")" != "app-production-universal-release.apk" ]]; then
+            echo "::error::The selected artifact is not the tbtechs production universal APK."
+            exit 1
+          fi
+
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          AAPT="$SDK_ROOT/build-tools/35.0.0/aapt"
+          APKSIGNER="$SDK_ROOT/build-tools/35.0.0/apksigner"
+          if [[ ! -x "$AAPT" || ! -x "$APKSIGNER" ]]; then
+            echo "::error::Android build-tools 35.0.0 are unavailable."
+            exit 1
+          fi
+
+          BADGING="$("$AAPT" dump badging "$APK")"
+          PACKAGE_NAME="$(sed -nE "s/^package: name='([^']+)'.*/\1/p" <<< "$BADGING" | head -n 1)"
+          APK_VERSION_CODE="$(sed -nE "s/^package:.*versionCode='([^']+)'.*/\1/p" <<< "$BADGING" | head -n 1)"
+          APK_VERSION_NAME="$(sed -nE "s/^package:.*versionName='([^']+)'.*/\1/p" <<< "$BADGING" | head -n 1)"
+          if [[ "$PACKAGE_NAME" != "com.tbtechs.focusflow" ]]; then
+            echo "::error::Expected tbtechs package com.tbtechs.focusflow, found '$PACKAGE_NAME'."
+            exit 1
+          fi
+          if [[ "$APK_VERSION_CODE" != "$EXPECTED_VERSION_CODE" || "$APK_VERSION_NAME" != "$EXPECTED_VERSION_NAME" ]]; then
+            echo "::error::APK version metadata does not match the selected build's Gradle version."
+            echo "Expected $EXPECTED_VERSION_NAME ($EXPECTED_VERSION_CODE); found $APK_VERSION_NAME ($APK_VERSION_CODE)."
+            exit 1
+          fi
+          "$APKSIGNER" verify "$APK"
+
+          ASSET_NAME="FocusFlow-tbtechs-universal-v${EXPECTED_VERSION_NAME}-vc${EXPECTED_VERSION_CODE}.apk"
+          mkdir -p release-asset
+          cp "$APK" "release-asset/$ASSET_NAME"
+          SHA256="$(sha256sum "release-asset/$ASSET_NAME" | awk '{print $1}')"
+          echo "asset_path=release-asset/$ASSET_NAME" >> "$GITHUB_OUTPUT"
+          echo "asset_name=$ASSET_NAME" >> "$GITHUB_OUTPUT"
+          echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
+          {
+            echo "### APK verification"
+            echo "- Package: \`$PACKAGE_NAME\`"
+            echo "- Version: $APK_VERSION_NAME ($APK_VERSION_CODE)"
+            echo "- APK signature: verified"
+            echo "- SHA-256: \`$SHA256\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Generate changelog and install instructions
+        env:
+          BUILD_SHA: ${{ needs.select_build.outputs.head_sha }}
+          BUILD_RUN_NUMBER: ${{ needs.select_build.outputs.run_number }}
+          BUILD_RUN_URL: ${{ needs.select_build.outputs.run_url }}
+          VERSION_NAME: ${{ steps.metadata.outputs.version_name }}
+          VERSION_CODE: ${{ steps.metadata.outputs.version_code }}
+          APK_NAME: ${{ steps.stage.outputs.asset_name }}
+          APK_SHA256: ${{ steps.stage.outputs.sha256 }}
+        run: |
+          git fetch --force --tags origin
+          PREVIOUS_TAG="$(git tag --list 'v*-vc*' --merged "$BUILD_SHA" --sort=-version:refname | head -n 1)"
+          if [[ -n "$PREVIOUS_TAG" ]]; then
+            CHANGELOG="$(git log --no-merges --format='- %s' "$PREVIOUS_TAG..$BUILD_SHA" -- app/src/main | head -n 20)"
+          else
+            CHANGELOG="$(git log --no-merges -n 15 --format='- %s' "$BUILD_SHA" -- app/src/main)"
+          fi
+          if [[ -z "$CHANGELOG" ]]; then
+            CHANGELOG="- No app-source commit messages were found since the previous tbtechs release."
+          fi
+
+          {
+            printf '# FocusFlow v%s (versionCode %s)\n\n' "$VERSION_NAME" "$VERSION_CODE"
+            printf '**tbtechs build:** [run #%s](%s)\n\n' "$BUILD_RUN_NUMBER" "$BUILD_RUN_URL"
+            printf '**Source commit:** `%s`\n\n' "$BUILD_SHA"
+            printf '**APK asset:** `%s`\n' "$APK_NAME"
+            printf '**APK SHA-256:** `%s`\n\n' "$APK_SHA256"
+            echo '## Changelog'
+            if [[ -n "$PREVIOUS_TAG" ]]; then
+              printf 'Changes since `%s`:\n\n' "$PREVIOUS_TAG"
+            else
+              echo 'Initial release through this workflow; highlights are the 15 latest app-source commits at the selected build:'
+              echo
+            fi
+            printf '%s\n\n' "$CHANGELOG"
+            cat <<'EOF'
+          ## FocusFlow features
+          - Task-linked Focus Mode and timed standalone app blocking.
+          - Recurring group schedules and keyword blocking.
+          - Optional VPN-based network protection.
+          - Defense PIN, launcher protections, and system-control safeguards.
+
+          ## Install on Android
+          This release attaches **one tbtechs universal APK** for ARM32 and ARM64. It is not a split-APK bundle; SAI is optional.
+
+          1. Download the attached `FocusFlow-tbtechs-universal` APK and confirm its SHA-256 against the value above if you want to verify the file.
+          2. Open it from Downloads or Files and tap **Install**.
+          3. If Android asks, open **Settings → Apps → Special app access → Install unknown apps**, allow it for the app you used to open the APK, return, and retry.
+          4. Optional SAI route: open SAI, choose **Install APKs**, select this same single APK, and follow Android's installer prompt.
+
+          Keep Google Play Protect enabled when possible. If it warns, first confirm the download is from this official GitHub release and verify the SHA-256. If you choose to temporarily turn off scanning through **Play Store → profile → Play Protect → Settings**, install only this verified APK and turn scanning back on immediately.
+          EOF
+          } > release-notes.md
+
+      - name: Publish GitHub release
+        id: release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.metadata.outputs.release_tag }}
+          target_commitish: ${{ needs.select_build.outputs.head_sha }}
+          name: FocusFlow v${{ steps.metadata.outputs.version_name }} — TBTechs
+          body_path: release-notes.md
+          files: ${{ steps.stage.outputs.asset_path }}
+          fail_on_unmatched_files: true
+          overwrite_files: false
+          draft: false
+          prerelease: false
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Add published release link to the summary
+        env:
+          RELEASE_TAG: ${{ steps.metadata.outputs.release_tag }}
+        run: |
+          echo "### Published release" >> "$GITHUB_STEP_SUMMARY"
+          echo "https://github.com/${GITHUB_REPOSITORY}/releases/tag/${RELEASE_TAG}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Asset: ${{ steps.stage.outputs.asset_name }}" >> "$GITHUB_STEP_SUMMARY"
