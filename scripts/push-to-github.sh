@@ -101,6 +101,15 @@ should_exclude() {
     pnpm-workspace.yaml|tsconfig.base.json|.npmrc|.replitignore|scripts/src/hello.ts)
       return 0
       ;;
+    node_modules/*|*/node_modules/*|attached_assets/*|*/attached_assets/*|.conversation/*|*/.conversation/*)
+      return 0
+      ;;
+    .git/*|*/.git/*|.cache/*|*/.cache/*|.local/*|*/.local/*|.expo/*|*/.expo/*|.gradle/*|*/.gradle/*)
+      return 0
+      ;;
+    lib/*|dist/*|*/dist/*|tmp/*|*/tmp/*|out-tsc/*|*/out-tsc/*|build/*|*/build/*)
+      return 0
+      ;;
     *.keystore|*.jks|*credentials.json|*.DS_Store|*/.DS_Store|*/Thumbs.db|*.tsbuildinfo|tbtechs-release.keystore)
       return 0
       ;;
@@ -136,9 +145,13 @@ while IFS= read -r encoded_entry; do
 done < <(jq -r '.tree[] | select(.type == "blob") | @base64' <<< "$remote_tree_response")
 
 tree_entries_file="$TEMP_DIR/tree-entries.jsonl"
+deletions_preview_file="$TEMP_DIR/deletions-preview.txt"
 : > "$tree_entries_file"
+: > "$deletions_preview_file"
+declare -A local_path_present=()
 local_count=0
 changed_count=0
+deletion_count=0
 
 while IFS= read -r -d '' file_path; do
   relative_path="${file_path#"$BASE"/}"
@@ -147,6 +160,7 @@ while IFS= read -r -d '' file_path; do
   fi
 
   ((local_count += 1))
+  local_path_present["$relative_path"]=1
   local_blob_sha="$(git hash-object --stdin < "$file_path")"
   if [[ "${remote_sha_by_path[$relative_path]:-}" == "$local_blob_sha" ]]; then
     continue
@@ -173,17 +187,34 @@ done < <(
     -type f -print0 | sort -z
 )
 
-echo "Scanned $local_count eligible files; $changed_count need to be added or updated."
-echo "Remote-only files will be preserved; this sync does not delete repository files."
+for remote_path in "${!remote_sha_by_path[@]}"; do
+  if [[ -n "${local_path_present[$remote_path]+present}" ]] || should_exclude "$remote_path"; then
+    continue
+  fi
 
-if (( changed_count == 0 )); then
+  jq -cn --arg path "$remote_path" \
+    '{path: $path, mode: "100644", type: "blob", sha: null}' >> "$tree_entries_file"
+  printf '%s\n' "$remote_path" >> "$deletions_preview_file"
+  ((deletion_count += 1))
+done
+
+sync_count=$(( changed_count + deletion_count ))
+echo "Scanned $local_count eligible files; $changed_count need adding/updating."
+echo "Remote-only files to delete from the new snapshot: $deletion_count."
+if (( deletion_count > 0 )); then
+  echo "Deletion preview (up to 20 paths):"
+  head -n 20 "$deletions_preview_file" | sed 's/^/  - /'
+fi
+echo "These removals are recorded in a new commit; existing commits are not rewritten."
+
+if (( sync_count == 0 )); then
   echo "GitHub already matches the eligible workspace files; no commit needed."
   exit 0
 fi
 
 current_tree_sha="$base_tree_sha"
 offset=0
-while (( offset < changed_count )); do
+while (( offset < sync_count )); do
   chunk="$(jq -s --argjson offset "$offset" --argjson length "$TREE_CHUNK" \
     '.[ $offset : ($offset + $length) ]' "$tree_entries_file")"
   tree_payload="$(jq -cn --arg base_tree "$current_tree_sha" --argjson entries "$chunk" \
@@ -191,8 +222,8 @@ while (( offset < changed_count )); do
   tree_response="$(api_request "/repos/$OWNER/$REPO/git/trees" POST "$tree_payload")"
   current_tree_sha="$(jq -er '.sha' <<< "$tree_response")"
   offset=$(( offset + TREE_CHUNK ))
-  (( offset > changed_count )) && offset="$changed_count"
-  echo "  Layered $offset/$changed_count changed files..."
+  (( offset > sync_count )) && offset="$sync_count"
+  echo "  Layered $offset/$sync_count additions, updates, and deletions..."
 done
 
 commit_message="${GITHUB_SYNC_COMMIT_MESSAGE:-Sync FocusFlow workspace — $(date -u +%Y-%m-%dT%H:%M:%SZ)}"
