@@ -91,7 +91,7 @@ Timed sessions are protected against bypass via the accessibility service toggle
 - When the service reconnects, the saved session is recovered and the elapsed gap is immediately
   charged to the budget before anything else runs.
 
-The DailyAllowanceModal in the React Native UI lets the user:
+The Daily Allowance screen lets the user:
 - See all installed apps, search by name or package name
 - Toggle each app into/out of the allowance list
 - Pick the mode (Count / Time Budget / Interval) per app inline
@@ -209,12 +209,12 @@ Optional Pomodoro timer integrated with focus sessions. Configurable work durati
 length. Break periods do not enforce app blocking.
 
 ### 17. Defense Password (PIN Protection)
-A SHA-256 hashed PIN stored in native SharedPreferences. The PIN gates:
+The session PIN is required before protected actions can be completed. It gates:
 - Cancelling an active standalone block
 - Removing apps from the always-on list
 - Removing apps from the daily allowance list (optional per user)
 - Disabling enforcement toggles (if `pinProtectionEnabled` is on)
-PIN verification is done natively (hash comparison) — cannot be bypassed by killing the JS layer.
+Protected actions require the correct PIN before a session can be ended.
 
 ### 18. Boot Recovery
 After a device reboot, FocusFlow restores any active focus session or standalone block that was
@@ -277,73 +277,19 @@ block-check logic as the accessibility service.
 
 ## Architecture overview
 
-### Monorepo structure
-```
-artifacts/focusflow/           — Main Expo + React Native app (pnpm workspace)
-  src/
-    context/AppContext.tsx     — Central state + all user actions (settings, tasks, sessions)
-    data/types.ts              — TypeScript type definitions for all entities
-    data/database.ts           — SQLite via expo-sqlite (tasks, settings, focus history)
-    services/                  — Business logic: taskService, schedulerEngine, focusService,
-                                  notificationService, eventBridge, startupLogger
-    native-modules/            — React Native bridge wrappers for all native modules
-    components/                — UI components incl. DailyAllowanceModal, PinVerifyModal,
-                                  BlockPresetPicker, GreyoutScheduleEditor, etc.
-    styles/theme.ts            — Design tokens: COLORS, FONT, RADIUS, SPACING
-  app/                         — Expo Router file-based routes
-    _layout.tsx                — Root layout, onboarding gate, streak milestone modal
-    index.tsx                  — Home/focus tab
-    settings.tsx               — Settings screen
-    always-on.tsx              — Always-on enforcement screen
-    reports.tsx                — Reports/analytics screen
-    focus.tsx                  — Focus session management
-  android-native/              — Android Gradle project (Kotlin native modules + services)
-    app/src/main/java/com/tbtechs/focusflow/
-      services/
-        AppBlockerAccessibilityService.kt  — Core enforcement engine (3488 lines)
-        ForegroundTaskService.kt            — Persistent foreground service + fallback poller
-        NetworkBlockerVpnService.kt         — Local VPN null-router
-        BlockOverlayActivity.kt             — Full-screen block overlay fallback activity
-      modules/
-        SharedPrefsModule.kt               — Native ↔ JS SharedPreferences bridge
-        InstalledAppsModule.kt             — Installed app list + icons
-        FocusDayBridgeModule.kt            — Focus session control
-        GreyoutModule.kt                   — Greyout schedule + temptation log
-        NetworkBlockModule.kt              — VPN control bridge
-        AversionsModule.kt                 — Aversion deterrents control
-        TaskAlarmModule.kt                 — Full-screen task alarm
-docs/                          — Static docs/marketing website (Cloudflare Pages)
-```
+### Native Android application
+FocusFlow is a native Android app built with Kotlin, Jetpack Compose, and Material 3.
+- **User interface**: Jetpack Compose screens for focus, schedules, defense, stats, and settings.
+- **Local storage**: Room backed by SQLite stores app data on the device.
+- **Enforcement**: Android Accessibility Service, foreground services, UsageStats, Device Admin,
+  and Android `VpnService` provide app blocking and focus protections.
+- **Recovery**: Android system components restore and maintain active protections across lifecycle
+  events.
 
 ### Data persistence
-- **SQLite** (expo-sqlite): tasks, focus session history, day completions, streak data,
-  all-time focus minutes, daily settings snapshot
-- **SharedPreferences** ("focusday_prefs"): all native enforcement state that the accessibility
-  service and foreground service must read without going through React Native's bridge thread:
-  - `focus_active` (Boolean)
-  - `allowed_packages` (JSON array)
-  - `task_end_ms` (Long — epoch ms)
-  - `standalone_block_active` (Boolean)
-  - `standalone_blocked_packages` (JSON array)
-  - `standalone_block_until_ms` (Long)
-  - `always_block_active` (Boolean — 24/7 enforcement master switch)
-  - `always_block_packages` (JSON array — the always-on list)
-  - `daily_allowance_config` (JSON array — rich per-app allowance config)
-  - `daily_allowance_used` (JSON object — current usage per package per day/window)
-  - `defense_pin_hash` (String — SHA-256 hash)
-  - `greyout_schedule` (JSON array of GreyoutWindow objects)
-  - `blocked_words` (JSON array)
-  - `system_guard_enabled`, `block_yt_shorts`, `block_ig_reels`, `block_install_actions` (Boolean)
-  - `vpn_block_enabled`, `vpn_self_heal_enabled` (Boolean)
-  - `aversion_dimmer_enabled`, `aversion_vibrate_enabled`, `aversion_sound_enabled` (Boolean)
-  - `timed_session_pkg`, `timed_session_open_at_ms` (crash-recovery for timed allowance)
-
-### SharedPreferences key path
-The JS layer writes to SharedPreferences via `SharedPrefsModule` (a `ReactContextBaseJavaModule`)
-using React Native's promise-based bridge. All writes call `prefs.edit().apply()` — asynchronous
-but guaranteed to complete before the next UI frame. The accessibility service reads with
-`prefs.getString/getBoolean/getLong()` — no locking needed as the bridge runs on a different
-thread and SharedPreferences guarantees atomicity at the key level.
+- **Room / SQLite** stores local tasks, settings, and focus history.
+- **Android preferences** hold lightweight settings and coordination state read by local services.
+- User app data remains on the device; the app does not require a remote account or sync service.
 
 ---
 

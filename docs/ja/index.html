@@ -164,7 +164,7 @@
       <div class="stat"><div class="stat-num">3</div><div class="stat-label">強制レイヤー数<br />(アクセシビリティ + VPN + デバイス管理者)</div></div>
       <div class="stat"><div class="stat-num">30+</div><div class="stat-label">Android OEMブランド<br />対応</div></div>
       <div class="stat"><div class="stat-num">$0</div><div class="stat-label">永久無料<br />サブスクリプション不要</div></div>
-      <div class="stat"><div class="stat-num">Root不要</div><div class="stat-label">ストック<br />Android 8.0+で動作</div></div>
+      <div class="stat"><div class="stat-num">Root不要</div><div class="stat-label">Android 10+で動作</div></div>
     </div>
   </section>
 
@@ -176,7 +176,7 @@
       <div class="layers-grid">
         <div class="layer-card"><div class="layer-num">1</div><h3>アクセシビリティサービス</h3><p>すべてのアプリウィンドウを監視します。ブロックされたアプリを検出してからミリ秒以内に起動 — 300ms間隔で最大5回の再チェック。アクティブなセッション中のPlay Storeインストール、アンインストールダイアログ、アクセシビリティ設定へのナビゲーションも傍受します。</p></div>
         <div class="layer-card"><div class="layer-num">2</div><h3>ローカルヌルルーティングVPN</h3><p>ブロックされたアプリのトラフィックを、パケットを転送しないローカルVPNトンネルにルーティングします。<strong>PER_APPモード:</strong> ブロックされたアプリのみインターネットが遮断。<strong>GLOBALモード:</strong> 緊急通話以外のすべてのインターネットが遮断。デバイスからトラフィックが外部に出ることはありません。</p></div>
-        <div class="layer-card"><div class="layer-num">3</div><h3>デバイス管理者</h3><p>Androidの設定からのアンインストールをブロックします。System Guardは、セッション中のデータ消去とアクセシビリティ画面へのナビゲーションを傍受します。ネイティブに保存されたSHA-256ハッシュセッションPIN — 侵害されたJSブリッジでも、正しいPINなしにセッションを終了できません。</p></div>
+        <div class="layer-card"><div class="layer-num">3</div><h3>デバイス管理者</h3><p>Androidの設定からのアンインストールをブロックします。System Guardは、セッション中のデータ消去とアクセシビリティ画面への移動を傍受します。保護されたセッションを終了するにはPINが必要です。</p></div>
       </div>
     </div>
   </section>
@@ -243,7 +243,7 @@
       <p class="section-sub">インストール前に知っておくべきすべてのこと。</p>
       <div class="faq-list">
         <details><summary>FocusFlowはrootが必要ですか？</summary><div class="faq-body">いいえ。FocusFlowは標準のAndroid権限システム内で完全に機能します — アクセシビリティサービス、VPN、デバイス管理者。ルート化やシステム変更は必要ありません。30以上のOEMブランドのストックAndroid 8.0以降で動作します。</div></details>
-        <details><summary>FocusFlowはどのようにアンインストールを防ぎますか？</summary><div class="faq-body">3つの層: (1) Androidデバイス管理者モードが通常の設定 → アプリ → アンインストールのパスをブロック; (2) System GuardがアクティブなセッションでアクセシビリティSettings、データ消去、アンインストールへのナビゲーションを傍受; (3) ネイティブに保存されたSHA-256ハッシュセッションPINにより、侵害されたJavaScript層でも正しいPINなしにセッションを終了できない。</div></details>
+        <details><summary>FocusFlowはどのようにアンインストールを防ぎますか？</summary><div class="faq-body">3つの層: (1) Androidデバイス管理者モードが通常の設定 → アプリ → アンインストールのパスをブロック; (2) System Guardがアクティブなセッションでアクセシビリティ設定、データ消去、アンインストールへの移動を傍受; (3) 保護されたセッションを終了するにはPINが必要です。</div></details>
         <details><summary>誘惑ログと週次レポートとは何ですか？</summary><div class="faq-body">誘惑ログは、ブロックされたアプリのすべての試みを記録します — アプリ名、パッケージ名、タイムスタンプ — 最大500件。毎週日曜日8時に、FocusFlowがアプリ別の7日間の合計を示すプッシュ通知を配信します（例: 「Instagram: 18回の試み、TikTok: 今週14回の試み」）。週次行動レポートを提供するスクリーンタイムアプリは他にありません。</div></details>
         <details><summary>FocusFlowはYouTube全体をブロックせずにYouTube Shortsをブロックできますか？</summary><div class="faq-body">はい。YouTube ShortsブロッカーはYouTube内のShortsプレーヤーを閉じながら、メインフィード、検索、サブスクリプション、動画再生を完全にアクセス可能にします。Instagram Reelsのブロッキングも同様に機能します — Reelsフィードがブロックされ、Instagramの残りの部分は影響を受けません。</div></details>
         <details><summary>セッション中に新しいアプリをインストールすると何が起きますか？</summary><div class="faq-body">PackageInstallReceiverがACTION_PACKAGE_ADDEDブロードキャストを監視します。新たにインストールされたアプリは自動的にブロックリストに追加され、嫌悪振動フィードバックを引き起こします。一般的な「セッション途中に競合するブラウザをインストール」する抜け穴が閉じられます。</div></details>
@@ -259,9 +259,9 @@
     <div class="section-inner">
       <p class="section-label">技術スタック</p>
       <h2>最新ツールで構築</h2>
-      <p class="section-sub">JS層にReact Native + Expo。Android側に6つのカスタムKotlinネイティブモジュール。</p>
+      <p class="section-sub">Kotlin と Jetpack Compose で構築したネイティブ Android アプリです。Android のシステムサービスで集中セッション、ブロック、復旧を行います。</p>
       <div class="tech-grid">
-        <span class="tech-pill">Expo SDK 54</span><span class="tech-pill">React Native 0.81</span><span class="tech-pill">Expo Router</span><span class="tech-pill">TypeScript</span><span class="tech-pill">SQLite (expo-sqlite)</span><span class="tech-pill">Kotlin</span><span class="tech-pill">Android Accessibility Service</span><span class="tech-pill">Android Foreground Service</span><span class="tech-pill">AppWidget API</span><span class="tech-pill">UsageStats API</span><span class="tech-pill">VpnService API</span><span class="tech-pill">DeviceAdminReceiver</span><span class="tech-pill">expo-notifications</span><span class="tech-pill">Reanimated v4</span>
+        <span class="tech-pill">Kotlin</span><span class="tech-pill">Jetpack Compose</span><span class="tech-pill">Material 3</span><span class="tech-pill">Room + SQLite</span><span class="tech-pill">Android Accessibility Service</span><span class="tech-pill">Android Foreground Services</span><span class="tech-pill">AppWidget API</span><span class="tech-pill">UsageStats API</span><span class="tech-pill">VpnService API</span><span class="tech-pill">DeviceAdminReceiver</span>
       </div>
     </div>
   </section>

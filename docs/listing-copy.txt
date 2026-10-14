@@ -22,7 +22,7 @@ FocusFlow combines three independent enforcement layers:
 
 2. Local Null-Routing VPN — routes blocked apps' network traffic to an on-device tunnel that never forwards packets externally. In PER_APP mode, only blocked apps lose internet. In GLOBAL mode, all traffic is cut except emergency calls. Zero bytes leave your device.
 
-3. Device Admin + Session PIN — Device Admin prevents uninstalling FocusFlow via Settings. System Guard intercepts navigation to Accessibility Settings, Clear Data, and App Info during sessions. A SHA-256 hashed session PIN is stored at the native Android layer and cannot be bypassed even if the JavaScript bridge is disabled.
+3. Device Admin + Session PIN — Device Admin prevents uninstalling FocusFlow via Settings. System Guard intercepts navigation to Accessibility Settings, Clear Data, and App Info during sessions. A session PIN is required before a protected session can be ended.
 
 UNIQUE FEATURES (not found in any other free app blocker):
 - Temptation Log: records every blocked-app attempt with app name and timestamp (up to 500 entries)
@@ -43,7 +43,7 @@ OTHER FEATURES:
 - 7 languages: English, Chinese (Simplified), French, German, Japanese, Korean, Spanish
 
 PLATFORM:
-Android 8.0+ (no root required)
+Android 10+ (no root required)
 Tested on 30+ OEM brands: Samsung, Xiaomi, Huawei, OPPO, Realme, OnePlus, Vivo, Motorola, Nokia, Asus, Nothing, Sony, Honor, Black Shark, Lenovo, and more.
 
 PRICE:

@@ -177,7 +177,7 @@
       <div class="stat"><div class="stat-num">3</div><div class="stat-label">Durchsetzungsebenen<br />(Barrierefreiheit + VPN + Geräte-Admin)</div></div>
       <div class="stat"><div class="stat-num">30+</div><div class="stat-label">Android OEM-Marken<br />unterstützt</div></div>
       <div class="stat"><div class="stat-num">$0</div><div class="stat-label">Dauerhaft kostenlos<br />kein Abonnement</div></div>
-      <div class="stat"><div class="stat-num">Kein Root</div><div class="stat-label">Läuft auf Standard-<br />Android 8.0+</div></div>
+      <div class="stat"><div class="stat-num">Kein Root</div><div class="stat-label">Läuft ab<br />Android 10</div></div>
     </div>
   </section>
 
@@ -200,7 +200,7 @@
         <div class="layer-card">
           <div class="layer-num">3</div>
           <h3>Geräteadministrator</h3>
-          <p>Blockiert die Deinstallation über Android-Einstellungen. System Guard fängt die Navigation zu Daten löschen und Barrierefreiheits-Bildschirmen während Sitzungen ab. SHA-256-gehashte Sitzungs-PIN nativ gespeichert — selbst eine kompromittierte JS-Bridge kann ohne die richtige PIN keine Sitzung beenden.</p>
+          <p>Blockiert die Deinstallation über Android-Einstellungen. System Guard fängt die Navigation zu Daten löschen und Barrierefreiheits-Bildschirmen während Sitzungen ab. Für das Beenden geschützter Sitzungen ist eine PIN erforderlich.</p>
         </div>
       </div>
     </div>
@@ -267,8 +267,8 @@
       <h2>Häufig gestellte Fragen</h2>
       <p class="section-sub">Alles, was Sie vor der Installation wissen müssen.</p>
       <div class="faq-list">
-        <details><summary>Benötigt FocusFlow Root?</summary><div class="faq-body">Nein. FocusFlow arbeitet vollständig innerhalb des Standard-Android-Berechtigungssystems — Barrierefreiheitsdienst, VPN und Geräteadministrator. Kein Rooten oder Systemänderung erforderlich. Läuft auf Standard-Android 8.0+ auf 30+ OEM-Marken.</div></details>
-        <details><summary>Wie verhindert FocusFlow, dass ich es deinstalliere?</summary><div class="faq-body">Drei Ebenen: (1) Android-Geräteadministratormodus blockiert den normalen Einstellungen → Apps → Deinstallieren-Pfad; (2) System Guard fängt die Navigation zu Barrierefreiheitseinstellungen, Daten löschen und Deinstallieren während aktiver Sitzungen ab; (3) Eine SHA-256-gehashte Sitzungs-PIN, die nativ gespeichert wird, bedeutet, dass selbst eine kompromittierte JavaScript-Schicht eine Sitzung ohne die richtige PIN nicht beenden kann.</div></details>
+        <details><summary>Benötigt FocusFlow Root?</summary><div class="faq-body">Nein. FocusFlow nutzt die standardmäßigen Android-Berechtigungen — Bedienungshilfe, VPN und Geräteadministrator. Root oder Systemänderungen sind nicht erforderlich. Unterstützt Android 10 und höher.</div></details>
+        <details><summary>Wie verhindert FocusFlow, dass ich es deinstalliere?</summary><div class="faq-body">Drei Ebenen: (1) Android-Geräteadministratormodus blockiert den normalen Einstellungen → Apps → Deinstallieren-Pfad; (2) System Guard fängt die Navigation zu Barrierefreiheitseinstellungen, Daten löschen und Deinstallieren während aktiver Sitzungen ab; (3) zum Beenden einer geschützten Sitzung ist eine PIN erforderlich.</div></details>
         <details><summary>Was ist das Versuchungsprotokoll und der Wochenbericht?</summary><div class="faq-body">Das Versuchungsprotokoll zeichnet jeden Versuch einer blockierten App auf — App-Name, Paketname, Zeitstempel — begrenzt auf 500 Einträge. Jeden Sonntag um 08:00 Uhr liefert FocusFlow eine Push-Benachrichtigung mit Ihren 7-Tages-Gesamtzahlen nach App (z.B. „Instagram: 18 Versuche, TikTok: 14 Versuche diese Woche"). Keine andere Bildschirmzeit-App bietet einen wöchentlichen Verhaltensbericht.</div></details>
         <details><summary>Kann FocusFlow YouTube Shorts blockieren, ohne ganz YouTube zu blockieren?</summary><div class="faq-body">Ja. Der YouTube Shorts-Blocker schließt den Shorts-Player in YouTube, während der Haupt-Feed, Suche, Abonnements und die Video-Wiedergabe vollständig zugänglich bleiben. Instagram Reels-Sperrung funktioniert genauso — Reels-Feed gesperrt, der Rest von Instagram unberührt.</div></details>
         <details><summary>Was passiert, wenn ich während einer Sitzung eine neue App installiere?</summary><div class="faq-body">PackageInstallReceiver überwacht ACTION_PACKAGE_ADDED-Broadcasts. Jede neu installierte App wird automatisch zur Sperrliste hinzugefügt und löst aversives Vibrationsrückmeldung aus. Die übliche „konkurrierenden Browser mitten in der Sitzung installieren"-Lücke ist geschlossen.</div></details>
@@ -284,9 +284,9 @@
     <div class="section-inner">
       <p class="section-label">Technologie-Stack</p>
       <h2>Mit modernen Tools entwickelt</h2>
-      <p class="section-sub">React Native + Expo auf der JS-Ebene. Sechs benutzerdefinierte Kotlin-Native-Module auf der Android-Seite.</p>
+      <p class="section-sub">Vollständig native Android-App mit Kotlin und Jetpack Compose; Android-Systemdienste übernehmen Fokus-Sitzungen, Blockierung und Wiederherstellung.</p>
       <div class="tech-grid">
-        <span class="tech-pill">Expo SDK 54</span><span class="tech-pill">React Native 0.81</span><span class="tech-pill">Expo Router</span><span class="tech-pill">TypeScript</span><span class="tech-pill">SQLite (expo-sqlite)</span><span class="tech-pill">Kotlin</span><span class="tech-pill">Android Accessibility Service</span><span class="tech-pill">Android Foreground Service</span><span class="tech-pill">AppWidget API</span><span class="tech-pill">UsageStats API</span><span class="tech-pill">VpnService API</span><span class="tech-pill">DeviceAdminReceiver</span><span class="tech-pill">expo-notifications</span><span class="tech-pill">Reanimated v4</span>
+        <span class="tech-pill">Kotlin</span><span class="tech-pill">Jetpack Compose</span><span class="tech-pill">Material 3</span><span class="tech-pill">Room + SQLite</span><span class="tech-pill">Android Accessibility Service</span><span class="tech-pill">Android Foreground Services</span><span class="tech-pill">AppWidget API</span><span class="tech-pill">UsageStats API</span><span class="tech-pill">VpnService API</span><span class="tech-pill">DeviceAdminReceiver</span>
       </div>
     </div>
   </section>

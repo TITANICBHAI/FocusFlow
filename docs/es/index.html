@@ -164,7 +164,7 @@
       <div class="stat"><div class="stat-num">3</div><div class="stat-label">Capas de aplicación<br />(Accesibilidad + VPN + Admin. dispositivo)</div></div>
       <div class="stat"><div class="stat-num">30+</div><div class="stat-label">Marcas OEM Android<br />compatibles</div></div>
       <div class="stat"><div class="stat-num">$0</div><div class="stat-label">Gratis para siempre<br />sin suscripción</div></div>
-      <div class="stat"><div class="stat-num">Sin root</div><div class="stat-label">Funciona en<br />Android 8.0+ estándar</div></div>
+      <div class="stat"><div class="stat-num">Sin root</div><div class="stat-label">Funciona en<br />Android 10+</div></div>
     </div>
   </section>
 
@@ -176,7 +176,7 @@
       <div class="layers-grid">
         <div class="layer-card"><div class="layer-num">1</div><h3>Servicio de accesibilidad</h3><p>Monitorea cada ventana de app. Se activa en milisegundos al detectar una app bloqueada — hasta 5 reverificaciones cada 300 ms. También intercepta instalaciones de Play Store, diálogos de desinstalación y navegación a Configuración de accesibilidad durante sesiones activas.</p></div>
         <div class="layer-card"><div class="layer-num">2</div><h3>VPN de enrutamiento nulo local</h3><p>Enruta el tráfico de apps bloqueadas hacia un túnel VPN local que nunca reenvía paquetes. <strong>Modo POR APP:</strong> solo la app bloqueada pierde internet. <strong>Modo GLOBAL:</strong> todo internet cortado excepto llamadas de emergencia. Ningún tráfico sale de tu dispositivo.</p></div>
-        <div class="layer-card"><div class="layer-num">3</div><h3>Administrador de dispositivos</h3><p>Bloquea la desinstalación desde Configuración de Android. System Guard intercepta la navegación a Borrar datos y pantallas de accesibilidad durante las sesiones. PIN de sesión hasheado SHA-256 almacenado de forma nativa — ni siquiera un puente JS comprometido puede terminar una sesión sin el PIN correcto.</p></div>
+        <div class="layer-card"><div class="layer-num">3</div><h3>Administrador de dispositivos</h3><p>Bloquea la desinstalación desde Configuración de Android. System Guard intercepta la navegación a Borrar datos y pantallas de accesibilidad durante las sesiones. Se requiere un PIN para terminar una sesión protegida.</p></div>
       </div>
     </div>
   </section>
@@ -242,8 +242,8 @@
       <h2>Preguntas frecuentes</h2>
       <p class="section-sub">Todo lo que necesitas saber antes de instalar.</p>
       <div class="faq-list">
-        <details><summary>¿FocusFlow requiere root?</summary><div class="faq-body">No. FocusFlow funciona completamente dentro del sistema de permisos estándar de Android — Servicio de accesibilidad, VPN y Administrador de dispositivos. No se requiere rootear ni modificar el sistema. Funciona en Android 8.0+ de serie en más de 30 marcas OEM.</div></details>
-        <details><summary>¿Cómo evita FocusFlow que lo desinstale?</summary><div class="faq-body">Tres capas: (1) El modo Administrador de dispositivos Android bloquea la ruta normal de Configuración → Apps → Desinstalar; (2) System Guard intercepta la navegación a Configuración de accesibilidad, Borrar datos y Desinstalar durante sesiones activas; (3) Un PIN de sesión hasheado SHA-256 almacenado de forma nativa significa que incluso una capa JavaScript comprometida no puede terminar una sesión sin el PIN correcto.</div></details>
+        <details><summary>¿FocusFlow requiere root?</summary><div class="faq-body">No. FocusFlow utiliza los permisos estándar de Android — Servicio de accesibilidad, VPN y Administrador de dispositivos. No se requiere root ni modificar el sistema. Funciona en Android 10 o posterior.</div></details>
+        <details><summary>¿Cómo evita FocusFlow que lo desinstale?</summary><div class="faq-body">Tres capas: (1) El modo Administrador de dispositivos Android bloquea la ruta normal de Configuración → Apps → Desinstalar; (2) System Guard intercepta la navegación a Configuración de accesibilidad, Borrar datos y Desinstalar durante sesiones activas; (3) se necesita un PIN para terminar una sesión protegida.</div></details>
         <details><summary>¿Qué es el Registro de tentaciones y el Informe semanal?</summary><div class="faq-body">El Registro de tentaciones registra cada intento de app bloqueada — nombre de la app, nombre del paquete, marca de tiempo — con un límite de 500 entradas. Cada domingo a las 08:00, FocusFlow entrega una notificación push con tus totales de 7 días por app (p.ej. "Instagram: 18 intentos, TikTok: 14 intentos esta semana"). Ninguna otra app de tiempo de pantalla ofrece un informe conductual semanal.</div></details>
         <details><summary>¿Puede FocusFlow bloquear YouTube Shorts sin bloquear todo YouTube?</summary><div class="faq-body">Sí. El bloqueador de YouTube Shorts cierra el reproductor de Shorts dentro de YouTube mientras el feed principal, búsqueda, suscripciones y reproducción de videos permanecen completamente accesibles. El bloqueo de Instagram Reels funciona de la misma manera — feed de Reels bloqueado, el resto de Instagram intacto.</div></details>
         <details><summary>¿Qué pasa si instalo una nueva app durante una sesión?</summary><div class="faq-body">PackageInstallReceiver monitorea las transmisiones ACTION_PACKAGE_ADDED. Cualquier app recién instalada se agrega automáticamente a la lista de bloqueo y activa la retroalimentación de vibración aversiva. El agujero común de "instalar un navegador de la competencia a mitad de sesión" está cerrado.</div></details>
@@ -259,9 +259,9 @@
     <div class="section-inner">
       <p class="section-label">Pila tecnológica</p>
       <h2>Construido con herramientas modernas</h2>
-      <p class="section-sub">React Native + Expo en la capa JS. Seis módulos nativos Kotlin personalizados en el lado Android.</p>
+      <p class="section-sub">Aplicación Android nativa con Kotlin y Jetpack Compose; los servicios de Android gestionan las sesiones, el bloqueo y la recuperación.</p>
       <div class="tech-grid">
-        <span class="tech-pill">Expo SDK 54</span><span class="tech-pill">React Native 0.81</span><span class="tech-pill">Expo Router</span><span class="tech-pill">TypeScript</span><span class="tech-pill">SQLite (expo-sqlite)</span><span class="tech-pill">Kotlin</span><span class="tech-pill">Android Accessibility Service</span><span class="tech-pill">Android Foreground Service</span><span class="tech-pill">AppWidget API</span><span class="tech-pill">UsageStats API</span><span class="tech-pill">VpnService API</span><span class="tech-pill">DeviceAdminReceiver</span><span class="tech-pill">expo-notifications</span><span class="tech-pill">Reanimated v4</span>
+        <span class="tech-pill">Kotlin</span><span class="tech-pill">Jetpack Compose</span><span class="tech-pill">Material 3</span><span class="tech-pill">Room + SQLite</span><span class="tech-pill">Android Accessibility Service</span><span class="tech-pill">Android Foreground Services</span><span class="tech-pill">AppWidget API</span><span class="tech-pill">UsageStats API</span><span class="tech-pill">VpnService API</span><span class="tech-pill">DeviceAdminReceiver</span>
       </div>
     </div>
   </section>

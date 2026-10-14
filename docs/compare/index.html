@@ -97,7 +97,7 @@
     "@context": "https://schema.org",
     "@type": "MobileApplication",
     "name": "FocusFlow",
-    "operatingSystem": "Android 8.0+",
+    "operatingSystem": "Android 10+",
     "applicationCategory": "ProductivityApplication",
     "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
     "installUrl": "https://appgallery.huawei.com/app/C117698039",
@@ -161,7 +161,7 @@
           <tr><td class="en">Accessibility Service enforcement</td><td class="zh">无障碍服务执行</td><td><span class="check win">✓</span></td><td><span class="check">✓</span></td><td><span class="cross">✗</span></td><td><span class="check">✓</span></td><td><span class="cross">✗</span></td></tr>
           <tr><td class="en">Local VPN enforcement</td><td class="zh">本地 VPN 执行</td><td><span class="check win">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="cross">✗</span></td><td><span class="cross">✗</span></td></tr>
           <tr><td class="en">Device Administrator (uninstall lock)</td><td class="zh">设备管理员（卸载锁）</td><td><span class="check win">✓</span></td><td><span class="cross">✗</span></td><td><span class="cross">✗</span></td><td><span class="cross">✗</span></td><td><span class="cross">✗</span></td></tr>
-          <tr><td class="en">SHA-256 native session PIN</td><td class="zh">SHA-256 原生会话 PIN</td><td><span class="check win">✓</span></td><td><span class="cross">✗</span></td><td><span class="cross">✗</span></td><td><span class="cross">✗</span></td><td><span class="cross">✗</span></td></tr>
+          <tr><td class="en">Session PIN for protected sessions</td><td class="zh">受保护会话 PIN</td><td><span class="check win">✓</span></td><td><span class="cross">✗</span></td><td><span class="cross">✗</span></td><td><span class="cross">✗</span></td><td><span class="cross">✗</span></td></tr>
           <tr><td class="en">Aversive Feedback (dim + vibration + sound)</td><td class="zh">厌恶反馈（调暗 + 振动 + 声音）</td><td><span class="check win">✓</span></td><td><span class="cross">✗</span></td><td><span class="cross">✗</span></td><td><span class="cross">✗</span></td><td><span class="cross">✗</span></td></tr>
           <tr><td class="en">Temptation Log</td><td class="zh">诱惑日志</td><td><span class="check win">✓</span></td><td><span class="cross">✗</span></td><td><span class="cross">✗</span></td><td><span class="cross">✗</span></td><td><span class="cross">✗</span></td></tr>
           <tr><td class="en">Weekly behavioral report</td><td class="zh">每周行为报告</td><td><span class="check win">✓</span></td><td><span class="cross">✗</span></td><td><span class="cross">✗</span></td><td><span class="cross">✗</span></td><td><span class="cross">✗</span></td></tr>
@@ -193,8 +193,8 @@
         <ul>
           <li class="en">FocusFlow adds Device Admin — Freedom can be uninstalled during a session</li>
           <li class="zh">FocusFlow 增加设备管理员——Freedom 可在会话中被卸载</li>
-          <li class="en">FocusFlow adds SHA-256 native PIN — session cannot be ended via JS layer</li>
-          <li class="zh">FocusFlow 增加 SHA-256 原生 PIN——会话无法通过 JS 层结束</li>
+          <li class="en">FocusFlow requires a session PIN before a protected session can be ended</li>
+          <li class="zh">结束 FocusFlow 的受保护会话前需要输入 PIN</li>
           <li class="en">FocusFlow adds Temptation Log + Weekly Report</li>
           <li class="zh">FocusFlow 增加诱惑日志 + 每周报告</li>
           <li class="en">FocusFlow adds content-specific blocking (Shorts/Reels)</li>
@@ -249,8 +249,8 @@
         <ul>
           <li class="en">FocusFlow adds VPN enforcement — AppBlock uses Accessibility only</li>
           <li class="zh">FocusFlow 增加 VPN 执行——AppBlock 仅使用无障碍功能</li>
-          <li class="en">FocusFlow adds Device Admin, SHA-256 PIN, boot recovery</li>
-          <li class="zh">FocusFlow 增加设备管理员、SHA-256 PIN、启动恢复</li>
+          <li class="en">FocusFlow adds Device Admin, session PIN protection, and boot recovery</li>
+          <li class="zh">FocusFlow 增加设备管理员、会话 PIN 保护和启动恢复</li>
           <li class="en">FocusFlow is fully free — AppBlock charges for premium features</li>
           <li class="zh">FocusFlow 完全免费——AppBlock 为高级功能收费</li>
           <li class="miss en">AppBlock has a simpler UI — FocusFlow has more configuration</li>

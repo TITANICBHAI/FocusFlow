@@ -65,7 +65,7 @@
       {
         "@type": "Question",
         "name": "What makes FocusFlow similar to Cold Turkey?",
-        "acceptedAnswer": { "@type": "Answer", "text": "Both Cold Turkey and FocusFlow take a hard-enforcement approach: once a session starts, you cannot bypass it. Cold Turkey achieves this by modifying Windows/Mac system files. FocusFlow achieves this on Android through Accessibility Service enforcement, an on-device null-routing VPN, Android Device Admin mode, and a SHA-256 hashed session PIN stored at the native Android layer." }
+        "acceptedAnswer": { "@type": "Answer", "text": "Both Cold Turkey and FocusFlow take a hard-enforcement approach: once a session starts, you cannot bypass it. Cold Turkey achieves this by modifying Windows/Mac system files. FocusFlow achieves this on Android through Accessibility Service enforcement, an on-device null-routing VPN, Android Device Admin mode, and a session PIN for protected sessions." }
       }
     ]
   }
@@ -231,7 +231,7 @@
       <li>Set a session PIN you won't easily remember (write it down somewhere inconvenient)</li>
       <li>Start the block</li>
     </ol>
-    <p>Once started, the block cannot be ended without the PIN. The PIN prompt appears in native Android UI — it cannot be bypassed even if the JavaScript bridge is compromised.</p>
+    <p>Once started, the block cannot be ended without the correct PIN. FocusFlow asks for it before stopping a protected session.</p>
 
     <div class="verdict">
       <strong>Verdict:</strong> FocusFlow is the only free Android app that matches Cold Turkey's core philosophy — hard enforcement, no bypass, session lock, reboot survival. It adds features Cold Turkey doesn't have (Temptation Log, Weekly Report, content-specific blocking) and works on 30+ Android OEM brands.

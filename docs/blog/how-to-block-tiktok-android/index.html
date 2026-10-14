@@ -70,7 +70,7 @@
       {
         "@type": "Question",
         "name": "What stops me from just disabling FocusFlow to get back on TikTok?",
-        "acceptedAnswer": { "@type": "Answer", "text": "FocusFlow uses three countermeasures: Device Admin mode (blocks uninstallation via Settings), System Guard (intercepts navigation to FocusFlow's settings pages during sessions), and a SHA-256 hashed session PIN stored at the native Android layer." }
+        "acceptedAnswer": { "@type": "Answer", "text": "FocusFlow uses three countermeasures: Device Admin mode (blocks uninstallation via Settings), System Guard (intercepts navigation to FocusFlow's settings pages during sessions), and a session PIN required to stop a protected session." }
       }
     ]
   }
@@ -173,7 +173,7 @@
     <p>FocusFlow can route TikTok's traffic to an on-device null-route VPN that never forwards packets externally. This cuts TikTok's feed, notifications, and content delivery — no internet access, no infinite scroll to load. The VPN runs entirely on-device; no data leaves your phone.</p>
 
     <h3>Layer 3 — Device Admin + Session PIN</h3>
-    <p>Device Admin mode prevents uninstalling FocusFlow via the standard Settings path. A SHA-256 hashed session PIN (stored at the native Android layer) prevents stopping the block without the correct PIN — even if you kill the JavaScript bridge. System Guard intercepts navigation to FocusFlow's own settings pages, Accessibility settings, and App Info pages during active sessions.</p>
+    <p>Device Admin mode prevents uninstalling FocusFlow via the standard Settings path. A session PIN is required to stop a protected block. System Guard intercepts navigation to FocusFlow's own settings pages, Accessibility settings, and App Info pages during active sessions.</p>
 
     <h2>Step-by-Step: Blocking TikTok with FocusFlow</h2>
 

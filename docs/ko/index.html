@@ -164,7 +164,7 @@
       <div class="stat"><div class="stat-num">3</div><div class="stat-label">강제 레이어<br />(접근성 + VPN + 기기 관리자)</div></div>
       <div class="stat"><div class="stat-num">30+</div><div class="stat-label">Android OEM 브랜드<br />지원</div></div>
       <div class="stat"><div class="stat-num">$0</div><div class="stat-label">영구 무료<br />구독 없음</div></div>
-      <div class="stat"><div class="stat-num">루팅 불필요</div><div class="stat-label">순정<br />Android 8.0+에서 작동</div></div>
+      <div class="stat"><div class="stat-num">루팅 불필요</div><div class="stat-label">Android 10+에서 작동</div></div>
     </div>
   </section>
 
@@ -176,7 +176,7 @@
       <div class="layers-grid">
         <div class="layer-card"><div class="layer-num">1</div><h3>접근성 서비스</h3><p>모든 앱 창을 모니터링합니다. 차단된 앱 감지 후 밀리초 내에 실행 — 300ms 간격으로 최대 5번 재검사. 활성 세션 중 Play 스토어 설치, 제거 다이얼로그, 접근성 설정으로의 탐색도 차단합니다.</p></div>
         <div class="layer-card"><div class="layer-num">2</div><h3>로컬 널 라우팅 VPN</h3><p>차단된 앱 트래픽을 패킷을 전달하지 않는 로컬 VPN 터널로 라우팅합니다. <strong>앱별 모드:</strong> 차단된 앱만 인터넷을 잃습니다. <strong>전체 모드:</strong> 긴급 통화를 제외한 모든 인터넷 차단. 어떤 트래픽도 기기를 벗어나지 않습니다.</p></div>
-        <div class="layer-card"><div class="layer-num">3</div><h3>기기 관리자</h3><p>Android 설정을 통한 제거를 차단합니다. System Guard는 세션 중 데이터 지우기 및 접근성 화면으로의 탐색을 차단합니다. 기본적으로 저장된 SHA-256 해시 세션 PIN — 손상된 JS 브리지도 올바른 PIN 없이는 세션을 종료할 수 없습니다.</p></div>
+        <div class="layer-card"><div class="layer-num">3</div><h3>기기 관리자</h3><p>Android 설정에서 앱을 제거하지 못하게 합니다. System Guard는 세션 중 데이터 삭제 및 접근성 설정 화면으로의 이동을 차단합니다. 보호된 세션을 종료하려면 PIN이 필요합니다.</p></div>
       </div>
     </div>
   </section>
@@ -243,7 +243,7 @@
       <p class="section-sub">설치 전 알아야 할 모든 것.</p>
       <div class="faq-list">
         <details><summary>FocusFlow는 루팅이 필요한가요?</summary><div class="faq-body">아니요. FocusFlow는 표준 Android 권한 시스템 내에서 완전히 작동합니다 — 접근성 서비스, VPN 및 기기 관리자. 루팅이나 시스템 수정이 필요하지 않습니다. 30개 이상의 OEM 브랜드의 스톡 Android 8.0 이상에서 실행됩니다.</div></details>
-        <details><summary>FocusFlow는 어떻게 제거를 방지하나요?</summary><div class="faq-body">세 가지 레이어: (1) Android 기기 관리자 모드가 일반 설정 → 앱 → 제거 경로를 차단; (2) System Guard가 활성 세션 중 접근성 설정, 데이터 지우기 및 제거로의 탐색을 차단; (3) 기본적으로 저장된 SHA-256 해시 세션 PIN은 손상된 JavaScript 레이어도 올바른 PIN 없이 세션을 종료할 수 없음을 의미합니다.</div></details>
+         <details><summary>FocusFlow는 어떻게 제거를 방지하나요?</summary><div class="faq-body">세 가지 레이어: (1) Android 기기 관리자 모드가 일반 설정 → 앱 → 제거 경로를 차단; (2) System Guard가 활성 세션 중 접근성 설정, 데이터 지우기 및 제거로의 탐색을 차단; (3) 보호된 세션을 종료하려면 PIN이 필요합니다.</div></details>
         <details><summary>유혹 로그와 주간 보고서란 무엇인가요?</summary><div class="faq-body">유혹 로그는 차단된 앱의 모든 시도를 기록합니다 — 앱 이름, 패키지 이름, 타임스탬프 — 최대 500개. 매주 일요일 오전 8시에 FocusFlow가 앱별 7일 합계를 포함한 푸시 알림을 전달합니다 (예: "Instagram: 18회 시도, TikTok: 이번 주 14회 시도"). 주간 행동 보고서를 제공하는 스크린 타임 앱은 다른 곳에 없습니다.</div></details>
         <details><summary>FocusFlow는 YouTube 전체를 차단하지 않고 YouTube Shorts를 차단할 수 있나요?</summary><div class="faq-body">네. YouTube Shorts 차단기는 메인 피드, 검색, 구독 및 동영상 재생을 완전히 접근 가능하게 유지하면서 YouTube 내 Shorts 플레이어를 닫습니다. Instagram Reels 차단도 동일하게 작동합니다 — Reels 피드가 차단되고 나머지 Instagram은 그대로입니다.</div></details>
         <details><summary>세션 중에 새 앱을 설치하면 어떻게 되나요?</summary><div class="faq-body">PackageInstallReceiver가 ACTION_PACKAGE_ADDED 브로드캐스트를 모니터링합니다. 새로 설치된 앱은 자동으로 차단 목록에 추가되고 혐오 진동 피드백을 트리거합니다. 일반적인 "세션 중 경쟁 브라우저 설치" 허점이 닫혔습니다.</div></details>
@@ -259,9 +259,9 @@
     <div class="section-inner">
       <p class="section-label">기술 스택</p>
       <h2>최신 도구로 구축</h2>
-      <p class="section-sub">JS 레이어에 React Native + Expo. Android 측에 6개의 커스텀 Kotlin 네이티브 모듈.</p>
+      <p class="section-sub">Kotlin과 Jetpack Compose로 만든 네이티브 Android 앱입니다. Android 시스템 서비스가 집중 세션, 차단 및 복구를 담당합니다.</p>
       <div class="tech-grid">
-        <span class="tech-pill">Expo SDK 54</span><span class="tech-pill">React Native 0.81</span><span class="tech-pill">Expo Router</span><span class="tech-pill">TypeScript</span><span class="tech-pill">SQLite (expo-sqlite)</span><span class="tech-pill">Kotlin</span><span class="tech-pill">Android Accessibility Service</span><span class="tech-pill">Android Foreground Service</span><span class="tech-pill">AppWidget API</span><span class="tech-pill">UsageStats API</span><span class="tech-pill">VpnService API</span><span class="tech-pill">DeviceAdminReceiver</span><span class="tech-pill">expo-notifications</span><span class="tech-pill">Reanimated v4</span>
+        <span class="tech-pill">Kotlin</span><span class="tech-pill">Jetpack Compose</span><span class="tech-pill">Material 3</span><span class="tech-pill">Room + SQLite</span><span class="tech-pill">Android Accessibility Service</span><span class="tech-pill">Android Foreground Services</span><span class="tech-pill">AppWidget API</span><span class="tech-pill">UsageStats API</span><span class="tech-pill">VpnService API</span><span class="tech-pill">DeviceAdminReceiver</span>
       </div>
     </div>
   </section>

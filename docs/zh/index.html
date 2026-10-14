@@ -164,7 +164,7 @@
       <div class="stat"><div class="stat-num">3</div><div class="stat-label">执行层数<br />（无障碍 + VPN + 设备管理员）</div></div>
       <div class="stat"><div class="stat-num">30+</div><div class="stat-label">Android OEM 品牌<br />支持</div></div>
       <div class="stat"><div class="stat-num">$0</div><div class="stat-label">永久免费<br />无需订阅</div></div>
-      <div class="stat"><div class="stat-num">无需 Root</div><div class="stat-label">运行于原生<br />Android 8.0+</div></div>
+      <div class="stat"><div class="stat-num">无需 Root</div><div class="stat-label">适用于<br />Android 10+</div></div>
     </div>
   </section>
 
@@ -176,7 +176,7 @@
       <div class="layers-grid">
         <div class="layer-card"><div class="layer-num">1</div><h3>无障碍服务</h3><p>监控每个应用窗口。在检测到被屏蔽应用的毫秒内触发——最多以 300 毫秒间隔重检 5 次。还拦截会话期间的 Play Store 安装、卸载对话框以及对无障碍设置的导航。</p></div>
         <div class="layer-card"><div class="layer-num">2</div><h3>本地空路由 VPN</h3><p>将被屏蔽应用的流量路由到从不转发数据包的本地 VPN 隧道。<strong>PER_APP 模式：</strong>只有被屏蔽的应用失去网络。<strong>GLOBAL 模式：</strong>除紧急通话外所有网络切断。没有任何流量离开您的设备。</p></div>
-        <div class="layer-card"><div class="layer-num">3</div><h3>设备管理员</h3><p>通过 Android 设置屏蔽卸载。系统守卫在会话期间拦截对清除数据和无障碍界面的导航。SHA-256 哈希会话 PIN 原生存储——即使 JS 桥接被破坏也无法在没有正确 PIN 的情况下结束会话。</p></div>
+        <div class="layer-card"><div class="layer-num">3</div><h3>设备管理员</h3><p>通过 Android 设置屏蔽卸载。系统守卫在会话期间拦截对清除数据和无障碍界面的导航。结束受保护的会话前需要输入 PIN。</p></div>
       </div>
     </div>
   </section>
@@ -243,7 +243,7 @@
       <p class="section-sub">安装前您需要了解的一切。</p>
       <div class="faq-list">
         <details><summary>FocusFlow 需要 root 吗？</summary><div class="faq-body">不需要。FocusFlow 完全在标准 Android 权限系统内运行——无障碍服务、VPN 和设备管理员。无需 root 或系统修改。它在 30 多个 OEM 品牌的原生 Android 8.0 及以上版本上运行。</div></details>
-        <details><summary>FocusFlow 如何防止我卸载它？</summary><div class="faq-body">三层机制：(1) Android 设备管理员模式屏蔽正常的设置 → 应用 → 卸载路径；(2) 系统守卫在活跃会话期间拦截对无障碍设置、清除数据和卸载的导航；(3) 原生存储的 SHA-256 哈希会话 PIN 意味着即使 JavaScript 层被破坏也无法在没有正确 PIN 的情况下结束会话。</div></details>
+         <details><summary>FocusFlow 如何防止我卸载它？</summary><div class="faq-body">三层机制：(1) Android 设备管理员模式屏蔽正常的设置 → 应用 → 卸载路径；(2) 系统守卫在活跃会话期间拦截对无障碍设置、清除数据和卸载的导航；(3) 结束受保护的会话前需要输入 PIN。</div></details>
         <details><summary>什么是诱惑日志和每周报告？</summary><div class="faq-body">诱惑日志记录每次被屏蔽应用的尝试——应用名称、包名、时间戳——上限 500 条。每周日 08:00，FocusFlow 发送推送通知，按应用显示 7 天总计（例如"Instagram：18 次尝试，TikTok：本周 14 次尝试"）。没有其他屏幕时间应用提供每周行为报告。</div></details>
         <details><summary>FocusFlow 能在不屏蔽整个 YouTube 的情况下屏蔽 YouTube Shorts 吗？</summary><div class="faq-body">可以。YouTube Shorts 屏蔽器关闭 YouTube 内的 Shorts 播放器，同时保留主信息流、搜索、订阅和视频播放完全可访问。Instagram Reels 屏蔽同理——Reels 信息流被屏蔽，Instagram 其余部分不受影响。</div></details>
         <details><summary>如果我在会话期间安装新应用会怎样？</summary><div class="faq-body">PackageInstallReceiver 监控 ACTION_PACKAGE_ADDED 广播。任何新安装的应用都会自动添加到屏蔽列表并触发厌恶振动反馈。常见的"会话中途安装竞争性浏览器"漏洞已被关闭。</div></details>
@@ -259,9 +259,9 @@
     <div class="section-inner">
       <p class="section-label">技术栈</p>
       <h2>使用现代工具构建</h2>
-      <p class="section-sub">JS 层使用 React Native + Expo。Android 端使用六个自定义 Kotlin 原生模块。</p>
+      <p class="section-sub">FocusFlow 是一款原生 Android 应用，使用 Kotlin、Jetpack Compose 和 Android 系统服务实现专注会话、应用屏蔽与恢复。</p>
       <div class="tech-grid">
-        <span class="tech-pill">Expo SDK 54</span><span class="tech-pill">React Native 0.81</span><span class="tech-pill">Expo Router</span><span class="tech-pill">TypeScript</span><span class="tech-pill">SQLite (expo-sqlite)</span><span class="tech-pill">Kotlin</span><span class="tech-pill">Android Accessibility Service</span><span class="tech-pill">Android Foreground Service</span><span class="tech-pill">AppWidget API</span><span class="tech-pill">UsageStats API</span><span class="tech-pill">VpnService API</span><span class="tech-pill">DeviceAdminReceiver</span><span class="tech-pill">expo-notifications</span><span class="tech-pill">Reanimated v4</span>
+        <span class="tech-pill">Kotlin</span><span class="tech-pill">Jetpack Compose</span><span class="tech-pill">Material 3</span><span class="tech-pill">Room + SQLite</span><span class="tech-pill">Android Accessibility Service</span><span class="tech-pill">Android Foreground Services</span><span class="tech-pill">AppWidget API</span><span class="tech-pill">UsageStats API</span><span class="tech-pill">VpnService API</span><span class="tech-pill">DeviceAdminReceiver</span>
       </div>
     </div>
   </section>

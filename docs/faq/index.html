@@ -81,7 +81,7 @@
     "@context": "https://schema.org",
     "@type": "MobileApplication",
     "name": "FocusFlow",
-    "operatingSystem": "Android 8.0+",
+    "operatingSystem": "Android 10+",
     "applicationCategory": "ProductivityApplication",
     "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
     "installUrl": "https://appgallery.huawei.com/app/C117698039",
@@ -131,7 +131,7 @@
         <details>
           <summary class="en">Does FocusFlow require root?</summary>
           <summary class="zh">FocusFlow 需要 root 吗？</summary>
-          <div class="faq-body en">No. FocusFlow works entirely within the standard Android permission system — Accessibility Service, VPN, and Device Administrator. No rooting or system modification is required. It runs on stock Android 8.0+ on 30+ OEM brands without any root access.</div>
+          <div class="faq-body en">No. FocusFlow works within Android’s standard permission system — Accessibility Service, VPN, and Device Administrator. No rooting or system modification is required. It runs on Android 10 or later.</div>
           <div class="faq-body zh">不需要。FocusFlow 完全在标准 Android 权限系统内运行——无障碍服务、VPN 和设备管理员。无需 root 或系统修改。它在 30 多个 OEM 品牌的原生 Android 8.0 及以上版本上运行，无需任何 root 访问权限。</div>
         </details>
         <details>
@@ -205,14 +205,14 @@
             <ul>
               <li><strong>Device Administrator mode</strong> (FocusDayDeviceAdminReceiver) — blocks the Settings → Apps → Uninstall path</li>
               <li><strong>System Guard</strong> — intercepts navigation to Accessibility Settings, Clear Data, and Uninstall screens during active sessions</li>
-              <li><strong>SHA-256 native session PIN</strong> — gates all stop-session operations at the native layer; even a compromised JavaScript bridge cannot end a session without the correct PIN</li>
+              <li><strong>Session PIN</strong> — the correct PIN is required before a protected session can be ended</li>
             </ul>
           </div>
           <div class="faq-body zh">三个独立层：
             <ul>
               <li><strong>设备管理员模式</strong>（FocusDayDeviceAdminReceiver）——屏蔽设置 → 应用 → 卸载路径</li>
               <li><strong>系统守卫</strong>——在活跃会话期间拦截对无障碍设置、清除数据和卸载界面的导航</li>
-              <li><strong>SHA-256 原生会话 PIN</strong>——在原生层管控所有停止会话操作；即使 JavaScript 桥接被破坏，也无法在没有正确 PIN 的情况下结束会话</li>
+              <li><strong>会话 PIN</strong>——结束受保护的会话前需要输入正确的 PIN</li>
             </ul>
           </div>
         </details>

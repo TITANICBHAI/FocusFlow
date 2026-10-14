@@ -287,31 +287,22 @@ jobs:
       - name: Generate changelog and install instructions
         env:
           BUILD_SHA: ${{ needs.select_build.outputs.head_sha }}
-          BUILD_RUN_NUMBER: ${{ needs.select_build.outputs.run_number }}
-          BUILD_RUN_URL: ${{ needs.select_build.outputs.run_url }}
           VERSION_NAME: ${{ steps.metadata.outputs.version_name }}
-          VERSION_CODE: ${{ steps.metadata.outputs.version_code }}
+          RELEASE_TAG: ${{ steps.metadata.outputs.release_tag }}
           APK_ARM64_NAME: ${{ steps.stage.outputs.arm64_v8a_name }}
-          APK_ARM64_SHA256: ${{ steps.stage.outputs.arm64_v8a_sha256 }}
           APK_ARM32_NAME: ${{ steps.stage.outputs.armeabi_v7a_name }}
-          APK_ARM32_SHA256: ${{ steps.stage.outputs.armeabi_v7a_sha256 }}
           APK_UNIVERSAL_NAME: ${{ steps.stage.outputs.universal_name }}
-          APK_UNIVERSAL_SHA256: ${{ steps.stage.outputs.universal_sha256 }}
         run: |
           python3 scripts/generate_github_release_notes.py \
             --changelog app/src/main/assets/changelog.json \
             --output release-notes.md \
             --version-name "$VERSION_NAME" \
-            --version-code "$VERSION_CODE" \
-            --build-run-number "$BUILD_RUN_NUMBER" \
-            --build-run-url "$BUILD_RUN_URL" \
+            --repository "$GITHUB_REPOSITORY" \
+            --release-tag "$RELEASE_TAG" \
             --source-sha "$BUILD_SHA" \
             --apk-arm64-name "$APK_ARM64_NAME" \
-            --apk-arm64-sha256 "$APK_ARM64_SHA256" \
             --apk-arm32-name "$APK_ARM32_NAME" \
-            --apk-arm32-sha256 "$APK_ARM32_SHA256" \
-            --apk-universal-name "$APK_UNIVERSAL_NAME" \
-            --apk-universal-sha256 "$APK_UNIVERSAL_SHA256"
+            --apk-universal-name "$APK_UNIVERSAL_NAME"
 
       - name: Publish GitHub release
         id: release

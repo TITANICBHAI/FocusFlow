@@ -1,4 +1,4 @@
-modules = ["web", "nodejs-20", "bash"]
+modules = ["web", "nodejs-20", "bash", "python-base-3.13"]
 
 [nix]
 channel = "stable-25_05"
@@ -27,7 +27,7 @@ outputType = "console"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "bash scripts/push-to-github.sh"
+args = "node scripts/github-push.mjs"
 
 [[workflows.workflow]]
 name = "Run Android unit tests"

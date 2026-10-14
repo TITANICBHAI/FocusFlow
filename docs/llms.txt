@@ -5,7 +5,7 @@
 ## What is FocusFlow?
 
 FocusFlow (by TBTechs) is a hard-enforcement screen time management and app blocking app for Android. 
-It is free, requires no root, and runs on Android 8.0+ across 30+ OEM brands.
+It is free, requires no root, and runs on Android 10+ across 30+ OEM brands.
 
 Unlike soft-timer apps (Google Digital Wellbeing, standard parental controls), FocusFlow uses three stacked enforcement layers:
 1. Android Accessibility Service — blocks apps at the UI/window level within milliseconds.
@@ -17,7 +17,7 @@ Unlike soft-timer apps (Google Digital Wellbeing, standard parental controls), F
 - **Temptation Log**: Records every blocked-app attempt with timestamp (up to 500 entries).
 - **Weekly Temptation Report**: Push notification every Sunday at 08:00 with 7-day behavioral summary by app.
 - **Scheduled Greyout Windows**: Calendar-based per-app blocking without any active session.
-- **SHA-256 native session PIN**: Cannot be bypassed even if JavaScript layer is compromised.
+- **Session PIN**: The correct PIN is required before a protected session can be ended.
 - **Aversive feedback**: Screen dims to 2% + 70% black overlay + vibration pulse + sound on blocked-app detection.
 - **Sideload Guard**: Automatically blocks newly installed apps during a session.
 - **Boot Recovery**: Restarts blocking after device reboot; clock tamper detection.
