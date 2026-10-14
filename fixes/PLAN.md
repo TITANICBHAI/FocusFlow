@@ -12,14 +12,14 @@
 2. **Do not rebuild what works** (section 1.2). Delete code more readily than you add it.
 3. **Product decisions.** A task tagged **PD-n** depends on an owner decision (section 3). If the owner has not answered when you reach the task, implement the stated **DEFAULT**, keep the choice in one constant or branch so it is easy to change, and record in the tracker "default applied, awaiting owner". Never choose a different behavior silently.
 4. **Evidence.** Tick a tracker item only with the evidence the item names (a test, a grep result, a log line). Anything that needs a real device is **owner-run** (section 7): you add the tooling and the instructions, and you never tick the result.
-5. **Owner constraints.** Do not touch Gradle files, GitHub Actions or APK builds. Keep the `.focusflow` backup format unchanged. Do not touch the Linux app. Do not start a later batch before the earlier batch's automated "done when" holds, unless the batch explicitly permits it. A specific owner-authorized exception must be recorded in section 3.1 and the tracker before it is used; do not infer authorization from draft attachments.
+5. **Owner constraints.** Do not touch Gradle files, GitHub Actions or APK builds. Keep the `.focusflow` backup format unchanged. Do not touch the Linux app. A task may start only when its listed prerequisites are complete; batch letters are groupings, not gates. A specific owner-authorized exception must be recorded in section 3.1 and the tracker before it is used; do not infer authorization from draft attachments.
 6. **Size and loops.** New files stay under about 250 lines and must justify going over 300. No new polling loop unless it appears in the cadence table (section 4.4).
 7. **Illustrative code.** Snippets are examples. Any implementation that meets the acceptance criteria is fine.
 8. **Tests.** Behavior tests only. Delete any test that reads Kotlin source files as text and replace it with a behavior test. Use fake clocks and fake event sources; logic under test must not call `System.currentTimeMillis()` directly.
 9. **One task, one pull request**, named by its task ID.
 10. **Device testing happens at the very end (Batch E), by the owner, on a Realme C3 (Android 10) and a Samsung M31 (Android 12): one initial full session, then retests of failed scenarios only, for at most two rounds.** Everything before that must be proven by automated tests, and the agent must leave the owner a detailed step-by-step guide (section 7).
-11. **Automated completion versus owner evidence.** A batch's implementation gate is determined by its automated "done when." Owner-run scenarios and owner-provided logs remain `OWNER-RUN PENDING` until supplied; they do not block Batch D or E1 unless an explicit dependency below says otherwise. E3 must resolve them or record an owner-approved deferral.
-12. **Dependency direction.** Do not make a batch depend on evidence that can only be produced after that batch or a later batch starts. Cross-batch integration belongs to the later batch that provides the dependency: C5 owns the A2 rollup-prune wiring, and E3 owns replay of C6a's harness on owner logs. Every exception must name its prerequisite and closure evidence.
+11. **Automated completion versus owner evidence.** A task's completion gate is determined by its automated "done when." Owner-run scenarios and owner-provided logs remain `OWNER-RUN PENDING` until supplied; they do not block D tasks or E1 unless an explicit dependency below says otherwise. E3 must resolve them or record an owner-approved deferral.
+12. **Dependency direction.** Do not make a task depend on evidence that can only be produced after that task or a later task starts. Cross-batch integration belongs to the task that provides the dependency: C5 owns the A2 maintenance-worker rollup-prune wiring and closes A2b; E3 owns replay of C6a's harness on owner logs. Every exception must name its prerequisite and closure evidence.
 
 ---
 
@@ -114,7 +114,7 @@ Severity: **P0** do not release; **P1** fix in Phase 5, it affects enforcement o
 | Build files | `app/src/main/AndroidManifest.xml` and `app/build.gradle.kts` are present. The manifest declares `QUERY_ALL_PACKAGES` and `dataSync|specialUse`; the app target SDK is 35. C2 must verify actual package-query needs against code rather than treating a broad declaration as proof of correctness. | Repository inspection recorded for v9; PD-12 remains open for distribution/release planning. Do not change Gradle or manifest as part of this documentation repair. |
 | Old background jobs | Late-start warnings, reminders and the morning digest are never scheduled (P5-03). Should they run? | Not in Phase 5; backlog item AD-6. |
 
-No pre-A-gate B1a/B1b exception is recorded in the current plan/tracker. Until a specific owner authorization is recorded in both, these tasks follow the normal Batch B gate.
+Task-level prerequisites govern the start order: B1a needs A4; B1b needs B1a and B6. These are ordinary dependencies in section 5.0, not early-start exceptions.
 
 ---
 
@@ -193,7 +193,43 @@ One resolver implements this table and both the accessibility path and the foreg
 
 ## 5. Batches
 
-Order: **A first** (release blockers), then **B and C** (they can run in parallel where dependencies permit), then **D**, then **E**. Do **A5 (tracker truth) first**. The foundation gate is A1, A2a, A3, and A4. C5 may start once that gate holds; it owns and closes A2b. All other Batch B/C work waits until C5 closes A2b and Batch A is complete. Owner-run evidence is collected at E1 and resolved at E3.
+### 5.0 Dependency map and completion order
+
+A task may start and be marked done when every task in its **Needs** column is done. Batch letters group tasks; they are not gates. The map below is authoritative. A2b is the worker-invocation evidence owned by C5: C5 does not depend on A2b, and unrelated tasks do not wait for it.
+
+| Task | Needs |
+|---|---|
+| A5 | — |
+| A1 | A5 |
+| A2a | A5 |
+| A2b | C5 |
+| A3 | A5 |
+| A4 | A5 |
+| B1a | A4 |
+| B1b | B1a, B6 |
+| B2 | A4 |
+| B3 | B2, B4 |
+| B4 | A4 |
+| B5 | B2, B3, B4, B6 |
+| B6 | A4 |
+| B7 | B3, B4, B6 |
+| C1 | A1, A4 |
+| C2 | A3, C1 |
+| C3 | A2a |
+| C4 | A1, A2a, A3 |
+| C5 | A1, A2a |
+| C6a | A1, C1, C4 |
+| C6b | E1, C6a |
+| D1 | B1a, B3, B4, C6a |
+| D2 | B1b, B6, C6a |
+| D3 | A3, D2, C6a |
+| E1 | B1a, B1b, B2, B3, B4, B5, B6, B7, C1, C2, C3, C4, C5, C6a, D1, D2, D3 |
+| E2 | E1 |
+| E3 | E2, C6b |
+
+One valid order is: **A5 > A1 > A2a > A3 > A4 > B1a > B2 > B4 > B6 > B3 > B1b > B5 > B7 > C1 > C2 > C3 > C4 > C5 > A2b > C6a > D1 > D2 > D3 > E1 > C6b > E2 > E3.** Other orders are valid when they respect the map.
+
+Owner-run checks do not block a task unless the map names the owner-run task as a prerequisite. E1 is the owner device session; C6b is the later replay of owner logs and does not block D or E1.
 
 ### Batch A: release blockers
 
@@ -213,7 +249,7 @@ Order: **A first** (release blockers), then **B and C** (they can run in paralle
 - *Tests (fake clock and stores):* order is rollup, detection, prune; an unknown rollup result does not mark the day and retries; success marks it once per local day; the prune horizon uses the injected clock.
 - *Done when:* a log or counter shows the job scheduled at app start, and the tests pass. This is the A2 core only; the C5 rollup-prune integration is tracked separately as A2b.
 
-**A2b · rollup-prune integration (owned by C5).** This is the one permitted cross-batch dependency that completes A2. It is blocked by C5; C5 may start after A1, A2a, A3, and A4 are complete. C5 adds and tests pruning for all rollup tables and wires it through the maintenance worker's existing prune operation. A2b is complete only when C5's worker-invocation test passes. This item does not block C5 from starting.
+**A2b · rollup-prune integration (owned by C5).** This is the one permitted cross-batch dependency that completes A2. It is blocked by C5; C5 may start after A1 and A2a are complete. C5 adds and tests pruning for all rollup tables and wires it through the maintenance worker's existing prune operation. A2b is complete only when C5's worker-invocation test passes. This item does not block C5 from starting.
 
 **A3 · Stats zero reading (S to M).** Fixes P5-04, P5-17; PD-7.
 - In `DeviceUsageSource.read`, keep every app of the day:
@@ -242,7 +278,7 @@ Order: **A first** (release blockers), then **B and C** (they can run in paralle
 
 ### Batch B: one meter everywhere
 
-**Batch B gate.** A1, A2a, A3, A4 and A2b are complete. B and the remaining C work may then proceed in parallel where their task dependencies permit. No B1a/B1b early-start exception is recorded in v9.
+**Batch B order.** There is no batch-wide gate. Start each B task when its prerequisites in section 5.0 are complete; for example, B1a, B2, B4 and B6 can proceed independently after A4.
 
 **B1a · accessibility lifecycle, recovery and messaging (M).** Fixes the independent portions of P5-05, P5-10 and P5-27; PD-2.
 - Keep the meter in the accessibility service. `onInterrupt` must not tear it down; teardown happens only on unbind and destroy, and a rebind recreates and starts the meter (a start is a "read due" event).
@@ -289,7 +325,7 @@ Order: **A first** (release blockers), then **B and C** (they can run in paralle
 
 ### Batch C: one definition of usage
 
-**Batch C gate.** The Foundation Gate is A1, A2a, A3 and A4 complete. C5 may start at that point and is responsible for completing A2b; it must not depend on A2b being complete. All other C work waits for C5 to close A2b and for Batch A to be complete. After that, B and C may proceed in parallel where dependencies permit.
+**Batch C order.** There is no batch-wide gate. Start each C task when its prerequisites in section 5.0 are complete. C5 needs A1 and A2a, and owns the A2b integration; C5 must not wait for A2b. Other C tasks do not wait for C5 unless the map says so.
 
 **C1 · session definition (M).** Fixes P5-14; PD-10.
 - Merge same-package sessions per PD-10. Define "session" in the code documentation. Bump `CURRENT_PIPELINE_VERSION`, so stored days are recomputed and the cutover gate counts only current-version days.
@@ -322,7 +358,7 @@ Order: **A first** (release blockers), then **B and C** (they can run in paralle
 
 ### Batch D: screens and wording
 
-**Batch D gate.** B1a, B1b, B2–B7 and C1–C6a must meet their automated done-when criteria. Owner-run S1, S2 and S4, and C6b's owner-log replay, do not block D; their status remains pending until evidence or owner-approved deferral.
+**Batch D order.** Each D task starts when its own prerequisites in section 5.0 are complete. Owner-run S1, S2 and S4, and C6b's owner-log replay, do not block D; their status remains pending until evidence or owner-approved deferral.
 
 **D1 · freshness everywhere (M).** Fixes P5-21. Expose the one freshness function (4.3) and carry it in the allowance UI model. The launcher, `ActiveScreen` and `DailyAllowanceModal` use it. `DailyAllowanceModal` either shows `usageByPackage` or drops the parameter. *Tests:* reducer tables, including "idle after the app left is exact".
 
