@@ -907,11 +907,7 @@ class SettingsRepository(
     suspend fun setDailyAllowanceConfig(configJson: String) {
         restoreGate.write("SettingsRepository.setDailyAllowanceConfig") {
         prefs.edit().putString(KEY_DAILY_ALLOWANCE_CONFIG, configJson).apply()
-        appContext.sendBroadcast(
-            Intent(AppBlockerAccessibilityService.ACTION_ALLOWANCE_CONFIG_CHANGED).apply {
-                `package` = appContext.packageName
-            },
-        )
+        allowanceConfigChangedBroadcastAction(appContext)
         }
     }
 
