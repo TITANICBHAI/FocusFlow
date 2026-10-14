@@ -7,6 +7,7 @@ import android.content.SharedPreferences
 import androidx.lifecycle.ViewModelStore
 import com.tbtechs.focusflow.data.model.DailyAllowanceEntry
 import com.tbtechs.focusflow.data.model.StandaloneBlockAndAllowanceConfig
+import com.tbtechs.focusflow.data.restore.RestoreGate
 import com.tbtechs.focusflow.data.repository.SettingsRepository
 import com.tbtechs.focusflow.domain.PinManager
 import kotlinx.coroutines.Dispatchers
@@ -190,12 +191,15 @@ class SettingsViewModelUpdateWiringTest {
             edit().putBoolean("net_block_explicit_migrated", true).apply()
         }
         val context = TestContext(preferences)
+        val restoreGate = RestoreGate()
         val repository = SettingsRepository(
             context,
+            restoreGate = restoreGate,
             requestVpnSyncAction = {},
             ioDispatcher = StandardTestDispatcher(testScheduler),
+            allowanceConfigChangedBroadcastAction = {},
         )
-        val viewModel = SettingsViewModel(repository, PinManager(context), context)
+        val viewModel = SettingsViewModel(repository, PinManager(context), context, restoreGate)
         val store = ViewModelStore().apply { put("settings", viewModel) }
 
         try {
