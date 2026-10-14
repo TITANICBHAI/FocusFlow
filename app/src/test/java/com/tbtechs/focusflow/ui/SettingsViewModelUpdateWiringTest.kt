@@ -5,6 +5,7 @@ import android.content.ContextWrapper
 import android.content.Intent
 import android.content.SharedPreferences
 import androidx.lifecycle.ViewModelStore
+import com.tbtechs.focusflow.data.model.DailyAllowanceEntry
 import com.tbtechs.focusflow.data.model.StandaloneBlockAndAllowanceConfig
 import com.tbtechs.focusflow.data.repository.SettingsRepository
 import com.tbtechs.focusflow.domain.PinManager
@@ -15,6 +16,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import org.json.JSONArray
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -154,6 +156,80 @@ class SettingsViewModelUpdateWiringTest {
                 preferences.getString("net_block_standalone_vpn_packages", null),
             )
             assertEquals(emptyList<String>(), viewModel.settings.value.standaloneBlockVpnPackages)
+        } finally {
+            store.clear()
+            Dispatchers.resetMain()
+        }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun manuallyAddedAlwaysOnPackageUsesTheExistingPersistedPackageList() = runTest {
+        val preferences = MemorySharedPreferences()
+        val repository = SettingsRepository(
+            TestContext(preferences),
+            requestVpnSyncAction = {},
+            ioDispatcher = StandardTestDispatcher(testScheduler),
+        )
+        val packages = listOf("com.example.manually_added")
+
+        repository.setAlwaysBlockActive(active = true, packages = packages)
+
+        assertTrue(preferences.getBoolean("always_block_active", false))
+        assertEquals(
+            """["com.example.manually_added"]""",
+            preferences.getString("always_block_packages", null),
+        )
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun dailyAllowanceManuallyAddedPackagePersistsAndEmptySelectionClearsIt() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val preferences = MemorySharedPreferences().apply {
+            edit().putBoolean("net_block_explicit_migrated", true).apply()
+        }
+        val context = TestContext(preferences)
+        val repository = SettingsRepository(
+            context,
+            requestVpnSyncAction = {},
+            ioDispatcher = StandardTestDispatcher(testScheduler),
+        )
+        val viewModel = SettingsViewModel(repository, PinManager(context), context)
+        val store = ViewModelStore().apply { put("settings", viewModel) }
+
+        try {
+            advanceUntilIdle()
+            viewModel.setDailyAllowanceEntries(
+                listOf(
+                    DailyAllowanceEntry(
+                        packageName = "com.example.manually_added",
+                        dailyAllowanceMs = 0L,
+                        mode = "count",
+                        countPerDay = 2,
+                        budgetMinutes = 30,
+                        intervalMinutes = 5,
+                        intervalHours = 1,
+                    ),
+                ),
+            )
+            advanceUntilIdle()
+
+            val saved = JSONArray(preferences.getString("daily_allowance_config", "[]"))
+                .getJSONObject(0)
+            assertEquals("com.example.manually_added", saved.getString("package"))
+            assertEquals("count", saved.getString("mode"))
+            assertEquals(2, saved.getInt("countPerDay"))
+            assertEquals(
+                preferences.getString("daily_allowance_config", null),
+                viewModel.settings.value.dailyAllowanceConfigJson,
+            )
+
+            viewModel.setDailyAllowanceEntries(emptyList())
+            advanceUntilIdle()
+
+            assertEquals("[]", preferences.getString("daily_allowance_config", null))
+            assertEquals("[]", viewModel.settings.value.dailyAllowanceConfigJson)
         } finally {
             store.clear()
             Dispatchers.resetMain()

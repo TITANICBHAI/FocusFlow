@@ -70,6 +70,7 @@ import com.tbtechs.focusflow.data.repository.InstalledAppInfo
 import com.tbtechs.focusflow.data.repository.InstalledAppsRepository
 import com.tbtechs.focusflow.data.repository.missingInstalledAppInfo
 import com.tbtechs.focusflow.ui.launcher.AppIcon
+import com.tbtechs.focusflow.ui.common.CollapsibleManualPackageSection
 import com.tbtechs.focusflow.ui.common.rememberInstalledApps
 import com.tbtechs.focusflow.ui.home.FocusFlowModalCard
 import com.tbtechs.focusflow.ui.home.FocusFlowModalField
@@ -131,8 +132,7 @@ fun DailyAllowanceModal(
     val originalPackages = remember(selectedEntries) { selectedEntries.mapTo(mutableSetOf()) { it.packageName } }
     var expandedPackage by remember { mutableStateOf<String?>(null) }
     var search by remember { mutableStateOf("") }
-    var packageDraft by remember { mutableStateOf("") }
-    var manualPackageDialogVisible by remember { mutableStateOf(false) }
+    var manualPackages by remember { mutableStateOf<Set<String>>(emptySet()) }
     var message by remember { mutableStateOf<AllowanceMessage?>(null) }
     var pendingRemoval by remember { mutableStateOf<PendingAllowanceRemoval?>(null) }
     var pin by remember { mutableStateOf("") }
@@ -175,60 +175,30 @@ fun DailyAllowanceModal(
         }
     }
 
-    fun addPackage(): Boolean {
-        val packageName = packageDraft.trim()
-        return when {
-            packageName.isEmpty() -> false
-            !PACKAGE_NAME.matches(packageName) -> {
-                message = AllowanceMessage("Enter a package name", "Use an Android package name such as com.example.app.")
-                false
-            }
-            drafts.any { it.packageName == packageName } -> {
-                expandedPackage = packageName
-                packageDraft = ""
-                true
-            }
-            else -> {
-                drafts = drafts + DailyAllowanceDraft(packageName = packageName)
-                expandedPackage = packageName
-                packageDraft = ""
-                true
-            }
-        }
-    }
-
     fun save() {
-        onSave(
-            drafts.map {
-                DailyAllowanceEntry(
-                    packageName = it.packageName,
-                    dailyAllowanceMs = when (it.mode) {
-                        AllowanceMode.TimeBudget -> it.budgetMinutes.coerceAtLeast(1).toLong() * MINUTE_MS
-                        AllowanceMode.Interval -> it.intervalMinutes.coerceAtLeast(1).toLong() * MINUTE_MS
-                        AllowanceMode.Count -> 0L
-                    },
-                    mode = when (it.mode) {
-                        AllowanceMode.Count -> "count"
-                        AllowanceMode.Interval -> "interval"
-                        AllowanceMode.TimeBudget -> "time_budget"
-                    },
-                    countPerDay = it.countPerDay.coerceAtLeast(1),
-                    budgetMinutes = it.budgetMinutes.coerceAtLeast(1),
-                    intervalMinutes = it.intervalMinutes.coerceAtLeast(1),
-                    intervalHours = it.intervalHours.coerceAtLeast(1),
-                )
-            },
-        )
+        onSave(dailyAllowanceEntriesForSave(drafts))
         onClose()
     }
 
-    val shownApps = remember(installedApps, drafts, search) {
+    val shownApps = remember(
+        installedApps,
+        drafts,
+        manualPackages,
+        search,
+        appsLoading,
+        installedAppsState.error,
+    ) {
         val query = search.trim().lowercase()
-        val manualApps = drafts
-            .filter { draft -> installedApps.none { it.packageName == draft.packageName } }
-            .map { draft ->
+        val installedPackages = installedApps.mapTo(mutableSetOf()) { it.packageName }
+        val manualAppPackages = missingAllowancePackageNames(
+            installedPackages = installedPackages,
+            configuredPackages = drafts.map { it.packageName },
+            manuallyAddedPackages = manualPackages,
+        )
+        val manualApps = manualAppPackages
+            .map { packageName ->
                 missingInstalledAppInfo(
-                    packageName = draft.packageName,
+                    packageName = packageName,
                     label = when {
                         appsLoading -> "Checking app"
                         installedAppsState.error != null -> "App details unavailable"
@@ -394,6 +364,20 @@ fun DailyAllowanceModal(
             }
 
             item {
+                CollapsibleManualPackageSection(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                    helperText = "Add it to the list below, then tap it to configure an allowance. You can save with none enabled.",
+                    onAddPackage = { packageName ->
+                        manualPackages = manualPackages + packageName
+                        if (drafts.any { it.packageName == packageName }) {
+                            expandedPackage = packageName
+                        }
+                        null
+                    },
+                )
+            }
+
+            item {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -408,9 +392,6 @@ fun DailyAllowanceModal(
                         fontWeight = FontWeight.Medium,
                         color = DarkTextSecondary,
                     )
-                    TextButton(onClick = { packageDraft = ""; manualPackageDialogVisible = true }) {
-                        Text("Add package", color = BrandPrimary, fontSize = 12.scaledSp)
-                    }
                 }
             }
 
@@ -605,47 +586,6 @@ fun DailyAllowanceModal(
                 }
             }
 
-        }
-    }
-
-    if (manualPackageDialogVisible) {
-        Dialog(
-            onDismissRequest = { manualPackageDialogVisible = false; packageDraft = "" },
-            properties = DialogProperties(usePlatformDefaultWidth = false),
-        ) {
-            FocusFlowModalCard(
-                modifier = Modifier.fillMaxWidth().padding(16.dp),
-                radius = 16.dp,
-                contentPadding = 16.dp,
-            ) {
-                Text("Add package manually", fontSize = 18.scaledSp, fontWeight = FontWeight.Bold, color = DarkTextPrimary)
-                FocusFlowModalField(
-                    value = packageDraft,
-                    onValueChange = { packageDraft = it },
-                    placeholder = "com.example.app",
-                    minHeight = 44.dp,
-                    modifier = Modifier.padding(top = 12.dp),
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    FocusFlowSecondaryButton(
-                        text = "Cancel",
-                        onClick = { manualPackageDialogVisible = false; packageDraft = "" },
-                        modifier = Modifier.weight(1f),
-                    )
-                    FocusFlowPrimaryButton(
-                        text = "Add",
-                    onClick = {
-                        if (addPackage()) {
-                            manualPackageDialogVisible = false
-                        }
-                    },
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-            }
         }
     }
 
@@ -914,13 +854,13 @@ private fun StepperRow(
     }
 }
 
-private enum class AllowanceMode(val label: String) {
+internal enum class AllowanceMode(val label: String) {
     Count("Count"),
     TimeBudget("Time Budget"),
     Interval("Interval"),
 }
 
-private data class DailyAllowanceDraft(
+internal data class DailyAllowanceDraft(
     val packageName: String,
     val mode: AllowanceMode = AllowanceMode.Count,
     val countPerDay: Int = 1,
@@ -943,7 +883,38 @@ private sealed interface PendingAllowanceRemoval {
 private data class AllowanceMessage(val title: String, val body: String)
 
 private const val MINUTE_MS = 60_000L
-private val PACKAGE_NAME = Regex("^[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z0-9_]+)+$")
+
+internal fun missingAllowancePackageNames(
+    installedPackages: Set<String>,
+    configuredPackages: Collection<String>,
+    manuallyAddedPackages: Set<String>,
+): List<String> =
+    (configuredPackages + manuallyAddedPackages)
+        .distinct()
+        .filterNot { it in installedPackages }
+
+internal fun dailyAllowanceEntriesForSave(
+    drafts: List<DailyAllowanceDraft>,
+): List<DailyAllowanceEntry> =
+    drafts.map { draft ->
+        DailyAllowanceEntry(
+            packageName = draft.packageName,
+            dailyAllowanceMs = when (draft.mode) {
+                AllowanceMode.TimeBudget -> draft.budgetMinutes.coerceAtLeast(1).toLong() * MINUTE_MS
+                AllowanceMode.Interval -> draft.intervalMinutes.coerceAtLeast(1).toLong() * MINUTE_MS
+                AllowanceMode.Count -> 0L
+            },
+            mode = when (draft.mode) {
+                AllowanceMode.Count -> "count"
+                AllowanceMode.Interval -> "interval"
+                AllowanceMode.TimeBudget -> "time_budget"
+            },
+            countPerDay = draft.countPerDay.coerceAtLeast(1),
+            budgetMinutes = draft.budgetMinutes.coerceAtLeast(1),
+            intervalMinutes = draft.intervalMinutes.coerceAtLeast(1),
+            intervalHours = draft.intervalHours.coerceAtLeast(1),
+        )
+    }
 
 internal fun dailyAllowanceEntriesFromJson(raw: String?): List<DailyAllowanceEntry> = runCatching {
     val values = JSONArray(raw ?: "[]")

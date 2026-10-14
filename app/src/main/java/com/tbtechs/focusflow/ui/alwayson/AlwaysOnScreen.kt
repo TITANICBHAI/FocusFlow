@@ -68,6 +68,7 @@ import com.tbtechs.focusflow.data.repository.VpnSelfHealPolicy
 import com.tbtechs.focusflow.ui.FocusSessionViewModel
 import com.tbtechs.focusflow.ui.SettingsViewModel
 import com.tbtechs.focusflow.ui.common.FocusFlowSwitch
+import com.tbtechs.focusflow.ui.common.CollapsibleManualPackageSection
 import com.tbtechs.focusflow.ui.common.rememberInstalledApps
 import com.tbtechs.focusflow.ui.home.FocusFlowInternalHeader
 import com.tbtechs.focusflow.ui.launcher.AppIcon
@@ -146,6 +147,7 @@ fun AlwaysOnScreen(
     var vpnSelected by remember { mutableStateOf<Set<String>>(emptySet()) }
     var originalSelected by remember { mutableStateOf<Set<String>>(emptySet()) }
     var originalVpnSelected by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var manualPackages by remember { mutableStateOf<Set<String>>(emptySet()) }
     var search by remember { mutableStateOf("") }
     var settingsLoading by remember { mutableStateOf(true) }
     var saving by remember { mutableStateOf(false) }
@@ -168,6 +170,7 @@ fun AlwaysOnScreen(
         installedAppsState.error,
         selected,
         vpnSelected,
+        manualPackages,
         context.packageName,
     ) {
         val catalogPackages = installedAppsState.apps.mapTo(mutableSetOf()) { it.packageName }
@@ -177,7 +180,7 @@ fun AlwaysOnScreen(
         val missing = if (installedAppsState.loading) {
             emptyList()
         } else {
-            (selected + vpnSelected).asSequence()
+            (selected + vpnSelected + manualPackages).asSequence()
                 .filterNot { it in catalogPackages }
                 .distinct()
                 .map { packageName ->
@@ -203,6 +206,7 @@ fun AlwaysOnScreen(
         networkSettings = storedNetwork
         selected = storedSettings?.alwaysBlockPackages?.toSet().orEmpty()
         vpnSelected = storedNetwork?.packages?.toSet().orEmpty()
+        manualPackages = selected + vpnSelected
         originalSelected = selected
         originalVpnSelected = vpnSelected
         settingsLoading = false
@@ -218,8 +222,12 @@ fun AlwaysOnScreen(
     val blockProtectionActive = focusSession?.isActive == true ||
         (settings.standaloneBlockActive &&
             settings.standaloneBlockUntilMs > System.currentTimeMillis())
-    val isRemoving = originalSelected.any { it !in selected } ||
-        originalVpnSelected.any { it !in vpnSelected }
+    val isRemoving = AlwaysOnRemovalPolicy.isRemoving(
+        originalAlwaysOnPackages = originalSelected,
+        alwaysOnPackages = selected,
+        originalVpnPackages = originalVpnSelected,
+        vpnPackages = vpnSelected,
+    )
 
     fun save(defensePin: String? = null) {
         if (isRemoving && blockProtectionActive) {
@@ -471,6 +479,22 @@ fun AlwaysOnScreen(
                 }
             }
 
+            CollapsibleManualPackageSection(
+                modifier = Modifier.padding(vertical = 2.dp),
+                helperText = "Add a package name to include it in the Always-On block list.",
+                onAddPackage = { packageName ->
+                    val isProtected = packageName.equals(context.packageName, ignoreCase = true) ||
+                        systemNeverBlock.any { it.equals(packageName, ignoreCase = true) }
+                    if (isProtected) {
+                        "This system app is protected and cannot be blocked."
+                    } else {
+                        manualPackages = manualPackages + packageName
+                        selected = selected + packageName
+                        null
+                    }
+                },
+            )
+
             // Search Bar
             OutlinedTextField(
                 value = search,
@@ -628,6 +652,7 @@ fun AlwaysOnScreen(
                     onClick = {
                         selected = emptySet()
                         vpnSelected = emptySet()
+                        manualPackages = emptySet()
                         clearConfirmation = false
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
