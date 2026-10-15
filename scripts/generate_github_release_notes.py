@@ -119,7 +119,7 @@ def render_release_notes(
             "",
             "### 2. Install with Android or SAI",
             "",
-            "Download **one** APK above. Open it with Android’s installer, or open **SAI → Install APKs** and select the APK. These are standalone **.apk** files, and SAI can install them too. You can use SAI while leaving Play Protect on; Play Protect may still scan the APK and show a warning.",
+            "Download **one** APK above and open it with Android’s installer, or install [SAI from Google Play](https://play.google.com/store/apps/details?id=com.mtv.sai) and choose the downloaded APK. SAI can install these standalone APKs while leaving Play Protect on; Play Protect may still scan the APK and show a warning.",
             "",
             "### 3. If Play Protect warns",
             "",
