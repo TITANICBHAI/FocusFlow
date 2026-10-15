@@ -287,6 +287,12 @@ jobs:
             done < /tmp/verified-tbtechs-apks.tsv
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Check out release notes generator
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: release-tools
+
       - name: Generate changelog and install instructions
         env:
           BUILD_SHA: ${{ needs.select_build.outputs.head_sha }}
@@ -296,7 +302,7 @@ jobs:
           APK_ARM32_NAME: ${{ steps.stage.outputs.armeabi_v7a_name }}
           APK_UNIVERSAL_NAME: ${{ steps.stage.outputs.universal_name }}
         run: |
-          python3 scripts/generate_github_release_notes.py \
+          python3 release-tools/scripts/generate_github_release_notes.py \
             --changelog app/src/main/assets/changelog.json \
             --output release-notes.md \
             --version-name "$VERSION_NAME" \
