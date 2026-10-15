@@ -154,22 +154,46 @@ jobs:
             echo "- **tbtechs APK artifacts:** ARM64, ARM32, universal"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Refuse to overwrite an existing release tag
+      - name: Verify an existing release tag matches the selected build
         uses: actions/github-script@v7
         env:
           RELEASE_TAG: ${{ steps.metadata.outputs.release_tag }}
+          BUILD_SHA: ${{ needs.select_build.outputs.head_sha }}
         with:
           script: |
+            let tagRef;
             try {
-              await github.rest.git.getRef({
+              const response = await github.rest.git.getRef({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 ref: `tags/${process.env.RELEASE_TAG}`,
               });
-              throw new Error(`Tag ${process.env.RELEASE_TAG} already exists; refusing to overwrite a release.`);
+              tagRef = response.data;
             } catch (error) {
-              if (error.status !== 404) throw error;
+              if (error.status === 404) {
+                core.info(`Tag ${process.env.RELEASE_TAG} does not exist; a new release will be created.`);
+                return;
+              }
+              throw error;
             }
+
+            let targetSha = tagRef.object.sha;
+            if (tagRef.object.type === "tag") {
+              const response = await github.rest.git.getTag({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag_sha: targetSha,
+              });
+              targetSha = response.data.object.sha;
+            } else if (tagRef.object.type !== "commit") {
+              throw new Error(`Tag ${process.env.RELEASE_TAG} does not point to a commit.`);
+            }
+            if (targetSha !== process.env.BUILD_SHA) {
+              throw new Error(
+                `Tag ${process.env.RELEASE_TAG} points to ${targetSha}; refusing to replace selected build ${process.env.BUILD_SHA}.`,
+              );
+            }
+            core.info(`Tag ${process.env.RELEASE_TAG} matches the selected build; the existing release can be updated.`);
 
       - name: Download the tbtechs ARM64 APK
         uses: actions/download-artifact@v4
@@ -327,7 +351,7 @@ jobs:
             ${{ steps.stage.outputs.armeabi_v7a_path }}
             ${{ steps.stage.outputs.universal_path }}
           fail_on_unmatched_files: true
-          overwrite_files: false
+          overwrite_files: true
           draft: false
           prerelease: false
           make_latest: true
