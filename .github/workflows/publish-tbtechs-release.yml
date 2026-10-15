@@ -154,46 +154,22 @@ jobs:
             echo "- **tbtechs APK artifacts:** ARM64, ARM32, universal"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Verify an existing release tag matches the selected build
+      - name: Refuse to overwrite an existing release tag
         uses: actions/github-script@v7
         env:
           RELEASE_TAG: ${{ steps.metadata.outputs.release_tag }}
-          BUILD_SHA: ${{ needs.select_build.outputs.head_sha }}
         with:
           script: |
-            let tagRef;
             try {
-              const response = await github.rest.git.getRef({
+              await github.rest.git.getRef({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 ref: `tags/${process.env.RELEASE_TAG}`,
               });
-              tagRef = response.data;
+              throw new Error(`Tag ${process.env.RELEASE_TAG} already exists; refusing to overwrite a release.`);
             } catch (error) {
-              if (error.status === 404) {
-                core.info(`Tag ${process.env.RELEASE_TAG} does not exist; a new release will be created.`);
-                return;
-              }
-              throw error;
+              if (error.status !== 404) throw error;
             }
-
-            let targetSha = tagRef.object.sha;
-            if (tagRef.object.type === "tag") {
-              const response = await github.rest.git.getTag({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                tag_sha: targetSha,
-              });
-              targetSha = response.data.object.sha;
-            } else if (tagRef.object.type !== "commit") {
-              throw new Error(`Tag ${process.env.RELEASE_TAG} does not point to a commit.`);
-            }
-            if (targetSha !== process.env.BUILD_SHA) {
-              throw new Error(
-                `Tag ${process.env.RELEASE_TAG} points to ${targetSha}; refusing to replace selected build ${process.env.BUILD_SHA}.`,
-              );
-            }
-            core.info(`Tag ${process.env.RELEASE_TAG} matches the selected build; the existing release can be updated.`);
 
       - name: Download the tbtechs ARM64 APK
         uses: actions/download-artifact@v4
@@ -311,12 +287,6 @@ jobs:
             done < /tmp/verified-tbtechs-apks.tsv
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Check out release notes generator
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.sha }}
-          path: release-tools
-
       - name: Generate changelog and install instructions
         env:
           BUILD_SHA: ${{ needs.select_build.outputs.head_sha }}
@@ -326,7 +296,7 @@ jobs:
           APK_ARM32_NAME: ${{ steps.stage.outputs.armeabi_v7a_name }}
           APK_UNIVERSAL_NAME: ${{ steps.stage.outputs.universal_name }}
         run: |
-          python3 release-tools/scripts/generate_github_release_notes.py \
+          python3 scripts/generate_github_release_notes.py \
             --changelog app/src/main/assets/changelog.json \
             --output release-notes.md \
             --version-name "$VERSION_NAME" \
@@ -341,7 +311,6 @@ jobs:
         id: release
         uses: softprops/action-gh-release@v2
         with:
-          token: ${{ secrets.RELEASE_PUBLISH_TOKEN }}
           tag_name: ${{ steps.metadata.outputs.release_tag }}
           target_commitish: ${{ needs.select_build.outputs.head_sha }}
           name: FocusFlow v${{ steps.metadata.outputs.version_name }} — TBTechs
@@ -351,10 +320,12 @@ jobs:
             ${{ steps.stage.outputs.armeabi_v7a_path }}
             ${{ steps.stage.outputs.universal_path }}
           fail_on_unmatched_files: true
-          overwrite_files: true
+          overwrite_files: false
           draft: false
           prerelease: false
           make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 
       - name: Add published release link to the summary
         env:

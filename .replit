@@ -1,4 +1,4 @@
-modules = ["web", "nodejs-20", "bash"]
+modules = ["web", "nodejs-20", "bash", "python-base-3.13"]
 
 [nix]
 channel = "stable-25_05"
@@ -17,6 +17,10 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "workflow.run"
 args = "Push to GitHub"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Run Android UI verification"
 
 [[workflows.workflow]]
 name = "Push to GitHub"
@@ -39,6 +43,17 @@ outputType = "console"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "bash scripts/test-unit.sh"
+
+[[workflows.workflow]]
+name = "Run Android UI verification"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "bash scripts/android-ui-verification.sh"
+
+[workflows.workflow.metadata]
+outputType = "vnc"
 
 [[ports]]
 localPort = 22876
