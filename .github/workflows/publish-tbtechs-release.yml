@@ -311,6 +311,7 @@ jobs:
         id: release
         uses: softprops/action-gh-release@v2
         with:
+          token: ${{ secrets.RELEASE_PUBLISH_TOKEN }}
           tag_name: ${{ steps.metadata.outputs.release_tag }}
           target_commitish: ${{ needs.select_build.outputs.head_sha }}
           name: FocusFlow v${{ steps.metadata.outputs.version_name }} — TBTechs
@@ -324,8 +325,6 @@ jobs:
           draft: false
           prerelease: false
           make_latest: true
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
 
       - name: Add published release link to the summary
         env:
