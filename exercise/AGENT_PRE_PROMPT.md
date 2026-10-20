@@ -47,6 +47,7 @@ The plan is the implementation contract. The tracker is the only progress record
 
 - At the start of a phase, set it to `IN PROGRESS` and record a dated start note before doing its work.
 - After each meaningful change, update the relevant phase notes, status, progress, evidence, and history; do not wait until the phase is complete.
+- As soon as any checklist item or individual verification step (including each test, lint, or build check) completes or fails, update its checkbox/status and record the exact command and observed result in `exercise/TRACKER.md` before starting the next item or check.
 - Tick a checkbox only after its work is complete and verified. Never mark attempted, partial, or unverified work complete.
 - For every completed item, record changed files, the exact verification performed, and its observed result.
 - If a check fails, leave the affected item unchecked and record the observed failure. Preserve it in the tracker; append the fix and successful rerun when available.

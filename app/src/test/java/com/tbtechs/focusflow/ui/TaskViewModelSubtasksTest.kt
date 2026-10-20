@@ -47,7 +47,7 @@ class TaskViewModelSubtasksTest {
 
                 viewModel.setSubtaskSetsDone("task-1", "sets", setsDone = 99)
                 runCurrent()
-                val completedSets = repository.getTaskById("task-1")!!.subtasks.single()
+                val completedSets = repository.getTaskById("task-1")!!.subtasks.single { it.id == "sets" }
                 assertEquals(3, completedSets.setsDone)
                 assertTrue(completedSets.done)
 
