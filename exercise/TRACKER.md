@@ -5,8 +5,8 @@
 ## Overall status
 
 - **Status:** IN PROGRESS
-- **Progress:** 0% (no implementation work has been verified)
-- **Current phase:** Phase 0 — Baseline
+- **Progress:** 8.3% (3/36 required checklist items verified)
+- **Current phase:** Phase 0 — Baseline (complete; stopped at phase boundary)
 - **Last updated:** 2026-10-20
 
 ## Tracker rules
@@ -26,7 +26,7 @@
 
 | Phase | Status | Verified progress | Started | Completed |
 |---|---|---:|---|---|
-| 0 — Baseline | IN PROGRESS | 1/3 | 2026-10-20 | — |
+| 0 — Baseline | DONE — evidence recorded | 3/3 | 2026-10-20 | 2026-10-20 |
 | 1 — Model, DB, repository | NOT STARTED | 0/6 | — | — |
 | 2 — Format, import/export, images | NOT STARTED | 0/7 | — | — |
 | 3 — AI prompt and format guide | NOT STARTED | 0/4 | — | — |
@@ -41,31 +41,48 @@
 
 ## Phase 0 — Baseline
 
-**Status:** IN PROGRESS
+**Status:** DONE — evidence recorded
 **Blocked by:** None
 **Started:** 2026-10-20
-**Completed:** —
-**Progress:** 1/3
+**Completed:** 2026-10-20
+**Progress:** 3/3
 
 - [x] Inspect current working tree and relevant project instructions before changes.
-- [ ] Run the baseline build/tests specified by the plan; record pre-existing failures without changing app code.
-- [ ] Record exact commands, results, and any unavailable checks; report the baseline and stop at this phase boundary.
+- [x] Run the baseline build/tests specified by the plan; record pre-existing failures without changing app code.
+- [x] Record exact commands, results, and any unavailable checks; report the baseline and stop at this phase boundary.
 
 **Notes / progress:**
-Phase 0 baseline authorized and started on 2026-10-20. Working-tree/project inspection is complete. `bash scripts/test-unit.sh` is running both required JVM test flavors. The bootstrap installed JDK 17, Android SDK packages, and Gradle outside the repository. Both flavor Kotlin compile tasks have proceeded into Java/KSP test compilation; the compiler emitted Material icon deprecation warnings. The SDK XML v4/v3 compatibility warning was observed during setup. The test tasks have not completed, so no test result yet. No app-code changes are planned in this phase.
+Phase 0 baseline authorized and started on 2026-10-20. Working-tree/project inspection is complete. An earlier `bash scripts/test-unit.sh` invocation was recorded as running both required JVM test flavors and reaching Java/KSP test compilation, but its completion result was unavailable; it is retained as an incomplete attempt and is not counted as passing evidence.
+
+Existing Actions were checked on 2026-10-20. The latest successful tbtechsdev APK workflow did run lint, unit tests, and APK assembly, but it was on an older commit (2026-10-13). The latest successful production debug APK workflow was on an older commit (2026-09-18) and only assembled the APK; it did not run tests. Current GitHub `main` has no Actions run, so historical runs do not establish this checkout's baseline.
+
+The configured `Run Android unit tests` workflow completed on the current checkout on 2026-10-20. Both required unit-test tasks passed, with 285 tests each and no failures, errors, or skipped tests. Both debug-flavor lint tasks reported zero issues. Production and tbtechsdev debug APKs were assembled, and the minified production release assembly passed R8. No app-code changes were made in this phase.
+
+The first combined local lint/APK/release command hit the shell's 300-second timeout on 2026-10-20. Its captured output reached `:app:assembleProductionDebug` but had no final result for the remaining tasks. The incomplete attempt is preserved below; a background rerun completed all requested tasks successfully.
 
 **Evidence:**
-- **Changed file:** `exercise/TRACKER.md` (phase status only; no app code changed).
-- `git status --short`: only `exercise/TRACKER.md` is modified.
+- **Changed file:** `exercise/TRACKER.md` (baseline evidence only; no app code or test code changed).
+- `git status --short`: only `exercise/TRACKER.md` is modified; `git diff --check` produced no output.
 - Read `replit.md`: normal work uses the root Kotlin Android project; archived React app is out of scope.
 - Inspected `scripts/test-unit.sh`: it runs `:app:testProductionDebugUnitTest` and `:app:testTbtechsdevDebugUnitTest` with `FOCUSFLOW_SKIP_APK_BUILD=1`.
 - Environment probe: no Java command, `JAVA_HOME`, Android SDK environment variable, or `local.properties`; the repository bootstrap script provisions JDK 17 and Android SDK outside the repository.
+- Current checkout before this tracker update: `HEAD=7a3410274fb2d1d34fb9f0bb78b696d1f69f9e32`; working tree clean. GitHub `main` was `97e2f69cdcd4a583b26b8bf6e5482315cf8d9615`, with zero Actions runs for that SHA.
+- GitHub run `38430758585` (`Build tbtechsdev Debug APK`, run 10) succeeded on `47d5f3407a711fe245d0c93cd314bbbcfb32094b` on 2026-10-13. Its `Run tbtechsdev NewApi lint, unit tests and assemble APK` step succeeded; that revision's workflow specifies `lintTbtechsdevDebug`, `testTbtechsdevDebugUnitTest`, and `assembleTbtechsdevDebug`. [Run](https://github.com/TITANICBHAI/FocusFlow/actions/runs/38430758585)
+- GitHub run `35345435400` (`Build Native Kotlin APK`, run 10) succeeded on `80f7cb2590fc9e84d6d753d4132d58242a815438` on 2026-09-18. Its only build step was `:app:assembleDebug`; it is not evidence of production unit tests. [Run](https://github.com/TITANICBHAI/FocusFlow/actions/runs/35345435400)
+- Configured workflow `Run Android unit tests` ran `bash scripts/test-unit.sh`; the script used `FOCUSFLOW_SKIP_APK_BUILD=1` and invoked `:app:testProductionDebugUnitTest` and `:app:testTbtechsdevDebugUnitTest`. Observed `BUILD SUCCESSFUL in 5m 46s`, 52 actionable tasks. JUnit XML summaries: production 285 tests / 0 failures / 0 errors / 0 skipped; tbtechsdev 285 / 0 / 0 / 0. SDK XML v4/v3 and existing Kotlin/Gradle deprecation warnings appeared; no test failure was observed.
+- First remaining-gates attempt: `bash scripts/build-apk-with-java.sh :app:lintProductionDebug :app:lintTbtechsdevDebug :app:assembleTbtechsdevDebug :app:assembleProductionRelease` (the helper also requests `:app:assembleProductionDebug` by default). The shell timed out at 300 seconds. Observed `:app:assembleProductionDebug` complete and its APK file exist; no final Gradle result was captured for the requested lint, tbtechsdev debug APK, or production release compile tasks.
+- Successful background rerun used the same command. Observed `BUILD SUCCESSFUL in 5m 21s`; 151 actionable tasks (69 executed, 82 up-to-date). `:app:lintProductionDebug`, `:app:lintTbtechsdevDebug`, `:app:assembleTbtechsdevDebug`, `:app:lintVitalProductionRelease`, `:app:minifyProductionReleaseWithR8`, and `:app:assembleProductionRelease` completed. Both debug lint XML reports contain zero issues.
+- APK outputs verified: `app/build/outputs/apk/production/debug/app-production-debug.apk` (SHA-256 `0488f6d35a8038245810887ebe3bfcbce874931418826b4e864d24a82cb0ba5c`); `app/build/outputs/apk/tbtechsdev/debug/app-tbtechsdev-debug.apk`; `app/build/outputs/apk/production/release/app-production-release-unsigned.apk`.
 
 **Failures / blockers:**
 - The initial authorization blocker was resolved when the owner explicitly started Phase 0 on 2026-10-20. No current blocker recorded.
+- Historical Actions runs are supporting history only: no run exists for current GitHub `main`, the tbtechsdev test run is on an older commit, and the older production APK run did not execute tests. Current-checkout baseline evidence is recorded above.
+- The first combined local lint/APK/release command timed out at the tool's five-minute limit without reporting a Gradle failure. The successful rerun below completed all gates; no baseline test, lint, or build failure remains.
+- Non-fatal warnings observed: SDK XML v4/v3 compatibility; Kotlin/Android deprecations and serialization opt-in; `libandroidx.graphics.path.so` was packaged without stripping; Gradle reports deprecated features for Gradle 9.0.
 
 **Decisions / deferred work:**
-- No implementation decisions have been applied.
+- No implementation decisions or app-code changes were made.
+- Phase 1 has not been started; stop at the Phase 0 boundary pending the owner's next instruction. UI/device verification was not part of this baseline phase and was not run.
 
 ## Phase 1 — Model, DB, repository (no UI)
 
@@ -281,3 +298,6 @@ Append dated entries; do not replace earlier history.
 | 2026-10-20 | Phase 0 unit tests started | Ran the project bootstrap-backed unit-test script; environment setup is still in progress. | `bash scripts/test-unit.sh`; JDK 17 and Android SDK were provisioned outside the repository; Gradle initialization began; no test result observed yet. |
 | 2026-10-20 | Phase 0 unit-test tasks started | SDK setup completed and Gradle began the first flavor's test task. | Gradle output shows `:app:generateProductionDebugBuildConfig`; SDK XML v4/v3 warning observed, not treated as failure; test result pending. |
 | 2026-10-20 | Phase 0 Kotlin compilation | Production and Tbtechsdev debug Kotlin compilation proceeded to Java/KSP unit-test compilation; compiler warnings appeared. | Gradle output reached `:app:compileProductionDebugJavaWithJavac`, `:app:compileTbtechsdevDebugJavaWithJavac`, and both unit-test KSP tasks; Material icon deprecation warnings observed; unit-test result pending. |
+| 2026-10-20 | Phase 0 unit tests verified | Both required JVM test suites passed on the current checkout. | `Run Android unit tests` (`bash scripts/test-unit.sh`); both Gradle test tasks passed; XML totals 285 each, zero failures/errors/skips. |
+| 2026-10-20 | Phase 0 lint/APK/release attempt | The first combined command reached production debug APK assembly but timed out before final results for the remaining tasks. | `bash scripts/build-apk-with-java.sh :app:lintProductionDebug :app:lintTbtechsdevDebug :app:assembleTbtechsdevDebug :app:assembleProductionRelease`; 300-second shell timeout; no Gradle failure observed; background rerun pending. |
+| 2026-10-20 | Phase 0 complete | Baseline unit tests, debug lint, APK builds, and minified production release compile all verified; no app-code changes. | Both unit-test variants: 285 tests each, zero failures/errors/skips. Background build command completed successfully in 5m 21s; both lint reports had zero issues; R8 minification and production release assembly passed. |
