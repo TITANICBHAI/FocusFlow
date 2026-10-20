@@ -39,6 +39,14 @@ class SubtaskParserTest {
     }
 
     @Test
+    fun malformedSubtaskEntryDoesNotDropValidSiblings() {
+        val result = parse("""[null,{"id":"kept","title":"Valid"}]""")
+
+        assertEquals(listOf("Valid"), result.subtasks.map { it.title })
+        assertTrue(result.warnings.any { it.contains("1 malformed subtasks were skipped") })
+    }
+
+    @Test
     fun invalidGoalAndRemoteImageAreRemovedButSubtaskSurvives() {
         val result = parse(
             """[{"id":"item","title":"Keep me","goal":{"kind":"sets","sets":0},"image":{"url":"https://example.invalid/image.png"}}]""",

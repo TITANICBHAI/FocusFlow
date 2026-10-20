@@ -6,6 +6,7 @@ import com.tbtechs.focusflow.data.images.SubtaskImageStore
 import com.tbtechs.focusflow.data.model.AppSettings
 import com.tbtechs.focusflow.data.model.Subtask
 import com.tbtechs.focusflow.data.model.SubtaskImage
+import com.tbtechs.focusflow.data.model.SubtaskStep
 import com.tbtechs.focusflow.data.model.Task
 import java.nio.file.Files
 import org.junit.Assert.assertEquals
@@ -13,6 +14,55 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SubtaskAssetExporterTest {
+    @Test
+    fun exportThenImportPreservesSubtaskContentAndReferencedImage() {
+        val directory = Files.createTempDirectory("subtask-round-trip").toFile()
+        try {
+            val store = SubtaskImageStore(directory, LargeWebpCodec())
+            val assetId = store.ingest(png(7)).getOrThrow()
+            val subtasks = listOf(
+                Subtask(
+                    id = "movement",
+                    title = "Movement",
+                    subtitle = "Upper body",
+                    image = SubtaskImage(assetId, alt = "Overview"),
+                    steps = listOf(
+                        SubtaskStep(
+                            title = "Start",
+                            text = "Set your position.",
+                            image = SubtaskImage(assetId, alt = "Starting position"),
+                        ),
+                    ),
+                    tips = listOf("Move with control"),
+                    avoid = listOf("Do not rush"),
+                ),
+            )
+            val exporter = SubtaskAssetExporter(store)
+
+            val exported = exporter.export(listOf(task(7).copy(subtasks = subtasks))) {
+                exportTasks, assets ->
+                BackupSerializer.buildEnvelope(
+                    settings = AppSettings(),
+                    tasks = exportTasks,
+                    appVersion = "test",
+                    assets = assets,
+                )
+            }
+
+            val parsed = BackupSerializer.parseAndValidate(exported.json)
+            assertTrue(parsed is BackupParseResult.Success)
+            val success = parsed as BackupParseResult.Success
+            val imported = success.envelope
+            assertEquals(subtasks, imported.tasks.single().subtasks)
+            assertEquals(setOf(assetId), SubtaskImageStore.referencedAssetIds(imported.tasks))
+            assertEquals(setOf(assetId), imported.assets.keys)
+            assertTrue(success.warnings.isEmpty())
+            assertTrue(exported.warnings.isEmpty())
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
     @Test
     fun reencodesThenDropsImagesWhenTheImporterSizeLimitWouldBeExceeded() {
         val directory = Files.createTempDirectory("subtask-export").toFile()

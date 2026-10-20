@@ -5,8 +5,8 @@
 ## Overall status
 
 - **Status:** IN PROGRESS
-- **Progress:** 25.0% (9/36 required checklist items verified)
-- **Current phase:** Phase 1 — Model, DB, repository (final lint confirmation pending)
+- **Progress:** 27.8% (10/36 required checklist items verified)
+- **Current phase:** Phase 2/3 — Additions complete; combined verification pending
 - **Last updated:** 2026-10-21
 
 ## Tracker rules
@@ -193,8 +193,12 @@ First implementation slice added the Phase 2 import-size constants, root-assets-
 
 The next implementation slice added backup assets to the envelope/parser, fail-soft task/subtask parsing and warning aggregation, constrained asset export with re-encode/omission behavior, restore-time hash remapping and opt-in enrichment, import-review counts/checkbox, and image cleanup wiring for task deletes and app startup. Phase 2 tests and Phase 3 additions are still in progress; no tests or build checks have been run.
 
+On 2026-10-21, audited the current checkout against §§4.3–4.4 and 6. The Phase 2 implementation and test sources are present. This continuation made per-subtask parser failures isolated from sibling entries and added a parser regression test plus an exporter-to-importer image/subtask round-trip test. Per the owner's sequencing, these test sources are not being executed yet; all checklist items remain unchecked pending the combined verification pass.
+
 **Evidence:**
-_None yet._
+- Current-source audit confirmed the Phase 2 implementation and test sources are present; this continuation changed `SubtaskParser.kt`, `SubtaskParserTest.kt`, and `SubtaskAssetExporterTest.kt`.
+- Git-only review: `git diff --check` succeeded with no output. `git status --short` listed those three files and `exercise/TRACKER.md` as modified; the attached instruction file remains untracked and untouched.
+- No unit/instrumented tests, build, lint, R8, APK, or device checks were run; no checklist item is verified yet.
 
 **Failures / blockers:**
 _None recorded._
@@ -208,19 +212,24 @@ _None recorded._
 **Blocked by:** Phase 2 verification remains pending; owner explicitly directed that Phase 2 and 3 additions be completed before the combined verification pass.
 **Started:** 2026-10-21
 **Completed:** —
-**Progress:** 0/4
+**Progress:** 1/4
 **Plan sections:** §11.1–11.2, §11.4–11.5
 
 - [ ] Update the in-app generation prompt with the optional subtasks/assets contract and safe image guidance.
 - [ ] Add the shared valid example, subtasks/goal/assets documentation, and merge behavior to the in-app format guide.
 - [ ] Verify the prompt/guide example parses successfully with zero warnings.
-- [ ] Prepare the hosted-guide Markdown update for the owner; record that the external site itself was not edited.
+- [x] Prepare the hosted-guide Markdown update for the owner; record that the external site itself was not edited.
 
 **Notes / progress:**
 On 2026-10-21, started Phase 3 implementation under the owner's instruction to complete both Phase 2 and Phase 3 additions before running tests/build/lint/R8/device checks. Phase 2 implementation and its tests are still being completed; no Phase 3 verification has been run. The prompt and in-app guide are the only Phase 3 implementation scope; version/changelog work remains in Phase 6.
 
+On 2026-10-21, audited the current prompt and in-app guide against §11.1–11.2. The shared subtask example, goal/assets guidance, merge note, prompt rules, and zero-warning parser test source are present. The test has not been run; the hosted guide remains an owner-facing Markdown handoff and the external site has not been edited.
+
+On 2026-10-21, prepared the ready-to-paste hosted-guide Markdown in the completion report. The hosted site itself was not edited. The example parse test remains unrun pending the combined verification pass.
+
 **Evidence:**
-_None yet._
+- Current-source audit confirmed the Phase 3 prompt, shared example, guide content, and zero-warning parser test source are present. Test execution remains deferred; see the combined Phase 2/3 Git-only evidence above.
+- The ready-to-paste hosted-guide Markdown is included in the completion report; the external site was not edited.
 
 **Failures / blockers:**
 _None recorded._
@@ -385,3 +394,5 @@ Append dated entries; do not replace earlier history.
 | 2026-10-21 | Phase 2 parser/storage slice | Added bounded root asset data scanning, shared format limits, safe image storage primitives, and independent fail-soft subtask parsing. | Changed `BackupJsonLimits.kt`; added `ImageCodec.kt`, `SubtaskImageStore.kt`, and `SubtaskParser.kt`. Tests and all builds remain deferred by owner instruction. |
 | 2026-10-21 | Phase 2 backup flow implementation | Added asset-aware parse/export/restore flow, image reference cleanup, and the import-review enrichment controls. | Changed `BackupEnvelope.kt`, `BackupSerializer.kt`, `BackupRestoreEngine.kt`, `BackupViewModel.kt`, `ImportConfirmScreen.kt`, `SettingsScreen.kt`, `TaskRepository.kt`, `AppModule.kt`, `SubtaskImageStore.kt`; added `SubtaskAssetExporter.kt`. Verification is deferred until Phase 3 additions are complete. |
 | 2026-10-21 | Phase 3 started — implementation only | Owner directed completion of Phase 3 additions before combined verification; Phase 2 gates remain pending. | Set Phase 3 to IN PROGRESS before continuing its prompt/guide changes. No tests/build checks run. |
+| 2026-10-21 | Phase 2/3 addition audit | Confirmed the planned implementation and test sources are present in the checkout; added explicit per-entry parser isolation and two regression tests. Test execution remains deferred until both phases' additions are complete. | Changed `SubtaskParser.kt`, `SubtaskParserTest.kt`, and `SubtaskAssetExporterTest.kt`. `git diff --check` succeeded with no output. `git status --short` also lists the user's attached instruction file as untracked; it was left untouched. No unit/instrumented tests, build, lint, R8, APK, or device checks run. |
+| 2026-10-21 | Hosted format-guide handoff prepared | Prepared the Phase 3 Markdown block for the external guide; the hosted site was not edited. | The copy-ready block is included in the completion report. Marked the hosted-guide handoff item complete; the example parse test remains unrun. |

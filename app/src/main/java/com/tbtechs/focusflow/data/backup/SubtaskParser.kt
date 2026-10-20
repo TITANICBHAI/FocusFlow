@@ -42,41 +42,51 @@ internal object SubtaskParser {
         val candidates = array.take(BackupJsonLimits.MAX_SUBTASKS_PER_TASK)
         warnings.truncatedSubtasks = (array.size - candidates.size).coerceAtLeast(0)
         val parsed = candidates.mapNotNull { item ->
-            val objectValue = item as? JsonObject
-            if (objectValue == null) {
-                warnings.malformedSubtasks++
-                return@mapNotNull null
-            }
-            val title = objectValue.string("title")
-            if (title.isNullOrBlank()) {
-                warnings.missingTitles++
-                return@mapNotNull null
-            }
-
-            val goal = parseGoal(objectValue["goal"], warnings)
-            val image = parseImage(objectValue["image"], assetIds, warnings)
-            val steps = parseSteps(objectValue["steps"], assetIds, warnings)
-            val tips = parseTextList(objectValue["tips"], warnings)
-            val avoid = parseTextList(objectValue["avoid"], warnings)
-            Subtask(
-                id = objectValue.string("id").orEmpty(),
-                title = title,
-                done = objectValue.boolean("done") ?: false,
-                subtitle = objectValue.string("subtitle"),
-                goal = goal,
-                setsDone = objectValue.int("setsDone") ?: 0,
-                image = image,
-                layout = objectValue.string("layout"),
-                explanation = objectValue.string("explanation"),
-                steps = steps,
-                tips = tips,
-                avoid = avoid,
-            )
+            runCatching { parseCandidate(item, assetIds, warnings) }
+                .onFailure { warnings.malformedSubtasks++ }
+                .getOrNull()
         }
 
         val normalized = SubtaskNormalizer.normalize(parsed)
         warnings.addNormalizerWarnings(normalized.warnings)
         return ParsedSubtasks(normalized.subtasks, warnings.toMessages())
+    }
+
+    private fun parseCandidate(
+        item: JsonElement,
+        assetIds: Set<String>,
+        warnings: WarningCounts,
+    ): Subtask? {
+        val objectValue = item as? JsonObject
+        if (objectValue == null) {
+            warnings.malformedSubtasks++
+            return null
+        }
+        val title = objectValue.string("title")
+        if (title.isNullOrBlank()) {
+            warnings.missingTitles++
+            return null
+        }
+
+        val goal = parseGoal(objectValue["goal"], warnings)
+        val image = parseImage(objectValue["image"], assetIds, warnings)
+        val steps = parseSteps(objectValue["steps"], assetIds, warnings)
+        val tips = parseTextList(objectValue["tips"], warnings)
+        val avoid = parseTextList(objectValue["avoid"], warnings)
+        return Subtask(
+            id = objectValue.string("id").orEmpty(),
+            title = title,
+            done = objectValue.boolean("done") ?: false,
+            subtitle = objectValue.string("subtitle"),
+            goal = goal,
+            setsDone = objectValue.int("setsDone") ?: 0,
+            image = image,
+            layout = objectValue.string("layout"),
+            explanation = objectValue.string("explanation"),
+            steps = steps,
+            tips = tips,
+            avoid = avoid,
+        )
     }
 
     private fun parseGoal(element: JsonElement?, warnings: WarningCounts): SubtaskGoal? {
