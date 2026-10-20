@@ -101,10 +101,13 @@ The first combined local lint/APK/release command hit the shell's 300-second tim
 - [ ] Verify the Phase 1 tests: model/normalizer, repository, ViewModel, and migration coverage; record any device-only limitation.
 
 **Notes / progress:**
-Owner authorized Phase 1 on 2026-10-20. Phase status and start date recorded before implementation work. Current-checkout instructions and working tree will be rechecked before code edits; scope is limited to §§4.1–4.2 and 5.1–5.4, with no UI changes.
+Owner authorized Phase 1 on 2026-10-20. Phase status and start date were recorded before implementation work. Current checkout and instructions were rechecked; the worktree had no unrelated changes. Scope is limited to §§4.1–4.2 and 5.1–5.4, with no UI changes.
+
+The first implementation slice adds the subtask domain types, shared limits, goal formatter, layout policy, and normalizer, with model tests added for formatting, layout selection, normalization, and limits. Test execution is pending, so no Phase 1 checklist item is marked complete yet.
 
 **Evidence:**
-_None yet._
+- `git status --short` before code edits showed only the Phase 1 tracker update; `replit.md` confirms normal work is limited to the Kotlin Android project.
+- Added `app/src/main/java/com/tbtechs/focusflow/data/model/Subtask.kt` and model tests in `app/src/test/java/com/tbtechs/focusflow/data/model/`. No test result observed yet; checklist item 1 remains unchecked pending tests.
 
 **Failures / blockers:**
 _None recorded._
@@ -302,3 +305,5 @@ Append dated entries; do not replace earlier history.
 | 2026-10-20 | Phase 0 lint/APK/release attempt | The first combined command reached production debug APK assembly but timed out before final results for the remaining tasks. | `bash scripts/build-apk-with-java.sh :app:lintProductionDebug :app:lintTbtechsdevDebug :app:assembleTbtechsdevDebug :app:assembleProductionRelease`; 300-second shell timeout; no Gradle failure observed; background rerun pending. |
 | 2026-10-20 | Phase 0 complete | Baseline unit tests, debug lint, APK builds, and minified production release compile all verified; no app-code changes. | Both unit-test variants: 285 tests each, zero failures/errors/skips. Background build command completed successfully in 5m 21s; both lint reports had zero issues; R8 minification and production release assembly passed. |
 | 2026-10-20 | Phase 1 started | Owner authorized implementation; no implementation changes made yet. | Tracker set to IN PROGRESS before code inspection; Phase 1 scope limited to model, Room/repository, and ViewModel behavior; UI and later phases excluded. |
+| 2026-10-20 | Phase 1 model slice | Added domain types, validation limits, normalization, goal formatting, and layout policy; verification is pending. | `data/model/Subtask.kt` added. Phase 1 progress remains 0/6 until item 1 tests pass. |
+| 2026-10-20 | Phase 1 model tests added | Added tests for goal formatting, layout policy, IDs, progress, text cleanup, invalid data, and truncation counts. | `GoalFormatterTest`, `SubtaskLayoutPolicyTest`, and `SubtaskNormalizerTest` added; results pending. |
