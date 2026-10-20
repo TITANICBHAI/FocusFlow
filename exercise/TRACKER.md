@@ -6,7 +6,7 @@
 
 - **Status:** IN PROGRESS
 - **Progress:** 8.3% (3/36 required checklist items verified)
-- **Current phase:** Phase 0 — Baseline (complete; stopped at phase boundary)
+- **Current phase:** Phase 1 — Model, DB, repository (in progress)
 - **Last updated:** 2026-10-20
 
 ## Tracker rules
@@ -27,7 +27,7 @@
 | Phase | Status | Verified progress | Started | Completed |
 |---|---|---:|---|---|
 | 0 — Baseline | DONE — evidence recorded | 3/3 | 2026-10-20 | 2026-10-20 |
-| 1 — Model, DB, repository | NOT STARTED | 0/6 | — | — |
+| 1 — Model, DB, repository | IN PROGRESS | 0/6 | 2026-10-20 | — |
 | 2 — Format, import/export, images | NOT STARTED | 0/7 | — | — |
 | 3 — AI prompt and format guide | NOT STARTED | 0/4 | — | — |
 | 4 — Viewing UI | NOT STARTED | 0/6 | — | — |
@@ -86,9 +86,9 @@ The first combined local lint/APK/release command hit the shell's 300-second tim
 
 ## Phase 1 — Model, DB, repository (no UI)
 
-**Status:** NOT STARTED
+**Status:** IN PROGRESS
 **Blocked by:** Phase 0 complete
-**Started:** —
+**Started:** 2026-10-20
 **Completed:** —
 **Progress:** 0/6
 **Plan sections:** §4.1–4.2, §5.1–5.4
@@ -101,7 +101,7 @@ The first combined local lint/APK/release command hit the shell's 300-second tim
 - [ ] Verify the Phase 1 tests: model/normalizer, repository, ViewModel, and migration coverage; record any device-only limitation.
 
 **Notes / progress:**
-_No work started._
+Owner authorized Phase 1 on 2026-10-20. Phase status and start date recorded before implementation work. Current-checkout instructions and working tree will be rechecked before code edits; scope is limited to §§4.1–4.2 and 5.1–5.4, with no UI changes.
 
 **Evidence:**
 _None yet._
@@ -301,3 +301,4 @@ Append dated entries; do not replace earlier history.
 | 2026-10-20 | Phase 0 unit tests verified | Both required JVM test suites passed on the current checkout. | `Run Android unit tests` (`bash scripts/test-unit.sh`); both Gradle test tasks passed; XML totals 285 each, zero failures/errors/skips. |
 | 2026-10-20 | Phase 0 lint/APK/release attempt | The first combined command reached production debug APK assembly but timed out before final results for the remaining tasks. | `bash scripts/build-apk-with-java.sh :app:lintProductionDebug :app:lintTbtechsdevDebug :app:assembleTbtechsdevDebug :app:assembleProductionRelease`; 300-second shell timeout; no Gradle failure observed; background rerun pending. |
 | 2026-10-20 | Phase 0 complete | Baseline unit tests, debug lint, APK builds, and minified production release compile all verified; no app-code changes. | Both unit-test variants: 285 tests each, zero failures/errors/skips. Background build command completed successfully in 5m 21s; both lint reports had zero issues; R8 minification and production release assembly passed. |
+| 2026-10-20 | Phase 1 started | Owner authorized implementation; no implementation changes made yet. | Tracker set to IN PROGRESS before code inspection; Phase 1 scope limited to model, Room/repository, and ViewModel behavior; UI and later phases excluded. |
