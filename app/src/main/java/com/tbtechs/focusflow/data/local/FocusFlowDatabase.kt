@@ -78,6 +78,7 @@ import com.tbtechs.focusflow.enforcement.AppBlockerAccessibilityService
  * | 7 | Shadow usage rollup tables and pipeline state are added. |
  * | 8 | Data-free bridge version; it must not create an upgrade-day cutover. |
  * | 9 | Stale cutover dates are cleared and missing pipeline state is seeded. |
+ * | 10 | Adds JSON-encoded subtasks to tasks. |
  *
  * ### Hybrid-app database bootstrap — IMPORTANT
  * The hybrid app used expo-sqlite and **never set SQLite `user_version`**, so
@@ -97,7 +98,7 @@ import com.tbtechs.focusflow.enforcement.AppBlockerAccessibilityService
  *
  * [prepareLegacyDatabase] opens the raw SQLite file, adds the
  * `focus_allowed_packages` column if it is absent, and sets `user_version = 1`
- * so Room subsequently runs the registered migrations through version 9.
+ * so Room subsequently runs the registered migrations through version 10.
  *
  * ### Usage pipeline state on both install paths
  * A fresh database gets the complete schema from Room and the
@@ -141,7 +142,7 @@ import com.tbtechs.focusflow.enforcement.AppBlockerAccessibilityService
         UsageRollupAppDayEntity::class,
         UsageRollupSessionEntity::class,
     ],
-    version = 9,
+    version = 10,
     exportSchema = true,
 )
 abstract class FocusFlowDatabase : RoomDatabase() {
@@ -603,6 +604,22 @@ abstract class FocusFlowDatabase : RoomDatabase() {
                     """.trimIndent(),
                 )
                 ensurePipelineStateRow(db)
+            }
+        }
+
+        /** Adds the subtask JSON column while remaining safe on partially migrated databases. */
+        val MIGRATION_9_10: Migration = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                val columns = db.query("PRAGMA table_info(`tasks`)")
+                val hasSubtasks = columns.use { cursor ->
+                    val nameIndex = cursor.getColumnIndexOrThrow("name")
+                    generateSequence {
+                        if (cursor.moveToNext()) cursor.getString(nameIndex) else null
+                    }.any { it == "subtasks" }
+                }
+                if (!hasSubtasks) {
+                    db.execSQL("ALTER TABLE `tasks` ADD COLUMN `subtasks` TEXT NOT NULL DEFAULT '[]'")
+                }
             }
         }
 

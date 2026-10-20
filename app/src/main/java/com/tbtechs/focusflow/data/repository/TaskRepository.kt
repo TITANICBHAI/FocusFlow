@@ -1,9 +1,13 @@
 package com.tbtechs.focusflow.data.repository
 
+import android.util.Log
 import com.tbtechs.focusflow.data.local.dao.TaskDao
 import com.tbtechs.focusflow.data.local.dao.TasksByHourRow
 import com.tbtechs.focusflow.data.local.entity.TaskEntity
 import com.tbtechs.focusflow.data.model.Reminder
+import com.tbtechs.focusflow.data.model.Subtask
+import com.tbtechs.focusflow.data.model.SubtaskLimits
+import com.tbtechs.focusflow.data.model.SubtaskNormalizer
 import com.tbtechs.focusflow.data.model.Task
 import com.tbtechs.focusflow.data.model.withCanonicalTimestamps
 import com.tbtechs.focusflow.data.restore.RestoreGate
@@ -11,6 +15,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.serialization.decodeFromJsonElement
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.time.Instant
@@ -21,8 +26,8 @@ import java.time.ZoneId
  *
  * The single point of access for task persistence. Wraps [TaskDao], handles
  * all JSON serialization for [Task.tags], [Task.reminders], and
- * [Task.focusAllowedPackages], and maps between [TaskEntity] (Room layer) and
- * [Task] (domain layer).
+ * [Task.focusAllowedPackages] and [Task.subtasks], and maps between
+ * [TaskEntity] (Room layer) and [Task] (domain layer).
  *
  * Called by: `TaskViewModel` — do not add non-task concerns here.
  *
@@ -44,6 +49,7 @@ class TaskRepository(
     // Lenient parser: mirrors `safeJsonParse` in database.ts — ignores unknown
     // fields so tasks written by a newer app version survive a downgrade read.
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
+    private val subtaskJsonCache = SubtaskJsonCache(json)
     private val taskOperationMutex = Mutex()
 
     /**
@@ -132,6 +138,37 @@ class TaskRepository(
         }
     }
 
+    /** Replaces only a task's subtask JSON, leaving all other columns unchanged. */
+    suspend fun replaceSubtasks(taskId: String, subtasks: List<Subtask>) {
+        restoreGate.write("TaskRepository.replaceSubtasks") {
+            val normalized = normalizeSubtasks(subtasks)
+            taskDao.updateSubtasks(taskId, encodeSubtasks(normalized))
+        }
+    }
+
+    /**
+     * Mutates the current subtask list without touching task columns or updated_at.
+     *
+     * @return false when the task no longer exists.
+     */
+    suspend fun mutateSubtasks(
+        taskId: String,
+        transform: (List<Subtask>) -> List<Subtask>,
+    ): Boolean = restoreGate.write("TaskRepository.mutateSubtasks") {
+        val row = taskDao.getTaskById(taskId) ?: return@write false
+        val current = subtaskJsonCache.decode(row.subtasks)
+        val normalized = normalizeSubtasks(transform(current))
+        taskDao.updateSubtasks(taskId, encodeSubtasks(normalized)) > 0
+    }
+
+    private fun normalizeSubtasks(subtasks: List<Subtask>): List<Subtask> {
+        val result = SubtaskNormalizer.normalize(subtasks)
+        result.warnings.forEach { warning ->
+            runCatching { Log.w(TAG, warning) }
+        }
+        return result.subtasks
+    }
+
     /**
      * Atomically updates multiple tasks in a single SQLite transaction.
      * Room wraps `@Update(List)` in a transaction automatically.
@@ -203,6 +240,7 @@ class TaskRepository(
         focusAllowedPackages = focusAllowedPackages?.let { safeDecodeList(it) },
         createdAt           = createdAt,
         updatedAt           = updatedAt,
+        subtasks            = subtaskJsonCache.decode(subtasks),
     )
 
     /**
@@ -229,7 +267,16 @@ class TaskRepository(
         focusAllowedPackages = focusAllowedPackages?.let { json.encodeToString(it) },
         createdAt            = createdAt,
         updatedAt            = updatedAt,
+        subtasks             = encodeSubtasks(subtasks),
     )
+
+    private fun encodeSubtasks(subtasks: List<Subtask>): String {
+        val encoded = json.encodeToString(subtasks)
+        require(encoded.toByteArray(Charsets.UTF_8).size <= SubtaskLimits.MAX_JSON_BYTES_PER_TASK) {
+            "Subtask data exceeds ${SubtaskLimits.MAX_JSON_BYTES_PER_TASK} bytes for task."
+        }
+        return encoded
+    }
 
     // ─── Utilities ────────────────────────────────────────────────────────────
 
@@ -247,4 +294,8 @@ class TaskRepository(
      */
     private inline fun <reified T> safeDecodeList(raw: String): List<T> =
         runCatching { json.decodeFromString<List<T>>(raw) }.getOrDefault(emptyList())
+
+    private companion object {
+        const val TAG = "TaskRepository"
+    }
 }

@@ -16,6 +16,7 @@ import androidx.room.PrimaryKey
  * Storage notes:
  *  - [tags]      — JSON-encoded `List<String>`;  never null; default `"[]"`.
  *  - [reminders] — JSON-encoded `List<Reminder>`; never null; default `"[]"`.
+ *  - [subtasks] — JSON-encoded `List<Subtask>`; never null; default `"[]"`.
  *  - [focusMode] — stored as INTEGER 0/1; Room converts Boolean automatically.
  *  - [focusAllowedPackages] — NULLABLE. Three distinct states:
  *      null   → use the global `allowedInFocus` setting (TS: `undefined`)
@@ -93,4 +94,8 @@ data class TaskEntity(
 
     @ColumnInfo(name = "updated_at")
     val updatedAt: String,
+
+    /** JSON-encoded [com.tbtechs.focusflow.data.model.Subtask] list. */
+    @ColumnInfo(name = "subtasks", defaultValue = "[]")
+    val subtasks: String = "[]",
 )

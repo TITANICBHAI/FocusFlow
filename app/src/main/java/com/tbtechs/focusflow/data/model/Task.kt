@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.data.model
 
+import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.Serializable
 
 // ─── String-enum aliases (kept as String for forward-compatibility) ────────────
@@ -50,6 +52,7 @@ data class Reminder(
  * strings (UTC), matching the JS storage format.
  */
 @Serializable
+@OptIn(ExperimentalSerializationApi::class)
 data class Task(
     val id: String,
     val title: String,
@@ -74,4 +77,6 @@ data class Task(
     val focusAllowedPackages: List<String>? = null,
     val createdAt: String,
     val updatedAt: String,
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val subtasks: List<Subtask> = emptyList(),
 )

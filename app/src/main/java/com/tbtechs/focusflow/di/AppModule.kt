@@ -228,6 +228,7 @@ object AppModule {
                 FocusFlowDatabase.MIGRATION_6_7,
                 FocusFlowDatabase.MIGRATION_7_8,
                 FocusFlowDatabase.MIGRATION_8_9,
+                FocusFlowDatabase.MIGRATION_9_10,
             )
             .addCallback(FocusFlowDatabase.DATABASE_CALLBACK)
             .build()

@@ -21,6 +21,12 @@ data class TaskStartStatusRow(
     @ColumnInfo(name = "status")     val status: String,
 )
 
+/** Minimal task/subtask projection used by image cleanup and subtask operations. */
+data class TaskSubtasksRow(
+    @ColumnInfo(name = "id") val id: String,
+    @ColumnInfo(name = "subtasks") val subtasks: String,
+)
+
 /**
  * Result POJO for [getTasksByHourOfDay], mirroring the [TasksByHourRow]
  * interface returned by `dbGetTasksByHourOfDay` in `database.ts`.
@@ -51,6 +57,10 @@ interface TaskDao {
     /** Returns one task by primary key without loading the full task table. */
     @Query("SELECT * FROM tasks WHERE id = :taskId LIMIT 1")
     suspend fun getTaskById(taskId: String): TaskEntity?
+
+    /** Small projection used when collecting all image references. */
+    @Query("SELECT id, subtasks FROM tasks")
+    suspend fun getAllSubtaskJson(): List<TaskSubtasksRow>
 
     /**
      * Tasks that ended within [cutoff, now) but are still unresolved
@@ -129,6 +139,10 @@ interface TaskDao {
      */
     @Update
     suspend fun updateTask(task: TaskEntity)
+
+    /** Updates only subtask progress/content; task timestamps and scheduling fields stay untouched. */
+    @Query("UPDATE tasks SET subtasks = :subtasksJson WHERE id = :taskId")
+    suspend fun updateSubtasks(taskId: String, subtasksJson: String): Int
 
     /**
      * Maps to `dbUpdateTasksBatch`. Room wraps `@Update` on a [List] in a

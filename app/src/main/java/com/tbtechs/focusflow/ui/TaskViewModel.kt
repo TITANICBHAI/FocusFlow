@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
+import com.tbtechs.focusflow.data.model.Subtask
 import com.tbtechs.focusflow.data.model.Task
 import com.tbtechs.focusflow.data.repository.AlarmRepository
 import com.tbtechs.focusflow.data.repository.TaskAlarmReconciler
@@ -53,6 +54,9 @@ class TaskViewModel(
     private val schedulerEngine: SchedulerEngine,
     private val beforeTaskDelete: suspend (taskId: String, pinHash: String?) -> Unit = { _, _ -> },
     private val beforeClearTasks: suspend (pinHash: String?) -> Unit = { _ -> },
+    private val reconcileTaskAlarms: suspend (reason: String) -> Unit = { reason ->
+        taskAlarmReconciler.reconcile(reason)
+    },
 ) : ViewModel() {
 
     // ─── State ────────────────────────────────────────────────────────────────
@@ -111,8 +115,75 @@ class TaskViewModel(
                     reportInvalidTimeRange()
                     return@withTaskOperationLock
                 }
-                taskRepository.updateTask(task)
+                val storedTask = taskRepository.getTaskById(task.id)
+                taskRepository.updateTask(
+                    if (storedTask == null) task else task.copy(subtasks = storedTask.subtasks),
+                )
                 reconcileAlarms("task_updated")
+            }
+        }
+    }
+
+    /** Changes only subtask state and never reconciles task alarms or scheduling. */
+    fun setSubtaskDone(taskId: String, subtaskId: String, done: Boolean) {
+        viewModelScope.launch {
+            taskRepository.withTaskOperationLock {
+                taskRepository.mutateSubtasks(taskId) { subtasks ->
+                    subtasks.map { subtask ->
+                        if (subtask.id != subtaskId) {
+                            subtask
+                        } else {
+                            val setCount = subtask.goal
+                                ?.takeIf { it.kind == "sets" }
+                                ?.sets
+                            subtask.copy(
+                                done = done,
+                                setsDone = if (done && setCount != null) setCount else subtask.setsDone,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /** Updates completed sets and marks the subtask done only at its set goal. */
+    fun setSubtaskSetsDone(taskId: String, subtaskId: String, setsDone: Int) {
+        viewModelScope.launch {
+            taskRepository.withTaskOperationLock {
+                taskRepository.mutateSubtasks(taskId) { subtasks ->
+                    subtasks.map { subtask ->
+                        val goalSets = subtask.goal
+                            ?.takeIf { it.kind == "sets" }
+                            ?.sets
+                            ?: return@map subtask
+                        val boundedSetsDone = setsDone.coerceIn(0, goalSets)
+                        subtask.copy(
+                            setsDone = boundedSetsDone,
+                            done = boundedSetsDone == goalSets,
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    /** Clears completion and set progress for every subtask without touching the task row. */
+    fun resetSubtasks(taskId: String) {
+        viewModelScope.launch {
+            taskRepository.withTaskOperationLock {
+                taskRepository.mutateSubtasks(taskId) { subtasks ->
+                    subtasks.map { it.copy(done = false, setsDone = 0) }
+                }
+            }
+        }
+    }
+
+    /** Replaces subtask content while preserving all non-subtask task columns. */
+    fun replaceSubtasks(taskId: String, subtasks: List<Subtask>) {
+        viewModelScope.launch {
+            taskRepository.withTaskOperationLock {
+                taskRepository.replaceSubtasks(taskId, subtasks)
             }
         }
     }
@@ -317,7 +388,7 @@ class TaskViewModel(
 
     private suspend fun reconcileAlarms(reason: String) {
         try {
-            taskAlarmReconciler.reconcile(reason)
+            reconcileTaskAlarms(reason)
         } catch (error: kotlinx.coroutines.CancellationException) {
             throw error
         } catch (error: Exception) {

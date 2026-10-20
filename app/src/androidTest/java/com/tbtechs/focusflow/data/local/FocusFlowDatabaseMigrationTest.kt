@@ -37,6 +37,43 @@ class FocusFlowDatabaseMigrationTest {
     )
 
     @Test
+    fun migrateV9AddsEmptySubtasksAndPreservesExistingTaskColumns() {
+        helper.createDatabase(SUBTASK_MIGRATION_DB_NAME, 9).apply {
+            execSQL(
+                """
+                INSERT INTO tasks (
+                    id, title, description, start_time, end_time, duration_minutes,
+                    status, priority, tags, reminders, color, focus_mode,
+                    focus_allowed_packages, created_at, updated_at
+                ) VALUES (
+                    'task-before-10', 'Keep this task', 'notes',
+                    '2026-10-20T08:00:00Z', '2026-10-20T09:00:00Z', 60,
+                    'scheduled', 'high', '["training"]', '[]', '#123456', 1,
+                    '["pkg.allowed"]', '2026-10-19T08:00:00Z', '2026-10-19T09:00:00Z'
+                )
+                """.trimIndent(),
+            )
+            close()
+        }
+
+        val migrated = helper.runMigrationsAndValidate(
+            SUBTASK_MIGRATION_DB_NAME,
+            10,
+            true,
+            FocusFlowDatabase.MIGRATION_9_10,
+        )
+        migrated.query(
+            "SELECT title, updated_at, subtasks FROM tasks WHERE id = 'task-before-10'",
+        ).use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals("Keep this task", cursor.getString(0))
+            assertEquals("2026-10-19T09:00:00Z", cursor.getString(1))
+            assertEquals("[]", cursor.getString(2))
+        }
+        migrated.close()
+    }
+
+    @Test
     fun migrateV4PreservesReportNotesAndReconcilesActiveSessions() {
         helper.createDatabase(DB_NAME, 4).apply {
             FocusFlowDatabase.MIGRATION_0_1.migrate(this)
@@ -440,12 +477,13 @@ class FocusFlowDatabaseMigrationTest {
                     FocusFlowDatabase.MIGRATION_6_7,
                     FocusFlowDatabase.MIGRATION_7_8,
                     FocusFlowDatabase.MIGRATION_8_9,
+                    FocusFlowDatabase.MIGRATION_9_10,
                 )
                 .addCallback(FocusFlowDatabase.DATABASE_CALLBACK)
                 .build()
             try {
                 val migrated = database.openHelper.writableDatabase
-                assertEquals(9, migrated.version)
+                assertEquals(10, migrated.version)
                 migrated.query(
                     "SELECT cutover_date, pipeline_version, shadow_started_on " +
                         "FROM usage_pipeline_state WHERE id = 1",
@@ -471,6 +509,7 @@ class FocusFlowDatabaseMigrationTest {
 
     companion object {
         private const val DB_NAME = "focusflow-migration-test.db"
+        private const val SUBTASK_MIGRATION_DB_NAME = "focusflow-migration-v9-to-v10.db"
         private const val USAGE_DB_NAME = "focusflow-usage-migration-test.db"
         private const val FRESH_DB_NAME = "focusflow-usage-zero-migration-test.db"
         private const val V7_DB_NAME = "focusflow-migration-v7-to-v9.db"
