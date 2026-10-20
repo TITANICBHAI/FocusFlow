@@ -25,7 +25,7 @@ class TaskRepositorySubtasksTest {
         val dao = FakeTaskDao(taskEntity(subtasks = """
             [
               {"id":"valid","title":"Keep this"},
-              {"id":"broken","title":17}
+              {"id":"broken","title":"Skip this","steps":17}
             ]
         """.trimIndent()))
         val task = TaskRepository(dao.proxy).getTaskById("task-1")

@@ -26,54 +26,56 @@ import java.lang.reflect.Proxy
 
 class TaskViewModelSubtasksTest {
     @Test
-    fun subtaskActionsUseColumnWritesAndDoNotReconcileWhileTaskEditsPreserveProgress() = runTest {
-        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+    fun subtaskActionsUseColumnWritesAndDoNotReconcileWhileTaskEditsPreserveProgress() {
         try {
-            val original = taskEntity()
-            val dao = FakeTaskDao(original)
-            val repository = TaskRepository(dao.proxy)
-            var alarmReconciliations = 0
-            val viewModel = TaskViewModel(
-                taskRepository = repository,
-                alarmRepository = uninitialized(),
-                taskAlarmReconciler = uninitialized(),
-                focusSessionRepository = uninitialized(),
-                foregroundServiceController = uninitialized(),
-                settingsRepository = uninitialized(),
-                schedulerEngine = uninitialized(),
-                reconcileTaskAlarms = { alarmReconciliations++ },
-            )
+            runTest {
+                Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+                val original = taskEntity()
+                val dao = FakeTaskDao(original)
+                val repository = TaskRepository(dao.proxy)
+                var alarmReconciliations = 0
+                val viewModel = TaskViewModel(
+                    taskRepository = repository,
+                    alarmRepository = uninitialized(),
+                    taskAlarmReconciler = uninitialized(),
+                    focusSessionRepository = uninitialized(),
+                    foregroundServiceController = uninitialized(),
+                    settingsRepository = uninitialized(),
+                    schedulerEngine = uninitialized(),
+                    reconcileTaskAlarms = { alarmReconciliations++ },
+                )
 
-            viewModel.setSubtaskSetsDone("task-1", "sets", setsDone = 99)
-            runCurrent()
-            val completedSets = repository.getTaskById("task-1")!!.subtasks.single()
-            assertEquals(3, completedSets.setsDone)
-            assertTrue(completedSets.done)
+                viewModel.setSubtaskSetsDone("task-1", "sets", setsDone = 99)
+                runCurrent()
+                val completedSets = repository.getTaskById("task-1")!!.subtasks.single()
+                assertEquals(3, completedSets.setsDone)
+                assertTrue(completedSets.done)
 
-            viewModel.setSubtaskDone("task-1", "read", done = true)
-            runCurrent()
-            viewModel.resetSubtasks("task-1")
-            runCurrent()
+                viewModel.setSubtaskDone("task-1", "read", done = true)
+                runCurrent()
+                viewModel.resetSubtasks("task-1")
+                runCurrent()
 
-            val progressBeforeEdit = repository.getTaskById("task-1")!!.subtasks
-            assertEquals(listOf(false, false), progressBeforeEdit.map(Subtask::done))
-            assertEquals(listOf(0, 0), progressBeforeEdit.map(Subtask::setsDone))
-            assertEquals(0, alarmReconciliations)
-            assertEquals(0, dao.fullTaskWrites)
-            assertTrue(dao.subtaskWrites >= 3)
+                val progressBeforeEdit = repository.getTaskById("task-1")!!.subtasks
+                assertEquals(listOf(false, false), progressBeforeEdit.map(Subtask::done))
+                assertEquals(listOf(0, 0), progressBeforeEdit.map(Subtask::setsDone))
+                assertEquals(0, alarmReconciliations)
+                assertEquals(0, dao.fullTaskWrites)
+                assertTrue(dao.subtaskWrites >= 3)
 
-            val edited = repository.getTaskById("task-1")!!.copy(
-                title = "Edited title",
-                subtasks = emptyList(),
-            )
-            viewModel.updateTask(edited)
-            runCurrent()
+                val edited = repository.getTaskById("task-1")!!.copy(
+                    title = "Edited title",
+                    subtasks = emptyList(),
+                )
+                viewModel.updateTask(edited)
+                runCurrent()
 
-            val afterEdit = repository.getTaskById("task-1")!!
-            assertEquals("Edited title", afterEdit.title)
-            assertEquals(progressBeforeEdit, afterEdit.subtasks)
-            assertEquals(1, dao.fullTaskWrites)
-            assertEquals(1, alarmReconciliations)
+                val afterEdit = repository.getTaskById("task-1")!!
+                assertEquals("Edited title", afterEdit.title)
+                assertEquals(progressBeforeEdit, afterEdit.subtasks)
+                assertEquals(1, dao.fullTaskWrites)
+                assertEquals(1, alarmReconciliations)
+            }
         } finally {
             Dispatchers.resetMain()
         }
