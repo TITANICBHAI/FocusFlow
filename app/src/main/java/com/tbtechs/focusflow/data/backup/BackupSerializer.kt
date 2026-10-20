@@ -167,7 +167,7 @@ object BackupSerializer {
                 envelope = metadata.copy(
                     tasks = validTasks,
                     summary = metadata.summary.copy(taskCount = tasks.size),
-                    assets = parsedAssets.assets,
+                    assets = parsedAssets.assets.filterKeys { it in referencedAssetIds },
                 ),
                 warnings = warnings,
             )

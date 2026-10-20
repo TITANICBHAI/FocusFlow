@@ -43,6 +43,7 @@ class SubtaskImageStoreTest {
     @Test
     fun appliesTenMinuteGracePeriodAndPreservesReferencedFiles() = withStore { store, _, clock ->
         val id = store.ingest(fakePng()).getOrThrow()
+        clock.value = store.file(id)!!.lastModified()
         clock.advance(SubtaskImageStore.GRACE_PERIOD_MILLIS - 1)
         assertEquals(0, store.sweep(emptySet()))
         assertTrue(store.exists(id))
