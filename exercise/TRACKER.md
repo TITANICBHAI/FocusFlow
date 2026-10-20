@@ -6,7 +6,7 @@
 
 - **Status:** IN PROGRESS
 - **Progress:** 27.8% (10/36 required checklist items verified)
-- **Current phase:** Phase 2/3 — Additions complete; combined verification pending
+- **Current phase:** Combined verification — Phase 1–3 checks in progress
 - **Last updated:** 2026-10-21
 
 ## Tracker rules
@@ -29,8 +29,8 @@
 |---|---|---:|---|---|
 | 0 — Baseline | DONE — evidence recorded | 3/3 | 2026-10-20 | 2026-10-20 |
 | 1 — Model, DB, repository | IN PROGRESS — final lint confirmation pending | 6/6 | 2026-10-20 | — |
-| 2 — Format, import/export, images | IN PROGRESS — implementation only; verification deferred by owner | 0/7 | 2026-10-21 | — |
-| 3 — AI prompt and format guide | IN PROGRESS — implementation only; verification deferred by owner | 0/4 | 2026-10-21 | — |
+| 2 — Format, import/export, images | IN PROGRESS — combined verification started | 0/7 | 2026-10-21 | — |
+| 3 — AI prompt and format guide | IN PROGRESS — combined verification started | 1/4 | 2026-10-21 | — |
 | 4 — Viewing UI | NOT STARTED | 0/6 | — | — |
 | 5 — Enhancements | NOT STARTED | 0/5 | — | — |
 | 6 — Help, changelog, release checks | NOT STARTED | 0/5 | — | — |
@@ -140,6 +140,8 @@ Production Debug Android-test source compilation completed on 2026-10-20 with `B
 
 On 2026-10-21, `adb devices -l` returned only the device-list header and no attached devices. The instrumented Room migration test therefore was not executed; its source compiled successfully, and this is recorded as the device-only limitation. No APK was assembled or installed. All six Phase 1 checklist items are verified, but production lint will be rerun after the migration-test helper cleanup before closing the phase.
 
+On 2026-10-21, the owner authorized the combined Phase 1–3 verification pass. Production unit tests will run first using the bootstrap helper and production flavor only. No APK will be assembled locally; lint, Android-test source compilation, and Production Release R8 minification follow separately so each result can be recorded before the next check. Initial environment inspection found no JDK/SDK environment variables; `adb` was also unavailable, so device availability could not yet be queried.
+
 **Evidence:**
 - `git status --short` before code edits showed only the Phase 1 tracker update; `replit.md` confirms normal work is limited to the Kotlin Android project.
 - Current Phase 1 fix: `TaskViewModel.setSubtaskSetsDone` now leaves nonmatching IDs unchanged; `TaskViewModelSubtasksTest` includes two sets goals and asserts the untargeted item's count and done state remain unchanged. `git diff --check` returned success with no output.
@@ -171,8 +173,8 @@ _None recorded._
 
 ## Phase 2 — Format, import/export, images at rest
 
-**Status:** IN PROGRESS — implementation only; verification deferred by owner
-**Blocked by:** Phase 1 final lint confirmation remains pending; owner explicitly authorized Phase 2/3 implementation before the combined verification pass.
+**Status:** IN PROGRESS — combined verification started
+**Blocked by:** Phase 1 final lint confirmation remains pending; production unit tests are starting before the remaining gates.
 **Started:** 2026-10-21
 **Completed:** —
 **Progress:** 0/7
@@ -195,21 +197,29 @@ The next implementation slice added backup assets to the envelope/parser, fail-s
 
 On 2026-10-21, audited the current checkout against §§4.3–4.4 and 6. The Phase 2 implementation and test sources are present. This continuation made per-subtask parser failures isolated from sibling entries and added a parser regression test plus an exporter-to-importer image/subtask round-trip test. Per the owner's sequencing, these test sources are not being executed yet; all checklist items remain unchecked pending the combined verification pass.
 
+On 2026-10-21, the owner started the combined verification pass. The production-only JVM suite is the first check; no APK will be built on Replit. Initial device inspection was inconclusive because `adb` was unavailable; query device availability after SDK bootstrap.
+
+The first production JVM test attempt stopped during production Kotlin compilation before any tests ran; compiler errors and the exact command are recorded below. Fix the compile errors before retrying the suite.
+
 **Evidence:**
 - Current-source audit confirmed the Phase 2 implementation and test sources are present; this continuation changed `SubtaskParser.kt`, `SubtaskParserTest.kt`, and `SubtaskAssetExporterTest.kt`.
 - Git-only review: `git diff --check` succeeded with no output. `git status --short` listed those three files and `exercise/TRACKER.md` as modified; the attached instruction file remains untracked and untouched.
 - No unit/instrumented tests, build, lint, R8, APK, or device checks were run; no checklist item is verified yet.
 
 **Failures / blockers:**
-_None recorded._
+- On 2026-10-21, `FOCUSFLOW_SKIP_APK_BUILD=1 bash scripts/build-apk-with-java.sh :app:testProductionDebugUnitTest` failed after 3m 20s at `:app:compileProductionDebugKotlin`. No unit tests executed. Compiler errors: `SubtaskImageStore.kt:121:52` — `imageReferences` is a member and extension at the same time, so callable references are prohibited; `BackupViewModel.kt:306:41` — no `BackupRestoreEngine` constructor matches the supplied arguments. No fix or rerun has been made yet; Phase 2 remains 0/7.
+- On 2026-10-21, corrected both compile errors: `SubtaskImageStore` now calls the member extension through a lambda, and the repository-backed `BackupRestoreEngine` constructor accepts and forwards the optional image store used by `BackupViewModel`. Production JVM test rerun is pending; no checks have been run after these fixes.
+- The rerun of `FOCUSFLOW_SKIP_APK_BUILD=1 bash scripts/build-apk-with-java.sh :app:testProductionDebugUnitTest` passed main Kotlin compilation but failed after 1m 58s at `:app:compileProductionDebugUnitTestKotlin`. No unit tests executed. `SubtaskImageStoreTest.kt` has unresolved references to `imageBounds`, `reencodeCalls`, and `encodedBytes` (lines 34, 36, 38, 39). Fix the test source and rerun; Phase 2 remains 0/7.
+- Diagnosed and fixed the test harness mismatch: `withStore` had supplied `FakeClock` as its second callback argument while the oversized-image test treated it as `FakeCodec`. The helper now passes store, codec, and clock explicitly, and call sites select the right value. Production JVM rerun is pending.
+- The next run of `FOCUSFLOW_SKIP_APK_BUILD=1 bash scripts/build-apk-with-java.sh :app:testProductionDebugUnitTest` compiled successfully and executed 328 tests, but 2 failed: `BackupSerializerTest.invalidAndUnreferencedAssetsAreWarningsNotFileFailures` and `SubtaskImageStoreTest.appliesTenMinuteGracePeriodAndPreservesReferencedFiles`. Gradle failed after 1m 3s; no phase checklist item is verified yet. Failure details need investigation before rerun.
 
 **Decisions / deferred work:**
 _None recorded._
 
 ## Phase 3 — AI prompt and format guide
 
-**Status:** IN PROGRESS — implementation only; verification deferred by owner
-**Blocked by:** Phase 2 verification remains pending; owner explicitly directed that Phase 2 and 3 additions be completed before the combined verification pass.
+**Status:** IN PROGRESS — combined verification started
+**Blocked by:** Phase 2 verification is running; prompt/example tests are included in the production-only JVM suite.
 **Started:** 2026-10-21
 **Completed:** —
 **Progress:** 1/4
@@ -226,6 +236,8 @@ On 2026-10-21, started Phase 3 implementation under the owner's instruction to c
 On 2026-10-21, audited the current prompt and in-app guide against §11.1–11.2. The shared subtask example, goal/assets guidance, merge note, prompt rules, and zero-warning parser test source are present. The test has not been run; the hosted guide remains an owner-facing Markdown handoff and the external site has not been edited.
 
 On 2026-10-21, prepared the ready-to-paste hosted-guide Markdown in the completion report. The hosted site itself was not edited. The example parse test remains unrun pending the combined verification pass.
+
+On 2026-10-21, the owner authorized verification after Phase 2/3 additions were complete. The production-only JVM suite will verify the shared example; lint, Android-test source compilation, and Production Release R8 checks will be recorded individually.
 
 **Evidence:**
 - Current-source audit confirmed the Phase 3 prompt, shared example, guide content, and zero-warning parser test source are present. Test execution remains deferred; see the combined Phase 2/3 Git-only evidence above.

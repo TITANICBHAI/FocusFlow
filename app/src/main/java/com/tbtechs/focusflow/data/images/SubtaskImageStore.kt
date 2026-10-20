@@ -118,7 +118,7 @@ class SubtaskImageStore(
             referencedAssetIdsFromSubtasks(tasks.asSequence().flatMap { it.subtasks.asSequence() }.asIterable())
 
         fun referencedAssetIdsFromSubtasks(subtasks: Iterable<Subtask>): Set<String> =
-            subtasks.asSequence().flatMap(Subtask::imageReferences).toSet()
+            subtasks.asSequence().flatMap { it.imageReferences() }.toSet()
 
         private fun Subtask.imageReferences(): Sequence<String> = sequence {
             image?.let { yield(it.asset) }

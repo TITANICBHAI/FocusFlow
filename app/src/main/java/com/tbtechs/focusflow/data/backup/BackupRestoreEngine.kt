@@ -62,6 +62,7 @@ class BackupRestoreEngine internal constructor(
         focusSessionRepository: FocusSessionRepository,
         alarmReconciler: TaskAlarmReconciler,
         restoreGate: RestoreGate,
+        imageStore: SubtaskImageStore? = null,
     ) : this(
         access = RepositoryBackupRestoreAccess(
             settingsRepository = settingsRepository,
@@ -70,6 +71,7 @@ class BackupRestoreEngine internal constructor(
             alarmReconciler = alarmReconciler,
         ),
         writeGate = RestoreGateWriter(restoreGate),
+        imageStore = imageStore,
     )
 
     /**

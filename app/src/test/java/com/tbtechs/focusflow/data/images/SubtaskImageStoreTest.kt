@@ -13,7 +13,7 @@ import org.junit.Test
 
 class SubtaskImageStoreTest {
     @Test
-    fun ingestUsesContentAddressedWebpAndDeduplicates() = withStore { store, _ ->
+    fun ingestUsesContentAddressedWebpAndDeduplicates() = withStore { store, _, _ ->
         val first = store.ingest(fakePng())
         val second = store.ingest(fakePng())
         val expectedId = SubtaskImageStore.sha256(fakeWebp())
@@ -29,7 +29,7 @@ class SubtaskImageStoreTest {
     }
 
     @Test
-    fun rejectsUnsupportedMagicAndOversizedDimensionsBeforeDecode() = withStore { store, codec ->
+    fun rejectsUnsupportedMagicAndOversizedDimensionsBeforeDecode() = withStore { store, codec, _ ->
         assertTrue(store.ingest(byteArrayOf(1, 2, 3)).isFailure)
         codec.imageBounds = ImageBounds(4_097, 1)
         assertTrue(store.ingest(fakePng()).isFailure)
@@ -41,7 +41,7 @@ class SubtaskImageStoreTest {
     }
 
     @Test
-    fun appliesTenMinuteGracePeriodAndPreservesReferencedFiles() = withStore { store, clock ->
+    fun appliesTenMinuteGracePeriodAndPreservesReferencedFiles() = withStore { store, _, clock ->
         val id = store.ingest(fakePng()).getOrThrow()
         clock.advance(SubtaskImageStore.GRACE_PERIOD_MILLIS - 1)
         assertEquals(0, store.sweep(emptySet()))
@@ -55,7 +55,7 @@ class SubtaskImageStoreTest {
 
     @Test
     fun hostileIdsCannotBecomePathsAndReferencesIncludeStepImages() {
-        withStore { store, _ ->
+        withStore { store, _, _ ->
             assertNull(store.file("../../outside"))
             assertNull(store.file("x".repeat(64)))
             val task = task().copy(
@@ -75,12 +75,12 @@ class SubtaskImageStoreTest {
         }
     }
 
-    private fun withStore(block: (SubtaskImageStore, FakeClock) -> Unit) {
+    private fun withStore(block: (SubtaskImageStore, FakeCodec, FakeClock) -> Unit) {
         val directory = Files.createTempDirectory("subtask-images").toFile()
         val clock = FakeClock(System.currentTimeMillis())
         val codec = FakeCodec()
         try {
-            block(SubtaskImageStore(directory, codec, clock::now), clock)
+            block(SubtaskImageStore(directory, codec, clock::now), codec, clock)
         } finally {
             directory.deleteRecursively()
         }
