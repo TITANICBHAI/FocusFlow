@@ -30,6 +30,18 @@ The plan is the implementation contract. The tracker is the only progress record
 - Do not expose, copy into files, or print secrets or credentials.
 - Run the verification required by the plan. Never state a test, build, lint check, migration, UI check, or device check passed unless its result was observed. Mark device-dependent work “needs device check” when it cannot be verified in the available environment.
 - Do not push to GitHub or start, poll, or monitor GitHub Actions unless the owner explicitly asks. Use GitHub Actions for APK-building verification only when explicitly requested. Otherwise, state plainly which checks were not run.
+-Work alone. Do not create, invoke, or delegate to sub-agents.
+- Run Gradle or Android tests on Replit using the current workflow or scripts under `scripts/`. Test only the production flavor. Do not build APKs on Replit.
+- Use GitHub Actions for APK-build verification only when the user explicitly asks. Do not push to GitHub or start, poll, or monitor GitHub Actions unless explicitly asked.
+- Do not expose, copy into files, or print secrets or credentials.
+- Use behavior tests with fake clocks and event sources. Do not add tests that read Kotlin source files as text. Logic under test must not call the system wall clock directly.
+- Respect the plan's no-touch list unless the user explicitly changes the scope.
+- Treat task replacement and any other deletion of user data as destructive. Keep replacement disabled by default, preserve explicit confirmation and required safety guards, and do not perform destructive actions without the user's authorization.
+- Run Gradle tests, or Android tests(leave apk building out of these two and no apk building on replit) on Replit by using the current workflow or scripts under `scripts/`. If verification is needed, use GitHub Actions only when the user explicitly requests APK-building verification. Otherwise state clearly that those checks were not run.
+- You shall run test for only one flavour (meaning the production one's test only) becauses they are fundamentally same thing and hence even if run the same test twice but with diff flavour equals to same results.
+- Do not push to GitHub or start, poll, or monitor GitHub Actions unless the user explicitly asks.
+- Do not expose, copy into files, or print secrets or credentials.
+- The plan is the implementation contract, not authorization by itself. Do not begin app-code implementation until the user explicitly authorizes it. If the requested scope or authorization is unclear, stop before changing app code and ask.
 
 ## Tracker discipline
 
