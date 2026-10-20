@@ -153,6 +153,7 @@ class TaskViewModel(
             taskRepository.withTaskOperationLock {
                 taskRepository.mutateSubtasks(taskId) { subtasks ->
                     subtasks.map { subtask ->
+                        if (subtask.id != subtaskId) return@map subtask
                         val goalSets = subtask.goal
                             ?.takeIf { it.kind == "sets" }
                             ?.sets

@@ -5,9 +5,9 @@
 ## Overall status
 
 - **Status:** IN PROGRESS
-- **Progress:** 8.3% (3/36 required checklist items verified)
-- **Current phase:** Phase 1 — Model, DB, repository (in progress)
-- **Last updated:** 2026-10-20
+- **Progress:** 25.0% (9/36 required checklist items verified)
+- **Current phase:** Phase 1 — Model, DB, repository (final lint confirmation pending)
+- **Last updated:** 2026-10-21
 
 ## Tracker rules
 
@@ -28,7 +28,7 @@
 | Phase | Status | Verified progress | Started | Completed |
 |---|---|---:|---|---|
 | 0 — Baseline | DONE — evidence recorded | 3/3 | 2026-10-20 | 2026-10-20 |
-| 1 — Model, DB, repository | IN PROGRESS | 0/6 | 2026-10-20 | — |
+| 1 — Model, DB, repository | IN PROGRESS — final lint confirmation pending | 6/6 | 2026-10-20 | — |
 | 2 — Format, import/export, images | NOT STARTED | 0/7 | — | — |
 | 3 — AI prompt and format guide | NOT STARTED | 0/4 | — | — |
 | 4 — Viewing UI | NOT STARTED | 0/6 | — | — |
@@ -91,15 +91,15 @@ The first combined local lint/APK/release command hit the shell's 300-second tim
 **Blocked by:** Phase 0 complete
 **Started:** 2026-10-20
 **Completed:** —
-**Progress:** 0/6
+**Progress:** 6/6
 **Plan sections:** §4.1–4.2, §5.1–5.4
 
-- [ ] Add subtask domain models, goal formatting, layout policy, and normalization rules.
-- [ ] Add the task/entity JSON column and Room 9→10 migration; register it and commit generated schema 10.
-- [ ] Implement bounded per-element tolerant decode/memoization and size guarding.
-- [ ] Add DAO/repository subtask reads and column-only writes; preserve task fields and `updatedAt`.
-- [ ] Add ViewModel subtask actions and task-edit anti-clobber behavior without alarm/scheduler side effects.
-- [ ] Verify the Phase 1 tests: model/normalizer, repository, ViewModel, and migration coverage; record any device-only limitation.
+- [x] Add subtask domain models, goal formatting, layout policy, and normalization rules.
+- [x] Add the task/entity JSON column and Room 9→10 migration; register it and commit generated schema 10.
+- [x] Implement bounded per-element tolerant decode/memoization and size guarding.
+- [x] Add DAO/repository subtask reads and column-only writes; preserve task fields and `updatedAt`.
+- [x] Add ViewModel subtask actions and task-edit anti-clobber behavior without alarm/scheduler side effects.
+- [x] Verify the Phase 1 tests: model/normalizer, repository, ViewModel, and migration coverage; record any device-only limitation. Migration instrumentation runtime needs a connected Android device.
 
 **Notes / progress:**
 Owner authorized Phase 1 on 2026-10-20. Phase status and start date were recorded before implementation work. Current checkout and instructions were rechecked; the worktree had no unrelated changes. Scope is limited to §§4.1–4.2 and 5.1–5.4, with no UI changes.
@@ -124,8 +124,31 @@ The production JVM test rerun completed on 2026-10-20. Main and unit-test Kotlin
 
 On 2026-10-20, corrected the ViewModel test to select the `"sets"` subtask by ID rather than requiring the two-item fixture to contain only one subtask. The production unit suite rerun is pending; no implementation behavior changed.
 
+On 2026-10-20, the owner explicitly authorized completing Phase 1. The latest checkout has no uncommitted application, test, or tracker edits; only the two user-provided status/instruction attachments are untracked. The test selector correction is present in the current source. Resuming the Phase 1 audit and verification; no Phase 1 checklist item is complete until its required evidence is observed.
+
+The current-code audit found that `setSubtaskSetsDone` applied the requested set count to every sets-goal subtask because its transformation did not compare IDs. The existing ViewModel fixture had only one sets-goal item, so it could not detect the cross-item mutation. An initial filename-filtered inventory did not include `GoalFormatterTest`; a follow-up content search confirmed the required test already exists and needs no change.
+
+On 2026-10-20, fixed set progress to update only the requested subtask ID and expanded the ViewModel fixture to include a second sets-goal item. The regression test now asserts the other item remains untouched before reset. `git diff --check` produced no output. Unit-test and Phase 1 gate results are pending; progress remains 0/6.
+
+The production JVM suite completed on 2026-10-20 after the targeted set-progress fix. The exact command `FOCUSFLOW_SKIP_APK_BUILD=1 bash scripts/build-apk-with-java.sh :app:testProductionDebugUnitTest` reported `BUILD SUCCESSFUL in 6m 4s`; Gradle said the requested test task passed. JUnit XML aggregation over `app/build/test-results/testProductionDebugUnitTest/TEST-*.xml` found 67 suites, 303 tests, 0 failures, 0 errors, and 0 skipped; all five required model/repository/ViewModel classes were present. The task/entity column, guarded migration, registration, and schema 10 are present in the checkout and the Room/Kotlin production compilation passed. Five Phase 1 implementation items are verified; migration instrumentation execution, lint, and R8 minification remain pending.
+
+Production debug lint completed on 2026-10-20 with `BUILD SUCCESSFUL in 3m 15s` for `:app:lintProductionDebug`. The generated `app/build/reports/lint-results-productionDebug.xml` contains 0 issues (0 fatal, errors, warnings, informational, ignored, or unknown). R8 minification and Android-test source/runtime checks remain pending.
+
+Production release R8 minification completed on 2026-10-20 with `BUILD SUCCESSFUL in 5m 48s` for `:app:minifyProductionReleaseWithR8`. The command did not request an assemble/package APK task. Android-test source compilation and migration instrumentation availability remain pending.
+
+Production Debug Android-test source compilation completed on 2026-10-20 with `BUILD SUCCESSFUL in 1m 8s` for `:app:compileProductionDebugAndroidTestKotlin`. Its two non-fatal warnings identified a deprecated `MigrationTestHelper` constructor and nullable `canonicalName`; after switching to the class-based helper overload with no auto-migration specs, recompilation completed with `BUILD SUCCESSFUL in 41s` and no Kotlin source warnings. Instrumentation execution remains pending.
+
+On 2026-10-21, `adb devices -l` returned only the device-list header and no attached devices. The instrumented Room migration test therefore was not executed; its source compiled successfully, and this is recorded as the device-only limitation. No APK was assembled or installed. All six Phase 1 checklist items are verified, but production lint will be rerun after the migration-test helper cleanup before closing the phase.
+
 **Evidence:**
 - `git status --short` before code edits showed only the Phase 1 tracker update; `replit.md` confirms normal work is limited to the Kotlin Android project.
+- Current Phase 1 fix: `TaskViewModel.setSubtaskSetsDone` now leaves nonmatching IDs unchanged; `TaskViewModelSubtasksTest` includes two sets goals and asserts the untargeted item's count and done state remain unchanged. `git diff --check` returned success with no output.
+- `FOCUSFLOW_SKIP_APK_BUILD=1 bash scripts/build-apk-with-java.sh :app:testProductionDebugUnitTest` completed with `BUILD SUCCESSFUL in 6m 4s`; Gradle reported `Gradle tasks passed: :app:testProductionDebugUnitTest`. JUnit XML aggregation over `app/build/test-results/testProductionDebugUnitTest/TEST-*.xml` found 67 suites, 303 tests, 0 failures, 0 errors, 0 skipped, including `GoalFormatterTest`, `SubtaskLayoutPolicyTest`, `SubtaskNormalizerTest`, `TaskRepositorySubtasksTest`, and `TaskViewModelSubtasksTest`.
+- The current checkout contains the `subtasks` entity/domain column, guarded `MIGRATION_9_10`, its `AppModule` registration, and generated schema `10.json`; the successful production Gradle build compiled the Room/Kotlin production sources. Migration instrumentation execution remains pending.
+- `FOCUSFLOW_SKIP_APK_BUILD=1 bash scripts/build-apk-with-java.sh :app:lintProductionDebug` completed with `BUILD SUCCESSFUL in 3m 15s`; Gradle reported `Gradle tasks passed: :app:lintProductionDebug`. Parsed `app/build/reports/lint-results-productionDebug.xml`: 0 total issues (0 fatal/errors/warnings/informational/ignored/unknown).
+- `FOCUSFLOW_SKIP_APK_BUILD=1 bash scripts/build-apk-with-java.sh :app:minifyProductionReleaseWithR8` completed with `BUILD SUCCESSFUL in 5m 48s`; Gradle reported the requested minification task passed. No APK assemble/package task was requested. Android-test Kotlin compilation and device availability remain pending.
+- `FOCUSFLOW_SKIP_APK_BUILD=1 bash scripts/build-apk-with-java.sh :app:compileProductionDebugAndroidTestKotlin` first completed in `1m 8s` with two non-fatal helper-constructor warnings. After switching to `FocusFlowDatabase::class.java` plus an empty auto-migration-spec list, the same Production Debug Android-test compilation passed in `41s` with no Kotlin source warnings. No APK was assembled; instrumentation runtime remains pending.
+- `/home/runner/.cache/focusflow/android-sdk/platform-tools/adb devices -l` returned `List of devices attached` with no device entries. The Room migration instrumentation test was not run because no device is attached; no APK was built or installed. Migration test source compilation passed. Phase 1 checklist item 6 is complete with this device-only limitation recorded.
 - Added `app/src/main/java/com/tbtechs/focusflow/data/model/Subtask.kt` and model tests in `app/src/test/java/com/tbtechs/focusflow/data/model/`. No test result observed yet; checklist item 1 remains unchecked pending tests.
 - Current Phase 1 continuation changed the task model/entity, DAO, Room migration and DI registration, repository mapping/cache/size guard, and ViewModel operations. Added repository/ViewModel JVM tests and the Room 9→10 instrumented migration test. `git diff --check` was clean; build/test verification is still pending.
 - Status check: schema `app/schemas/com.tbtechs.focusflow.data.local.FocusFlowDatabase/10.json`, `MIGRATION_9_10` registration, model/repository/ViewModel tests, and the instrumented migration test are present. `git diff --check` remained clean; current untracked file is the user's newly attached status note.
@@ -140,8 +163,8 @@ On 2026-10-20, corrected the ViewModel test to select the `"sets"` subtask by ID
 
 **Failures / blockers:**
 - The initial production compilation failure was fixed by importing the JSON extension from `kotlinx.serialization.json`; its failed attempt is preserved above.
-- The latest *observed* production unit run (historical; before the owner-reported successful rerun) has one remaining assertion failure because the ViewModel test does not select the set-goal subtask from a two-item fixture. Lint and Android-test Kotlin compilation passed for that attempt; R8 minification and migration instrumentation were not verified. The owner reports later successful checks, but their results are not available in this checkout.
-- The latest rerun in this session reproduces the same test-only selection failure at `TaskViewModelSubtasksTest.kt:50`; all 303 tests ran, with 1 failure. This is a current blocker until the test selects the intended subtask and the suite passes.
+- Historical production JVM runs failed because tests selected malformed fixtures and the ViewModel action did not target a single set-goal item. These failures are resolved: the current production JVM suite passed all 303 tests with no failures, errors, or skipped tests, including the two-set-target regression.
+- No Android device is attached, so the migration instrumentation test could not run. The test source compiles; this device-only runtime limitation is recorded and no APK was built or installed. Final lint confirmation after the migration-test helper cleanup remains pending.
 
 **Decisions / deferred work:**
 _None recorded._
@@ -346,3 +369,12 @@ Append dated entries; do not replace earlier history.
 | 2026-10-20 | Phase 1 model tests added | Added tests for goal formatting, layout policy, IDs, progress, text cleanup, invalid data, and truncation counts. | `GoalFormatterTest`, `SubtaskLayoutPolicyTest`, and `SubtaskNormalizerTest` added; results pending. |
 | 2026-10-20 | Phase 1 status audit | Owner reports successful lint, APK build, and tests after the recorded failure. Phase remains open because current-checkout verification outputs and the migration-test result are unavailable. | Source/schema/test files are present. No Gradle reports or APK artifacts were found under `app/build`; no new verification was run. |
 | 2026-10-20 | Phase 1 unit-test rerun | The production test suite exposed the prior subtask-selection assertion failure; corrected the test selector and recorded the rerun as pending. | `:app:testProductionDebugUnitTest`: 303 tests, 1 failure in `TaskViewModelSubtasksTest.kt:50`; all production main and test Kotlin compilation completed. Test-only selector now targets the `"sets"` item. |
+| 2026-10-20 | Phase 1 set-target correction | Fixed set progress to affect only the requested item and expanded the regression fixture to cover multiple set goals. | `TaskViewModel.kt` and `TaskViewModelSubtasksTest.kt` changed. `git diff --check` succeeded with no output; production tests are pending. |
+| 2026-10-20 | Phase 1 production JVM suite | Model, repository, and ViewModel JVM test coverage passed after the set-target correction. | `FOCUSFLOW_SKIP_APK_BUILD=1 bash scripts/build-apk-with-java.sh :app:testProductionDebugUnitTest`; `BUILD SUCCESSFUL in 6m 4s`; Gradle reported the task passed. JUnit XML totals not yet recorded. |
+| 2026-10-20 | Phase 1 JVM results and schema audit | Confirmed the required JVM test classes and Room schema/migration wiring in the successful build. | JUnit XML aggregation: 67 suites, 303 tests, 0 failures/errors/skips; GoalFormatter, layout policy, normalizer, repository, and ViewModel test classes all present. Current source has DB version 10, registered 9→10 migration, and schema 10. Instrumented migration runtime remains pending. |
+| 2026-10-20 | Phase 1 production lint | Production debug lint task passed. | `FOCUSFLOW_SKIP_APK_BUILD=1 bash scripts/build-apk-with-java.sh :app:lintProductionDebug`; `BUILD SUCCESSFUL in 3m 15s`; Gradle reported the task passed. XML/report issue counts pending inspection. |
+| 2026-10-20 | Phase 1 lint report audit | Confirmed Production Debug lint is clean. | Parsed `app/build/reports/lint-results-productionDebug.xml`: 0 issues; 0 fatal/errors/warnings/informational/ignored/unknown. |
+| 2026-10-20 | Phase 1 production R8 minification | Production Release code/resources passed the configured R8 minification task. | `FOCUSFLOW_SKIP_APK_BUILD=1 bash scripts/build-apk-with-java.sh :app:minifyProductionReleaseWithR8`; `BUILD SUCCESSFUL in 5m 48s`; no APK assemble/package task requested. |
+| 2026-10-20 | Phase 1 migration test compilation | Android-test Kotlin sources, including the Room migration coverage, compiled successfully. | `FOCUSFLOW_SKIP_APK_BUILD=1 bash scripts/build-apk-with-java.sh :app:compileProductionDebugAndroidTestKotlin`; `BUILD SUCCESSFUL in 1m 8s`. Two non-fatal migration-test warnings need source review; instrumentation runtime remains pending. |
+| 2026-10-21 | Room migration helper warning cleanup | Replaced the deprecated nullable string-assets helper constructor with the Room database-class overload. | `FocusFlowDatabaseMigrationTest` now passes `FocusFlowDatabase::class.java` and an empty auto-migration-spec list. Production Android-test Kotlin recompilation is pending; no migration instrumentation runtime has been run. |
+| 2026-10-21 | Phase 1 migration test source recompile | Confirmed the updated helper overload compiles without the previous Kotlin warnings. | `FOCUSFLOW_SKIP_APK_BUILD=1 bash scripts/build-apk-with-java.sh :app:compileProductionDebugAndroidTestKotlin`; `BUILD SUCCESSFUL in 41s`; 2 tasks executed, 27 up-to-date. No APK assembled; instrumentation runtime still pending. |

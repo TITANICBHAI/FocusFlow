@@ -50,6 +50,10 @@ class TaskViewModelSubtasksTest {
                 val completedSets = repository.getTaskById("task-1")!!.subtasks.single { it.id == "sets" }
                 assertEquals(3, completedSets.setsDone)
                 assertTrue(completedSets.done)
+                val untouchedSets = repository.getTaskById("task-1")!!.subtasks
+                    .single { it.id == "other-sets" }
+                assertEquals(0, untouchedSets.setsDone)
+                assertEquals(false, untouchedSets.done)
 
                 viewModel.setSubtaskDone("task-1", "read", done = true)
                 runCurrent()
@@ -57,8 +61,8 @@ class TaskViewModelSubtasksTest {
                 runCurrent()
 
                 val progressBeforeEdit = repository.getTaskById("task-1")!!.subtasks
-                assertEquals(listOf(false, false), progressBeforeEdit.map(Subtask::done))
-                assertEquals(listOf(0, 0), progressBeforeEdit.map(Subtask::setsDone))
+                assertEquals(listOf(false, false, false), progressBeforeEdit.map(Subtask::done))
+                assertEquals(listOf(0, 0, 0), progressBeforeEdit.map(Subtask::setsDone))
                 assertEquals(0, alarmReconciliations)
                 assertEquals(0, dao.fullTaskWrites)
                 assertTrue(dao.subtaskWrites >= 3)
@@ -100,6 +104,7 @@ class TaskViewModelSubtasksTest {
         subtasks = """
             [
               {"id":"sets","title":"Sets","goal":{"kind":"sets","sets":3,"reps":8}},
+              {"id":"other-sets","title":"Other sets","goal":{"kind":"sets","sets":2,"reps":10}},
               {"id":"read","title":"Read"}
             ]
         """.trimIndent(),

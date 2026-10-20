@@ -32,8 +32,8 @@ class FocusFlowDatabaseMigrationTest {
     @get:Rule
     val helper = MigrationTestHelper(
         InstrumentationRegistry.getInstrumentation(),
-        FocusFlowDatabase::class.java.canonicalName,
-        FrameworkSQLiteOpenHelperFactory(),
+        FocusFlowDatabase::class.java,
+        emptyList(),
     )
 
     @Test
