@@ -33,6 +33,22 @@ object BackupJsonLimits {
     const val MAX_TAGS_PER_TASK = 100
     const val MAX_REMINDERS_PER_TASK = 100
     const val MAX_JSON_NODES = 2_000_000
+    const val MAX_SUBTASKS_PER_TASK = 50
+    const val MAX_STEPS_PER_SUBTASK = 30
+    const val MAX_TIPS_PER_SUBTASK = 10
+    const val MAX_SUBTASK_TITLE_CHARS = 200
+    const val MAX_SUBTITLE_CHARS = 120
+    const val MAX_EXPLANATION_CHARS = 4_000
+    const val MAX_STEP_TITLE_CHARS = 120
+    const val MAX_STEP_TEXT_CHARS = 1_500
+    const val MAX_TIP_CHARS = 300
+    const val MAX_ALT_CHARS = 200
+    const val MAX_GOAL_LABEL_CHARS = 80
+    const val MAX_ASSETS = 200
+    const val MAX_ASSET_DATA_CHARS = 400_000
+    const val MAX_ASSET_TOTAL_BYTES = 6 * 1024 * 1024
+    const val MAX_SUBTASK_JSON_BYTES_PER_TASK = 96 * 1024
+    const val EXPORT_REENCODE_THRESHOLD_BYTES = 7 * 1024 * 1024
 }
 
 class BackupJsonFormatException(message: String) : IllegalArgumentException(message)
@@ -127,12 +143,12 @@ object BackupJsonPreflight {
         fun scanDocument() {
             skipWhitespace()
             if (cursor >= text.length) fail("Backup is empty.")
-            parseValue(depth = 0)
+            parseValue(depth = 0, location = ValueLocation.ROOT)
             skipWhitespace()
             if (cursor != text.length) fail("Backup contains trailing data.")
         }
 
-        private fun parseValue(depth: Int) {
+        private fun parseValue(depth: Int, location: ValueLocation = ValueLocation.OTHER) {
             if (depth > BackupJsonLimits.MAX_DEPTH) {
                 fail("Backup exceeds the maximum JSON nesting depth.")
             }
@@ -142,9 +158,15 @@ object BackupJsonPreflight {
             }
             skipWhitespace()
             when (peek()) {
-                '{' -> parseObject(depth)
+                '{' -> parseObject(depth, location)
                 '[' -> parseArray(depth)
-                '"' -> parseString()
+                '"' -> parseString(
+                    maxChars = if (location == ValueLocation.ASSET_DATA) {
+                        BackupJsonLimits.MAX_ASSET_DATA_CHARS
+                    } else {
+                        BackupJsonLimits.MAX_STRING_CHARS
+                    },
+                )
                 't' -> consumeLiteral("true")
                 'f' -> consumeLiteral("false")
                 'n' -> consumeLiteral("null")
@@ -153,7 +175,13 @@ object BackupJsonPreflight {
             }
         }
 
-        private fun parseObject(depth: Int) {
+        private fun parseObject(depth: Int, location: ValueLocation) {
+            val objectLocation = when (location) {
+                ValueLocation.ROOT -> ValueLocation.ROOT_OBJECT
+                ValueLocation.ASSETS_MAP -> ValueLocation.ASSETS_OBJECT
+                ValueLocation.ASSET_ENTRY -> ValueLocation.ASSET_OBJECT
+                else -> ValueLocation.OTHER
+            }
             expect('{')
             skipWhitespace()
             if (takeIf('}')) return
@@ -168,7 +196,16 @@ object BackupJsonPreflight {
                 }
                 skipWhitespace()
                 expect(':')
-                parseValue(depth + 1)
+                val childLocation = when {
+                    objectLocation == ValueLocation.ROOT_OBJECT && key == "assets" ->
+                        ValueLocation.ASSETS_MAP
+                    objectLocation == ValueLocation.ASSETS_OBJECT ->
+                        ValueLocation.ASSET_ENTRY
+                    objectLocation == ValueLocation.ASSET_OBJECT && key == "data" ->
+                        ValueLocation.ASSET_DATA
+                    else -> ValueLocation.OTHER
+                }
+                parseValue(depth + 1, childLocation)
                 skipWhitespace()
                 when {
                     takeIf('}') -> return
@@ -176,6 +213,17 @@ object BackupJsonPreflight {
                     else -> fail("Backup contains invalid JSON object syntax.")
                 }
             }
+        }
+
+        private enum class ValueLocation {
+            ROOT,
+            ROOT_OBJECT,
+            ASSETS_MAP,
+            ASSETS_OBJECT,
+            ASSET_ENTRY,
+            ASSET_OBJECT,
+            ASSET_DATA,
+            OTHER,
         }
 
         private fun parseArray(depth: Int) {
@@ -193,14 +241,14 @@ object BackupJsonPreflight {
             }
         }
 
-        private fun parseString(): String {
+        private fun parseString(maxChars: Int = BackupJsonLimits.MAX_STRING_CHARS): String {
             expect('"')
             val result = StringBuilder()
             while (cursor < text.length) {
                 val char = text[cursor++]
                 when {
                     char == '"' -> {
-                        if (result.length > BackupJsonLimits.MAX_STRING_CHARS) {
+                        if (result.length > maxChars) {
                             fail("Backup contains a string exceeding the character limit.")
                         }
                         return result.toString()
@@ -216,7 +264,7 @@ object BackupJsonPreflight {
                     char.isLowSurrogate() -> fail("Backup contains a lone Unicode surrogate.")
                     else -> result.append(char)
                 }
-                if (result.length > BackupJsonLimits.MAX_STRING_CHARS) {
+                if (result.length > maxChars) {
                     fail("Backup contains a string exceeding the character limit.")
                 }
             }

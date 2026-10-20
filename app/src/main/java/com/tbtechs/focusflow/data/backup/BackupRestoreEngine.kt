@@ -2,13 +2,17 @@ package com.tbtechs.focusflow.data.backup
 
 import com.tbtechs.focusflow.data.model.AppSettings
 import com.tbtechs.focusflow.data.model.CanonicalTimestamp
+import com.tbtechs.focusflow.data.model.Subtask
+import com.tbtechs.focusflow.data.model.SubtaskImage
 import com.tbtechs.focusflow.data.model.Task
+import com.tbtechs.focusflow.data.images.SubtaskImageStore
 import com.tbtechs.focusflow.data.repository.FocusSessionRepository
 import com.tbtechs.focusflow.data.repository.SettingsRepository
 import com.tbtechs.focusflow.data.repository.TaskAlarmReconciler
 import com.tbtechs.focusflow.data.repository.TaskRepository
 import com.tbtechs.focusflow.data.restore.RestoreGate
 import java.time.Instant
+import java.util.Base64
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.JsonObject
 
@@ -17,6 +21,9 @@ sealed interface RestoreResult {
         val tasksImported: Int,
         val tasksSkipped: Int,
         val warnings: List<String>,
+        val subtasksImported: Int = 0,
+        val imagesStored: Int = 0,
+        val tasksEnriched: Int = 0,
     ) : RestoreResult
 
     data class Failure(val message: String) : RestoreResult
@@ -33,6 +40,8 @@ internal interface BackupRestoreAccess {
     suspend fun getAllTasks(): List<Task>
     suspend fun deleteAllTasks()
     suspend fun insertTask(task: Task)
+    suspend fun replaceSubtasks(taskId: String, subtasks: List<Subtask>)
+    suspend fun sweepSubtaskImages(): Int
     suspend fun hasActiveFocusSession(): Boolean
     suspend fun reconcileAlarms(reason: String)
 }
@@ -45,6 +54,7 @@ class BackupRestoreEngine internal constructor(
     private val access: BackupRestoreAccess,
     private val writeGate: BackupRestoreWriteGate,
     private val clock: () -> Instant = Instant::now,
+    private val imageStore: SubtaskImageStore? = null,
 ) {
     constructor(
         settingsRepository: SettingsRepository,
@@ -72,6 +82,7 @@ class BackupRestoreEngine internal constructor(
         envelope: BackupEnvelope,
         currentSettings: AppSettings,
         replaceTasks: Boolean,
+        enrichExistingTasks: Boolean = false,
     ): RestoreResult {
         val preferenceWrites = try {
             val portableSettings = JsonObject(
@@ -96,6 +107,7 @@ class BackupRestoreEngine internal constructor(
             )
         }
 
+        val preparedImages = prepareImages(envelope)
         val settingsWarnings = mutableListOf<String>()
         val workResult = try {
             writeGate.write("BackupRestoreEngine.restore") {
@@ -127,20 +139,22 @@ class BackupRestoreEngine internal constructor(
 
                 // Read the database snapshot while holding the same mutation
                 // gate, so an intervening task insert cannot evade collision checks.
-                val existingIds = if (replaceTasks) {
-                    emptySet()
-                } else {
-                    access.getAllTasks().mapTo(mutableSetOf()) { it.id }
-                }
+                val existingTasks = if (replaceTasks) emptyList() else access.getAllTasks()
+                val existingById = existingTasks.associateBy(Task::id)
+                val existingIds = existingById.keys
                 val importedIds = mutableSetOf<String>()
+                val enrichedIds = mutableSetOf<String>()
                 val tasksToSchedule = mutableListOf<Task>()
                 val warnings = settingsWarnings.toMutableList()
+                warnings += preparedImages.warnings
                 var importedCount = 0
                 var skippedCount = 0
+                var subtasksImportedCount = 0
+                var tasksEnrichedCount = 0
                 val now = clock()
                 val canonicalNow = CanonicalTimestamp.format(now)
 
-                envelope.tasks.forEach { task ->
+                preparedImages.tasks.forEach { task ->
                     if (task.id.isBlank()) {
                         skippedCount++
                         warnings += "Skipped a backup task without an ID."
@@ -149,6 +163,17 @@ class BackupRestoreEngine internal constructor(
                     if (task.id in existingIds || task.id in importedIds) {
                         skippedCount++
                         warnings += "Skipped duplicate task ID '${task.id}'."
+                        val existing = existingById[task.id]
+                        if (enrichExistingTasks && existing != null &&
+                            existing.subtasks.isEmpty() && task.subtasks.isNotEmpty() &&
+                            enrichedIds.add(task.id)
+                        ) {
+                            writeGate.write("BackupRestoreEngine.enrichSubtasks") {
+                                access.replaceSubtasks(task.id, task.subtasks)
+                            }
+                            tasksEnrichedCount++
+                            subtasksImportedCount += task.subtasks.size
+                        }
                         return@forEach
                     }
 
@@ -173,6 +198,7 @@ class BackupRestoreEngine internal constructor(
                     }
                     importedIds += task.id
                     importedCount++
+                    subtasksImportedCount += task.subtasks.size
                     if (taskToInsert.status == "scheduled") {
                         tasksToSchedule += taskToInsert
                     }
@@ -188,11 +214,19 @@ class BackupRestoreEngine internal constructor(
                         access.reconcileAlarms(reason = "backup-restore")
                     }
                 }
+                if (replaceTasks) {
+                    writeGate.write("BackupRestoreEngine.sweepImages") {
+                        access.sweepSubtaskImages()
+                    }
+                }
 
                 RestoreWorkResult.Completed(
                     importedCount = importedCount,
                     skippedCount = skippedCount,
                     warnings = warnings,
+                    subtasksImportedCount = subtasksImportedCount,
+                    imagesStoredCount = preparedImages.storedCount,
+                    tasksEnrichedCount = tasksEnrichedCount,
                 )
             }
         } catch (cancellation: CancellationException) {
@@ -209,8 +243,86 @@ class BackupRestoreEngine internal constructor(
                 tasksImported = workResult.importedCount,
                 tasksSkipped = workResult.skippedCount,
                 warnings = workResult.warnings,
+                subtasksImported = workResult.subtasksImportedCount,
+                imagesStored = workResult.imagesStoredCount,
+                tasksEnriched = workResult.tasksEnrichedCount,
             )
         }
+    }
+
+    private data class PreparedImages(
+        val tasks: List<Task>,
+        val warnings: List<String>,
+        val storedCount: Int,
+    )
+
+    /**
+     * Decode and ingest file assets before entering RestoreGate. File IDs never
+     * become paths; only the image store's content hash is persisted.
+     */
+    private fun prepareImages(envelope: BackupEnvelope): PreparedImages {
+        val referenced = SubtaskImageStore.referencedAssetIds(envelope.tasks)
+        if (referenced.isEmpty()) return PreparedImages(envelope.tasks, emptyList(), 0)
+        val store = imageStore
+        val remapped = mutableMapOf<String, String>()
+        var totalBytes = 0
+        var failed = 0
+        val idsToProcess = referenced.sorted().take(BackupJsonLimits.MAX_ASSETS)
+        if (referenced.size > BackupJsonLimits.MAX_ASSETS) {
+            failed += referenced.size - BackupJsonLimits.MAX_ASSETS
+        }
+        idsToProcess.forEach { fileId ->
+            val asset = envelope.assets[fileId]
+            if (asset == null || asset.data.length > BackupJsonLimits.MAX_ASSET_DATA_CHARS) {
+                failed++
+                return@forEach
+            }
+            val bytes = try {
+                Base64.getDecoder().decode(asset.data)
+            } catch (_: IllegalArgumentException) {
+                failed++
+                return@forEach
+            }
+            if (bytes.isEmpty() ||
+                bytes.size > BackupJsonLimits.MAX_ASSET_TOTAL_BYTES - totalBytes
+            ) {
+                failed++
+                return@forEach
+            }
+            totalBytes += bytes.size
+            val storedId = store?.ingest(bytes)?.getOrNull()
+            if (storedId == null) {
+                failed++
+            } else {
+                remapped[fileId] = storedId
+            }
+        }
+        val tasks = envelope.tasks.map { task ->
+            task.copy(
+                subtasks = task.subtasks.map { subtask ->
+                    subtask.copy(
+                        image = remapImage(subtask.image, remapped),
+                        steps = subtask.steps.map { step ->
+                            step.copy(image = remapImage(step.image, remapped))
+                        },
+                    )
+                },
+            )
+        }
+        return PreparedImages(
+            tasks = tasks,
+            warnings = if (failed == 0) emptyList() else {
+                listOf("$failed images could not be decoded or stored and were removed.")
+            },
+            storedCount = remapped.values.toSet().size,
+        )
+    }
+
+    private fun remapImage(
+        image: SubtaskImage?,
+        ids: Map<String, String>,
+    ): SubtaskImage? = image?.let { source ->
+        ids[source.asset]?.let { newId -> source.copy(asset = newId) }
     }
 }
 
@@ -220,6 +332,9 @@ private sealed interface RestoreWorkResult {
         val importedCount: Int,
         val skippedCount: Int,
         val warnings: List<String>,
+        val subtasksImportedCount: Int,
+        val imagesStoredCount: Int,
+        val tasksEnrichedCount: Int,
     ) : RestoreWorkResult
 }
 
@@ -269,6 +384,13 @@ private class RepositoryBackupRestoreAccess(
     override suspend fun insertTask(task: Task) {
         taskRepository.insertTask(task)
     }
+
+    override suspend fun replaceSubtasks(taskId: String, subtasks: List<Subtask>) {
+        taskRepository.replaceSubtasks(taskId, subtasks)
+    }
+
+    override suspend fun sweepSubtaskImages(): Int =
+        taskRepository.sweepOrphanedSubtaskImages()
 
     override suspend fun hasActiveFocusSession(): Boolean =
         focusSessionRepository.getActiveFocusSession() != null

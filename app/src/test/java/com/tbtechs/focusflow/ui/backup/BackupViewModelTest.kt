@@ -6,6 +6,7 @@ import com.tbtechs.focusflow.data.backup.BackupParseResult
 import com.tbtechs.focusflow.data.backup.BackupSerializer
 import com.tbtechs.focusflow.data.backup.RestoreResult
 import com.tbtechs.focusflow.data.model.AppSettings
+import com.tbtechs.focusflow.data.model.Subtask
 import com.tbtechs.focusflow.data.model.Task
 import java.io.IOException
 import kotlinx.serialization.json.Json
@@ -108,6 +109,29 @@ class BackupViewModelTest {
     }
 
     @Test
+    fun pendingImportCountsEnrichmentCandidatesAndForwardsTheUserChoice() = runTest {
+        val harness = createHarness(testScheduler)
+        val local = task()
+        val incoming = local.copy(subtasks = listOf(Subtask(id = "part", title = "Part")))
+        harness.operations.tasks = listOf(local)
+        val backup = BackupSerializer.serializeToJson(
+            BackupSerializer.buildEnvelope(AppSettings(), listOf(incoming), "test"),
+        )
+
+        harness.viewModel.beginImport { backup }
+        runCurrent()
+        val pending = harness.viewModel.importState.value as ImportState.PendingConfirm
+        assertEquals(1, pending.subtaskEnrichmentCandidates)
+
+        harness.viewModel.confirmImport(
+            replaceTasks = false,
+            enrichExistingTasks = false,
+        )
+        runCurrent()
+        assertFalse(harness.operations.lastEnrichExistingTasks)
+    }
+
+    @Test
     fun malformedTaskWarningsAppearInPreviewAndSurviveRetry() = runTest {
         val harness = createHarness(testScheduler)
         val parseWarning = "2 malformed task records will be skipped."
@@ -191,7 +215,7 @@ class BackupViewModelTest {
         val harness = createHarness(testScheduler)
         var restoreStarted = false
         var restoreCancelled = false
-        harness.operations.restoreAction = { _, _, _ ->
+        harness.operations.restoreAction = { _, _, _, _ ->
             restoreStarted = true
             try {
                 awaitCancellation()
@@ -255,6 +279,20 @@ class BackupViewModelTest {
         ),
     )
 
+    private fun task() = Task(
+        id = "same-id",
+        title = "Local task",
+        startTime = "2026-10-21T10:00:00Z",
+        endTime = "2026-10-21T10:30:00Z",
+        durationMinutes = 30,
+        status = "scheduled",
+        priority = "medium",
+        color = "#22c55e",
+        focusMode = false,
+        createdAt = "2026-10-20T10:00:00Z",
+        updatedAt = "2026-10-20T10:00:00Z",
+    )
+
     private fun backupWithMalformedTasks(): String {
         val root = Json.parseToJsonElement(validBackupJson()).jsonObject
         val malformedTasks = JsonArray(
@@ -280,8 +318,10 @@ class BackupViewModelTest {
             BackupEnvelope,
             AppSettings,
             Boolean,
-        ) -> RestoreResult = { _, _, _ -> restoreResult }
+            Boolean,
+        ) -> RestoreResult = { _, _, _, _ -> restoreResult }
         var lastReplaceTasks = false
+        var lastEnrichExistingTasks = true
         var refreshCount = 0
 
         override suspend fun readSettings(): AppSettings = settings
@@ -292,10 +332,12 @@ class BackupViewModelTest {
             envelope: BackupEnvelope,
             currentSettings: AppSettings,
             replaceTasks: Boolean,
+            enrichExistingTasks: Boolean,
         ): RestoreResult {
             restoreCalled = true
             lastReplaceTasks = replaceTasks
-            return restoreAction(envelope, currentSettings, replaceTasks)
+            lastEnrichExistingTasks = enrichExistingTasks
+            return restoreAction(envelope, currentSettings, replaceTasks, enrichExistingTasks)
         }
 
         override suspend fun refreshSettingsFromStore() {

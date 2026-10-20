@@ -5,11 +5,13 @@ import com.tbtechs.focusflow.data.model.Task
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.util.Base64
 import java.util.Locale
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -33,6 +35,7 @@ object BackupSerializer {
         settings: AppSettings,
         tasks: List<Task>,
         appVersion: String?,
+        assets: Map<String, BackupAsset> = emptyMap(),
     ): BackupEnvelope {
         require(tasks.size <= BackupJsonLimits.MAX_TASKS) {
             "Backup contains too many tasks."
@@ -67,6 +70,7 @@ object BackupSerializer {
                 greyoutWindowCount = greyoutWindows.size,
                 dailyAllowanceCount = allowances.size,
             ),
+            assets = assets,
         )
     }
 
@@ -96,6 +100,7 @@ object BackupSerializer {
 
             val settings = root["settings"] as? JsonObject
                 ?: return BackupParseResult.Failure("Backup settings must be a JSON object.")
+            val parsedAssets = parseAssets(root["assets"])
 
             val tasks = root["tasks"] as? JsonArray
                 ?: return BackupParseResult.Failure("Backup tasks must be a JSON array.")
@@ -119,32 +124,50 @@ object BackupSerializer {
             if ("summary" !in metadataFields) {
                 metadataFields["summary"] = fallbackSummary(settings, tasks.size)
             }
+            metadataFields.remove("assets")
             metadataFields["tasks"] = JsonArray(emptyList())
             val metadataRoot = JsonObject(metadataFields)
             val metadata = json.decodeFromJsonElement<BackupEnvelope>(metadataRoot)
             val validTasks = mutableListOf<Task>()
             var malformedTaskCount = 0
+            val subtaskWarnings = mutableListOf<String>()
             tasks.forEach { taskElement ->
                 try {
-                    validTasks += json.decodeFromJsonElement<Task>(taskElement)
+                    val taskObject = taskElement as? JsonObject
+                        ?: throw SerializationException("Task must be an object.")
+                    val taskFields = JsonObject(taskObject - "subtasks")
+                    val task = json.decodeFromJsonElement<Task>(taskFields)
+                    val parsedSubtasks = SubtaskParser.parse(
+                        taskObject["subtasks"],
+                        parsedAssets.assets.keys,
+                    )
+                    subtaskWarnings += parsedSubtasks.warnings
+                    validTasks += task.copy(subtasks = parsedSubtasks.subtasks)
                 } catch (_: Exception) {
                     malformedTaskCount++
                 }
             }
 
-            val warnings = buildList {
-                if (malformedTaskCount > 0) {
-                    val recordWord = if (malformedTaskCount == 1) "record will" else "records will"
-                    add("$malformedTaskCount malformed task $recordWord be skipped.")
-                }
-                if (settings.isNotEmpty() && !BackupSettingsAdapter.hasRestorableSettings(settings)) {
-                    add("Settings in this backup are not supported by this app version and will be left unchanged.")
-                }
+            val warnings = mutableListOf<String>()
+            if (malformedTaskCount > 0) {
+                val recordWord = if (malformedTaskCount == 1) "record will" else "records will"
+                warnings += "$malformedTaskCount malformed task $recordWord be skipped."
+            }
+            warnings += parsedAssets.warnings
+            warnings += aggregateWarnings(subtaskWarnings)
+            if (settings.isNotEmpty() && !BackupSettingsAdapter.hasRestorableSettings(settings)) {
+                warnings += "Settings in this backup are not supported by this app version and will be left unchanged."
+            }
+            val referencedAssetIds = referencedAssetIds(validTasks)
+            val unusedAssetCount = parsedAssets.assets.keys.count { it !in referencedAssetIds }
+            if (unusedAssetCount > 0) {
+                warnings += "$unusedAssetCount unreferenced image assets were ignored."
             }
             BackupParseResult.Success(
                 envelope = metadata.copy(
                     tasks = validTasks,
                     summary = metadata.summary.copy(taskCount = tasks.size),
+                    assets = parsedAssets.assets,
                 ),
                 warnings = warnings,
             )
@@ -156,6 +179,94 @@ object BackupSerializer {
             BackupParseResult.Failure(exception.message ?: "Backup JSON is invalid.")
         } catch (_: Exception) {
             BackupParseResult.Failure("Backup JSON is malformed.")
+        }
+    }
+
+    private data class AssetParseResult(
+        val assets: Map<String, BackupAsset>,
+        val warnings: List<String>,
+    )
+
+    private fun parseAssets(element: JsonElement?): AssetParseResult {
+        if (element == null) return AssetParseResult(emptyMap(), emptyList())
+        val objectValue = element as? JsonObject
+            ?: return AssetParseResult(
+                emptyMap(),
+                listOf("The assets field was invalid; images were ignored."),
+            )
+        val result = linkedMapOf<String, BackupAsset>()
+        var invalidCount = 0
+        var overLimitCount = 0
+        var decodedBytes = 0L
+        objectValue.entries.sortedBy { it.key }.forEach { (id, value) ->
+            if (result.size >= BackupJsonLimits.MAX_ASSETS) {
+                overLimitCount++
+                return@forEach
+            }
+            if (!ASSET_ID_PATTERN.matches(id)) {
+                invalidCount++
+                return@forEach
+            }
+            val assetObject = value as? JsonObject
+            val data = assetObject?.stringValue("data")
+            if (data == null || data.length > BackupJsonLimits.MAX_ASSET_DATA_CHARS) {
+                invalidCount++
+                return@forEach
+            }
+            val bytes = try {
+                Base64.getDecoder().decode(data)
+            } catch (_: IllegalArgumentException) {
+                invalidCount++
+                return@forEach
+            }
+            if (bytes.isEmpty() ||
+                bytes.size > BackupJsonLimits.MAX_ASSET_TOTAL_BYTES - decodedBytes
+            ) {
+                overLimitCount++
+                return@forEach
+            }
+            decodedBytes += bytes.size
+            val mime = assetObject.stringValue("mime")
+            result[id] = BackupAsset(mime = mime, data = data)
+        }
+        return AssetParseResult(
+            assets = result,
+            warnings = buildList {
+                if (invalidCount > 0) add("$invalidCount invalid image assets were ignored.")
+                if (overLimitCount > 0) {
+                    add("$overLimitCount image assets were ignored because the asset count or total size limit was reached.")
+                }
+            },
+        )
+    }
+
+    private fun JsonObject.stringValue(key: String): String? =
+        (this[key] as? JsonPrimitive)?.takeIf(JsonPrimitive::isString)?.content
+
+    private fun referencedAssetIds(tasks: List<Task>): Set<String> =
+        tasks.asSequence()
+            .flatMap { it.subtasks.asSequence() }
+            .flatMap { subtask ->
+                sequence {
+                    subtask.image?.let { yield(it.asset) }
+                    subtask.steps.asSequence().mapNotNull { it.image?.asset }.forEach { yield(it) }
+                }
+            }
+            .toSet()
+
+    private fun aggregateWarnings(warnings: List<String>): List<String> {
+        val counts = linkedMapOf<String, Int>()
+        warnings.forEach { warning ->
+            val match = WARNING_COUNT_PATTERN.matchEntire(warning)
+            if (match == null) {
+                counts[warning] = (counts[warning] ?: 0) + 1
+            } else {
+                val key = match.groupValues[2]
+                counts[key] = (counts[key] ?: 0) + match.groupValues[1].toInt()
+            }
+        }
+        return counts.map { (message, count) ->
+            if (message in warnings) message else "$count $message"
         }
     }
 
@@ -253,4 +364,7 @@ object BackupSerializer {
             ),
         )
     }
+
+    private val ASSET_ID_PATTERN = Regex("^[A-Za-z0-9_-]{1,64}$")
+    private val WARNING_COUNT_PATTERN = Regex("^(\\d+) (.+)$")
 }

@@ -33,6 +33,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -67,6 +68,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tbtechs.focusflow.data.backup.BackupEnvelope
+import com.tbtechs.focusflow.data.images.SubtaskImageStore
 import com.tbtechs.focusflow.ui.theme.BrandPrimary
 import com.tbtechs.focusflow.ui.theme.DarkBackground
 import com.tbtechs.focusflow.ui.theme.DarkBorder
@@ -87,7 +89,7 @@ private val ImportDangerRed = Color(0xFFEF4444)
 fun ImportConfirmScreen(
     importState: ImportState,
     pendingEnvelope: BackupEnvelope?,
-    onConfirm: (replaceTasks: Boolean) -> Unit,
+    onConfirm: (replaceTasks: Boolean, enrichExistingTasks: Boolean) -> Unit,
     onCancelImport: () -> Unit,
     onResetImport: () -> Unit,
     onDone: () -> Unit,
@@ -96,6 +98,11 @@ fun ImportConfirmScreen(
     val isRestoring = importState == ImportState.Restoring
     val canCancel = !isRestoring
     var replaceTasks by remember(pendingEnvelope) { mutableStateOf(false) }
+    val enrichmentCandidates =
+        (importState as? ImportState.PendingConfirm)?.subtaskEnrichmentCandidates ?: 0
+    var enrichExistingSubtasks by remember(pendingEnvelope, enrichmentCandidates) {
+        mutableStateOf(enrichmentCandidates > 0)
+    }
     val shouldShowError = importState is ImportState.Error
     val shouldShowSuccess = importState is ImportState.Success
 
@@ -180,6 +187,14 @@ fun ImportConfirmScreen(
                     enabled = importState is ImportState.PendingConfirm,
                     onReplaceTasksChange = { replaceTasks = it },
                 )
+                if (enrichmentCandidates > 0 && !replaceTasks) {
+                    EnrichExistingSubtasksCard(
+                        count = enrichmentCandidates,
+                        checked = enrichExistingSubtasks,
+                        enabled = importState is ImportState.PendingConfirm,
+                        onCheckedChange = { enrichExistingSubtasks = it },
+                    )
+                }
                 if (replaceTasks) {
                     DestructiveImportWarning()
                 }
@@ -237,7 +252,12 @@ fun ImportConfirmScreen(
 
             if (importState !is ImportState.Success && importState !is ImportState.Error) {
                 Button(
-                    onClick = { onConfirm(replaceTasks) },
+                    onClick = {
+                        onConfirm(
+                            replaceTasks,
+                            enrichExistingSubtasks && !replaceTasks,
+                        )
+                    },
                     enabled = importState is ImportState.PendingConfirm && pendingEnvelope != null,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -325,6 +345,15 @@ fun ImportConfirmScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("${success.tasksImported} tasks imported.")
                     Text("${success.tasksSkipped} tasks skipped.")
+                    if (success.subtasksImported > 0) {
+                        Text("${success.subtasksImported} subtasks imported.")
+                    }
+                    if (success.tasksEnriched > 0) {
+                        Text("${success.tasksEnriched} existing tasks enriched.")
+                    }
+                    if (success.imagesStored > 0) {
+                        Text("${success.imagesStored} images stored.")
+                    }
                     if (success.warnings.isNotEmpty()) {
                         Text(
                             text = if (success.warnings.size == 1) {
@@ -431,6 +460,9 @@ private fun ImportWarningCard(
     borderColor: Color,
     iconColor: Color,
 ) {
+    var expanded by remember(warnings) {
+        mutableStateOf(warnings.size <= COLLAPSED_WARNING_COUNT)
+    }
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -454,7 +486,7 @@ private fun ImportWarningCard(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                warnings.forEach { warning ->
+                warnings.take(if (expanded) warnings.size else COLLAPSED_WARNING_COUNT).forEach { warning ->
                     Text(
                         text = warning,
                         color = DarkTextPrimary,
@@ -462,7 +494,62 @@ private fun ImportWarningCard(
                         lineHeight = 19.scaledSp,
                     )
                 }
+                if (warnings.size > COLLAPSED_WARNING_COUNT) {
+                    TextButton(onClick = { expanded = !expanded }) {
+                        Text(
+                            if (expanded) "Show fewer" else "Show ${warnings.size - COLLAPSED_WARNING_COUNT} more",
+                            color = BrandPrimary,
+                            fontSize = 12.scaledSp,
+                        )
+                    }
+                }
             }
+        }
+    }
+}
+
+@Composable
+private fun EnrichExistingSubtasksCard(
+    count: Int,
+    checked: Boolean,
+    enabled: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(10.dp),
+        colors = CardDefaults.cardColors(containerColor = DarkCard),
+        border = BorderStroke(1.dp, DarkBorder.copy(alpha = 0.55f)),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .toggleable(
+                    value = checked,
+                    enabled = enabled,
+                    role = Role.Checkbox,
+                    onValueChange = onCheckedChange,
+                )
+                .semantics {
+                    stateDescription = if (checked) "Selected" else "Not selected"
+                }
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Checkbox(
+                checked = checked,
+                onCheckedChange = null,
+                enabled = enabled,
+            )
+            Text(
+                text = "Add subtasks to $count existing tasks that have none",
+                modifier = Modifier.weight(1f),
+                color = DarkTextPrimary,
+                fontSize = 14.scaledSp,
+                lineHeight = 19.scaledSp,
+                fontWeight = FontWeight.SemiBold,
+            )
         }
     }
 }
@@ -576,6 +663,8 @@ private fun DestructiveImportWarning() {
 
 @Composable
 private fun BackupSummaryCard(envelope: BackupEnvelope) {
+    val subtaskCount = envelope.tasks.sumOf { it.subtasks.size }
+    val imageCount = SubtaskImageStore.referencedAssetIds(envelope.tasks).size
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(10.dp),
@@ -583,6 +672,18 @@ private fun BackupSummaryCard(envelope: BackupEnvelope) {
         border = BorderStroke(1.dp, DarkBorder.copy(alpha = 0.55f)),
     ) {
         Column(modifier = Modifier.padding(horizontal = 12.dp)) {
+            if (subtaskCount > 0) {
+                Text(
+                    text = "${envelope.summary.taskCount} tasks · $subtaskCount subtasks · $imageCount images",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 12.dp),
+                    color = DarkTextPrimary,
+                    fontSize = 14.scaledSp,
+                    fontWeight = FontWeight.Bold,
+                )
+                HorizontalDivider(color = DarkBorder.copy(alpha = 0.6f))
+            }
             BackupSummaryRow(
                 icon = Icons.Outlined.Description,
                 label = "Tasks",
@@ -615,6 +716,8 @@ private fun BackupSummaryCard(envelope: BackupEnvelope) {
         }
     }
 }
+
+private const val COLLAPSED_WARNING_COUNT = 3
 
 @Composable
 private fun BackupSummaryRow(

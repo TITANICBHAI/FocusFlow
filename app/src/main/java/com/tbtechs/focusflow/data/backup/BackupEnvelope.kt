@@ -1,9 +1,12 @@
 package com.tbtechs.focusflow.data.backup
 
 import com.tbtechs.focusflow.data.model.Task
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
 
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
 data class BackupEnvelope(
     val kind: String,
@@ -16,6 +19,14 @@ data class BackupEnvelope(
     val tasks: List<Task>,
     val presetSections: List<BackupPresetSection>,
     val summary: BackupSummary,
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val assets: Map<String, BackupAsset> = emptyMap(),
+)
+
+@Serializable
+data class BackupAsset(
+    val mime: String? = null,
+    val data: String,
 )
 
 @Serializable

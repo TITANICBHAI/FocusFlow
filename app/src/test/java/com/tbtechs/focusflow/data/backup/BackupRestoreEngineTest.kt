@@ -2,14 +2,23 @@ package com.tbtechs.focusflow.data.backup
 
 import com.tbtechs.focusflow.data.model.AppSettings
 import com.tbtechs.focusflow.data.model.CanonicalTimestamp
+import com.tbtechs.focusflow.data.model.Subtask
+import com.tbtechs.focusflow.data.model.SubtaskImage
 import com.tbtechs.focusflow.data.model.Task
+import com.tbtechs.focusflow.data.images.ImageBounds
+import com.tbtechs.focusflow.data.images.ImageCodec
+import com.tbtechs.focusflow.data.images.SubtaskImageStore
+import com.tbtechs.focusflow.data.images.SubtaskImageStoreTest
+import java.nio.file.Files
 import java.time.Instant
+import java.util.Base64
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -87,7 +96,150 @@ class BackupRestoreEngineTest {
 
         assertTrue(result is RestoreResult.Success)
         assertEquals(1, access.reconcileReasons.size)
-        assertEquals("reconcile:backup-restore", access.events.last())
+        assertTrue(
+            access.events.indexOf("reconcile:backup-restore") <
+                access.events.indexOf("sweepImages"),
+        )
+        assertEquals(1, access.imageSweepCalls)
+    }
+
+    @Test
+    fun optInEnrichmentFillsOnlyEmptyExistingTasksWithoutReplacingTaskFields() = runTest {
+        val gate = RecordingGate()
+        val localTask = task(id = "same", status = "completed").copy(
+            title = "Local title",
+            startTime = "2026-10-09T08:00:00Z",
+        )
+        val imported = task(id = "same").copy(
+            title = "Incoming title",
+            subtasks = listOf(Subtask(id = "part", title = "Part")),
+        )
+        val access = FakeAccess(gate, tasks = mutableListOf(localTask))
+        val result = engine(access, gate).restore(
+            envelope(imported),
+            currentSettings = AppSettings(),
+            replaceTasks = false,
+            enrichExistingTasks = true,
+        )
+
+        val success = success(result)
+        assertEquals(1, success.tasksSkipped)
+        assertEquals(1, success.tasksEnriched)
+        assertEquals(1, success.subtasksImported)
+        assertEquals("Local title", access.tasks.single().title)
+        assertEquals("2026-10-09T08:00:00Z", access.tasks.single().startTime)
+        assertEquals(listOf("part"), access.tasks.single().subtasks.map { it.id })
+        assertEquals(1, access.replaceSubtaskCalls)
+    }
+
+    @Test
+    fun enrichmentNeverOverwritesExistingSubtasks() = runTest {
+        val gate = RecordingGate()
+        val local = task(id = "same").copy(
+            subtasks = listOf(Subtask(id = "local", title = "Keep local")),
+        )
+        val incoming = task(id = "same").copy(
+            subtasks = listOf(Subtask(id = "incoming", title = "Do not replace")),
+        )
+        val access = FakeAccess(gate, tasks = mutableListOf(local))
+
+        val result = engine(access, gate).restore(
+            envelope(incoming),
+            currentSettings = AppSettings(),
+            replaceTasks = false,
+            enrichExistingTasks = true,
+        )
+
+        assertTrue(result is RestoreResult.Success)
+        assertEquals(listOf("local"), access.tasks.single().subtasks.map { it.id })
+        assertEquals(0, access.replaceSubtaskCalls)
+    }
+
+    @Test
+    fun restoreIngestsOnlyReferencedImagesAndRemapsToStoredHashes() = runTest {
+        val directory = Files.createTempDirectory("restore-images").toFile()
+        try {
+            val store = SubtaskImageStore(directory, FakeCodec())
+            val gate = RecordingGate()
+            val access = FakeAccess(gate)
+            val png = byteArrayOf(0x89.toByte(), 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a)
+            val task = task(id = "with-image").copy(
+                subtasks = listOf(
+                    Subtask(
+                        id = "part",
+                        title = "Part",
+                        image = SubtaskImage("file-image"),
+                    ),
+                ),
+            )
+            val backup = envelope(
+                task,
+                assets = mapOf(
+                    "file-image" to BackupAsset(
+                        mime = "image/png",
+                        data = Base64.getEncoder().withoutPadding().encodeToString(png),
+                    ),
+                ),
+            )
+
+            val result = BackupRestoreEngine(
+                access = access,
+                writeGate = gate,
+                clock = { fixedNow },
+                imageStore = store,
+            ).restore(backup, AppSettings(), replaceTasks = false)
+
+            val storedId = SubtaskImageStore.sha256(SubtaskImageStoreTest.fakeWebp())
+            assertEquals(1, success(result).imagesStored)
+            assertEquals(storedId, access.tasks.single().subtasks.single().image?.asset)
+            assertTrue(store.exists(storedId))
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun failedImageIngestWarnsAndKeepsTheTaskWithoutTheImage() = runTest {
+        val directory = Files.createTempDirectory("restore-invalid-image").toFile()
+        try {
+            val store = SubtaskImageStore(directory, FakeCodec())
+            val gate = RecordingGate()
+            val access = FakeAccess(gate)
+            val task = task(id = "bad-image").copy(
+                subtasks = listOf(
+                    Subtask(
+                        id = "part",
+                        title = "Part",
+                        image = SubtaskImage("file-image"),
+                    ),
+                ),
+            )
+            val backup = envelope(
+                task,
+                assets = mapOf(
+                    "file-image" to BackupAsset(
+                        mime = "image/png",
+                        data = Base64.getEncoder().encodeToString(byteArrayOf(1, 2, 3)),
+                    ),
+                ),
+            )
+
+            val result = BackupRestoreEngine(
+                access = access,
+                writeGate = gate,
+                clock = { fixedNow },
+                imageStore = store,
+            ).restore(backup, AppSettings(), replaceTasks = false)
+
+            val restored = success(result)
+            assertEquals(1, restored.tasksImported)
+            assertEquals(0, restored.tasksSkipped)
+            assertTrue(restored.warnings.any { it.contains("images could not be decoded or stored") })
+            assertEquals(1, access.tasks.size)
+            assertNull(access.tasks.single().subtasks.single().image)
+        } finally {
+            directory.deleteRecursively()
+        }
     }
 
     @Test
@@ -280,6 +432,7 @@ class BackupRestoreEngineTest {
     private fun envelope(
         vararg tasks: Task,
         settings: JsonObject = JsonObject(emptyMap()),
+        assets: Map<String, BackupAsset> = emptyMap(),
     ) = BackupEnvelope(
         kind = BackupSerializer.BACKUP_KIND,
         version = BackupSerializer.BACKUP_VERSION,
@@ -296,12 +449,14 @@ class BackupRestoreEngineTest {
             greyoutWindowCount = 0,
             dailyAllowanceCount = 0,
         ),
+        assets = assets,
     )
 
     private fun task(
         id: String,
         status: String = "scheduled",
         endTime: String = "2026-10-08T11:00:00Z",
+        subtasks: List<Subtask> = emptyList(),
     ) = Task(
         id = id,
         title = "Task $id",
@@ -314,6 +469,7 @@ class BackupRestoreEngineTest {
         focusMode = false,
         createdAt = "2026-10-07T12:00:00Z",
         updatedAt = "2026-10-07T12:00:00Z",
+        subtasks = subtasks,
     )
 
     private class RecordingGate : BackupRestoreWriteGate {
@@ -344,6 +500,8 @@ class BackupRestoreEngineTest {
         val reconcileReasons = mutableListOf<String>()
         val insertedTasks = mutableListOf<Task>()
         var deleteAllCalls = 0
+        var replaceSubtaskCalls = 0
+        var imageSweepCalls = 0
 
         override suspend fun writePreference(key: String, value: LegacyPreferenceValue) {
             check(gate.depth > 0) { "Preference write bypassed RestoreGate." }
@@ -384,6 +542,21 @@ class BackupRestoreEngineTest {
             events += "insert:${task.id}"
         }
 
+        override suspend fun replaceSubtasks(taskId: String, subtasks: List<Subtask>) {
+            check(gate.depth > 0) { "Subtask enrichment bypassed RestoreGate." }
+            val index = tasks.indexOfFirst { it.id == taskId }
+            if (index >= 0) tasks[index] = tasks[index].copy(subtasks = subtasks)
+            replaceSubtaskCalls++
+            events += "enrich:$taskId"
+        }
+
+        override suspend fun sweepSubtaskImages(): Int {
+            check(gate.depth > 0) { "Image sweep bypassed RestoreGate." }
+            imageSweepCalls++
+            events += "sweepImages"
+            return 0
+        }
+
         override suspend fun hasActiveFocusSession(): Boolean = activeSession
 
         override suspend fun reconcileAlarms(reason: String) {
@@ -391,5 +564,11 @@ class BackupRestoreEngineTest {
             reconcileReasons += reason
             events += "reconcile:$reason"
         }
+    }
+
+    private class FakeCodec : ImageCodec {
+        override fun bounds(bytes: ByteArray) = ImageBounds(32, 32)
+        override fun reencode(bytes: ByteArray, maxLongEdge: Int, quality: Int) =
+            SubtaskImageStoreTest.fakeWebp()
     }
 }

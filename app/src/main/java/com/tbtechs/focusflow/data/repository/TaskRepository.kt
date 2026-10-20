@@ -4,6 +4,7 @@ import android.util.Log
 import com.tbtechs.focusflow.data.local.dao.TaskDao
 import com.tbtechs.focusflow.data.local.dao.TasksByHourRow
 import com.tbtechs.focusflow.data.local.entity.TaskEntity
+import com.tbtechs.focusflow.data.images.SubtaskImageStore
 import com.tbtechs.focusflow.data.model.Reminder
 import com.tbtechs.focusflow.data.model.Subtask
 import com.tbtechs.focusflow.data.model.SubtaskLimits
@@ -17,6 +18,10 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.decodeFromJsonElement
 import java.time.Instant
 import java.time.ZoneId
@@ -44,6 +49,7 @@ import java.time.ZoneId
 class TaskRepository(
     private val taskDao: TaskDao,
     private val restoreGate: RestoreGate = RestoreGate(),
+    private val imageStore: SubtaskImageStore? = null,
 ) {
 
     // Lenient parser: mirrors `safeJsonParse` in database.ts — ignores unknown
@@ -188,19 +194,69 @@ class TaskRepository(
 
     /** Deletes the task with [taskId]. Maps to `dbDeleteTask`. */
     suspend fun deleteTask(taskId: String) {
-        restoreGate.write("TaskRepository.deleteTask") { taskDao.deleteTask(taskId) }
+        restoreGate.write("TaskRepository.deleteTask") {
+            taskDao.deleteTask(taskId)
+            sweepOrphanedSubtaskImages()
+        }
     }
 
     /** Deletes the task table in one Room operation after callers clear active focus. */
     suspend fun deleteAllTasks() {
-        restoreGate.write("TaskRepository.deleteAllTasks") { taskDao.deleteAllTasks() }
+        restoreGate.write("TaskRepository.deleteAllTasks") {
+            taskDao.deleteAllTasks()
+            sweepOrphanedSubtaskImages()
+        }
     }
 
     /** Deletes all task rows except the active focus task. */
     suspend fun deleteAllTasksExcept(preservedTaskId: String) {
         restoreGate.write("TaskRepository.deleteAllTasksExcept") {
             taskDao.deleteAllTasksExcept(preservedTaskId)
+            sweepOrphanedSubtaskImages()
         }
+    }
+
+    /** Removes stale image files using only the task/subtask projection. */
+    suspend fun sweepOrphanedSubtaskImages(): Int {
+        val store = imageStore ?: return 0
+        val referenced = mutableSetOf<String>()
+        for (row in taskDao.getAllSubtaskJson()) {
+            val root = runCatching { json.parseToJsonElement(row.subtasks) }.getOrNull()
+                ?: return 0
+            val subtasks = root as? JsonArray ?: return 0
+            for (subtaskElement in subtasks) {
+                val subtask = subtaskElement as? JsonObject ?: return 0
+                if (!collectImageReference(subtask["image"], referenced)) return 0
+                val stepsElement = subtask["steps"] ?: continue
+                if (stepsElement == JsonNull) continue
+                val steps = stepsElement as? JsonArray ?: return 0
+                for (stepElement in steps) {
+                    val step = stepElement as? JsonObject ?: return 0
+                    if (!collectImageReference(step["image"], referenced)) return 0
+                }
+            }
+        }
+        return store.sweep(referenced)
+    }
+
+    /**
+     * Cleanup must fail closed: malformed persisted JSON or image shapes could
+     * hide references, so an uncertain scan never authorizes file deletion.
+     */
+    private fun collectImageReference(
+        element: kotlinx.serialization.json.JsonElement?,
+        referenced: MutableSet<String>,
+    ): Boolean {
+        if (element == null || element == JsonNull) return true
+        val image = element as? JsonObject ?: return false
+        val asset = image["asset"] ?: return true
+        if (asset == JsonNull) return true
+        val assetId = (asset as? JsonPrimitive)
+            ?.takeIf(JsonPrimitive::isString)
+            ?.content
+            ?: return false
+        referenced += assetId
+        return true
     }
 
     /**

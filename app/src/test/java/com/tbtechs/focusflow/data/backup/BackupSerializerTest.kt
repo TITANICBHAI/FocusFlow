@@ -4,12 +4,14 @@ import com.tbtechs.focusflow.data.model.AppSettings
 import com.tbtechs.focusflow.data.model.AllowedAppPreset
 import com.tbtechs.focusflow.data.model.BlockPreset
 import com.tbtechs.focusflow.data.model.RecurringBlockSchedule
+import com.tbtechs.focusflow.data.model.Subtask
 import com.tbtechs.focusflow.data.model.Task
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import java.util.Base64
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import org.junit.Assert.assertEquals
@@ -28,6 +30,14 @@ class BackupSerializerTest {
         )
 
         val serialized = BackupSerializer.serializeToJson(envelope)
+        assertFalse(serialized.contains("\"subtasks\""))
+        assertFalse(serialized.contains("\"assets\""))
+        assertEquals(
+            serialized,
+            BackupSerializer.serializeToJson(
+                envelope.copy(tasks = envelope.tasks.map { it.copy(subtasks = emptyList()) }),
+            ),
+        )
         val result = BackupSerializer.parseAndValidate(serialized)
 
         assertTrue(result is BackupParseResult.Success)
@@ -248,6 +258,72 @@ class BackupSerializerTest {
             parsed.warnings,
         )
         assertEquals(JsonPrimitive(false), parsed.envelope.settings["darkMode"])
+    }
+
+    @Test
+    fun malformedSubtasksDoNotRejectTheirOtherwiseValidTask() {
+        val serialized = BackupSerializer.serializeToJson(
+            BackupSerializer.buildEnvelope(sampleSettings(), listOf(sampleTask()), "1.1.4"),
+        )
+        val root = Json.parseToJsonElement(serialized).jsonObject
+        val originalTask = root.getValue("tasks").jsonArray.single().jsonObject
+        val malformedTask = JsonObject(originalTask + ("subtasks" to JsonPrimitive("not-an-array")))
+        val result = BackupSerializer.parseAndValidate(
+            JsonObject(root + ("tasks" to JsonArray(listOf(malformedTask)))).toString(),
+        )
+
+        assertTrue(result is BackupParseResult.Success)
+        val parsed = result as BackupParseResult.Success
+        assertEquals(1, parsed.envelope.tasks.size)
+        assertTrue(parsed.envelope.tasks.single().subtasks.isEmpty())
+        assertTrue(parsed.warnings.any { it.contains("invalid subtasks fields") })
+    }
+
+    @Test
+    fun assetsAndSubtaskReferencesParseAndRoundTrip() {
+        val base = Json.parseToJsonElement(
+            BackupSerializer.serializeToJson(
+                BackupSerializer.buildEnvelope(sampleSettings(), listOf(sampleTask()), "1.1.4"),
+            ),
+        ).jsonObject
+        val image = Base64.getEncoder().withoutPadding().encodeToString(byteArrayOf(1, 2, 3))
+        val task = JsonObject(
+            base.getValue("tasks").jsonArray.single().jsonObject +
+                ("subtasks" to Json.parseToJsonElement("""[{"id":"move","title":"Move","image":{"asset":"photo"}}]""")),
+        )
+        val input = JsonObject(
+            base +
+                ("tasks" to JsonArray(listOf(task))) +
+                ("assets" to Json.parseToJsonElement("""{"photo":{"mime":"image/png","data":"$image"}}""")),
+        )
+
+        val parsed = BackupSerializer.parseAndValidate(input.toString())
+        assertTrue(parsed is BackupParseResult.Success)
+        val envelope = (parsed as BackupParseResult.Success).envelope
+        assertEquals("photo", envelope.tasks.single().subtasks.single().image?.asset)
+        assertEquals(image, envelope.assets.getValue("photo").data)
+        assertTrue(parsed.warnings.isEmpty())
+    }
+
+    @Test
+    fun invalidAndUnreferencedAssetsAreWarningsNotFileFailures() {
+        val base = Json.parseToJsonElement(
+            BackupSerializer.serializeToJson(
+                BackupSerializer.buildEnvelope(sampleSettings(), listOf(sampleTask()), "1.1.4"),
+            ),
+        ).jsonObject
+        val input = JsonObject(
+            base + ("assets" to Json.parseToJsonElement(
+                """{"invalid":{"data":"%%%"},"unused":{"data":"AQID"}}""",
+            )),
+        )
+
+        val parsed = BackupSerializer.parseAndValidate(input.toString())
+        assertTrue(parsed is BackupParseResult.Success)
+        val result = parsed as BackupParseResult.Success
+        assertTrue(result.envelope.assets.isEmpty())
+        assertTrue(result.warnings.any { it.contains("invalid image assets") })
+        assertTrue(result.warnings.any { it.contains("unreferenced image assets") })
     }
 
     @Test

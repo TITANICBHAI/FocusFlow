@@ -918,7 +918,17 @@ fun SettingsScreen(
             text = {
                 when (state) {
                     is ExportState.Success ->
-                        Text("The backup was saved successfully.")
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("The backup was saved successfully.")
+                            state.warnings.forEach { warning ->
+                                Text(
+                                    text = warning,
+                                    color = DarkTextSecondary,
+                                    fontSize = 13.scaledSp,
+                                    lineHeight = 19.scaledSp,
+                                )
+                            }
+                        }
                     is ExportState.Error ->
                         Text(
                             text = state.message,

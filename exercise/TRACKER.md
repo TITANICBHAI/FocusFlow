@@ -29,8 +29,8 @@
 |---|---|---:|---|---|
 | 0 — Baseline | DONE — evidence recorded | 3/3 | 2026-10-20 | 2026-10-20 |
 | 1 — Model, DB, repository | IN PROGRESS — final lint confirmation pending | 6/6 | 2026-10-20 | — |
-| 2 — Format, import/export, images | NOT STARTED | 0/7 | — | — |
-| 3 — AI prompt and format guide | NOT STARTED | 0/4 | — | — |
+| 2 — Format, import/export, images | IN PROGRESS — implementation only; verification deferred by owner | 0/7 | 2026-10-21 | — |
+| 3 — AI prompt and format guide | IN PROGRESS — implementation only; verification deferred by owner | 0/4 | 2026-10-21 | — |
 | 4 — Viewing UI | NOT STARTED | 0/6 | — | — |
 | 5 — Enhancements | NOT STARTED | 0/5 | — | — |
 | 6 — Help, changelog, release checks | NOT STARTED | 0/5 | — | — |
@@ -171,9 +171,9 @@ _None recorded._
 
 ## Phase 2 — Format, import/export, images at rest
 
-**Status:** NOT STARTED
-**Blocked by:** Phase 1 complete
-**Started:** —
+**Status:** IN PROGRESS — implementation only; verification deferred by owner
+**Blocked by:** Phase 1 final lint confirmation remains pending; owner explicitly authorized Phase 2/3 implementation before the combined verification pass.
+**Started:** 2026-10-21
 **Completed:** —
 **Progress:** 0/7
 **Plan sections:** §4.3–4.4, §6
@@ -187,7 +187,11 @@ _None recorded._
 - [ ] Add import-review summary, warnings, and the conditional enrich checkbox; verify Phase 2 JVM and instrumented cases as permitted by the plan.
 
 **Notes / progress:**
-_No work started._
+On 2026-10-21, the owner authorized adding the Phase 2 and Phase 3 implementation/test code before running tests or build/lint/R8/device verification. Those checks are deferred until both phases' additions are complete. Local Git status/diff checks only; no push or GitHub Actions. Phase 1's final lint confirmation is also deferred to that combined verification pass. Phase 2 implementation begins now; checklist items remain unchecked until the requested later verification is observed.
+
+First implementation slice added the Phase 2 import-size constants, root-assets-only preflight string allowance, an injectable image codec and content-addressed image store, and a fail-soft per-subtask parser. These changes are not yet verified; tests will be added but not executed until Phases 2 and 3 additions are complete.
+
+The next implementation slice added backup assets to the envelope/parser, fail-soft task/subtask parsing and warning aggregation, constrained asset export with re-encode/omission behavior, restore-time hash remapping and opt-in enrichment, import-review counts/checkbox, and image cleanup wiring for task deletes and app startup. Phase 2 tests and Phase 3 additions are still in progress; no tests or build checks have been run.
 
 **Evidence:**
 _None yet._
@@ -200,9 +204,9 @@ _None recorded._
 
 ## Phase 3 — AI prompt and format guide
 
-**Status:** NOT STARTED
-**Blocked by:** Phase 2 complete
-**Started:** —
+**Status:** IN PROGRESS — implementation only; verification deferred by owner
+**Blocked by:** Phase 2 verification remains pending; owner explicitly directed that Phase 2 and 3 additions be completed before the combined verification pass.
+**Started:** 2026-10-21
 **Completed:** —
 **Progress:** 0/4
 **Plan sections:** §11.1–11.2, §11.4–11.5
@@ -213,7 +217,7 @@ _None recorded._
 - [ ] Prepare the hosted-guide Markdown update for the owner; record that the external site itself was not edited.
 
 **Notes / progress:**
-_No work started._
+On 2026-10-21, started Phase 3 implementation under the owner's instruction to complete both Phase 2 and Phase 3 additions before running tests/build/lint/R8/device checks. Phase 2 implementation and its tests are still being completed; no Phase 3 verification has been run. The prompt and in-app guide are the only Phase 3 implementation scope; version/changelog work remains in Phase 6.
 
 **Evidence:**
 _None yet._
@@ -378,3 +382,6 @@ Append dated entries; do not replace earlier history.
 | 2026-10-20 | Phase 1 migration test compilation | Android-test Kotlin sources, including the Room migration coverage, compiled successfully. | `FOCUSFLOW_SKIP_APK_BUILD=1 bash scripts/build-apk-with-java.sh :app:compileProductionDebugAndroidTestKotlin`; `BUILD SUCCESSFUL in 1m 8s`. Two non-fatal migration-test warnings need source review; instrumentation runtime remains pending. |
 | 2026-10-21 | Room migration helper warning cleanup | Replaced the deprecated nullable string-assets helper constructor with the Room database-class overload. | `FocusFlowDatabaseMigrationTest` now passes `FocusFlowDatabase::class.java` and an empty auto-migration-spec list. Production Android-test Kotlin recompilation is pending; no migration instrumentation runtime has been run. |
 | 2026-10-21 | Phase 1 migration test source recompile | Confirmed the updated helper overload compiles without the previous Kotlin warnings. | `FOCUSFLOW_SKIP_APK_BUILD=1 bash scripts/build-apk-with-java.sh :app:compileProductionDebugAndroidTestKotlin`; `BUILD SUCCESSFUL in 41s`; 2 tasks executed, 27 up-to-date. No APK assembled; instrumentation runtime still pending. |
+| 2026-10-21 | Phase 2 parser/storage slice | Added bounded root asset data scanning, shared format limits, safe image storage primitives, and independent fail-soft subtask parsing. | Changed `BackupJsonLimits.kt`; added `ImageCodec.kt`, `SubtaskImageStore.kt`, and `SubtaskParser.kt`. Tests and all builds remain deferred by owner instruction. |
+| 2026-10-21 | Phase 2 backup flow implementation | Added asset-aware parse/export/restore flow, image reference cleanup, and the import-review enrichment controls. | Changed `BackupEnvelope.kt`, `BackupSerializer.kt`, `BackupRestoreEngine.kt`, `BackupViewModel.kt`, `ImportConfirmScreen.kt`, `SettingsScreen.kt`, `TaskRepository.kt`, `AppModule.kt`, `SubtaskImageStore.kt`; added `SubtaskAssetExporter.kt`. Verification is deferred until Phase 3 additions are complete. |
+| 2026-10-21 | Phase 3 started — implementation only | Owner directed completion of Phase 3 additions before combined verification; Phase 2 gates remain pending. | Set Phase 3 to IN PROGRESS before continuing its prompt/guide changes. No tests/build checks run. |

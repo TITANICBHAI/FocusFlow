@@ -12,7 +12,9 @@ import com.tbtechs.focusflow.data.backup.BackupFileManager
 import com.tbtechs.focusflow.data.backup.BackupParseResult
 import com.tbtechs.focusflow.data.backup.BackupRestoreEngine
 import com.tbtechs.focusflow.data.backup.BackupSerializer
+import com.tbtechs.focusflow.data.backup.SubtaskAssetExporter
 import com.tbtechs.focusflow.data.backup.RestoreResult
+import com.tbtechs.focusflow.data.images.SubtaskImageStore
 import com.tbtechs.focusflow.data.model.AppSettings
 import com.tbtechs.focusflow.data.model.Task
 import com.tbtechs.focusflow.data.repository.SettingsRepository
@@ -33,7 +35,7 @@ import kotlinx.coroutines.launch
 sealed interface ExportState {
     data object Idle : ExportState
     data object Building : ExportState
-    data class Success(val uri: String) : ExportState
+    data class Success(val uri: String, val warnings: List<String> = emptyList()) : ExportState
     data class Error(val message: String) : ExportState
 }
 
@@ -43,12 +45,16 @@ sealed interface ImportState {
     data class PendingConfirm(
         val envelope: BackupEnvelope,
         val warnings: List<String> = emptyList(),
+        val subtaskEnrichmentCandidates: Int = 0,
     ) : ImportState
     data object Restoring : ImportState
     data class Success(
         val tasksImported: Int,
         val tasksSkipped: Int,
         val warnings: List<String>,
+        val subtasksImported: Int = 0,
+        val imagesStored: Int = 0,
+        val tasksEnriched: Int = 0,
     ) : ImportState
     data class Error(val message: String) : ImportState
 }
@@ -60,6 +66,7 @@ internal interface BackupViewModelOperations {
         envelope: BackupEnvelope,
         currentSettings: AppSettings,
         replaceTasks: Boolean,
+        enrichExistingTasks: Boolean,
     ): RestoreResult
     suspend fun refreshSettingsFromStore()
 }
@@ -68,6 +75,7 @@ class BackupViewModel internal constructor(
     private val operations: BackupViewModelOperations,
     private val appVersion: String?,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val assetExporter: SubtaskAssetExporter? = null,
 ) : ViewModel() {
     private val _exportState = MutableStateFlow<ExportState>(ExportState.Idle)
     val exportState: StateFlow<ExportState> = _exportState.asStateFlow()
@@ -77,6 +85,7 @@ class BackupViewModel internal constructor(
     private val _pendingImportEnvelope = MutableStateFlow<BackupEnvelope?>(null)
     val pendingImportEnvelope: StateFlow<BackupEnvelope?> = _pendingImportEnvelope.asStateFlow()
     private var pendingImportWarnings: List<String> = emptyList()
+    private var pendingEnrichmentCandidates = 0
 
     private var exportJob: Job? = null
     private var importJob: Job? = null
@@ -95,11 +104,34 @@ class BackupViewModel internal constructor(
             try {
                 val settings = operations.readSettings()
                 val tasks = operations.readTasks()
-                val envelope = BackupSerializer.buildEnvelope(settings, tasks, appVersion)
-                val json = BackupSerializer.serializeToJson(envelope)
+                val json: String
+                val warnings: List<String>
+                val exporter = assetExporter
+                if (exporter == null) {
+                    require(SubtaskImageStore.referencedAssetIds(tasks).isEmpty()) {
+                        "Subtask image storage is unavailable for export."
+                    }
+                    val envelope = BackupSerializer.buildEnvelope(settings, tasks, appVersion)
+                    json = BackupSerializer.serializeToJson(envelope)
+                    require(json.toByteArray(Charsets.UTF_8).size <= 8 * 1024 * 1024) {
+                        "Backup exceeds the 8 MiB file limit."
+                    }
+                    warnings = emptyList()
+                } else {
+                    val exported = exporter.export(tasks) { exportTasks, assets ->
+                        BackupSerializer.buildEnvelope(
+                            settings = settings,
+                            tasks = exportTasks,
+                            appVersion = appVersion,
+                            assets = assets,
+                        )
+                    }
+                    json = exported.json
+                    warnings = exported.warnings
+                }
                 writeBackup(json)
                 currentCoroutineContext().ensureActive()
-                _exportState.value = ExportState.Success(uri)
+                _exportState.value = ExportState.Success(uri, warnings)
             } catch (cancellation: CancellationException) {
                 throw cancellation
             } catch (exception: Exception) {
@@ -123,6 +155,7 @@ class BackupViewModel internal constructor(
         importJob?.cancel()
         _pendingImportEnvelope.value = null
         pendingImportWarnings = emptyList()
+        pendingEnrichmentCandidates = 0
         _importState.value = ImportState.Reading
         importJob = viewModelScope.launch(ioDispatcher) {
             try {
@@ -134,9 +167,16 @@ class BackupViewModel internal constructor(
                     is BackupParseResult.Success -> {
                         _pendingImportEnvelope.value = result.envelope
                         pendingImportWarnings = result.warnings
+                        val existingById = operations.readTasks().associateBy(Task::id)
+                        val enrichmentCandidates = result.envelope.tasks.count { incoming ->
+                            incoming.subtasks.isNotEmpty() &&
+                            existingById[incoming.id]?.let { it.subtasks.isEmpty() } == true
+                        }
+                        pendingEnrichmentCandidates = enrichmentCandidates
                         _importState.value = ImportState.PendingConfirm(
                             envelope = result.envelope,
                             warnings = result.warnings,
+                            subtaskEnrichmentCandidates = enrichmentCandidates,
                         )
                     }
                     is BackupParseResult.Failure ->
@@ -153,7 +193,10 @@ class BackupViewModel internal constructor(
         }
     }
 
-    fun confirmImport(replaceTasks: Boolean) {
+    fun confirmImport(
+        replaceTasks: Boolean,
+        enrichExistingTasks: Boolean = true,
+    ) {
         val pending = _importState.value as? ImportState.PendingConfirm ?: return
         _importState.value = ImportState.Restoring
         importJob = viewModelScope.launch(ioDispatcher) {
@@ -164,6 +207,7 @@ class BackupViewModel internal constructor(
                         envelope = pending.envelope,
                         currentSettings = currentSettings,
                         replaceTasks = replaceTasks,
+                        enrichExistingTasks = enrichExistingTasks,
                     )
                 ) {
                     is RestoreResult.Failure -> {
@@ -189,6 +233,9 @@ class BackupViewModel internal constructor(
                             tasksImported = result.tasksImported,
                             tasksSkipped = result.tasksSkipped,
                             warnings = warnings,
+                            subtasksImported = result.subtasksImported,
+                            imagesStored = result.imagesStored,
+                            tasksEnriched = result.tasksEnriched,
                         )
                     }
                 }
@@ -209,6 +256,7 @@ class BackupViewModel internal constructor(
         importJob = null
         _pendingImportEnvelope.value = null
         pendingImportWarnings = emptyList()
+        pendingEnrichmentCandidates = 0
         _importState.value = ImportState.Idle
     }
 
@@ -225,12 +273,17 @@ class BackupViewModel internal constructor(
                 importJob = null
                 _pendingImportEnvelope.value = null
                 pendingImportWarnings = emptyList()
+                pendingEnrichmentCandidates = 0
                 _importState.value = ImportState.Idle
             }
             is ImportState.Error -> {
                 importJob = null
                 _importState.value = _pendingImportEnvelope.value?.let {
-                    ImportState.PendingConfirm(it, pendingImportWarnings)
+                    ImportState.PendingConfirm(
+                        envelope = it,
+                        warnings = pendingImportWarnings,
+                        subtaskEnrichmentCandidates = pendingEnrichmentCandidates,
+                    )
                 } ?: ImportState.Idle
             }
             else -> Unit
@@ -256,12 +309,14 @@ class BackupViewModel internal constructor(
                             focusSessionRepository = AppModule.focusSessionRepository,
                             alarmReconciler = AppModule.taskAlarmReconciler,
                             restoreGate = AppModule.restoreGate,
+                            imageStore = AppModule.subtaskImageStore,
                         ),
                         refreshSettingsFromStore = settingsViewModel::refreshSettingsFromStore,
                     )
                     return BackupViewModel(
                         operations = operations,
                         appVersion = BuildConfig.VERSION_NAME,
+                        assetExporter = SubtaskAssetExporter(AppModule.subtaskImageStore),
                     ) as T
                 }
 
@@ -288,7 +343,9 @@ private class RepositoryBackupViewModelOperations(
         envelope: BackupEnvelope,
         currentSettings: AppSettings,
         replaceTasks: Boolean,
-    ): RestoreResult = restoreEngine.restore(envelope, currentSettings, replaceTasks)
+        enrichExistingTasks: Boolean,
+    ): RestoreResult =
+        restoreEngine.restore(envelope, currentSettings, replaceTasks, enrichExistingTasks)
 
     override suspend fun refreshSettingsFromStore() {
         refreshSettingsFromStore.invoke()

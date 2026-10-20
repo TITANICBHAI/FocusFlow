@@ -22,6 +22,7 @@ If they disagree with this reference, explain the mismatch instead of guessing.
 ## Scope of this backup
 
 - Create task records for the task-planning feature only. A task may include
+  optional subtasks (with optional steps and images) when I request them, plus
   per-task Focus mode and an app allow-list when I explicitly request those.
 - Always set `settings` to `{}`. This file must not change app-wide focus
   preferences, reminders, app/network blocking, daily allowances, presets,
@@ -53,6 +54,9 @@ If they disagree with this reference, explain the mismatch instead of guessing.
   way.
 - Check overlaps, impossible durations, and conflicts with my constraints. Ask
   before silently resolving a conflict.
+- Group related parts of one session into one task with subtasks when that fits
+  my request. For example, put the exercises in one workout session into one
+  task; do not create a separate task per exercise.
 - Use `"scheduled"` for future tasks. By default, do not create tasks whose
   end time has already passed. FocusFlow changes imported `"scheduled"` tasks
   to `"skipped"` if their end time has passed by import time; other statuses
@@ -92,6 +96,7 @@ Create one JSON object with:
 - `tasks`: an array of task objects
 - `exportedAt`: the file-generation time as an ISO-8601 UTC instant
 - `platform`: `{"os":"android"}`
+- optional `assets`: image data referenced by subtask images
 
 Omit optional `summary`, `presetSections`, and `appVersion` metadata.
 They are not needed to import tasks.
@@ -115,9 +120,59 @@ Each task must include all of these fields:
 - `focusMode`: boolean; default to `false`
 - `createdAt`, `updatedAt`: ISO-8601 UTC instants; use the file-generation time
   for both unless I explicitly specify otherwise
+- `subtasks`: optional array for the parts of a session; see the rules below
 
-Do not add unknown fields, duplicate JSON keys, comments, trailing commas, or
-non-JSON syntax. Validate the complete JSON and every task against these rules.
+Do not add unknown fields other than those documented here, duplicate JSON keys,
+comments, trailing commas, or non-JSON syntax. Validate the complete JSON and
+every task against these rules.
+
+## Subtasks (optional)
+
+Use subtasks when one task is a session made of several parts that I tick off one
+by one—for example, a workout where each exercise is a subtask. Put the parts of
+one session into ONE task. Do not use subtasks for a single-activity task. Omit
+`subtasks` (or use `[]`) when not needed.
+
+Each subtask object:
+- `id`: unique within the task, 1–64 characters of letters, digits, `_` or `-`
+- `title`: required, at most 200 characters
+- `subtitle`: optional, at most 120 characters
+- `goal`: optional; `kind` is one of:
+  - `"sets"`: `sets` (1–99) plus `reps` (1–9999) or `seconds` (1–86400);
+    optional `restSeconds` (0–3600) and `weightKg` (0–1000)
+  - `"reps"`: `reps` (1–9999)
+  - `"duration"`: `seconds` (1–86400)
+  - `"distance"`: `meters` (1–1000000)
+  - `"text"`: `label` (at most 80 characters)
+  Any goal may also have a short `label`, such as "per side".
+- `layout`: optional `"steps"` or `"overview"`. If omitted, steps are used when
+  `steps` exist; otherwise the overview layout is used.
+- `explanation`: optional plain text, at most 4,000 characters. Blank lines
+  start paragraphs; lines beginning with `- ` are bullets. No Markdown or HTML.
+- `steps`: optional array of at most 30 objects; each has required `text` (at
+  most 1,500 characters), optional `title` (at most 120), and optional `image`
+- `tips`, `avoid`: optional arrays of at most 10 strings each, at most 300
+  characters per string
+- `image`: optional overview image object with `asset` and optional `alt`
+  (at most 200 characters)
+- Do not set `done` or `setsDone`; leave progress to the app. Do not add other
+  subtask fields.
+
+A subtask may have no steps.
+
+Images are optional. Never invent image data or links. Only when I provide image
+files and you can convert them, resize each to at most 1280 pixels on the long
+edge, save as WebP or JPEG at or under 150 KB, base64-encode without a `data:`
+prefix, and add it under top-level `assets` as `"<asset id>":
+{"mime":"image/webp","data":"<base64>"}`. Reuse an asset ID for repeated use of
+the same image. Keep all images combined under 5 MB and the complete file under
+8 MiB. Remote image URLs are not supported. If you cannot produce image data,
+omit every image field and tell me which subtasks could benefit from a photo.
+
+Subtask limits: at most 50 subtasks per task and 200 assets per file.
+
+Valid subtask example:
+${FOCUSFLOW_SUBTASK_EXAMPLE}
 
 ## Deliver the file
 

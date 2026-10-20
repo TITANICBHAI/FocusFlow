@@ -9,6 +9,8 @@ import com.tbtechs.focusflow.notifications.LiveTaskStatusNotificationPublisher
 import com.tbtechs.focusflow.notifications.ReminderChainScheduler
 import com.tbtechs.focusflow.notifications.SharedPreferencesReminderLedgerStore
 import com.tbtechs.focusflow.data.local.FocusFlowDatabase
+import com.tbtechs.focusflow.data.images.AndroidBitmapImageCodec
+import com.tbtechs.focusflow.data.images.SubtaskImageStore
 import com.tbtechs.focusflow.data.repository.FocusSessionRepository
 import com.tbtechs.focusflow.data.repository.ForegroundServiceController
 import com.tbtechs.focusflow.data.repository.AlarmRepository
@@ -86,6 +88,9 @@ object AppModule {
     // ─── Database ─────────────────────────────────────────────────────────────
 
     lateinit var database: FocusFlowDatabase
+        private set
+
+    lateinit var subtaskImageStore: SubtaskImageStore
         private set
 
     // ─── Repositories ─────────────────────────────────────────────────────────
@@ -233,6 +238,11 @@ object AppModule {
             .addCallback(FocusFlowDatabase.DATABASE_CALLBACK)
             .build()
 
+        subtaskImageStore = SubtaskImageStore(
+            directory = java.io.File(app.filesDir, "task_images"),
+            codec = AndroidBitmapImageCodec(),
+        )
+
         // Repositories — order within this block does not matter.
         settingsRepository = SettingsRepository(app, restoreGate)
         reportNotesRepository = ReportNotesRepository(app, database.reportNotesDao())
@@ -244,7 +254,18 @@ object AppModule {
         taskRepository = TaskRepository(
             taskDao = database.taskDao(),
             restoreGate = restoreGate,
+            imageStore = subtaskImageStore,
         )
+        applicationScope.launch {
+            runCatching { taskRepository.sweepOrphanedSubtaskImages() }
+                .onFailure {
+                    AppErrorEvents.report(
+                        tag = "Subtask images",
+                        message = "Unused task images could not be cleaned up.",
+                        throwable = it,
+                    )
+                }
+        }
         reminderChainScheduler = ReminderChainScheduler(AndroidReminderChainAlarmDriver(app))
         reminderChainLedger = ReminderChainLedger(SharedPreferencesReminderLedgerStore(app))
         taskAlarmReconciler = TaskAlarmReconciler(

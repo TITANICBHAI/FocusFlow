@@ -2,6 +2,9 @@ package com.tbtechs.focusflow.data.repository
 
 import com.tbtechs.focusflow.data.local.dao.TaskDao
 import com.tbtechs.focusflow.data.local.entity.TaskEntity
+import com.tbtechs.focusflow.data.images.ImageBounds
+import com.tbtechs.focusflow.data.images.ImageCodec
+import com.tbtechs.focusflow.data.images.SubtaskImageStore
 import com.tbtechs.focusflow.data.model.Subtask
 import com.tbtechs.focusflow.data.model.SubtaskLimits
 import com.tbtechs.focusflow.data.model.SubtaskStep
@@ -18,6 +21,7 @@ import org.junit.Test
 import java.lang.reflect.InvocationHandler
 import java.lang.reflect.Method
 import java.lang.reflect.Proxy
+import java.nio.file.Files
 
 class TaskRepositorySubtasksTest {
     @Test
@@ -86,6 +90,37 @@ class TaskRepositorySubtasksTest {
     }
 
     @Test
+    fun orphanSweepKeepsReferencedImagesAndFailsClosedOnMalformedRows() = runTest {
+        val directory = Files.createTempDirectory("repository-image-sweep").toFile()
+        try {
+            var now = System.currentTimeMillis()
+            val store = SubtaskImageStore(
+                directory = directory,
+                codec = StoredWebpCodec(),
+                clockMillis = { now },
+            )
+            val referencedId = store.ingest(png()).getOrThrow()
+            now += SubtaskImageStore.GRACE_PERIOD_MILLIS + 1
+
+            val validDao = FakeTaskDao(
+                taskEntity(
+                    subtasks = """[{"id":"sub","title":"Keep image","image":{"asset":"$referencedId"}}]""",
+                ),
+            )
+            val validRepository = TaskRepository(validDao.proxy, imageStore = store)
+            assertEquals(0, validRepository.sweepOrphanedSubtaskImages())
+            assertTrue(store.exists(referencedId))
+
+            val malformedDao = FakeTaskDao(taskEntity(subtasks = "not-json"))
+            val malformedRepository = TaskRepository(malformedDao.proxy, imageStore = store)
+            assertEquals(0, malformedRepository.sweepOrphanedSubtaskImages())
+            assertTrue(store.exists(referencedId))
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
     fun logsDecodeTimeForThreeHundredTasksWithEightSubtasksWithoutTimingAssertion() = runTest {
         val subtaskFixture = (1..8).joinToString(prefix = "[", postfix = "]") { index ->
             """{"id":"item-$index","title":"Item $index"}"""
@@ -140,6 +175,17 @@ class TaskRepositorySubtasksTest {
         createdAt = "2026-10-19T08:00:00Z",
         updatedAt = "2026-10-19T09:00:00Z",
     )
+
+    private fun png() = byteArrayOf(
+        0x89.toByte(), 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+    )
+
+    private class StoredWebpCodec : ImageCodec {
+        override fun bounds(bytes: ByteArray) = ImageBounds(16, 16)
+
+        override fun reencode(bytes: ByteArray, maxLongEdge: Int, quality: Int) =
+            byteArrayOf(0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50)
+    }
 
     private class FakeTaskDao(vararg initial: TaskEntity) : InvocationHandler {
         val rows = initial.associateBy(TaskEntity::id).toMutableMap()

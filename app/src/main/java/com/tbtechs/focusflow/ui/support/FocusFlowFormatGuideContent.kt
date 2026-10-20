@@ -57,7 +57,8 @@ internal fun FocusFlowFormatGuideBody() {
         GuideArticleSection("2. The shape of the file") {
             Text(
                 "A backup has one top-level object. settings and tasks are the main payload; " +
-                    "the remaining fields are metadata or inventory.",
+                    "the remaining fields are metadata or inventory. The optional assets map holds " +
+                    "image data referenced by subtasks.",
                 color = DarkTextSecondary,
                 fontSize = 14.scaledSp,
                 lineHeight = 21.scaledSp,
@@ -97,7 +98,34 @@ internal fun FocusFlowFormatGuideBody() {
             )
         }
 
-        GuideArticleSection("4. Reminders") {
+        GuideArticleSection("4. Subtasks & images") {
+            Text(
+                "A task can group the parts of one session into subtasks. A subtask may have a goal, " +
+                    "plain-text explanation, steps, tips, and optional images. Subtasks do not " +
+                    "automatically complete their task.",
+                color = DarkTextSecondary,
+                fontSize = 14.scaledSp,
+                lineHeight = 21.scaledSp,
+            )
+            GuideFacts(FOCUSFLOW_SUBTASK_FIELDS)
+            Text(
+                "Goal kinds",
+                color = DarkTextPrimary,
+                fontSize = 15.scaledSp,
+                fontWeight = FontWeight.SemiBold,
+            )
+            GuideFacts(FOCUSFLOW_GOAL_KINDS)
+            GuideCallout("Image assets", FOCUSFLOW_ASSETS_NOTE, highlighted = true)
+            Text(
+                "Valid example without embedded images:",
+                color = DarkTextSecondary,
+                fontSize = 13.scaledSp,
+                lineHeight = 19.scaledSp,
+            )
+            GuideCodeBlock(FOCUSFLOW_SUBTASK_EXAMPLE)
+        }
+
+        GuideArticleSection("5. Reminders") {
             Text(
                 "A reminder is an object attached to a task, not a bare number.",
                 color = DarkTextSecondary,
@@ -108,7 +136,7 @@ internal fun FocusFlowFormatGuideBody() {
             GuideCallout("How scheduling works", FOCUSFLOW_REMINDERS_NOTE)
         }
 
-        GuideArticleSection("5. Portable settings") {
+        GuideArticleSection("6. Portable settings") {
             Text(
                 "The settings object can hold portable preferences, app lists, presets, and " +
                     "schedules. FocusFlow applies only supported fields; omitted fields leave " +
@@ -121,15 +149,15 @@ internal fun FocusFlowFormatGuideBody() {
             GuideCallout("What stays on the device", FOCUSFLOW_SETTINGS_BOUNDARY_NOTE)
         }
 
-        GuideArticleSection("6. Rules that matter most") {
+        GuideArticleSection("7. Rules that matter most") {
             GuideFacts(FOCUSFLOW_FORMAT_RULES)
         }
 
-        GuideArticleSection("7. Import in plain English") {
+        GuideArticleSection("8. Import in plain English") {
             GuideFacts(FOCUSFLOW_IMPORT_GUIDANCE)
         }
 
-        GuideArticleSection("8. Small valid example") {
+        GuideArticleSection("9. Small valid example") {
             Text(
                 "This compact example uses a completed task so it does not imply a future alarm. " +
                     "A real export can include more portable settings and metadata.",
@@ -140,7 +168,7 @@ internal fun FocusFlowFormatGuideBody() {
             GuideCodeBlock(FOCUSFLOW_VALID_BACKUP_EXAMPLE)
         }
 
-        GuideArticleSection("9. Create a task backup from your plan") {
+        GuideArticleSection("10. Create a task backup from your plan") {
             GuideCallout(
                 "Use the AI task-backup prompt",
                 FOCUSFLOW_GENERATION_NOTE,

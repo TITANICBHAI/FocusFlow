@@ -37,8 +37,9 @@ internal const val FOCUSFLOW_SETTINGS_BOUNDARY_NOTE =
         "state, and device-only resources stay local; omitted fields do not reset local values."
 
 internal const val FOCUSFLOW_MERGE_NOTE =
-    "Merge keeps existing tasks and adds tasks with new IDs. An identical same-ID task " +
-        "is treated as a duplicate; different content with an existing ID is a conflict, not an overwrite."
+    "Merge keeps existing tasks and adds tasks with new IDs. A same-ID task is skipped, " +
+        "except that the review screen can opt in to adding subtasks to matching tasks that have none. " +
+        "Existing subtasks are never overwritten."
 
 internal const val FOCUSFLOW_REPLACE_NOTE =
     "Replace tasks replaces task rows only; it does not mean replace everything. The app " +
@@ -54,7 +55,12 @@ internal const val FOCUSFLOW_EXTERNAL_IMPORT_NOTE =
 
 internal const val FOCUSFLOW_GENERATION_NOTE =
     "Copy the AI task-backup prompt above and describe the tasks, dates, time zone, and constraints. " +
-        "It creates a task-only .focusflow file with task records, without changing FocusFlow's other features or global settings."
+        "It can group one session into a task with subtasks, without changing FocusFlow's other features or global settings."
+
+internal const val FOCUSFLOW_ASSETS_NOTE =
+    "Images are stored in a top-level assets map and referenced by asset ID. FocusFlow validates, " +
+        "resizes, and stores imported images privately on this device. Remote image links are not supported; " +
+        "keep the complete file under 8 MiB."
 
 internal val FOCUSFLOW_FILE_FACTS = listOf(
     FocusFlowGuideItem("Extension", ".focusflow"),
@@ -78,6 +84,25 @@ internal val FOCUSFLOW_TASK_FIELDS = listOf(
     FocusFlowGuideItem("focusMode", "Required boolean; use false unless Focus mode was requested."),
     FocusFlowGuideItem("focusAllowedPackages", FOCUSFLOW_FOCUS_ALLOWED_PACKAGES_NOTE),
     FocusFlowGuideItem("createdAt / updatedAt", "ISO-8601 instants; canonical generated files use UTC Z."),
+    FocusFlowGuideItem("subtasks", "Optional array for the parts of one session; see Subtasks & images."),
+)
+
+internal val FOCUSFLOW_SUBTASK_FIELDS = listOf(
+    FocusFlowGuideItem("id / title", "Each subtask needs a unique ID (1–64 letters, digits, _ or -) and a title (1–200 characters)."),
+    FocusFlowGuideItem("subtitle", "Optional short supporting text, at most 120 characters."),
+    FocusFlowGuideItem("layout", "Optional steps or overview; omitted layout uses steps when steps exist, otherwise overview."),
+    FocusFlowGuideItem("explanation", "Optional plain text, at most 4,000 characters. Blank lines start paragraphs; lines beginning with - are bullets."),
+    FocusFlowGuideItem("steps", "Optional list of up to 30 steps. Each step needs text (up to 1,500 characters); title and image are optional."),
+    FocusFlowGuideItem("tips / avoid", "Optional arrays of up to 10 strings each, up to 300 characters per string."),
+    FocusFlowGuideItem("image", "Optional overview image object with an asset ID and optional alt text."),
+    FocusFlowGuideItem("progress", "Do not include done or setsDone in generated files; progress belongs to the app."),
+)
+
+internal val FOCUSFLOW_GOAL_KINDS = listOf(
+    FocusFlowGuideItem("sets", "sets (1–99) plus reps (1–9,999) or seconds (1–86,400); optional restSeconds (0–3,600), weightKg (0–1,000), and label."),
+    FocusFlowGuideItem("reps / duration", "reps needs reps (1–9,999); duration needs seconds (1–86,400)."),
+    FocusFlowGuideItem("distance", "meters from 1 to 1,000,000."),
+    FocusFlowGuideItem("text", "label is required and can be at most 80 characters."),
 )
 
 internal val FOCUSFLOW_PORTABLE_SETTING_GROUPS = listOf(
@@ -149,6 +174,7 @@ internal const val FOCUSFLOW_ENVELOPE_EXAMPLE = """
   "version": 1,
   "exportedAt": "2025-01-15T10:00:00.000Z",
   "platform": { "os": "android" },
+  "assets": { ... },                         // optional; image data used by subtasks
   "settings": { ... },
   "tasks": [ ... ],
   "presetSections": [ ... ],
@@ -187,6 +213,52 @@ internal const val FOCUSFLOW_VALID_BACKUP_EXAMPLE = """
     "focusMode": false,
     "createdAt": "2025-01-14T10:00:00.000Z",
     "updatedAt": "2025-01-15T10:00:00.000Z"
+  }]
+}
+"""
+
+internal const val FOCUSFLOW_SUBTASK_EXAMPLE = """
+{
+  "kind": "FocusFlowBackupV1",
+  "version": 1,
+  "exportedAt": "2026-10-20T10:00:00.000Z",
+  "platform": { "os": "android" },
+  "settings": {},
+  "tasks": [{
+    "id": "upper-body-demo",
+    "title": "Upper body A",
+    "description": "",
+    "startTime": "2026-10-21T10:00:00.000Z",
+    "endTime": "2026-10-21T11:00:00.000Z",
+    "durationMinutes": 60,
+    "status": "completed",
+    "priority": "medium",
+    "tags": ["gym"],
+    "reminders": [],
+    "color": "#22c55e",
+    "focusMode": false,
+    "createdAt": "2026-10-20T10:00:00.000Z",
+    "updatedAt": "2026-10-21T11:00:00.000Z",
+    "subtasks": [
+      {
+        "id": "pushup",
+        "title": "Push-ups",
+        "goal": { "kind": "sets", "sets": 3, "reps": 12, "restSeconds": 60 },
+        "layout": "steps",
+        "steps": [
+          { "title": "Start position", "text": "Hands just wider than shoulders; brace your core." },
+          { "title": "Lower and press", "text": "Lower with control, then press back to the start." }
+        ],
+        "tips": ["Keep a straight line from head to heels"]
+      },
+      {
+        "id": "plank",
+        "title": "Plank",
+        "goal": { "kind": "duration", "seconds": 45 },
+        "layout": "overview",
+        "explanation": "Keep your body in a straight line.\n\n- Breathe steadily\n- Keep shoulders above elbows"
+      }
+    ]
   }]
 }
 """
