@@ -13,12 +13,12 @@ data class BackupEnvelope(
     val version: Int,
     val exportedAt: String,
     val exportedAtHuman: String,
-    val appVersion: String?,
     val platform: BackupPlatform,
     val settings: JsonObject,
     val tasks: List<Task>,
     val presetSections: List<BackupPresetSection>,
     val summary: BackupSummary,
+    val appVersion: String?,
     @EncodeDefault(EncodeDefault.Mode.NEVER)
     val assets: Map<String, BackupAsset> = emptyMap(),
 )

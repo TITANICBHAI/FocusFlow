@@ -153,7 +153,26 @@ internal object BackupSource {
     }
 
     private fun openBundle(stagedFile: File): BackupSourceDocument {
-        val encryptedNames = readEncryptedEntryNames(stagedFile)
+        val centralEntries = readCentralDirectoryEntries(stagedFile)
+        val manifestEntries = centralEntries.filter { it.name == MANIFEST_ENTRY }
+        if (manifestEntries.size > 1) {
+            throw BackupSourceException("Backup bundle has more than one manifest.json.")
+        }
+        val manifestCentralEntry = manifestEntries.singleOrNull()
+            ?: throw BackupSourceException("Backup bundle is missing manifest.json.")
+        if (manifestCentralEntry.flags and ENCRYPTION_FLAGS_MASK != 0) {
+            throw BackupSourceException("Backup bundle manifest is encrypted.")
+        }
+        if (manifestCentralEntry.method !in SUPPORTED_ZIP_METHODS) {
+            throw BackupSourceException("Backup bundle manifest is invalid.")
+        }
+        val encryptedNames = centralEntries
+            .filter { it.flags and ENCRYPTION_FLAGS_MASK != 0 }
+            .mapTo(mutableSetOf(), BundleCentralDirectoryEntry::name)
+        val unsupportedCompressionNames = centralEntries
+            .filter { it.name != MANIFEST_ENTRY && it.method !in SUPPORTED_ZIP_METHODS }
+            .mapTo(mutableSetOf(), BundleCentralDirectoryEntry::name)
+        sanitizeSkippedCentralEntries(stagedFile, centralEntries)
         val zip = try {
             ZipFile(stagedFile)
         } catch (exception: Exception) {
@@ -189,7 +208,8 @@ internal object BackupSource {
                     ignoredEntries++
                     return@forEach
                 }
-                if (name in encryptedNames || !isSafeEntryName(name) || entry.isDirectory ||
+                if (name in encryptedNames || name in unsupportedCompressionNames ||
+                    !isSafeEntryName(name) || entry.isDirectory ||
                     entry.method !in SUPPORTED_ZIP_METHODS
                 ) {
                     ignoredEntries++
@@ -335,7 +355,7 @@ internal object BackupSource {
      * flags from the central directory before opening entries so encrypted
      * assets can be skipped individually and an encrypted manifest is rejected.
      */
-    private fun readEncryptedEntryNames(file: File): Set<String> =
+    private fun readCentralDirectoryEntries(file: File): List<BundleCentralDirectoryEntry> =
         try {
             RandomAccessFile(file, "r").use { archive ->
                 val fileLength = archive.length()
@@ -372,14 +392,16 @@ internal object BackupSource {
                 }
 
                 archive.seek(centralDirectoryOffset)
-                val encrypted = mutableSetOf<String>()
+                val entries = ArrayList<BundleCentralDirectoryEntry>(entryCount)
                 repeat(entryCount) {
+                    val headerOffset = archive.filePointer
                     val header = ByteArray(CENTRAL_DIRECTORY_HEADER_BYTES)
                     archive.readFully(header)
                     if (littleEndianInt(header, 0) != CENTRAL_DIRECTORY_SIGNATURE) {
                         throw BackupSourceException("This is not a valid FocusFlow file.")
                     }
                     val flags = unsignedShort(header, 8)
+                    val method = unsignedShort(header, 10)
                     val nameLength = unsignedShort(header, 28)
                     val extraLength = unsignedShort(header, 30)
                     val commentLength = unsignedShort(header, 32)
@@ -389,9 +411,12 @@ internal object BackupSource {
                     val nameBytes = ByteArray(nameLength)
                     archive.readFully(nameBytes)
                     val name = nameBytes.toString(Charsets.UTF_8)
-                    if (flags and ENCRYPTION_FLAGS_MASK != 0) {
-                        encrypted += name
-                    }
+                    entries += BundleCentralDirectoryEntry(
+                        name = name,
+                        flags = flags,
+                        method = method,
+                        headerOffset = headerOffset,
+                    )
                     val trailingLength = extraLength.toLong() + commentLength
                     if (archive.filePointer + trailingLength > directoryEnd) {
                         throw BackupSourceException("This is not a valid FocusFlow file.")
@@ -401,13 +426,49 @@ internal object BackupSource {
                 if (archive.filePointer > directoryEnd) {
                     throw BackupSourceException("This is not a valid FocusFlow file.")
                 }
-                encrypted
+                entries
             }
         } catch (exception: BackupSourceException) {
             throw exception
         } catch (exception: Exception) {
             throw BackupSourceException("This is not a valid FocusFlow file.", exception)
         }
+
+    /**
+     * ZipFile rejects some central-directory methods and encryption flags before
+     * callers can skip those entries. Preserve their original metadata above,
+     * then normalize only the staged cache copy so ZipFile can enumerate the
+     * archive; entries in these sets are never added to the readable source map.
+     */
+    private fun sanitizeSkippedCentralEntries(
+        file: File,
+        entries: List<BundleCentralDirectoryEntry>,
+    ) {
+        val skipped = entries.filter {
+            it.name != MANIFEST_ENTRY &&
+                (it.flags and ENCRYPTION_FLAGS_MASK != 0 || it.method !in SUPPORTED_ZIP_METHODS)
+        }
+        if (skipped.isEmpty()) return
+        RandomAccessFile(file, "rw").use { archive ->
+            skipped.forEach { entry ->
+                archive.seek(entry.headerOffset + CENTRAL_FLAGS_OFFSET)
+                writeLittleEndianShort(
+                    archive,
+                    entry.flags and ENCRYPTION_FLAGS_MASK.inv(),
+                )
+                if (entry.method !in SUPPORTED_ZIP_METHODS) {
+                    archive.seek(entry.headerOffset + CENTRAL_METHOD_OFFSET)
+                    writeLittleEndianShort(archive, ZipEntry.DEFLATED)
+                }
+            }
+            archive.fd.sync()
+        }
+    }
+
+    private fun writeLittleEndianShort(archive: RandomAccessFile, value: Int) {
+        archive.writeByte(value and 0xff)
+        archive.writeByte((value ushr 8) and 0xff)
+    }
 
     private fun findEndOfCentralDirectory(bytes: ByteArray): Int? {
         for (offset in bytes.size - EOCD_MIN_BYTES downTo 0) {
@@ -483,6 +544,8 @@ internal object BackupSource {
     private const val MANIFEST_ENTRY = "manifest.json"
     private const val ASSET_DIRECTORY_PREFIX = "assets/"
     private const val CENTRAL_DIRECTORY_HEADER_BYTES = 46
+    private const val CENTRAL_FLAGS_OFFSET = 8
+    private const val CENTRAL_METHOD_OFFSET = 10
     private const val EOCD_MIN_BYTES = 22
     private const val MAX_EOCD_SEARCH_BYTES = EOCD_MIN_BYTES + 65_535
     private const val CENTRAL_DIRECTORY_SIGNATURE = 0x02014b50

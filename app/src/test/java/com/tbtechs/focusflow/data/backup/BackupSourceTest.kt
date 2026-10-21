@@ -185,7 +185,7 @@ class BackupSourceTest {
             cache,
         )
         try {
-            assertEquals(byteArrayOf(7), document.assetByteSource.open("safe"))
+            assertArrayEquals(byteArrayOf(7), document.assetByteSource.open("safe"))
             assertEquals(null, document.assetByteSource.open("unsafe"))
             assertTrue(document.warnings.isNotEmpty())
         } finally {

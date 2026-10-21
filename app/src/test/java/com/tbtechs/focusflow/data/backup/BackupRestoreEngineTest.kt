@@ -288,7 +288,7 @@ class BackupRestoreEngineTest {
             val gate = RecordingGate()
             val access = FakeAccess(gate)
             val pngOne = SubtaskImageStoreTest.fakePng()
-            val pngTwo = pngOne.copyOf().also { it[it.lastIndex] = 1 }
+            val pngTwo = pngOne + byteArrayOf(1)
             val incoming = task(
                 id = "two-images",
                 subtasks = listOf(
