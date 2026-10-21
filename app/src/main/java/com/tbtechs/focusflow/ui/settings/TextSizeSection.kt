@@ -112,6 +112,7 @@ internal fun TextSizeSection(
                 ),
                 TextSizeTarget(Routes.HOME, "Schedule", "Quick Add task", RouteTextScaleContext.HOME_QUICK_ADD_SCREEN, "The quick-add task form."),
                 TextSizeTarget(Routes.HOME, "Schedule", "Task details", RouteTextScaleContext.HOME_TASK_DETAILS_SCREEN, "The task details sheet."),
+                TextSizeTarget(Routes.HOME, "Schedule", "Subtask details", RouteTextScaleContext.HOME_SUBTASK_DETAILS_SCREEN, "The subtask detail screen."),
                 TextSizeTarget(Routes.HOME, "Schedule", "Edit task", RouteTextScaleContext.HOME_EDIT_TASK_SCREEN, "The task editing form."),
             ),
         ) { value ->

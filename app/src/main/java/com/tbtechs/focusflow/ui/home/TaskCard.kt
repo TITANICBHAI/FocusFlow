@@ -40,6 +40,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -153,6 +154,46 @@ fun TaskCard(
                             fontSize = 11.scaledSp,
                             fontWeight = FontWeight.SemiBold,
                             color = priorityColor(task.priority),
+                        )
+                    }
+                }
+
+                if (task.subtasks.isNotEmpty()) {
+                    val doneCount = task.subtasks.count { it.done }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .semantics(mergeDescendants = true) {
+                                contentDescription = "$doneCount of ${task.subtasks.size} subtasks done"
+                                progressBarRangeInfo = ProgressBarRangeInfo(
+                                    current = doneCount.toFloat(),
+                                    range = 0f..task.subtasks.size.toFloat(),
+                                )
+                            },
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(3.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth(doneCount.toFloat() / task.subtasks.size)
+                                    .fillMaxHeight()
+                                    .background(
+                                        if (closed) accent.copy(alpha = 0.55f) else accent,
+                                    ),
+                            )
+                        }
+                        Text(
+                            text = "$doneCount/${task.subtasks.size}",
+                            fontSize = 11.scaledSp,
+                            color = if (closed) DarkTextMuted else DarkTextSecondary,
+                            fontWeight = FontWeight.Medium,
                         )
                     }
                 }

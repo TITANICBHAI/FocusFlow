@@ -12,6 +12,7 @@ internal object RouteTextScaleContext {
     const val SOURCE_TAB_ARGUMENT = "sourceTab"
     const val HOME_QUICK_ADD_SCREEN = "schedule:quick_add"
     const val HOME_TASK_DETAILS_SCREEN = "schedule:task_details"
+    const val HOME_SUBTASK_DETAILS_SCREEN = "schedule:subtask_details"
     const val HOME_EDIT_TASK_SCREEN = "schedule:edit_task"
     const val HOME_TASK_LIST_SCREEN = "schedule:task_list"
     const val FOCUS_STANDALONE_PANEL_SCREEN = "focus:standalone_panel"

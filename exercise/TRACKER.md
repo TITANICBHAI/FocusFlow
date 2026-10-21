@@ -5,8 +5,8 @@
 ## Overall status
 
 - **Status:** IN PROGRESS
-- **Progress:** 52.8% (19/36 required checklist items verified)
-- **Current phase:** Combined verification — Phase 1–3 checks in progress
+- **Progress:** 55.6% (20/36 required checklist items verified)
+- **Current phase:** Phase 4 — Viewing UI
 - **Last updated:** 2026-10-21
 
 ## Tracker rules
@@ -28,10 +28,10 @@
 | Phase | Status | Verified progress | Started | Completed |
 |---|---|---:|---|---|
 | 0 — Baseline | DONE — evidence recorded | 3/3 | 2026-10-20 | 2026-10-20 |
-| 1 — Model, DB, repository | IN PROGRESS — final lint confirmation pending | 6/6 | 2026-10-20 | — |
-| 2 — Format, import/export, images | IN PROGRESS — JVM suite passed; instrumentation check pending | 6/7 | 2026-10-21 | — |
-| 3 — AI prompt and format guide | IN PROGRESS — checklist verified; phase gates pending | 4/4 | 2026-10-21 | — |
-| 4 — Viewing UI | NOT STARTED | 0/6 | — | — |
+| 1 — Model, DB, repository | DONE — evidence recorded | 6/6 | 2026-10-20 | 2026-10-21 |
+| 2 — Format, import/export, images | DONE — evidence recorded; needs device check | 7/7 | 2026-10-21 | 2026-10-21 |
+| 3 — AI prompt and format guide | DONE — evidence recorded | 4/4 | 2026-10-21 | 2026-10-21 |
+| 4 — Viewing UI | IN PROGRESS | 0/6 | 2026-10-21 | — |
 | 5 — Enhancements | NOT STARTED | 0/5 | — | — |
 | 6 — Help, changelog, release checks | NOT STARTED | 0/5 | — | — |
 | 7 — In-app authoring (optional; only if owner asks) | NOT STARTED | 0/1 | — | — |
@@ -87,10 +87,10 @@ The first combined local lint/APK/release command hit the shell's 300-second tim
 
 ## Phase 1 — Model, DB, repository (no UI)
 
-**Status:** IN PROGRESS
-**Blocked by:** Phase 0 complete
+**Status:** DONE — evidence recorded
+**Blocked by:** None
 **Started:** 2026-10-20
-**Completed:** —
+**Completed:** 2026-10-21
 **Progress:** 6/6
 **Plan sections:** §4.1–4.2, §5.1–5.4
 
@@ -142,6 +142,8 @@ On 2026-10-21, `adb devices -l` returned only the device-list header and no atta
 
 On 2026-10-21, the owner authorized the combined Phase 1–3 verification pass. Production unit tests will run first using the bootstrap helper and production flavor only. No APK will be assembled locally; lint, Android-test source compilation, and Production Release R8 minification follow separately so each result can be recorded before the next check. Initial environment inspection found no JDK/SDK environment variables; `adb` was also unavailable, so device availability could not yet be queried.
 
+On 2026-10-21, the owner authorized resuming Phase 2/3 verification. The final Production Debug lint confirmation passed after the migration-test helper cleanup; Phase 1 is now closed at 6/6. Its Room migration instrumentation runtime remains a device-only check because no device is attached.
+
 **Evidence:**
 - `git status --short` before code edits showed only the Phase 1 tracker update; `replit.md` confirms normal work is limited to the Kotlin Android project.
 - Current Phase 1 fix: `TaskViewModel.setSubtaskSetsDone` now leaves nonmatching IDs unchanged; `TaskViewModelSubtasksTest` includes two sets goals and asserts the untargeted item's count and done state remain unchanged. `git diff --check` returned success with no output.
@@ -151,6 +153,7 @@ On 2026-10-21, the owner authorized the combined Phase 1–3 verification pass. 
 - `FOCUSFLOW_SKIP_APK_BUILD=1 bash scripts/build-apk-with-java.sh :app:minifyProductionReleaseWithR8` completed with `BUILD SUCCESSFUL in 5m 48s`; Gradle reported the requested minification task passed. No APK assemble/package task was requested. Android-test Kotlin compilation and device availability remain pending.
 - `FOCUSFLOW_SKIP_APK_BUILD=1 bash scripts/build-apk-with-java.sh :app:compileProductionDebugAndroidTestKotlin` first completed in `1m 8s` with two non-fatal helper-constructor warnings. After switching to `FocusFlowDatabase::class.java` plus an empty auto-migration-spec list, the same Production Debug Android-test compilation passed in `41s` with no Kotlin source warnings. No APK was assembled; instrumentation runtime remains pending.
 - `/home/runner/.cache/focusflow/android-sdk/platform-tools/adb devices -l` returned `List of devices attached` with no device entries. The Room migration instrumentation test was not run because no device is attached; no APK was built or installed. Migration test source compilation passed. Phase 1 checklist item 6 is complete with this device-only limitation recorded.
+- `FOCUSFLOW_SKIP_APK_BUILD=1 bash scripts/build-apk-with-java.sh :app:lintProductionDebug` completed with `BUILD SUCCESSFUL in 5m 21s`; Gradle reported the task passed. `app/build/reports/lint-results-productionDebug.xml` contains an empty `<issues>` element (0 lint findings). This is the final lint confirmation after the Phase 1 migration-test helper cleanup.
 - Added `app/src/main/java/com/tbtechs/focusflow/data/model/Subtask.kt` and model tests in `app/src/test/java/com/tbtechs/focusflow/data/model/`. No test result observed yet; checklist item 1 remains unchecked pending tests.
 - Current Phase 1 continuation changed the task model/entity, DAO, Room migration and DI registration, repository mapping/cache/size guard, and ViewModel operations. Added repository/ViewModel JVM tests and the Room 9→10 instrumented migration test. `git diff --check` was clean; build/test verification is still pending.
 - Status check: schema `app/schemas/com.tbtechs.focusflow.data.local.FocusFlowDatabase/10.json`, `MIGRATION_9_10` registration, model/repository/ViewModel tests, and the instrumented migration test are present. `git diff --check` remained clean; current untracked file is the user's newly attached status note.
@@ -173,11 +176,11 @@ _None recorded._
 
 ## Phase 2 — Format, import/export, images at rest
 
-**Status:** IN PROGRESS — JVM suite passed; instrumentation check pending
-**Blocked by:** Phase 1 final lint confirmation and Phase 2 instrumentation/source verification remain pending.
+**Status:** DONE — evidence recorded; needs device check
+**Blocked by:** Instrumented runtime tests need an attached Android device/emulator.
 **Started:** 2026-10-21
-**Completed:** —
-**Progress:** 6/7
+**Completed:** 2026-10-21
+**Progress:** 7/7
 **Plan sections:** §4.3–4.4, §6
 
 - [x] Add bounded image storage, format/dimension validation, re-encoding, atomic writes, and safe content-addressed paths.
@@ -186,9 +189,23 @@ _None recorded._
 - [x] Parse subtasks and assets fail-soft, preserving valid tasks and aggregating import warnings.
 - [x] Export subtasks/assets with deterministic references and size-control warnings; retain byte-identical exports for tasks without subtasks.
 - [x] Restore/remap assets and support the opt-in enrich-existing-tasks behavior without overwriting existing subtasks.
-- [ ] Add import-review summary, warnings, and the conditional enrich checkbox; verify Phase 2 JVM and instrumented cases as permitted by the plan.
+- [x] Add import-review summary, warnings, and the conditional enrich checkbox; verify Phase 2 JVM and instrumented cases as permitted by the plan. Instrumented sources compile; runtime needs device check.
 
 **Notes / progress:**
+On 2026-10-21, the owner authorized continuing Phase 2/3 verification. Before resuming, `git status --short` showed only a pre-existing `.replit` edit and the user's attached instruction file; application, test, and tracker files had no pending changes. `git diff --check` was clean. The current environment has no `java`, JDK/Android SDK environment variables, `local.properties`, or `adb` on PATH; use the bootstrap-backed Gradle helper, keep APK assembly disabled, and check device availability after SDK setup. The recorded production JVM result (328 tests, no failures/errors/skips) is retained; lint, Production Debug Android-test source compilation, and Production Release R8 remain to be run individually and recorded before proceeding.
+
+Production Debug lint verification completed on 2026-10-21. The bootstrap-backed Gradle command passed in 5m 21s, and its XML report contains no `<issue>` entries (0 findings). This also closes Phase 1's final lint confirmation; Phase 2 Android-test source compilation and instrumentation runtime remain pending.
+
+Production Debug Android-test source compilation completed on 2026-10-21. The migration and image-codec instrumented test sources compile successfully; runtime execution remains unavailable unless an Android device/emulator is attached.
+
+After SDK bootstrap, `/home/runner/.cache/focusflow/android-sdk/platform-tools/adb devices -l` started the ADB daemon and listed no devices. Room migration and real-bitmap instrumented test execution therefore remain device-only checks; no APK was assembled or installed.
+
+Production Release R8 minification completed on 2026-10-21 with `BUILD SUCCESSFUL in 3m 43s`. The production JVM suite (328 tests), Production Debug lint (zero findings), and Android-test source compilation also passed. Phase 2 is closed with instrumented runtime explicitly listed as “needs device check”; no APK was assembled.
+
+The final verification artifact audit on 2026-10-21 found no current JUnit XML files under `app/build/test-results/testProductionDebugUnitTest`, although the earlier 328-test pass is documented above. Rerun the production JVM task once to capture fresh local output before final handoff; do not run the other flavor or assemble an APK.
+
+The fresh Production Debug JVM run completed on 2026-10-21 with `BUILD SUCCESSFUL in 47s`; Gradle reported `:app:testProductionDebugUnitTest` passed (7 tasks executed, 19 up-to-date). XML aggregation found 71 suites and 328 tests, with 0 failures, errors, or skipped tests. The Phase 2/3 test classes, including `FocusFlowFormatGuideDataTest`, are present.
+
 On 2026-10-21, the owner authorized adding the Phase 2 and Phase 3 implementation/test code before running tests or build/lint/R8/device verification. Those checks are deferred until both phases' additions are complete. Local Git status/diff checks only; no push or GitHub Actions. Phase 1's final lint confirmation is also deferred to that combined verification pass. Phase 2 implementation begins now; checklist items remain unchecked until the requested later verification is observed.
 
 First implementation slice added the Phase 2 import-size constants, root-assets-only preflight string allowance, an injectable image codec and content-addressed image store, and a fail-soft per-subtask parser. These changes are not yet verified; tests will be added but not executed until Phases 2 and 3 additions are complete.
@@ -206,6 +223,11 @@ The first production JVM test attempt stopped during production Kotlin compilati
 - Git-only review: `git diff --check` succeeded with no output. `git status --short` listed those three files and `exercise/TRACKER.md` as modified; the attached instruction file remains untracked and untouched.
 - At the initial source audit, no unit/instrumented tests or build checks had run. The production JVM results and current remaining checks are recorded below.
 - `FOCUSFLOW_SKIP_APK_BUILD=1 bash scripts/build-apk-with-java.sh :app:testProductionDebugUnitTest` completed with `BUILD SUCCESSFUL in 47s`. JUnit XML across 71 reports contains 328 tests, 0 failures, 0 errors, and 0 skipped. All Phase 2/3 classes were present: `BackupJsonPreflightTest`, `BackupSerializerTest`, `SubtaskParserTest`, `SubtaskAssetExporterTest`, `BackupRestoreEngineTest`, `SubtaskImageStoreTest`, and `com.tbtechs.focusflow.ui.support.FocusFlowFormatGuideDataTest`.
+- `FOCUSFLOW_SKIP_APK_BUILD=1 bash scripts/build-apk-with-java.sh :app:lintProductionDebug` completed with `BUILD SUCCESSFUL in 5m 21s`; `app/build/reports/lint-results-productionDebug.xml` has an empty `<issues>` element and zero findings.
+- `FOCUSFLOW_SKIP_APK_BUILD=1 bash scripts/build-apk-with-java.sh :app:compileProductionDebugAndroidTestKotlin` completed with `BUILD SUCCESSFUL in 33s`; Gradle reported the task passed (9 tasks executed, 20 up-to-date). This compiles the Phase 2 instrumented test sources; it does not execute them.
+- `/home/runner/.cache/focusflow/android-sdk/platform-tools/adb devices -l` started the ADB daemon and returned only `List of devices attached`; no device/emulator is available for instrumentation runtime. No APK was built or installed.
+- `FOCUSFLOW_SKIP_APK_BUILD=1 bash scripts/build-apk-with-java.sh :app:minifyProductionReleaseWithR8` completed with `BUILD SUCCESSFUL in 3m 43s`; Gradle reported the R8 task passed (27 tasks executed, 1 up-to-date). No APK assemble/package task was requested.
+- Fresh rerun: `FOCUSFLOW_SKIP_APK_BUILD=1 bash scripts/build-apk-with-java.sh :app:testProductionDebugUnitTest` completed with `BUILD SUCCESSFUL in 47s`; 71 JUnit XML suites contain 328 tests, 0 failures, 0 errors, and 0 skipped. Confirmed `BackupJsonPreflightTest`, `BackupSerializerTest`, `SubtaskParserTest`, `SubtaskAssetExporterTest`, `BackupRestoreEngineTest`, `SubtaskImageStoreTest`, and `FocusFlowFormatGuideDataTest` are present.
 - The format-guide test verifies the subtask example parses successfully with zero warnings. The production Kotlin compile emitted a non-fatal experimental serialization API opt-in warning in `BackupSerializer.kt`; lint remains pending.
 - No Android-test runtime, lint, R8, or APK check has been completed in this pass. After SDK bootstrap, `/home/runner/.cache/focusflow/android-sdk/platform-tools/adb devices -l` started the ADB daemon and returned only `List of devices attached`; no device is available for instrumentation runtime. Android-test source compilation is still pending.
 
@@ -224,10 +246,10 @@ _None recorded._
 
 ## Phase 3 — AI prompt and format guide
 
-**Status:** IN PROGRESS — checklist verified; phase gates pending
-**Blocked by:** Production lint and Production Release R8 verification remain pending.
+**Status:** DONE — evidence recorded
+**Blocked by:** None
 **Started:** 2026-10-21
-**Completed:** —
+**Completed:** 2026-10-21
 **Progress:** 4/4
 **Plan sections:** §11.1–11.2, §11.4–11.5
 
@@ -237,6 +259,14 @@ _None recorded._
 - [x] Prepare the hosted-guide Markdown update for the owner; record that the external site itself was not edited.
 
 **Notes / progress:**
+On 2026-10-21, the owner authorized continuing Phase 2/3 verification. The current checkout has no pending app/test edits, and the previous production JVM run is recorded as passing 328 tests. Shared gates still pending are Production Debug lint, Android-test source compilation, and Production Release R8; report and record each exact outcome separately. Do not build an APK, push to GitHub, or start/poll Actions.
+
+Production Debug lint completed successfully on 2026-10-21 with zero findings, as confirmed by the generated lint XML. Production Release R8 remains pending.
+
+Production Debug Android-test source compilation also passed on 2026-10-21 in 33s; this is source compilation only, not device execution. Production Release R8 remains pending.
+
+Production Release R8 minification passed on 2026-10-21 in 3m 43s. The fresh production JVM run then passed 328 tests across 71 XML suites, with the format-guide test class present; lint and minified-release gates are verified. No APK was assembled.
+
 On 2026-10-21, started Phase 3 implementation under the owner's instruction to complete both Phase 2 and Phase 3 additions before running tests/build/lint/R8/device checks. Phase 2 implementation and its tests are still being completed; no Phase 3 verification has been run. The prompt and in-app guide are the only Phase 3 implementation scope; version/changelog work remains in Phase 6.
 
 On 2026-10-21, audited the current prompt and in-app guide against §11.1–11.2. The shared subtask example, goal/assets guidance, merge note, prompt rules, and zero-warning parser test source are present. At that audit point the test had not run; its successful result is now recorded below. The hosted guide remains an owner-facing Markdown handoff and the external site has not been edited.
@@ -249,6 +279,10 @@ On 2026-10-21, the owner authorized verification after Phase 2/3 additions were 
 - Current-source audit confirmed the Phase 3 prompt, shared example, guide content, and zero-warning parser test source are present; the successful production test and example result are recorded below.
 - The ready-to-paste hosted-guide Markdown is included in the completion report; the external site was not edited.
 - `FOCUSFLOW_SKIP_APK_BUILD=1 bash scripts/build-apk-with-java.sh :app:testProductionDebugUnitTest` completed with `BUILD SUCCESSFUL in 47s`; 71 JUnit XML reports contain 328 tests, 0 failures/errors/skips. `com.tbtechs.focusflow.ui.support.FocusFlowFormatGuideDataTest.subtaskPromptAndGuideExampleParsesWithoutWarnings` is present and passed.
+- `FOCUSFLOW_SKIP_APK_BUILD=1 bash scripts/build-apk-with-java.sh :app:lintProductionDebug` completed with `BUILD SUCCESSFUL in 5m 21s`; the lint XML report contains zero findings.
+- `FOCUSFLOW_SKIP_APK_BUILD=1 bash scripts/build-apk-with-java.sh :app:compileProductionDebugAndroidTestKotlin` completed with `BUILD SUCCESSFUL in 33s`; 9 tasks executed and 20 were up-to-date.
+- `FOCUSFLOW_SKIP_APK_BUILD=1 bash scripts/build-apk-with-java.sh :app:minifyProductionReleaseWithR8` completed with `BUILD SUCCESSFUL in 3m 43s`; 27 tasks executed and 1 was up-to-date. No APK assemble/package task was requested.
+- Fresh rerun: `FOCUSFLOW_SKIP_APK_BUILD=1 bash scripts/build-apk-with-java.sh :app:testProductionDebugUnitTest` completed with `BUILD SUCCESSFUL in 47s`; 71 XML suites contain 328 tests, 0 failures/errors/skips, and `FocusFlowFormatGuideDataTest.subtaskPromptAndGuideExampleParsesWithoutWarnings` is present and passed.
 
 **Failures / blockers:**
 _None recorded._
@@ -258,9 +292,9 @@ _None recorded._
 
 ## Phase 4 — Viewing UI
 
-**Status:** NOT STARTED
-**Blocked by:** Phase 3 complete
-**Started:** —
+**Status:** IN PROGRESS
+**Blocked by:** None
+**Started:** 2026-10-21
 **Completed:** —
 **Progress:** 0/6
 **Plan sections:** §7–8
@@ -273,7 +307,7 @@ _None recorded._
 - [ ] Run and record the planned Compose UI tests; list any device-only visual/interaction checks as “needs device check”.
 
 **Notes / progress:**
-_No work started._
+On 2026-10-21, the owner explicitly authorized Phase 4 implementation after Phase 2–3 verification. Before edits, the working tree showed only `exercise/TRACKER.md` modified; `git diff --check` passed, and `replit.md` confirms the Kotlin Android project is the supported scope. The `.replit` file and attached import note are not modified in this checkout. Phase 4 is limited to §§7–8 and the approved contact points; do not change enforcement, alarms, VPN, launcher, scheduling, or task-completion semantics. No app-code changes have been made yet.
 
 **Evidence:**
 _None yet._
@@ -415,3 +449,11 @@ Append dated entries; do not replace earlier history.
 | 2026-10-21 | Phase 3 started — implementation only | Owner directed completion of Phase 3 additions before combined verification; Phase 2 gates remain pending. | Set Phase 3 to IN PROGRESS before continuing its prompt/guide changes. No tests/build checks run. |
 | 2026-10-21 | Phase 2/3 addition audit | Confirmed the planned implementation and test sources are present in the checkout; added explicit per-entry parser isolation and two regression tests. Test execution remains deferred until both phases' additions are complete. | Changed `SubtaskParser.kt`, `SubtaskParserTest.kt`, and `SubtaskAssetExporterTest.kt`. `git diff --check` succeeded with no output. `git status --short` also lists the user's attached instruction file as untracked; it was left untouched. No unit/instrumented tests, build, lint, R8, APK, or device checks run. |
 | 2026-10-21 | Hosted format-guide handoff prepared | Prepared the Phase 3 Markdown block for the external guide; the hosted site was not edited. | The copy-ready block is included in the completion report. Marked the hosted-guide handoff item complete; the example parse test remains unrun. |
+| 2026-10-21 | Phase 1–3 verification resumed | Production Debug lint passed with zero findings; Phase 1 final lint gate is closed. Proceeding with Phase 2/3 checks one at a time. | `FOCUSFLOW_SKIP_APK_BUILD=1 bash scripts/build-apk-with-java.sh :app:lintProductionDebug`; `BUILD SUCCESSFUL in 5m 21s`; lint XML contains an empty `<issues>` element. |
+| 2026-10-21 | Phase 2/3 Android-test source compile | Production Debug Android-test Kotlin sources compiled successfully. | `FOCUSFLOW_SKIP_APK_BUILD=1 bash scripts/build-apk-with-java.sh :app:compileProductionDebugAndroidTestKotlin`; `BUILD SUCCESSFUL in 33s`; 9 tasks executed, 20 up-to-date. Instrumentation runtime remains a separate device-dependent check. |
+| 2026-10-21 | Phase 2 instrumentation availability | No Android device/emulator is attached; instrumented runtime tests cannot be run in this workspace. | `/home/runner/.cache/focusflow/android-sdk/platform-tools/adb devices -l` returned only `List of devices attached`. Test source compilation passed; no APK was built or installed. |
+| 2026-10-21 | Phase 2–3 verification gates | Production Release R8 minification passed; Phase 2 and Phase 3 gates are closed, with Phase 2 device runtime checks explicitly left for an attached device. | `FOCUSFLOW_SKIP_APK_BUILD=1 bash scripts/build-apk-with-java.sh :app:minifyProductionReleaseWithR8`; `BUILD SUCCESSFUL in 3m 43s`; no APK assembled. Production JVM: 328 tests, zero failures/errors/skips; lint: 0 findings; Android-test source compile: passed. |
+| 2026-10-21 | Final JVM report artifact audit | No current production JVM JUnit XML was present in the expected Gradle test-results directory; the prior successful result remains documented but will be freshly rerun. | Checked `app/build/test-results/testProductionDebugUnitTest`; directory/reports were absent. No app/test source changes were present. |
+| 2026-10-21 | Production JVM rerun | The production unit-test Gradle task passed; fresh XML totals and required test-class presence are being checked. | `FOCUSFLOW_SKIP_APK_BUILD=1 bash scripts/build-apk-with-java.sh :app:testProductionDebugUnitTest`; `BUILD SUCCESSFUL in 47s`; Gradle reported the task passed, 7 tasks executed and 19 up-to-date. |
+| 2026-10-21 | Production JVM XML reconciliation | Confirmed the fresh production suite and all Phase 2/3 test classes. | 71 XML suites, 328 tests, 0 failures, 0 errors, 0 skipped. Confirmed `BackupJsonPreflightTest`, `BackupSerializerTest`, `SubtaskParserTest`, `SubtaskAssetExporterTest`, `BackupRestoreEngineTest`, `SubtaskImageStoreTest`, and `FocusFlowFormatGuideDataTest` are present. |
+| 2026-10-21 | Phase 4 started | Owner authorized the Viewing UI phase; work is constrained to plan §§7–8 and approved contact points. | Set Phase 4 to IN PROGRESS before implementation. Initial status: only `exercise/TRACKER.md` modified; `git diff --check` clean; no app-code changes yet. |

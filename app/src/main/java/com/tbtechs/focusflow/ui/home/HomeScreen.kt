@@ -37,6 +37,7 @@ import androidx.compose.material3.TextButton
 import com.tbtechs.focusflow.ui.focus.ActiveStatusIndicator
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -66,6 +67,7 @@ import com.tbtechs.focusflow.ui.theme.LocalFocusFlowDimensions
 import com.tbtechs.focusflow.ui.theme.LocalFocusFlowTextScale
 import com.tbtechs.focusflow.ui.navigation.RouteTextScaleContext
 import com.tbtechs.focusflow.ui.navigation.Routes
+import com.tbtechs.focusflow.di.AppModule
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -104,7 +106,13 @@ fun HomeScreen(
             .maxByOrNull { it.endTime }
 
     var addOpen by remember { mutableStateOf(false) }
-    var detailTask by remember { mutableStateOf<Task?>(null) }
+    var detailTaskId by remember { mutableStateOf<String?>(null) }
+    val detailTask = tasks.firstOrNull { it.id == detailTaskId }
+    LaunchedEffect(detailTaskId, tasks) {
+        if (detailTaskId != null && tasks.none { it.id == detailTaskId }) {
+            detailTaskId = null
+        }
+    }
     var editTask by remember { mutableStateOf<Task?>(null) }
     var extendTask by remember { mutableStateOf<Task?>(null) }
     var deleteTask by remember { mutableStateOf<Task?>(null) }
@@ -204,7 +212,7 @@ fun HomeScreen(
                     if (bannerTask != null) {
                         ActiveTaskBanner(
                             task = bannerTask,
-                            onOpen = { detailTask = bannerTask },
+                            onOpen = { detailTaskId = bannerTask.id },
                             onComplete = { completeAndMaybeStop(bannerTask) },
                             onExtend = { extendTask = bannerTask },
                             onSkip = { skipTask = bannerTask },
@@ -227,7 +235,7 @@ fun HomeScreen(
                                 TaskCard(
                                     task = task,
                                     isActive = task.id == activeTask?.id,
-                                    onOpen = { detailTask = task },
+                                    onOpen = { detailTaskId = task.id },
                                     onComplete = { taskId ->
                                         todayTasks.firstOrNull { it.id == taskId }
                                             ?.let(::completeAndMaybeStop)
@@ -275,12 +283,22 @@ fun HomeScreen(
         ) {
             TaskDetailModal(
                 task = task,
-                onDismiss = { detailTask = null },
-                onComplete = { completeAndMaybeStop(task); detailTask = null },
-                onSkip = { detailTask = null; skipTask = task },
-                onExtend = { detailTask = null; extendTask = task },
-                onStartFocus = { focusSessionViewModel.startFocusMode(task.id); detailTask = null },
-                onEdit = { detailTask = null; editTask = task },
+                onDismiss = { detailTaskId = null },
+                onComplete = { completeAndMaybeStop(task); detailTaskId = null },
+                onSkip = { detailTaskId = null; skipTask = task },
+                onExtend = { detailTaskId = null; extendTask = task },
+                onStartFocus = { focusSessionViewModel.startFocusMode(task.id); detailTaskId = null },
+                onEdit = { detailTaskId = null; editTask = task },
+                imageStore = AppModule.subtaskImageStore,
+                subtaskTextScale = settings.screenTextScales[
+                    RouteTextScaleContext.screenScaleKey(
+                        Routes.HOME,
+                        RouteTextScaleContext.HOME_SUBTASK_DETAILS_SCREEN,
+                    )
+                ],
+                onSubtaskDone = taskViewModel::setSubtaskDone,
+                onSubtaskSetsDone = taskViewModel::setSubtaskSetsDone,
+                onResetSubtasks = taskViewModel::resetSubtasks,
             )
         }
     }
