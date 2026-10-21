@@ -8,7 +8,7 @@
         "items": [
           "Subtasks let you tick off parts of a task, with steps, goals, images, and a rest timer. Import files can now include subtasks and images.",
           "Image-rich .focusflow files can use ZIP bundles; files with subtasks or images declare version 2, while task-only files remain version 1.",
-          "Exercise goals can show rep ranges such as 6–10 reps, and imported or attached images stay stored privately on your device."
+          "Exercise goals support rep ranges through repsMax, such as 6–10 reps, and imported or attached images stay stored privately on your device."
         ]
       }
     ]

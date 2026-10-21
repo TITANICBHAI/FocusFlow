@@ -186,7 +186,7 @@ private val TASK_PLAN_GUIDE = listOf(
             ),
             GuideStep(
                 heading = "How are rep ranges shown?",
-                body = "A goal can include a minimum and maximum rep count, such as 6–10 reps or 3 × 6–10 across three sets. The range describes the goal; it does not change how task scheduling or completion works.",
+                body = "An imported goal can use reps for the low end and repsMax for the high end, such as 6–10 reps or 3 × 6–10 across three sets. The range describes the goal; it does not change how task scheduling or completion works.",
             ),
         ),
     ),

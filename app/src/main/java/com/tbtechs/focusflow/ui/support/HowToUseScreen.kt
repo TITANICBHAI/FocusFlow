@@ -155,7 +155,7 @@ internal val GUIDE = listOf(
             ),
             GuideStep(
                 "Track sets and rest",
-                "Set goals show sets and reps, including ranges such as 3 × 6–10. Tap each set circle as you finish it; the optional rest timer starts between sets and can be turned off.",
+                "Set goals show sets and reps, including ranges such as 3 × 6–10. In imported goals, reps is the low end and repsMax is the high end. Tap each set circle as you finish it; the optional rest timer starts between sets and can be turned off.",
             ),
             GuideStep(
                 "Add a photo",

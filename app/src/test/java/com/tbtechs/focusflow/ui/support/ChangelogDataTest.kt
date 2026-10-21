@@ -20,6 +20,7 @@ class ChangelogDataTest {
         assertTrue(releaseNotes.contains("ZIP bundles"))
         assertTrue(releaseNotes.contains("version 2"))
         assertTrue(releaseNotes.contains("rep ranges"))
+        assertTrue(releaseNotes.contains("repsMax"))
     }
 
     @Test
