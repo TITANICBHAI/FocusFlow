@@ -4,14 +4,12 @@ import android.provider.Settings
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
-import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
-import androidx.compose.animation.tween
-import androidx.compose.animation.using
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -131,7 +129,7 @@ fun TaskDetailModal(
             modifier = Modifier.fillMaxSize(),
             transitionSpec = {
                 if (!animationsEnabled) {
-                    (EnterTransition.None togetherWith ExitTransition.None)
+                    EnterTransition.None togetherWith ExitTransition.None
                 } else {
                     val entering = if (targetState != null) {
                         slideInHorizontally(initialOffsetX = { it })
@@ -145,7 +143,7 @@ fun TaskDetailModal(
                     }
                     (entering + fadeIn(tween(durationMillis = 250))) togetherWith
                         (exiting + fadeOut(tween(durationMillis = 250)))
-                }.using(SizeTransform(clip = false))
+                }
             },
             label = "task-subtask-navigation",
         ) { targetSubtaskId ->

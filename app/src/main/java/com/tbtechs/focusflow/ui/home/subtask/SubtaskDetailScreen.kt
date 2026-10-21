@@ -1,7 +1,6 @@
 package com.tbtechs.focusflow.ui.home.subtask
 
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.HorizontalScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -71,7 +70,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.hapticfeedback.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.layout.ContentScale
 import com.tbtechs.focusflow.data.images.SubtaskImageStore
 import com.tbtechs.focusflow.data.model.GoalFormatter
@@ -80,7 +79,7 @@ import com.tbtechs.focusflow.data.model.SubtaskImage
 import com.tbtechs.focusflow.data.model.SubtaskLayoutMode
 import com.tbtechs.focusflow.data.model.SubtaskLayoutPolicy
 import com.tbtechs.focusflow.data.model.Task
-import com.tbtechs.focusflow.ui.common.FocusFlowInternalCard
+import com.tbtechs.focusflow.ui.home.FocusFlowInternalCard
 import com.tbtechs.focusflow.ui.common.SubtaskImageView
 import com.tbtechs.focusflow.ui.home.RefBackground
 import com.tbtechs.focusflow.ui.home.RefBorder
