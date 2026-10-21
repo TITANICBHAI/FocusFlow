@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -192,6 +193,8 @@ internal fun SubtaskDetailScreen(
                         subtask = subtask,
                         index = currentIndex,
                         mode = mode,
+                        imageStore = imageStore,
+                        animationsEnabled = animationsEnabled,
                         activeStepIndex = activeStepIndex,
                         onStepSelected = { stepIndex ->
                             activeStepIndex = stepIndex
@@ -231,6 +234,8 @@ internal fun SubtaskDetailScreen(
                     subtask = subtask,
                     index = currentIndex,
                     mode = mode,
+                    imageStore = imageStore,
+                    animationsEnabled = animationsEnabled,
                     activeStepIndex = activeStepIndex,
                     onStepSelected = { stepIndex ->
                         activeStepIndex = stepIndex
@@ -373,6 +378,39 @@ private fun SubtaskHero(
     val staticImage = if (!isPaged) {
         subtask.image ?: subtask.steps.firstNotNullOfOrNull { it.image }
     } else null
+    if (!isPaged && staticImage == null) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(accent.copy(alpha = 0.12f))
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(accent.copy(alpha = 0.20f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = (index + 1).toString(),
+                    color = accent,
+                    fontSize = 22.scaledSp,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+            Text(
+                text = if (mode == SubtaskLayoutMode.STEPS) "Step ${index + 1}" else "Item ${index + 1}",
+                color = RefSecondary,
+                fontSize = 13.scaledSp,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+        return
+    }
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
@@ -460,6 +498,8 @@ private fun SubtaskDetailContent(
     subtask: Subtask,
     index: Int,
     mode: SubtaskLayoutMode,
+    imageStore: SubtaskImageStore?,
+    animationsEnabled: Boolean,
     activeStepIndex: Int,
     onStepSelected: (Int) -> Unit,
     cuesExpanded: Boolean,
@@ -536,8 +576,9 @@ private fun SubtaskDetailContent(
         }
 
         if (mode == SubtaskLayoutMode.STEPS && subtask.steps.isNotEmpty()) {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column {
                 Text("Steps", color = RefText, fontSize = 16.scaledSp, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(10.dp))
                 subtask.steps.forEachIndexed { stepIndex, step ->
                     val selected = activeStepIndex == stepIndex
                     Row(
@@ -545,31 +586,94 @@ private fun SubtaskDetailContent(
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(12.dp))
                             .background(if (selected) accent.copy(alpha = 0.10f) else Color.Transparent)
+                            .border(
+                                width = if (selected) 1.dp else 0.dp,
+                                color = if (selected) accent else Color.Transparent,
+                                shape = RoundedCornerShape(12.dp),
+                            )
                             .clickable(role = Role.Button) { onStepSelected(stepIndex) }
-                            .padding(vertical = 9.dp, horizontal = 10.dp),
+                            .padding(horizontal = 10.dp)
+                            .height(IntrinsicSize.Min),
                         verticalAlignment = Alignment.Top,
                     ) {
-                        Box(
+                        Column(
                             modifier = Modifier
-                                .size(28.dp)
-                                .clip(CircleShape)
-                                .background(if (selected) accent else MaterialTheme.colorScheme.surfaceVariant),
-                            contentAlignment = Alignment.Center,
+                                .width(28.dp)
+                                .fillMaxHeight()
+                                .padding(top = 9.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
-                            Text(
-                                text = (stepIndex + 1).toString(),
-                                color = if (selected) contentColorForAccent(accent) else RefSecondary,
-                                fontSize = 12.scaledSp,
-                                fontWeight = FontWeight.Bold,
-                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .clip(CircleShape)
+                                    .background(if (selected) accent else MaterialTheme.colorScheme.surfaceVariant),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    text = (stepIndex + 1).toString(),
+                                    color = if (selected) contentColorForAccent(accent) else RefSecondary,
+                                    fontSize = 12.scaledSp,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                            }
+                            if (stepIndex < subtask.steps.lastIndex) {
+                                Box(
+                                    modifier = Modifier
+                                        .width(1.dp)
+                                        .weight(1f)
+                                        .background(accent.copy(alpha = 0.38f)),
+                                )
+                            }
                         }
                         Spacer(Modifier.width(10.dp))
-                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(vertical = 9.dp),
+                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                        ) {
                             step.title?.takeIf(String::isNotBlank)?.let {
-                                Text(it, color = RefText, fontSize = 14.scaledSp, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    it,
+                                    color = RefText,
+                                    fontSize = 14.scaledSp,
+                                    fontWeight = FontWeight.SemiBold,
+                                )
                             }
                             Text(step.text, color = RefSecondary, fontSize = 13.scaledSp, lineHeight = 19.scaledSp)
                         }
+                        step.image?.let { image ->
+                            Spacer(Modifier.width(8.dp))
+                            val density = LocalDensity.current
+                            Box(
+                                modifier = Modifier
+                                    .width(96.dp)
+                                    .height(72.dp)
+                                    .clip(RoundedCornerShape(9.dp))
+                                    .clickable(role = Role.Button) { onStepSelected(stepIndex) },
+                            ) {
+                                SubtaskImageView(
+                                    assetId = image.asset,
+                                    imageStore = imageStore,
+                                    contentDescription = image.alt?.takeIf(String::isNotBlank)
+                                        ?: step.title
+                                        ?: "Step ${stepIndex + 1} image",
+                                    targetWidthPx = with(density) { 96.dp.roundToPx() },
+                                    modifier = Modifier.fillMaxSize(),
+                                    animate = animationsEnabled,
+                                )
+                            }
+                        }
+                    }
+                    if (stepIndex < subtask.steps.lastIndex) {
+                        Box(
+                            modifier = Modifier
+                                .padding(start = 23.dp)
+                                .width(1.dp)
+                                .height(10.dp)
+                                .background(accent.copy(alpha = 0.38f)),
+                        )
                     }
                 }
             }

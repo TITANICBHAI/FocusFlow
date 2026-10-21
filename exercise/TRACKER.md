@@ -5,9 +5,10 @@
 ## Overall status
 
 - **Status:** IN PROGRESS
-- **Progress:** 55.6% (20/36 required checklist items verified)
+- **Progress:** 39.2% (20/51 required checklist items verified)
 - **Current phase:** Phase 4 — Viewing UI
 - **Last updated:** 2026-10-21
+- **Run order (Addendum v2):** Phase 4 → Phase 8 → Phase 9 → Phase 5 → Phase 6 (Phase 7 only if the owner asks). Phases 8–9 are defined in `PLAN.md` §16–§20; the completed Phase 0–3 items are unchanged.
 
 ## Tracker rules
 
@@ -35,8 +36,10 @@
 | 5 — Enhancements | NOT STARTED | 0/5 | — | — |
 | 6 — Help, changelog, release checks | NOT STARTED | 0/5 | — | — |
 | 7 — In-app authoring (optional; only if owner asks) | NOT STARTED | 0/1 | — | — |
+| 8 — Hardening of Phases 2–3 (Addendum v2) | NOT STARTED | 0/8 | — | — |
+| 9 — Hybrid ZIP bundle (Addendum v2) | NOT STARTED | 0/7 | — | — |
 
-**Progress calculation:** Phases 0–6 contain 36 required checklist items. Report required-plan progress as completed verified items / 36. Phase 7 is optional, excluded unless explicitly authorized; if authorized, update the denominator and record that decision. The Definition of Done is separately tracked below.
+**Progress calculation:** Phases 0–6 and 8–9 contain 51 required checklist items (36 from the original plan plus 15 from Addendum v2). Report required-plan progress as completed verified items / 51. The 20 items already verified under Phases 0–3 are unchanged. Phase 7 is optional, excluded unless explicitly authorized; if authorized, update the denominator and record that decision. The Definition of Done is separately tracked below.
 
 ---
 
@@ -309,8 +312,24 @@ _None recorded._
 **Notes / progress:**
 On 2026-10-21, the owner explicitly authorized Phase 4 implementation after Phase 2–3 verification. Before edits, the working tree showed only `exercise/TRACKER.md` modified; `git diff --check` passed, and `replit.md` confirms the Kotlin Android project is the supported scope. The `.replit` file and attached import note are not modified in this checkout. Phase 4 is limited to §§7–8 and the approved contact points; do not change enforcement, alarms, VPN, launcher, scheduling, or task-completion semantics. No app-code changes have been made yet.
 
+On 2026-10-21, the owner authorized continuing Phase 4. The current working tree was clean before this tracker update. Existing subtask UI implementation is present in the checkout while this tracker remains at 0/6; audit it against §§7–8 and current tests before changing app code.
+
+The current plan's Addendum v2 explicitly leaves Phase 4 unchanged. During the audit, `git status --short` showed user changes to `exercise/PLAN.md` and `exercise/TRACKER.md`; those addendum changes are preserved. Source review found that Home already uses a live task ID lookup and TaskCard already conditionally renders progress, but `TaskDetailModal` does not accept the subtask arguments supplied by HomeScreen and has no subtasks section or inline navigation. The screen/components and image loader exist but are not wired into task details, and no Compose subtask UI tests exist. No app code has been changed yet.
+
+Implementation has started in `TaskDetailModal.kt`: the modal now owns selection, shows the subtask progress section only when needed, and wires the existing detail screen, callbacks and per-screen text scale. The dialog handles back/dismiss as list → modal and uses the planned motion/reduced-animation behavior. This change and remaining Phase 4 work are not yet compiled or tested; checklist stays 0/6.
+
+The subtask screen now uses the planned compact tinted index strip when no image is available, rather than reserving a large empty hero area. The preceding multi-hunk step-content edit partially applied its earlier import/call-site/hero hunks before failing; the file was inspected, and those changes are present while step-content changes remain pending. Nothing has been compiled or tested.
+
+Step mode now receives the image store and animation setting, highlights the selected step with an accent border, renders available step images as accessible tappable thumbnails, and joins numbered steps with a connector. The step-content patch applied successfully; compile and UI verification remain pending.
+
+`SubtaskImage.kt` now clears its previous bitmap immediately when its asset/size/store keys change, preventing a stale image flash, and its unavailable placeholder exposes both the supplied alt/title context and the visible unavailable label to accessibility services. Compile and tests remain pending.
+
+Added `TaskSubtaskUiTest.kt` with Compose coverage for conditional/accessibly described task-card progress, checkbox progress and explicit completion, set tracking/step navigation, Overview mode, missing-image accessibility, all existing task actions (including Start Focus), and system-back behavior. These instrumented tests have not yet been compiled or run.
+
+Strengthened `TaskViewModelSubtasksTest` to compare every non-subtask task field before/after completion/reset, while retaining the assertions that these operations perform only subtask-column writes and do not reconcile alarms. `TaskViewModel` has no notification repository dependency; the scheduler/alarm services remain uninitialized test guards. The unit test has not been run yet.
+
 **Evidence:**
-_None yet._
+- `git diff --check` — PASS (no output) after the current Phase 4 code/test changes.
 
 **Failures / blockers:**
 _None recorded._
@@ -321,7 +340,7 @@ _None recorded._
 ## Phase 5 — Enhancements
 
 **Status:** NOT STARTED
-**Blocked by:** Phase 4 complete
+**Blocked by:** Phase 4, Phase 8 and Phase 9 complete (photo attach depends on the Phase 8 EXIF-orientation fix)
 **Started:** —
 **Completed:** —
 **Progress:** 0/5
@@ -363,6 +382,8 @@ _None recorded._
 **Notes / progress:**
 _No work started._
 
+Addendum v2 note (2026-10-21): when this phase runs, the help screens and changelog must also mention bundles (ZIP `.focusflow`), declared version 2, and rep ranges (`repsMax`), per `PLAN.md` §18.6. Checklist wording above is intentionally unchanged.
+
 **Evidence:**
 _None yet._
 
@@ -394,6 +415,65 @@ _None recorded._
 **Decisions / deferred work:**
 _None recorded._
 
+## Phase 8 — Hardening of Phases 2–3 (Addendum v2)
+
+**Status:** NOT STARTED
+**Blocked by:** Phase 4 complete; explicit owner authorization
+**Started:** —
+**Completed:** —
+**Progress:** 0/8
+**Plan sections:** §16–§17 (Addendum v2)
+
+- [ ] 8.1 Audit and, only where needed, fix entry-level fail-soft parsing (assets, images, steps, goal, subtasks, tips); add the §17.1 regression tests.
+- [ ] 8.2 Add aggregated unknown-field warnings (and the optional did-you-mean) for subtask/goal/step/image/asset objects.
+- [ ] 8.3 Fix the size budgets (4 MiB decoded total, 1 MiB reserve), add the invariant test, and generate prompt/guide/hosted-guide numbers from the limit constants with a drift test.
+- [ ] 8.4 Apply EXIF orientation before re-encoding; set the PNG/quality fidelity rules; add fake-codec tests and instrumented test sources.
+- [ ] 8.5 Ingest assets only for inserted/enriched tasks, one at a time, and sweep after every import outcome.
+- [ ] 8.6 Accept backup versions 1 and 2; export version 2 only when subtasks/assets exist; update prompt/guide; keep plain exports byte-identical.
+- [ ] 8.7 Add `repsMax` to goals end to end (model, normalizer, parser, formatter, prompt/guide/example) with tests.
+- [ ] 8.8 Run the Phase 8 gate (production JVM suite, lint, Android-test source compile, Release R8), record exact commands/results, and stop at the phase boundary.
+
+**Notes / progress:**
+_No work started. Audit before changing; superseded tests may be changed only as listed in `PLAN.md` §16.2 and each change recorded here._
+
+**Evidence:**
+_None yet._
+
+**Failures / blockers:**
+_None recorded._
+
+**Decisions / deferred work:**
+_None recorded._
+
+## Phase 9 — Hybrid ZIP bundle (Addendum v2)
+
+**Status:** NOT STARTED
+**Blocked by:** Phase 8 complete; explicit owner authorization
+**Started:** —
+**Completed:** —
+**Progress:** 0/7
+**Plan sections:** §18 (Addendum v2)
+
+- [ ] 9.1 Audit size/MIME gates; add container sniffing, per-container size caps, and the BackupSource/AssetByteSource abstraction without changing the review/restore flow.
+- [ ] 9.2 Implement the safe ZIP reader (bounded temp copy, central-directory validation, bounded entry reads, temp-file lifecycle) with the §18.7 hostile-archive tests.
+- [ ] 9.3 Extend asset entries with `file`/`sha256`, validation and warnings; ingest through AssetByteSource for both inline and bundle sources.
+- [ ] 9.4 Add the bundle writer and export rule (images ⇒ bundle, none ⇒ unchanged JSON); retire silent re-encode/omit; add the explicit TooLarge fallback.
+- [ ] 9.5 Add the import-review bundle line and the export messages/dialog.
+- [ ] 9.6 Update prompt, in-app guide, shared examples and the hosted-guide Markdown for v2, the bundle, the agent recipe and `repsMax`; verify the examples parse.
+- [ ] 9.7 Run the Phase 9 gate (production JVM suite, lint, Android-test source compile, Release R8), record exact commands/results and device-only checks, and stop at the phase boundary.
+
+**Notes / progress:**
+_No work started._
+
+**Evidence:**
+_None yet._
+
+**Failures / blockers:**
+_None recorded._
+
+**Decisions / deferred work:**
+_None recorded._
+
 ---
 
 ## Definition of Done
@@ -408,6 +488,11 @@ Tick each item only after the evidence below it has been observed and recorded.
 - [ ] Hostile-file cases are rejected or warned without crashes as specified in §15.
 - [ ] Prompt, in-app format guide, help, changelog, and hosted-guide Markdown handoff are complete.
 - [ ] Required unit tests, migration coverage, lint, release compile, and honest device-check reporting are complete.
+- [ ] (Addendum v2) Phase 8 hardening items are verified: lenient entry-level parsing, unknown-field warnings, size-budget invariant, EXIF orientation/fidelity, bounded sequential ingest with sweep after every import, version 1/2 handling, `repsMax`.
+- [ ] (Addendum v2) A bundle `.focusflow` (ZIP) with images imports, shows its review summary, and ticks persist after app restart.
+- [ ] (Addendum v2) Exporting data with images writes a bundle that re-imports identically (ids, images, ticks) and never silently re-compresses or drops images.
+- [ ] (Addendum v2) Hostile ZIP cases are rejected or warned without crashes or writes outside `cacheDir`.
+- [ ] (Addendum v2) Prompt, in-app guide and hosted-guide Markdown are generated from the same limit constants and describe v2, the bundle, the agent recipe and `repsMax`; Phase 6 help/changelog mention them.
 
 ## Batch / phase history
 
@@ -457,3 +542,13 @@ Append dated entries; do not replace earlier history.
 | 2026-10-21 | Production JVM rerun | The production unit-test Gradle task passed; fresh XML totals and required test-class presence are being checked. | `FOCUSFLOW_SKIP_APK_BUILD=1 bash scripts/build-apk-with-java.sh :app:testProductionDebugUnitTest`; `BUILD SUCCESSFUL in 47s`; Gradle reported the task passed, 7 tasks executed and 19 up-to-date. |
 | 2026-10-21 | Production JVM XML reconciliation | Confirmed the fresh production suite and all Phase 2/3 test classes. | 71 XML suites, 328 tests, 0 failures, 0 errors, 0 skipped. Confirmed `BackupJsonPreflightTest`, `BackupSerializerTest`, `SubtaskParserTest`, `SubtaskAssetExporterTest`, `BackupRestoreEngineTest`, `SubtaskImageStoreTest`, and `FocusFlowFormatGuideDataTest` are present. |
 | 2026-10-21 | Phase 4 started | Owner authorized the Viewing UI phase; work is constrained to plan §§7–8 and approved contact points. | Set Phase 4 to IN PROGRESS before implementation. Initial status: only `exercise/TRACKER.md` modified; `git diff --check` clean; no app-code changes yet. |
+| 2026-10-21 | Phase 4 resumed | Owner authorized continuing Phase 4; audit current code before modifying it. | `git status --short` was clean before this tracker update. Existing subtask UI source is present; checklist remains 0/6 pending audit and verification. |
+| 2026-10-21 | Phase 4 current-source audit | Addendum v2 confirms Phase 4 is unchanged. Home live lookup and TaskCard progress already exist; detail integration and UI tests are missing. | `git status --short` shows user changes to `exercise/PLAN.md` and `exercise/TRACKER.md`, preserved. Read HomeScreen, TaskCard, TaskDetailModal, subtask UI/components, image loader, text-scale settings, model and ViewModel. No app code changed; implementation and checks pending. |
+| 2026-10-21 | Phase 4 detail integration started | Wired the existing subtask UI into task details and added subtask-list navigation state. | Changed `TaskDetailModal.kt`; no compile or test run yet. Phase 4 remains 0/6 until full behavior and verification are complete. |
+| 2026-10-21 | Phase 4 no-image layout | Replaced the empty 16:10 no-image hero with a compact accent-tinted numbered strip. | `SubtaskDetailScreen.kt` import, call sites, and hero branch are changed. A later step-content hunk was not applied; file diff was inspected before retry. No checks run. |
+| 2026-10-21 | Phase 4 step presentation | Added the image store to the step content, active accent border, image thumbnails and step connectors. | Changed `SubtaskDetailScreen.kt`; patch applied. No compile or UI test run yet. |
+| 2026-10-21 | Phase 4 image placeholder/accessibility | Prevent stale cached imagery during a source change and expose the unavailable-image description. | Changed `SubtaskImage.kt`; no compile or tests run yet. |
+| 2026-10-21 | Phase 4 Compose UI tests added | Added UI behavior coverage for progress, explicit completion, set tracking, Overview/Steps, image placeholder accessibility, all existing task actions, and navigation/back behavior. | Added `app/src/androidTest/java/com/tbtechs/focusflow/ui/home/TaskSubtaskUiTest.kt`; compile and runtime results pending. |
+| 2026-10-21 | Phase 4 no-side-effect evidence | Expanded the ViewModel subtask test to compare task fields across subtask operations. | Changed `TaskViewModelSubtasksTest.kt`; no alarm reconcile, no full-row writes, and non-subtask fields are asserted. Test not yet run. |
+| 2026-10-21 | Diff whitespace check | Checked all current worktree changes. | `git diff --check` passed with no output. |
+| 2026-10-21 | Addendum v2 added | Owner asked for a hybrid JSON/ZIP format and revisions after an external review. Added Phase 8 (hardening, 8 items) and Phase 9 (bundle, 7 items) to `PLAN.md` §16–§20 and this tracker; denominator raised from 36 to 51. No completed item was edited or unchecked; no app code changed. | Execution order 4 → 8 → 9 → 5 → 6. Progress recalculated: 20/51 = 39.2%. |

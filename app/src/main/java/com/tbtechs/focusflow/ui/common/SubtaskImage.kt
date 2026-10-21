@@ -23,6 +23,9 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.mergeDescendants
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.tbtechs.focusflow.data.images.SubtaskImageStore
 import kotlinx.coroutines.Dispatchers
@@ -41,8 +44,8 @@ fun rememberSubtaskBitmap(
         bucketWidth,
         imageStore,
     ) {
+        value = null
         if (assetId.isNullOrBlank() || imageStore == null) {
-            value = null
             return@produceState
         }
 
@@ -104,7 +107,10 @@ private fun SubtaskImageUnavailable(description: String) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.surfaceVariant),
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .semantics(mergeDescendants = true) {
+                contentDescription = "Image unavailable: $description"
+            },
         contentAlignment = Alignment.Center,
     ) {
         androidx.compose.foundation.layout.Column(

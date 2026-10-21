@@ -1,5 +1,17 @@
 package com.tbtechs.focusflow.ui.home
 
+import android.provider.Settings
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.tween
+import androidx.compose.animation.using
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -35,18 +47,29 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.tbtechs.focusflow.ui.theme.scaledSp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.tbtechs.focusflow.data.images.SubtaskImageStore
 import com.tbtechs.focusflow.data.model.Task
+import com.tbtechs.focusflow.ui.home.subtask.SubtaskDetailScreen
+import com.tbtechs.focusflow.ui.home.subtask.SubtaskProgressSection
 import com.tbtechs.focusflow.ui.theme.BrandPrimary
+import com.tbtechs.focusflow.ui.theme.LocalFocusFlowTextScale
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -64,27 +87,103 @@ fun TaskDetailModal(
     onExtend: () -> Unit,
     onStartFocus: () -> Unit,
     onEdit: () -> Unit,
+    imageStore: SubtaskImageStore? = null,
+    subtaskTextScale: Float? = null,
+    onSubtaskDone: (String, String, Boolean) -> Unit = { _, _, _ -> },
+    onSubtaskSetsDone: (String, String, Int) -> Unit = { _, _, _ -> },
+    onResetSubtasks: (String) -> Unit = {},
 ) {
+    var selectedSubtaskId by remember(task.id) { mutableStateOf<String?>(null) }
+    val selectedSubtask = selectedSubtaskId?.let { id ->
+        task.subtasks.firstOrNull { it.id == id }
+    }
+    LaunchedEffect(selectedSubtaskId, task.subtasks) {
+        if (selectedSubtaskId != null && selectedSubtask == null) {
+            selectedSubtaskId = null
+        }
+    }
     val canAct = task.status !in setOf("completed", "skipped")
     val accent = runCatching {
         Color(android.graphics.Color.parseColor(task.color))
     }.getOrDefault(BrandPrimary)
+    val context = LocalContext.current
+    val animationsEnabled = remember(context) {
+        runCatching {
+            Settings.Global.getFloat(
+                context.contentResolver,
+                Settings.Global.ANIMATOR_DURATION_SCALE,
+                1f,
+            ) != 0f
+        }.getOrDefault(true)
+    }
 
     Dialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = {
+            if (selectedSubtaskId != null) selectedSubtaskId = null else onDismiss()
+        },
         properties = DialogProperties(
             usePlatformDefaultWidth = false,
             decorFitsSystemWindows = false,
         ),
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(RefBackground)
-                .statusBarsPadding()
-                .navigationBarsPadding()
-            ,
-        ) {
+        AnimatedContent(
+            targetState = selectedSubtask?.id,
+            modifier = Modifier.fillMaxSize(),
+            transitionSpec = {
+                if (!animationsEnabled) {
+                    (EnterTransition.None togetherWith ExitTransition.None)
+                } else {
+                    val entering = if (targetState != null) {
+                        slideInHorizontally(initialOffsetX = { it })
+                    } else {
+                        slideInHorizontally(initialOffsetX = { -it })
+                    }
+                    val exiting = if (targetState != null) {
+                        slideOutHorizontally(targetOffsetX = { -it })
+                    } else {
+                        slideOutHorizontally(targetOffsetX = { it })
+                    }
+                    (entering + fadeIn(tween(durationMillis = 250))) togetherWith
+                        (exiting + fadeOut(tween(durationMillis = 250)))
+                }.using(SizeTransform(clip = false))
+            },
+            label = "task-subtask-navigation",
+        ) { targetSubtaskId ->
+            val visibleSubtask = targetSubtaskId?.let { id ->
+                task.subtasks.firstOrNull { it.id == id }
+            }
+            if (visibleSubtask != null) {
+                CompositionLocalProvider(
+                    LocalFocusFlowTextScale provides (
+                        subtaskTextScale ?: LocalFocusFlowTextScale.current
+                    ),
+                ) {
+                    SubtaskDetailScreen(
+                        task = task,
+                        subtask = visibleSubtask,
+                        index = task.subtasks.indexOf(visibleSubtask),
+                        imageStore = imageStore,
+                        accent = accent,
+                        animationsEnabled = animationsEnabled,
+                        onBack = { selectedSubtaskId = null },
+                        onSelectSubtask = { selectedSubtaskId = it },
+                        onSetDone = { done ->
+                            onSubtaskDone(task.id, visibleSubtask.id, done)
+                        },
+                        onSetSetsDone = { setsDone ->
+                            onSubtaskSetsDone(task.id, visibleSubtask.id, setsDone)
+                        },
+                        onCompleteTask = onComplete,
+                    )
+                }
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(RefBackground)
+                        .statusBarsPadding()
+                        .navigationBarsPadding(),
+                ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -130,6 +229,20 @@ fun TaskDetailModal(
                     .padding(horizontal = 16.dp, vertical = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                if (task.subtasks.isNotEmpty()) {
+                    SubtaskProgressSection(
+                        task = task,
+                        accent = accent,
+                        imageStore = imageStore,
+                        animationsEnabled = animationsEnabled,
+                        onOpen = { selectedSubtaskId = it },
+                        onToggle = { subtask, done ->
+                            onSubtaskDone(task.id, subtask.id, done)
+                        },
+                        onReset = { onResetSubtasks(task.id) },
+                        onCompleteTask = onComplete,
+                    )
+                }
                 ReferenceSectionLabel("SCHEDULE")
                 Text(
                     "${task.startTime.asLocalTime()} – ${task.endTime.asLocalTime()}",
@@ -215,6 +328,8 @@ fun TaskDetailModal(
                     ReferenceTaskAction(Icons.Outlined.Check, "Complete", RefGreen, onComplete)
                     ReferenceTaskAction(Icons.Outlined.Close, "Skip", RefMuted, onSkip)
                     ReferenceTaskAction(Icons.Outlined.Alarm, "Extend", RefAmber, onExtend)
+                }
+            }
                 }
             }
         }

@@ -1,5 +1,7 @@
 # FocusFlow — Subtasks, Exercise Steps & Rich Import (plan.md)
 
+> **ADDENDUM v2 (2026-10-21) is appended at the end of this file (§16–§20).** It adds Phase 8 (hardening of finished work) and Phase 9 (hybrid ZIP bundle). Execution order: 4 → 8 → 9 → 5 → 6. Phases 0–3 remain completed and are not to be reworked except where the addendum explicitly lists an adjustment.
+
 Audience: the implementing coding agent. You have ONLY this document and the Kotlin
 source of FocusFlow (`com.tbtechs.focusflow`, versionName 1.1.4 / versionCode 15,
 Room DB version 9). You do not have the TS app, screenshots, or the owner. Everything you
@@ -725,3 +727,326 @@ status-card notification, reusable exercise templates referenced by ID across ta
       dimensions, duplicate ids, 10 000-char step text, remote URL, missing asset.
 - [ ] Prompt, in-app format guide, how-to help, changelog updated; hosted-guide Markdown block delivered.
 - [ ] Unit tests, migration test, lint, and release compile pass; device-only checks listed honestly.
+
+---
+
+# ADDENDUM v2 (appended 2026-10-21) — Hardening + Hybrid Bundle
+
+Everything in §0–§15 above stays valid, and **everything already completed under Phases 0–3 stays
+completed**. This addendum only adds work: two new phases (**Phase 8** and **Phase 9**) and a few
+small, explicitly listed adjustments to finished code. It does not renumber or replace any earlier
+section.
+
+## 16. How to apply this addendum
+
+### 16.1 Execution order
+`Phase 4 (in progress, unchanged) → Phase 8 → Phase 9 → Phase 5 → Phase 6 → (Phase 7 only if asked)`.
+Reason: Phase 5 adds "attach photo from gallery", and gallery/camera photos depend on the EXIF
+orientation fix in Phase 8; Phase 6 (help, changelog, release checks) must describe the bundle format
+and version 2, so it runs last.
+
+### 16.2 Rules for touching finished work
+1. **Audit before changing.** For each Phase 8 item, first write the failing test (or confirm the
+   behavior already holds). If it already holds, add only the missing tests and record "already
+   satisfied" in the tracker. Do not rewrite working code to match this document's wording.
+2. **Additive only.** New fields are optional; files and databases produced by the code as it is today
+   must still import and open. Tasks without subtasks still export byte-identically (§0.1).
+3. **Tests that encode superseded behavior may be changed**, but only these, and each change must be
+   recorded in the tracker with the reason: (a) the 6 MiB decoded-asset-total constant/tests,
+   (b) the export "re-encode smaller, then drop images" tests (superseded by Phase 9),
+   (c) the strict `version == 1` tests (superseded by §17.6), (d) tests asserting the old prompt text
+   numbers (150 KB / 5 MB).
+4. As with the main plan, this addendum is **not authorization to edit code**; wait for the owner to
+   authorize each phase, as the tracker rules require.
+5. Phase 4 scope is unchanged. The only Phase 4-adjacent effect is that `GoalFormatter` later learns
+   about `repsMax` (§17.7); the Phase 4 UI must keep calling `GoalFormatter` for every goal string and
+   must not format goals inline, so that change needs no UI edit.
+
+### 16.3 New product decisions
+
+| # | Question | Default |
+|---|---|---|
+| D9 | File extension for the zip bundle | **Same `.focusflow` extension.** The importer tells JSON and ZIP apart by content (first bytes), never by name. No manifest/intent-filter change is needed unless the audit in §18.1 finds one is. |
+| D10 | When does export write a bundle? | **If any exported subtask references an image → bundle. Otherwise → JSON exactly as today.** Hand-written / AI-written files stay JSON; anything with images is a bundle. |
+| D11 | Silent image degradation on export | **Never.** Exports store the already-normalized stored image bytes as they are. If a bundle would exceed the importer's own cap, show an explicit choice ("Export without images" / Cancel); never drop or re-compress images automatically. |
+| D12 | Declared file version | Files that contain subtasks or assets declare **`"version": 2`**; plain task files keep `1`. The importer accepts **1 and 2**. Older app versions then refuse v2 files loudly instead of silently dropping subtasks. v1 files that already contain subtasks keep importing (leniency). |
+| D13 | Rep ranges | Add optional **`repsMax`** to goals so `2 × 6–10` is expressible. |
+
+---
+
+## 17. Phase 8 — Hardening of Phases 2–3 (revisions, additive)
+
+Plan sections: §4.1, §4.3, §6, §11 (as revised below). Each item below becomes one tracker checkbox.
+
+### 17.1 Fail-soft parsing at every nesting level
+Expected behavior (write these as tests against `parseAndValidate` / `SubtaskParser`):
+
+| Input | Required outcome |
+|---|---|
+| `assets.x` is not an object, or `data`/`file` is not a string, or `mime` is not a string | that asset dropped, one aggregated warning; other assets and all tasks import |
+| `image` is `{"url": …}`, `{}`, or not an object (subtask or step level) | that image skipped, warning "unsupported image"; subtask/step kept |
+| `steps[j]` has no `text`, or `text` is not a string | only that step dropped |
+| `steps[j].image` invalid | only that image dropped |
+| `goal` is not an object or fails its kind rules | goal dropped, subtask kept |
+| `subtasks` is not an array | ignored with a warning; the task imports |
+| `tips` / `avoid` contain non-strings | those entries dropped |
+
+Implementation constraint: `assets` and each subtask element are interpreted from `JsonElement` (or typed
+decoding wrapped per entry in `runCatching`). `BackupEnvelope.assets` must never be a typed
+`Map<String, BackupAsset>` whose decoding can fail the whole envelope because of one bad entry. The
+current code may already satisfy most rows; add the missing tests and fix only what fails.
+
+### 17.2 Unknown-field warnings
+Unknown keys stay non-fatal, but they must be **visible**. For every subtask, goal, step, image and asset
+object, count keys outside the known set and add one aggregated warning, e.g.
+`12 unknown fields ignored (e.g. "explanaton", "goall")` — at most 3 distinct names, counted once per
+distinct name. Known sets (keep them as constants next to the parser):
+- subtask: `id,title,done,subtitle,goal,setsDone,image,layout,explanation,steps,tips,avoid`
+- goal: `kind,sets,reps,repsMax,seconds,restSeconds,meters,weightKg,label`
+- step: `title,text,image`
+- image: `asset,alt`
+- asset: `mime,data,file,sha256`
+
+Optional (small): if an unknown key is within edit distance 2 of a known key, say
+`"explanaton" → did you mean "explanation"?`. Tests: typo'd key yields the warning and the rest of the
+subtask still imports; a clean file yields none.
+
+### 17.3 Size budgets that actually add up (fixes an arithmetic error in §6.3)
+Base64 inflates by 4/3, so the original "6 MiB decoded" budget alone equals the whole 8 MiB file cap.
+New constants in `BackupJsonLimits` (inline-JSON path only; bundles are in §18):
+```
+MAX_ASSET_DATA_CHARS   = 400_000        (unchanged; ≈ 300 KB decoded per asset)
+MAX_ASSET_TOTAL_BYTES  = 4 MiB          (was 6 MiB)  → ≈ 5.34 MiB as base64
+JSON_NON_ASSET_RESERVE = 1 MiB          (new; room for tasks/text/overhead)
+```
+Add a unit test asserting the invariant
+`ceil(MAX_ASSET_TOTAL_BYTES * 4 / 3) + JSON_NON_ASSET_RESERVE <= MAX_FILE_BYTES`, so the numbers can
+never drift apart again. **Producer guidance for AI prompts** is stricter than the importer on purpose:
+each image ≤ 100 KB, all images ≤ 3 MiB (was 150 KB / 5 MB).
+**Single source of truth:** the prompt text, in-app guide tables and hosted-guide Markdown must be built
+from these constants (string templates, not retyped numbers), with a test that fails if any limit constant's
+value is absent from the prompt/guide text it should appear in.
+
+### 17.4 Image fidelity and orientation
+In the real `ImageCodec` (JVM tests use the fake codec; real behavior is an instrumented test):
+1. **Apply EXIF orientation before re-encoding.** Read it with `android.media.ExifInterface(InputStream)`
+   (API 24+; minSdk is 29, no new dependency). Order: read orientation → read bounds → run the size/pixel
+   checks using the **rotated** dimensions → decode with `inSampleSize` → rotate/flip with a `Matrix` →
+   re-encode. Recycle intermediate bitmaps immediately. Without this, portrait JPEG photos display sideways
+   because re-encoding strips the EXIF tag.
+2. **Fidelity for diagrams.** PNG sources → `WEBP_LOSSLESS` on API ≥ 30; on API 29 use lossy at quality 90.
+   JPEG/WebP sources → lossy quality 85 (was 80). Keep quality constants in one place.
+3. Content address stays the sha256 of the stored (re-encoded) bytes. Exports must never re-encode again
+   (see D11).
+Tests: fake-codec test that orientations 6 and 8 swap width/height before the pixel-limit check; instrumented
+test sources with a rotated-JPEG fixture and a text-bearing PNG (compile-only here; mark "needs device check").
+
+### 17.5 Restore ordering and bounded memory
+1. Compute which incoming tasks will actually be **inserted** (non-duplicate IDs) or **enriched** (D5), and
+   ingest only the assets those tasks reference. A merge import whose tasks are all duplicates stores zero files.
+2. Ingest assets **one at a time**: obtain the bytes of one asset, ingest it, release the reference, move on.
+   Never hold more than one decoded asset or one decoded bitmap at once.
+3. Run `SubtaskImageStore.sweep` after **every** import outcome (merge, replace, enrich, failed/aborted),
+   not only after replace; the 10-minute grace period still protects in-flight work.
+Tests: all-duplicate file with images ⇒ zero files written; a fake store asserts max concurrency of 1 and
+that references are released; sweep invoked after merge.
+
+### 17.6 Version signalling (D12)
+- Introduce `SUPPORTED_BACKUP_VERSIONS = setOf(1, 2)`; the importer accepts both. `BACKUP_KIND` stays
+  `"FocusFlowBackupV1"` (it names the format family).
+- Exporter writes `version: 2` **iff** at least one task has non-empty subtasks or at least one asset is
+  exported; otherwise `1`, byte-identical to today.
+- A v1 file that contains subtasks/assets still imports (no behavior change for files already generated).
+- Unsupported versions keep the existing error message.
+- The AI prompt and guide say: use `"version": 2` when the file contains subtasks or assets, else `1`.
+Tests: v1 plain, v1 with subtasks, v2 with subtasks/assets all import; v3 rejected with the existing error;
+export of a task list without subtasks is byte-identical and v1; with subtasks is v2.
+
+### 17.7 `repsMax` on goals (D13)
+- Add `val repsMax: Int? = null` to `SubtaskGoal` (1..9999). Valid only for kinds `sets` and `reps`, and only
+  if `reps` is present and `repsMax >= reps`; otherwise drop just that field with a warning.
+- `GoalFormatter`: `2 × 6–10`, `12–15 reps`. Set-tracker logic still uses `sets` only; `reps` is the displayed
+  low end, `repsMax` the displayed high end.
+- Additive: older stored JSON without the key keeps decoding; the Room column and schema do not change.
+- Update the prompt, in-app field table and shared example to use `repsMax`; keep the example parsing with
+  zero warnings.
+Tests: normalizer/parser/formatter cases for valid and invalid combinations.
+
+### 17.8 Phase 8 gate
+Same gate as every phase (§0.8): production JVM suite, lint, Android-test source compilation, Release R8, with
+exact commands and results recorded; instrumented runtime listed as "needs device check". Stop and report.
+
+---
+
+## 18. Phase 9 — Hybrid bundle (`.focusflow` may be JSON **or** a ZIP)
+
+### 18.1 Overview and container detection
+- One extension (`.focusflow`), two containers, decided by content: bytes `50 4B 03 04` ⇒ ZIP bundle;
+  otherwise the existing JSON path (BOM/whitespace handling unchanged). A ZIP that does not contain a valid
+  `manifest.json` is rejected with a clear message.
+- **Audit first** (grep for `MAX_FILE_BYTES`, `ACTION_VIEW`, `OpenDocument`): find every place that enforces
+  the 8 MiB cap or a MIME/extension filter *before* reading the file — likely `BackupFileManager`,
+  `BackupImportIntentRelay`, `ExternalBackupIntentPolicy`, the SAF picker, and the manifest intent filters.
+  The cap must depend on the sniffed container: JSON ≤ 8 MiB (unchanged), bundle ≤ 64 MiB. Change a MIME
+  filter or manifest entry only if the audit shows a bundle would otherwise be unreachable; record what was
+  changed.
+- Architecture (keep the review/restore flow unchanged): a small `BackupSource` stage turns either container
+  into **(a)** the manifest JSON text and **(b)** an `AssetByteSource` that returns the bytes of one asset on
+  demand:
+  ```kotlin
+  interface AssetByteSource : java.io.Closeable {
+      fun open(assetId: String): ByteArray?     // bounded, may return null when missing/invalid
+  }
+  ```
+  `InlineAssetSource` decodes base64 from the parsed JSON `assets`; `ZipAssetSource` reads one zip entry.
+  Everything downstream (parse/validate, review screen, enrich, ingest, remap, sweep) is the existing code,
+  now reading bytes through `AssetByteSource`.
+
+### 18.2 Bundle layout
+```
+my-schedule.focusflow          (a standard ZIP archive)
+├── manifest.json              required; a normal FocusFlowBackupV1 envelope with "version": 2
+└── assets/
+    ├── pushup-start.webp
+    └── plank.png
+```
+`manifest.json` is the same envelope as the JSON format (§6) except asset entries point to files instead of
+carrying base64:
+```jsonc
+"assets": {
+  "pushup-start": { "file": "assets/pushup-start.webp", "mime": "image/webp", "sha256": "<64 hex, optional>" }
+}
+```
+Rules:
+- An asset has **exactly one** of `data` (inline base64, allowed for small images) or `file` (bundle only).
+  In a plain JSON file, `file` is ignored with a warning. In a bundle, if both are present `file` wins and the
+  extra `data` is ignored with a warning.
+- `file` must match `^assets/[A-Za-z0-9._-]{1,100}$`, end in `.webp/.png/.jpg/.jpeg`, and exist in the archive;
+  otherwise the asset is dropped with a warning. The declared `mime` is ignored; the format is decided by magic
+  bytes (§4.3).
+- Optional `sha256`: if present it must equal the SHA-256 of the entry bytes, else that asset is rejected with a
+  warning. Exports always write it.
+- Task/subtask/`assets` semantics, id rules, `image.asset` references, warnings, D5 enrich and remapping are
+  **identical** to the JSON format.
+- Entries other than `manifest.json` and `assets/…` (for example `__MACOSX/`, a README) are ignored and counted
+  in one warning.
+
+### 18.3 Safe ZIP reading (treat the archive as hostile)
+Constants in `BackupJsonLimits`:
+```
+MAX_BUNDLE_BYTES               = 64 MiB     (the archive file)
+MAX_BUNDLE_ASSETS              = 300
+MAX_BUNDLE_ENTRIES             = MAX_BUNDLE_ASSETS + 1 (manifest) + 50 (ignored extras)
+MAX_BUNDLE_ASSET_ENTRY_BYTES   = 2 MiB      (uncompressed, per image entry)
+MAX_BUNDLE_MANIFEST_BYTES      = MAX_FILE_BYTES (8 MiB; same preflight scanner as JSON)
+MAX_BUNDLE_UNCOMPRESSED_BYTES  = 80 MiB     (sum of everything read)
+```
+Procedure:
+1. Copy the picked URI stream to `cacheDir/import_bundle/<random>.zip` through a **counting stream that aborts
+   at `MAX_BUNDLE_BYTES`** (never trust `OpenableColumns.SIZE`). Open it with `java.util.zip.ZipFile` for random
+   access. The temp copy lives as long as the review screen (it is needed again at confirm) and is deleted on
+   confirm, cancel, ViewModel clear, and by a startup sweep of files older than 1 hour. Never keep it in
+   `filesDir`.
+2. Validate the central directory first: entry count ≤ `MAX_BUNDLE_ENTRIES`; reject the whole bundle if
+   `manifest.json` is missing, duplicated, or encrypted; skip (and count) entries that are encrypted, use a
+   compression method other than STORED/DEFLATED, are directories, have names containing `..`, a leading `/`,
+   a backslash, a NUL, or a drive prefix, or are duplicate names.
+3. **Never extract to disk by entry name.** Read an entry into memory through a bounded stream that stops at
+   its cap (`MAX_BUNDLE_ASSET_ENTRY_BYTES` or `MAX_BUNDLE_MANIFEST_BYTES`) regardless of the sizes declared in
+   the headers (headers can lie), and keep a running total against `MAX_BUNDLE_UNCOMPRESSED_BYTES`. An entry
+   that exceeds its cap is dropped (asset) or fails the bundle (manifest) with a clear message.
+4. Truncated/corrupt archives, a `PK…` file that is not a valid ZIP, an empty ZIP, and a zip-in-zip all fail with
+   the normal "not a valid FocusFlow file" error, never a crash.
+5. Assets are read lazily one at a time during ingest (§17.5), so peak memory is one entry plus one bitmap.
+
+### 18.4 Bundle export (D10, D11)
+- `BackupBundleWriter` writes `manifest.json` first (DEFLATED), then `assets/<assetId>.webp` entries (STORED —
+  WebP is already compressed), using `ZipOutputStream` on the SAF output stream. The bytes written are the
+  stored, already-normalized image files, unmodified. Use a fixed entry timestamp so output is deterministic.
+  Each manifest asset carries `file`, `mime`, and `sha256`.
+- Choice rule: any exported subtask/step with an image ⇒ bundle; none ⇒ the existing JSON exporter, unchanged
+  (including version 1/2 rule from §17.6). The success message says which container was written and why
+  (for example "Saved with images as a bundle").
+- Size check before writing: manifest bytes + sum of stored image sizes + 64 KB overhead reserve must be
+  ≤ `MAX_BUNDLE_BYTES`. If it is not, return a `TooLarge` outcome and show an explicit dialog: **Export without
+  images** or **Cancel**. Do not re-encode, shrink, or omit images on your own.
+- **Retire** the JSON "re-encode smaller, then drop images" size-control from the earlier export work. Remove the
+  dead code and its tests, or keep it only if something else still calls it; record the decision. The JSON exporter
+  never needs inline images again.
+- `SubtaskAssetExporter` keeps its role of collecting referenced asset ids; bytes now come from
+  `SubtaskImageStore.openForExport`.
+
+### 18.5 UI
+- Import review: when the source was a bundle show a small "Bundle · N images" line next to the existing
+  summary; warnings behave as before (including the new unknown-field and zip warnings, aggregated).
+- Export: the container message above and the `TooLarge` dialog. No new screens, no new settings.
+
+### 18.6 Prompt, in-app guide, hosted guide, agent recipe
+Extend the existing prompt/guide (built from the constants, §17.3):
+- State the two containers and the rule "JSON for text only or small inline images; a ZIP bundle when you can
+  run code and have image files".
+- Bundle recipe for agents that can run code (include in the prompt, the guide screen and the hosted Markdown):
+  ```python
+  import json, zipfile
+  with zipfile.ZipFile("schedule.focusflow", "w", zipfile.ZIP_DEFLATED) as z:
+      z.writestr("manifest.json", json.dumps(doc, ensure_ascii=False))   # doc has "version": 2
+      z.write("pushup-start.webp", "assets/pushup-start.webp")           # one line per image
+  ```
+  with the notes: the output must be a real ZIP named `*.focusflow`; `manifest.json` at the archive root, images
+  under `assets/`, no extra top-level folder; images WebP/PNG/JPEG, ≤ 1280 px long edge, ≤ 1 MB each,
+  ≤ 300 images; never invent image data.
+- Add the manifest example (§18.2) and a "version 2" note to the in-app format guide; add the same block to the
+  hosted-guide Markdown handoff (the external site is still not edited by the agent).
+- The shared example constant keeps parsing with zero warnings; add a second constant for the bundle manifest
+  example and a test that it parses (assets referenced by `file` resolve against a fake zip in the test).
+- Phase 6's help screens and changelog must mention: bundles, version 2, rep ranges (`repsMax`). Do not edit
+  Phase 6's checklist wording; reconcile this in Phase 6 notes.
+
+### 18.7 Tests
+JVM (build bundles with `java.util.zip` in temp dirs):
+valid bundle; bundle with inline `data` assets; both `data` and `file`; plain JSON with `file` ⇒ warning;
+missing/duplicate/encrypted manifest; zip-slip names (`../x`, `/x`, `a\\b`); entry whose header size lies
+(declares small, expands large) stops at the cap; too many entries; oversized single asset; total-uncompressed cap;
+unsupported compression method; truncated archive; `PK` garbage; empty zip; zip-in-zip; extra/ignored entries counted;
+sha256 match/mismatch; mixed valid and invalid assets ⇒ only the invalid ones dropped; sniffing precedence
+(JSON with BOM and leading whitespace still JSON); size caps depend on container; temp-file cleanup on success,
+failure and cancel; export → import round trip with the fake codec (ids, images, ticks, enrich) producing
+byte-identical image files; deterministic output; export rule (images ⇒ bundle, none ⇒ JSON byte-identical);
+`TooLarge` outcome produces no file and offers the explicit fallback; D5 enrich and all-duplicate files work via
+`ZipAssetSource`.
+Instrumented (sources must compile; runtime is "needs device check"): SAF/`ACTION_VIEW` import of a bundle,
+real-bitmap ingest from a bundle entry, export of a bundle to a real document URI.
+
+### 18.8 Phase 9 gate
+Production JVM suite, lint, Android-test source compilation, Release R8, exact commands and results recorded;
+device-only items listed honestly. Stop and report.
+
+---
+
+## 19. Addendum — definition-of-done additions
+- [ ] Phase 8 hardening items are verified (lenient entry-level parsing, unknown-field warnings, size-budget
+      invariant test, EXIF orientation + fidelity, bounded sequential ingest + sweep after every import, version
+      1/2 handling, `repsMax`).
+- [ ] A bundle `.focusflow` (ZIP) with images imports, shows its review summary, and ticks persist.
+- [ ] Exporting data with images writes a bundle that re-imports identically (ids, images, ticks) and never
+      silently re-compresses or drops images.
+- [ ] Hostile ZIP cases (§18.3/§18.7) are rejected or warned without crashes or writes outside `cacheDir`.
+- [ ] Prompt, in-app guide and hosted-guide Markdown are generated from the same limit constants and describe
+      v2, the bundle container, the agent recipe, and `repsMax`; Phase 6 help/changelog mention them.
+
+## 20. File-by-file additions (new or changed, beyond §14)
+| File | Change |
+|---|---|
+| `data/model/Subtask.kt` | `repsMax`; formatter/normalizer updates |
+| `data/backup/BackupJsonLimits.kt` | new budgets, bundle limits, `SUPPORTED_BACKUP_VERSIONS`, invariant |
+| `data/backup/SubtaskParser.kt` | entry-level leniency audit, unknown-field counting, `repsMax` |
+| `data/backup/BackupEnvelope.kt` / `BackupSerializer.kt` | asset entries as lenient elements; `file`/`sha256`; version rule |
+| `data/backup/BackupSource.kt`, `AssetByteSource.kt`, `ZipAssetSource.kt` (new) | container sniffing, bounded reading, temp-file lifecycle |
+| `data/backup/BackupBundleWriter.kt` (new) | bundle export |
+| `data/backup/BackupFileManager.kt`, `BackupImportIntentRelay.kt`, `ExternalBackupIntentPolicy.kt` | per-container size caps; audit result |
+| `data/backup/BackupRestoreEngine.kt` | ingest only inserted/enriched, sequential, sweep after every import, read via `AssetByteSource` |
+| `data/backup/SubtaskAssetExporter.kt` | collect ids; drop inline re-encode/omit logic |
+| `data/images/ImageCodec.kt` / real codec | EXIF orientation, fidelity settings |
+| `ui/backup/BackupViewModel.kt`, `ImportConfirmScreen.kt`, `SettingsScreen.kt` | bundle line, export messages, `TooLarge` dialog |
+| `ui/support/FocusFlowAgentGuide.kt`, `FocusFlowFormatGuideData.kt`, `FocusFlowFormatGuideContent.kt`, `FocusFlowFileGuideScreen.kt` | generated-from-constants text, v2, bundle, recipe, `repsMax` |
+| Tests | per §17 and §18.7 |
