@@ -74,7 +74,8 @@ internal object BackupSource {
             }
         }
         val isZip = signatureCount == ZIP_SIGNATURE.size &&
-            signature.contentEquals(ZIP_SIGNATURE)
+            (signature.contentEquals(ZIP_SIGNATURE) ||
+                signature.contentEquals(EMPTY_ZIP_SIGNATURE))
         val prefixed = PrefixInputStream(signature.copyOf(signatureCount), source)
         return if (isZip) {
             readBundle(prefixed, cacheDir)
@@ -558,6 +559,7 @@ internal object BackupSource {
     private val DRIVE_PREFIX = Regex("^[A-Za-z]:")
     private val ASSET_ID_PATTERN = Regex("^[A-Za-z0-9_-]{1,64}$")
     private val ZIP_SIGNATURE = byteArrayOf(0x50, 0x4b, 0x03, 0x04)
+    private val EMPTY_ZIP_SIGNATURE = byteArrayOf(0x50, 0x4b, 0x05, 0x06)
 
     internal fun jsonDocument(text: String): BackupSourceDocument =
         BackupSourceDocument(

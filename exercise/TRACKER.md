@@ -5,10 +5,10 @@
 ## Overall status
 
 - **Status:** IN PROGRESS
-- **Progress:** 39.2% (20/51 required checklist items verified)
-- **Current phase:** Phase 9 — Hybrid ZIP bundle
+- **Progress:** 38.5% (20/52 required checklist items verified, with Phase 7 authorized)
+- **Current phase:** Combined verification — Phases 4, 5, 6, 7, 8, and 9
 - **Last updated:** 2026-10-21
-- **Run order (Addendum v2):** Phase 4 → Phase 8 → Phase 9 → Phase 5 → Phase 6 (Phase 7 only if the owner asks). Phases 8–9 are defined in `PLAN.md` §16–§20; the completed Phase 0–3 items are unchanged.
+- **Run order (Addendum v2):** Phase 4 → Phase 8 → Phase 9 → Phase 5 → Phase 6 → Phase 7 (owner-authorized). Phases 8–9 are defined in `PLAN.md` §16–§20; the completed Phase 0–3 items are unchanged.
 - **Owner-authorized verification timing:** Add tests alongside implementation in Phases 4, 8, 9, 5, and 6, but defer running tests and build/release checks until Phase 9, 5, and 6 implementation is complete. Between these phase boundaries, do Git-based checks only and record exact results. After Phase 6, include the deferred Phase 4, 8, and 9 checks in the combined verification pass. See `PLAN.md` §21.
 
 ## Tracker rules
@@ -36,11 +36,11 @@
 | 4 — Viewing UI | IN PROGRESS | 0/6 | 2026-10-21 | — |
 | 5 — Enhancements | IN PROGRESS | 0/5 | 2026-10-21 | — |
 | 6 — Help, changelog, release checks | NOT STARTED | 0/5 | — | — |
-| 7 — In-app authoring (optional; only if owner asks) | NOT STARTED | 0/1 | — | — |
+| 7 — In-app authoring (owner-authorized) | IN PROGRESS | 0/1 | 2026-10-21 | — |
 | 8 — Hardening of Phases 2–3 (Addendum v2) | IN PROGRESS | 0/8 | 2026-10-21 | — |
 | 9 — Hybrid ZIP bundle (Addendum v2) | IN PROGRESS | 0/7 | 2026-10-21 | — |
 
-**Progress calculation:** Phases 0–6 and 8–9 contain 51 required checklist items (36 from the original plan plus 15 from Addendum v2). Report required-plan progress as completed verified items / 51. The 20 items already verified under Phases 0–3 are unchanged. Phase 7 is optional, excluded unless explicitly authorized; if authorized, update the denominator and record that decision. The Definition of Done is separately tracked below.
+**Progress calculation:** Phases 0–6 and 8–9 contain 51 required checklist items (36 from the original plan plus 15 from Addendum v2). Phase 7 has one additional item and is included while owner-authorized, making the current denominator 52. Report progress as completed verified items / 52. The 20 items already verified under Phases 0–3 are unchanged. The Definition of Done is separately tracked below.
 
 ---
 
@@ -417,6 +417,10 @@ Current Settings source uses a “Backup & Data” section with separate “Impo
 
 Addendum v2 note (2026-10-21): when this phase runs, the help screens and changelog must also mention bundles (ZIP `.focusflow`), declared version 2, and rep ranges (`repsMax`), per `PLAN.md` §18.6. Checklist wording above is intentionally unchanged.
 
+On 2026-10-21, the owner authorized verification of every in-progress phase (4, 5, 6, 7, 8, and 9), superseding the earlier deferral. Start with the project JVM test script; then perform the applicable lint, Android-test source compilation, and Release R8 checks. Keep APK assembly, GitHub Actions, and GitHub push out of scope.
+
+First combined JVM attempt: `bash scripts/test-unit.sh` failed after 7m55s during parallel production/development Kotlin compilation, before unit tests executed. The compiler reported `OutOfMemoryError: GC overhead limit exceeded` while lowering the unrelated `AccessibilityRestrictedRecovery.kt` file. This is an environment-memory failure, not a source diagnostic; retry the flavor suites sequentially with `--max-workers=1`.
+
 **Evidence:**
 - Changed `HowToUseScreen.kt`, `SettingsHowToUseScreen.kt`, `app/src/main/assets/changelog.json`, `app/build.gradle.kts`, and `ChangelogDataTest.kt`. Source edits follow `exercise/report.md` and PLAN.md §§11.3, 11.5, 18.6; the test now asserts the new release metadata and bundle/version/rep-range copy. Verification is pending.
 - `git diff --check` — PASS (no output) for the Phase 6 diff.
@@ -449,21 +453,25 @@ _None recorded._
 **Decisions / deferred work:**
 _None recorded._
 
-## Phase 7 — In-app authoring (optional; only if the owner asks)
+## Phase 7 — In-app authoring (owner-authorized)
 
-**Status:** NOT STARTED
-**Blocked by:** Explicit owner request; otherwise out of scope
-**Started:** —
+**Status:** IN PROGRESS
+**Blocked by:** None
+**Started:** 2026-10-21
 **Completed:** —
 **Progress:** 0/1
 
 - [ ] Only if explicitly authorized, implement and verify in-app add/edit/reorder/delete/duplicate authoring described in §13.
 
 **Notes / progress:**
-_Not authorized; out of scope unless requested._
+On 2026-10-21, the owner explicitly authorized Phase 7 code work. This supersedes the earlier Phase 6 note excluding Phase 7. Scope is the §13 authoring feature: add/edit/reorder/delete subtasks and steps, edit goals/explanations, and duplicate a subtask from another task. At implementation time the owner requested only a `git diff` review; on 2026-10-21 the owner superseded that limitation and authorized verification of all in-progress phases, including Phase 7. The pre-edit working tree has unrelated user changes in `.replit` and the attached instruction file; preserve them.
+
+Added a draft-based authoring manager and item editor, with add/edit/reorder/delete controls for subtasks and steps, goal/explanation fields, and a cross-task duplicate picker that resets completion progress while retaining rich content. Wired the manager into task details and supplied the live task list for duplication. The editor saves through the existing subtask-only replacement callback. No tests, builds, lint, or other verification have been run. The requested Git diff review is complete; progress stays 0/1 because the tracker item includes verification, which is intentionally not being run in this turn.
 
 **Evidence:**
-_None._
+- Changed `TaskDetailModal.kt`, `HomeScreen.kt`, and added `SubtaskAuthoringDialog.kt` / `SubtaskEditorScreen.kt`; this tracker records the phase start, scope, and verification limitation.
+- Reviewed with `git diff -- exercise/TRACKER.md app/src/main/java/com/tbtechs/focusflow/ui/home/TaskDetailModal.kt app/src/main/java/com/tbtechs/focusflow/ui/home/HomeScreen.kt; git diff --no-index /dev/null app/src/main/java/com/tbtechs/focusflow/ui/home/subtask/SubtaskAuthoringDialog.kt; git diff --no-index /dev/null app/src/main/java/com/tbtechs/focusflow/ui/home/subtask/SubtaskEditorScreen.kt`. The output showed the requested authoring changes in those files; `git diff --no-index` returned 1 because the new files differ from `/dev/null`. This was a diff review only, not a compile or behavior check.
+- Per owner instruction, no tests, builds, lint, Android-test compilation, R8, APK assembly, or device verification were run.
 
 **Failures / blockers:**
 _None recorded._
@@ -555,6 +563,8 @@ On 2026-10-21, the owner authorized Phase 9 implementation while explicitly defe
 - Ran `rg -n "reencodeForExport|SubtaskAssetExporter\\(" app/src/main app/src/test app/src/androidTest` before editing. It found `reencodeForExport` only at its definition; `SubtaskAssetExporter` was instantiated by its no-argument test and by the production factory with the unused image-store argument.
 - Changed `SubtaskImageStore.kt`, `SubtaskAssetExporter.kt`, `BackupViewModel.kt`, `exercise/report.md`, and this tracker entry. No automated verification was run, as explicitly requested; all Phase 9 verification remains deferred.
 - Manually reviewed the changed-file diff with `git diff -- app/src/main/java/com/tbtechs/focusflow/data/images/SubtaskImageStore.kt app/src/main/java/com/tbtechs/focusflow/data/backup/SubtaskAssetExporter.kt app/src/main/java/com/tbtechs/focusflow/ui/backup/BackupViewModel.kt exercise/report.md exercise/TRACKER.md`; the reviewed changes are limited to the obsolete helper, unused constructor parameter/call, and the corresponding report/tracker notes. `git status --short` listed those five modified files.
+- `FOCUSFLOW_SKIP_APK_BUILD=1 bash scripts/build-apk-with-java.sh :app:testProductionDebugUnitTest --max-workers=1` — FAIL: 365 tests ran, 1 failed and 364 passed. `BackupSourceTest.emptyZipNestedZipAndDuplicateManifestAreRejected` failed for the labeled `empty ZIP` case: the empty archive begins with `PK 05 06`, was classified as JSON, and returned without an exception. Added empty-ZIP EOCD signature detection so it reaches bundle validation.
+- Production rerun, `FOCUSFLOW_SKIP_APK_BUILD=1 bash scripts/build-apk-with-java.sh :app:testProductionDebugUnitTest --max-workers=1` — PASS, Gradle exit 0; XML summary: 365 tests, 0 failures, 0 errors, 0 skipped. The development-flavor suite and other verification gates remain pending. No APK was assembled.
 
 **Failures / blockers:**
 _None recorded._
@@ -646,3 +656,5 @@ Append dated entries; do not replace earlier history.
 | 2026-10-21 | Phase 4 implementation boundary | Audited Home live-task state, conditional TaskCard progress, TaskDetailModal wiring, subtask screen, image loader, and existing unit/Compose tests. Corrected Overview mode so optional steps remain visible and updated the Compose assertion. | `git diff --check` passed with no output. Test/build/release checks deferred under §21; Phase 4 remains 0/6 until the grouped verification. |
 | 2026-10-21 | Phase 8 started | Began the audit-first hardening phase under the owner's grouped authorization. | Tracker set to IN PROGRESS before Phase 8 audit; no Phase 8 source/test changes or test/build checks yet. |
 | 2026-10-21 | Phase 9 started; verification timing clarified | Owner confirmed add-only implementation order Phase 9 → Phase 5 → Phase 6, with test sources added now and all non-Git verification deferred until after Phase 6; the final pass must also check Phase 8. | `exercise/TRACKER.md` reconciled to the explicit sequence before Phase 9 audit; current worktree was clean at `4bd3fcd`, and `git diff --check` passed. |
+| 2026-10-21 | Phase 7 authorized | Owner explicitly authorized in-app authoring code work after previously excluding Phase 7. Added the optional Phase 7 item to the active denominator and started the phase. | Pre-edit `git status --short` showed pre-existing `.replit` modification and attached instruction file; both are preserved. Owner requested recheck with `git diff` only; no tests/build/lint or other verification. |
+| 2026-10-21 | Phase 7 authoring implementation | Added subtask/step authoring and connected it to task details. | `git diff` review displayed the intended changes; no tests, builds, lint, or other checks were run. Phase remains 0/1 because verification was not authorized. |

@@ -35,6 +35,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Alarm
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
@@ -43,6 +44,7 @@ import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -68,6 +70,7 @@ import com.tbtechs.focusflow.data.images.SubtaskImageStore
 import com.tbtechs.focusflow.data.model.Subtask
 import com.tbtechs.focusflow.data.model.Task
 import com.tbtechs.focusflow.ui.home.subtask.SubtaskDetailScreen
+import com.tbtechs.focusflow.ui.home.subtask.SubtaskAuthoringDialog
 import com.tbtechs.focusflow.ui.home.subtask.SubtaskProgressSection
 import com.tbtechs.focusflow.ui.theme.BrandPrimary
 import com.tbtechs.focusflow.ui.theme.LocalFocusFlowTextScale
@@ -94,8 +97,10 @@ fun TaskDetailModal(
     onSubtaskSetsDone: (String, String, Int) -> Unit = { _, _, _ -> },
     onResetSubtasks: (String) -> Unit = {},
     onReplaceSubtasks: (String, List<Subtask>) -> Unit = { _, _ -> },
+    availableTasks: List<Task> = emptyList(),
 ) {
     var selectedSubtaskId by remember(task.id) { mutableStateOf<String?>(null) }
+    var authoringOpen by remember(task.id) { mutableStateOf(false) }
     val selectedSubtask = selectedSubtaskId?.let { id ->
         task.subtasks.firstOrNull { it.id == id }
     }
@@ -255,6 +260,18 @@ fun TaskDetailModal(
                         onCompleteTask = onComplete,
                     )
                 }
+                OutlinedButton(
+                    onClick = { authoringOpen = true },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Icon(
+                        imageVector = if (task.subtasks.isEmpty()) Icons.Outlined.Add else Icons.Outlined.Edit,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(if (task.subtasks.isEmpty()) "Add subtasks" else "Edit subtasks")
+                }
                 ReferenceSectionLabel("SCHEDULE")
                 Text(
                     "${task.startTime.asLocalTime()} – ${task.endTime.asLocalTime()}",
@@ -345,6 +362,18 @@ fun TaskDetailModal(
                 }
             }
         }
+    }
+
+    if (authoringOpen) {
+        SubtaskAuthoringDialog(
+            task = task,
+            availableTasks = availableTasks,
+            onDismiss = { authoringOpen = false },
+            onSave = { subtasks ->
+                onReplaceSubtasks(task.id, subtasks)
+                authoringOpen = false
+            },
+        )
     }
 }
 
