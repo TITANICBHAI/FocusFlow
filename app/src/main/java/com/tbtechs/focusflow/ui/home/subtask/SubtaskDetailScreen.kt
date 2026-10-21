@@ -574,7 +574,7 @@ private fun SubtaskDetailContent(
             }
         }
 
-        if (mode == SubtaskLayoutMode.STEPS && subtask.steps.isNotEmpty()) {
+        if (subtask.steps.isNotEmpty()) {
             Column {
                 Text("Steps", color = RefText, fontSize = 16.scaledSp, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(10.dp))

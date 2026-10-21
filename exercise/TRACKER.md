@@ -6,9 +6,10 @@
 
 - **Status:** IN PROGRESS
 - **Progress:** 39.2% (20/51 required checklist items verified)
-- **Current phase:** Phase 4 — Viewing UI
+- **Current phase:** Phase 8 — Hardening of Phases 2–3
 - **Last updated:** 2026-10-21
 - **Run order (Addendum v2):** Phase 4 → Phase 8 → Phase 9 → Phase 5 → Phase 6 (Phase 7 only if the owner asks). Phases 8–9 are defined in `PLAN.md` §16–§20; the completed Phase 0–3 items are unchanged.
+- **Owner-authorized verification timing:** Add tests alongside implementation in Phases 4, 8, and 9, but defer running tests and build/release checks until all three implementation phases are complete. Between those phases, do Git-based checks only and record the exact results. See `PLAN.md` §21.
 
 ## Tracker rules
 
@@ -330,9 +331,17 @@ Strengthened `TaskViewModelSubtasksTest` to compare every non-subtask task field
 
 The first compile exposed pre-existing UI integration issues in the Phase 4 screen sources: a wrong animation package, obsolete/unsupported imports and FlowRow argument, a misreferenced shared card composable, and missing semantics imports. These compile blockers have been corrected; no successful compile or test result is available yet.
 
+On 2026-10-21, the owner authorized additive implementation of Phases 4, 8, and 9 in the planned order, with test sources written alongside each phase but test/build/release execution deferred until all three implementations are complete. Only Git-based checks are authorized between phase boundaries. This owner-directed sequencing is recorded in `PLAN.md` §21. Phase 4 remains in progress; Phase 8 and Phase 9 remain unopened until their dependencies are implemented.
+
+Current-checkout audit after the grouped authorization confirmed that Home derives the open detail from a live task ID and closes when that ID disappears; TaskCard already shows conditional progress; TaskDetailModal wires subtask actions and the screen; and Phase 4 Compose/ViewModel tests are present. The audit found one mismatch with §4.1: Overview mode hid its optional steps list. Updated the screen to show numbered steps whenever steps exist and revised the corresponding Compose test to assert the overview image placeholder and step content. No tests/build checks were run, per §21.
+
+Phase 4 implementation is ready to proceed to the next authorized implementation phase; its checklist remains 0/6 because grouped test/build verification is deferred until after Phase 9. Git-only boundary check: `git diff --check` passed with no output. No test, Android-test compile, lint, R8, or APK command was run.
+
 **Evidence:**
 - `git diff --check` — PASS (no output) after the current Phase 4 code/test changes.
 - `FOCUSFLOW_SKIP_APK_BUILD=1 bash scripts/build-apk-with-java.sh :app:testProductionDebugUnitTest` — FAIL at `:app:compileProductionDebugKotlin`; Kotlin reported unresolved/misplaced Compose imports/APIs in `SubtaskImage.kt`, `TaskCard.kt`, `TaskDetailModal.kt`, `SubtaskComponents.kt`, and `SubtaskDetailScreen.kt`. Unit tests did not run. The wrapper provisioned JDK/SDK outside the repository and did not package an APK.
+- Owner authorization recorded: `PLAN.md` §21 permits only Git-based checks during implementation of Phases 4, 8, and 9; test sources must still be written, with test/build/release execution deferred until after Phase 9 implementation.
+- `git diff --check` — PASS (no output) after the Overview-mode correction. Changed `SubtaskDetailScreen.kt` and `TaskSubtaskUiTest.kt`; the test source now checks that Overview mode retains its optional numbered steps. No test/build verification was run.
 
 **Failures / blockers:**
 _None recorded._
@@ -420,9 +429,9 @@ _None recorded._
 
 ## Phase 8 — Hardening of Phases 2–3 (Addendum v2)
 
-**Status:** NOT STARTED
+**Status:** IN PROGRESS
 **Blocked by:** Phase 4 complete; explicit owner authorization
-**Started:** —
+**Started:** 2026-10-21
 **Completed:** —
 **Progress:** 0/8
 **Plan sections:** §16–§17 (Addendum v2)
@@ -437,7 +446,25 @@ _None recorded._
 - [ ] 8.8 Run the Phase 8 gate (production JVM suite, lint, Android-test source compile, Release R8), record exact commands/results, and stop at the phase boundary.
 
 **Notes / progress:**
-_No work started. Audit before changing; superseded tests may be changed only as listed in `PLAN.md` §16.2 and each change recorded here._
+On 2026-10-21, started the Phase 8 audit under the owner's grouped authorization in `PLAN.md` §21. Phase 4 implementation is present but its checks are deferred until after Phase 9; proceed with Phase 8 audit-first rules and add tests before source fixes. Do not execute tests/build/release checks now. Superseded tests may be changed only as listed in `PLAN.md` §16.2, with reasons recorded here.
+
+Phase 8 working-tree pre-audit check: `git diff --check` passed with no output. `git status --short` shows only the two Phase 4 source/test changes and the authorized `exercise/PLAN.md` / `exercise/TRACKER.md` updates; no unrelated user edits are present.
+
+Phase 8 audit found gaps in nested malformed-value handling tests, unknown-field reporting, asset-entry type validation, supported backup versions, and `repsMax`. Added regression test sources first in `SubtaskParserTest.kt`, `BackupSerializerTest.kt`, `GoalFormatterTest.kt`, and `SubtaskNormalizerTest.kt`. They have not been executed; no Phase 8 behavior has been marked verified.
+
+Added further Phase 8 regression-test sources before implementation changes: the JSON asset-budget invariant and generated prompt/guide limit checks; fake-codec orientation/quality expectations; and restore expectations for duplicate-image avoidance and sweeping merge, failure, and blocked outcomes. Changed `BackupJsonPreflightTest.kt`, `FocusFlowFormatGuideDataTest.kt`, `SubtaskImageStoreTest.kt`, and `BackupRestoreEngineTest.kt`. Tests remain unexecuted under §21.
+
+Phase 8 implementation is underway: importer budget constants now define a 4 MiB decoded inline-asset cap, 1 MiB JSON reserve, and stricter 100 KiB/3 MiB generated-image guidance; subtask goals now carry/normalize/format `repsMax`; malformed image shapes are separated from unsupported remote URLs; and a shared bounded unknown-field warning collector has been added for nested objects. None of these changes has been run or verified.
+
+Additional Phase 8 implementation now accepts versions 1 and 2 (exporting version 2 for subtasks/assets), validates asset entry types, aggregates nested unknown keys, and applies EXIF orientation before image-size checks/re-encoding. PNG imports use lossless WebP on API 30+ and the configured quality fallback on API 29; JPEG/WebP use the configured lossy quality. Restore now snapshots eligible task indexes before decoding assets, processes candidate image bytes sequentially, clears each decoded buffer, and sweeps image storage after every success/failure/blocked result. Prompt and in-app guide limits were updated from shared constants. Android instrumentation source now covers EXIF orientation and a text-bearing PNG. These changes and tests remain unexecuted.
+
+Added a restore regression source that tracks peak simultaneous image encodes and verifies decoded arrays are cleared, plus an empty-image-object fail-soft case. Restore also guards against task-list changes between the candidate snapshot and the gated write. The source/test edits have not been executed or checked by build tools.
+
+Added an exception-path regression source: a task-write failure after image preparation must still run the gated image sweep. This test, like the rest of Phase 8, is intentionally unexecuted.
+
+Extended the malformed-asset regression to include non-string `file` and `sha256` values, matching the Phase 8 asset-object contract; the implementation change follows below and remains unverified.
+
+Phase 8 add work is complete for the audited §17 items: parser warnings/type isolation, inline size invariant and shared producer guidance, EXIF/fidelity behavior, bounded restore/cleanup, v1/v2 signaling with a v1 golden-byte assertion, and `repsMax` prompt/guide/example support. All phase checkboxes remain unchecked because the §17.8 gate is deferred until Phase 4/8/9 implementation is complete under §21. No tests, lint, Android-test compilation, R8, or APK commands have been run in this grouped turn.
 
 **Evidence:**
 _None yet._
@@ -557,3 +584,6 @@ Append dated entries; do not replace earlier history.
 | 2026-10-21 | First production unit-test attempt | Ran the production JVM test task through the bootstrap wrapper with APK packaging disabled. | Failed in Kotlin compilation before tests: unresolved Compose import/API symbols in the listed UI sources. No APK task ran. Fixes and a rerun are pending. |
 | 2026-10-21 | Compile-blocker fixes | Corrected Compose package/API references and removed an unsupported FlowRow argument found by the first compile. | Changed `TaskDetailModal.kt`, `TaskCard.kt`, `SubtaskImage.kt`, `SubtaskComponents.kt`, and `SubtaskDetailScreen.kt`; rerun pending. |
 | 2026-10-21 | Addendum v2 added | Owner asked for a hybrid JSON/ZIP format and revisions after an external review. Added Phase 8 (hardening, 8 items) and Phase 9 (bundle, 7 items) to `PLAN.md` §16–§20 and this tracker; denominator raised from 36 to 51. No completed item was edited or unchecked; no app code changed. | Execution order 4 → 8 → 9 → 5 → 6. Progress recalculated: 20/51 = 39.2%. |
+| 2026-10-21 | Grouped implementation authorized | Owner authorized additive implementation of Phases 4, 8, and 9 in order, with test sources written during each phase and test/build/release checks deferred until after Phase 9. | Added the narrow workflow exception to `PLAN.md` §21 and recorded it in the tracker; only Git-based checks are allowed between these phases. |
+| 2026-10-21 | Phase 4 implementation boundary | Audited Home live-task state, conditional TaskCard progress, TaskDetailModal wiring, subtask screen, image loader, and existing unit/Compose tests. Corrected Overview mode so optional steps remain visible and updated the Compose assertion. | `git diff --check` passed with no output. Test/build/release checks deferred under §21; Phase 4 remains 0/6 until the grouped verification. |
+| 2026-10-21 | Phase 8 started | Began the audit-first hardening phase under the owner's grouped authorization. | Tracker set to IN PROGRESS before Phase 8 audit; no Phase 8 source/test changes or test/build checks yet. |

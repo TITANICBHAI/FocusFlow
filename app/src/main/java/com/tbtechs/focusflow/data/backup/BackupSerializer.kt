@@ -21,7 +21,7 @@ import kotlinx.serialization.json.intOrNull
 
 object BackupSerializer {
     const val BACKUP_KIND = "FocusFlowBackupV1"
-    const val BACKUP_VERSION = 1
+    const val BACKUP_VERSION = BackupJsonLimits.TASK_ONLY_BACKUP_VERSION
 
     private val json = Json {
         prettyPrint = true
@@ -56,7 +56,11 @@ object BackupSerializer {
 
         return BackupEnvelope(
             kind = BACKUP_KIND,
-            version = BACKUP_VERSION,
+            version = if (assets.isNotEmpty() || tasks.any { it.subtasks.isNotEmpty() }) {
+                BackupJsonLimits.SUBTASK_BACKUP_VERSION
+            } else {
+                BACKUP_VERSION
+            },
             exportedAt = now.toString(),
             exportedAtHuman = exportedAtHuman,
             appVersion = appVersion,
@@ -94,13 +98,14 @@ object BackupSerializer {
             }
 
             val version = root["version"]?.let { (it as? JsonPrimitive)?.intOrNull }
-            if (version != BACKUP_VERSION) {
+            if (version == null || version !in BackupJsonLimits.SUPPORTED_BACKUP_VERSIONS) {
                 return BackupParseResult.Failure("This FocusFlow backup version is not supported.")
             }
 
             val settings = root["settings"] as? JsonObject
                 ?: return BackupParseResult.Failure("Backup settings must be a JSON object.")
-            val parsedAssets = parseAssets(root["assets"])
+            val unknownFields = UnknownFieldWarnings()
+            val parsedAssets = parseAssets(root["assets"], unknownFields)
 
             val tasks = root["tasks"] as? JsonArray
                 ?: return BackupParseResult.Failure("Backup tasks must be a JSON array.")
@@ -140,6 +145,7 @@ object BackupSerializer {
                     val parsedSubtasks = SubtaskParser.parse(
                         taskObject["subtasks"],
                         parsedAssets.assets.keys,
+                        unknownFields,
                     )
                     subtaskWarnings += parsedSubtasks.warnings
                     validTasks += task.copy(subtasks = parsedSubtasks.subtasks)
@@ -155,6 +161,7 @@ object BackupSerializer {
             }
             warnings += parsedAssets.warnings
             warnings += aggregateWarnings(subtaskWarnings)
+            unknownFields.warning()?.let(warnings::add)
             if (settings.isNotEmpty() && !BackupSettingsAdapter.hasRestorableSettings(settings)) {
                 warnings += "Settings in this backup are not supported by this app version and will be left unchanged."
             }
@@ -187,7 +194,10 @@ object BackupSerializer {
         val warnings: List<String>,
     )
 
-    private fun parseAssets(element: JsonElement?): AssetParseResult {
+    private fun parseAssets(
+        element: JsonElement?,
+        unknownFields: UnknownFieldWarnings,
+    ): AssetParseResult {
         if (element == null) return AssetParseResult(emptyMap(), emptyList())
         val objectValue = element as? JsonObject
             ?: return AssetParseResult(
@@ -208,8 +218,17 @@ object BackupSerializer {
                 return@forEach
             }
             val assetObject = value as? JsonObject
+            if (assetObject != null) unknownFields.record(assetObject, ASSET_KEYS)
             val data = assetObject?.stringValue("data")
-            if (data == null || data.length > BackupJsonLimits.MAX_ASSET_DATA_CHARS) {
+            val mimeElement = assetObject?.get("mime")
+            val mime = assetObject?.stringValue("mime")
+            val invalidFile = assetObject?.let { "file" in it && it.stringValue("file") == null } == true
+            val invalidHash =
+                assetObject?.let { "sha256" in it && it.stringValue("sha256") == null } == true
+            if (data == null || data.length > BackupJsonLimits.MAX_ASSET_DATA_CHARS ||
+                mimeElement != null && mime == null ||
+                invalidFile || invalidHash
+            ) {
                 invalidCount++
                 return@forEach
             }
@@ -222,11 +241,12 @@ object BackupSerializer {
             if (bytes.isEmpty() ||
                 bytes.size > BackupJsonLimits.MAX_ASSET_TOTAL_BYTES - decodedBytes
             ) {
+                bytes.fill(0)
                 overLimitCount++
                 return@forEach
             }
             decodedBytes += bytes.size
-            val mime = assetObject.stringValue("mime")
+            bytes.fill(0)
             result[id] = BackupAsset(mime = mime, data = data)
         }
         return AssetParseResult(
@@ -243,6 +263,7 @@ object BackupSerializer {
     private fun JsonObject.stringValue(key: String): String? =
         (this[key] as? JsonPrimitive)?.takeIf(JsonPrimitive::isString)?.content
 
+    private val ASSET_KEYS = setOf("mime", "data", "file", "sha256")
     private fun referencedAssetIds(tasks: List<Task>): Set<String> =
         tasks.asSequence()
             .flatMap { it.subtasks.asSequence() }

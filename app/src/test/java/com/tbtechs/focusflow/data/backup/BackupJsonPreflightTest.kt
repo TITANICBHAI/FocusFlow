@@ -5,6 +5,18 @@ import org.junit.Test
 
 class BackupJsonPreflightTest {
     @Test
+    fun inlineImageBudgetLeavesTheConfiguredReserveWithinTheJsonFileCap() {
+        val encodedAssetBudget =
+            (BackupJsonLimits.MAX_ASSET_TOTAL_BYTES.toLong() * 4 + 2) / 3
+
+        assertTrue(
+            "Encoded image budget plus non-asset reserve must fit the file cap.",
+            encodedAssetBudget + BackupJsonLimits.JSON_NON_ASSET_RESERVE.toLong() <=
+                BackupJsonLimits.MAX_FILE_BYTES.toLong(),
+        )
+    }
+
+    @Test
     fun allowsLargeDataOnlyAtDirectTopLevelAssetData() {
         val imageData = "A".repeat(BackupJsonLimits.MAX_STRING_CHARS + 1)
         val json = """{"assets":{"hero":{"mime":"image/png","data":"$imageData"}}}"""

@@ -1,6 +1,10 @@
 package com.tbtechs.focusflow.data.images
 
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
 import android.os.Build
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -38,7 +42,52 @@ class SubtaskImageStoreInstrumentedTest {
             }
             val withExif = injectExifSegment(jpeg)
             val exifAsset = store.ingest(withExif).getOrThrow()
-            assertFalse(containsBytes(store.openForExport(exifAsset)!!, "Exif".toByteArray()))
+            val normalizedExif = store.openForExport(exifAsset)!!
+            assertFalse(containsBytes(normalizedExif, "Exif".toByteArray()))
+            val rotated = BitmapFactory.decodeByteArray(normalizedExif, 0, normalizedExif.size)
+            try {
+                assertTrue(rotated.width == 24 && rotated.height == 32)
+            } finally {
+                rotated.recycle()
+            }
+
+            val textBitmap = Bitmap.createBitmap(240, 90, Bitmap.Config.ARGB_8888)
+            Canvas(textBitmap).apply {
+                drawColor(Color.WHITE)
+                drawText(
+                    "FocusFlow",
+                    8f,
+                    62f,
+                    Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color = Color.BLACK
+                        textSize = 48f
+                    },
+                )
+            }
+            val textPng = ByteArrayOutputStream().use { output ->
+                assertTrue(textBitmap.compress(Bitmap.CompressFormat.PNG, 100, output))
+                output.toByteArray()
+            }
+            val textAsset = store.ingest(textPng).getOrThrow()
+            val decodedText = store.openForExport(textAsset)!!
+            val restoredText = BitmapFactory.decodeByteArray(decodedText, 0, decodedText.size)
+            try {
+                assertTrue(restoredText.width == textBitmap.width)
+                assertTrue(restoredText.height == textBitmap.height)
+                if (Build.VERSION.SDK_INT >= 30) {
+                    for (y in 0 until textBitmap.height) {
+                        for (x in 0 until textBitmap.width) {
+                            assertTrue(
+                                "PNG-derived WebP must preserve pixel ($x, $y).",
+                                textBitmap.getPixel(x, y) == restoredText.getPixel(x, y),
+                            )
+                        }
+                    }
+                }
+            } finally {
+                restoredText.recycle()
+                textBitmap.recycle()
+            }
 
             val oversized = Bitmap.createBitmap(4_097, 1, Bitmap.Config.ARGB_8888)
             val oversizedPng = ByteArrayOutputStream().use { output ->
@@ -61,11 +110,16 @@ class SubtaskImageStoreInstrumentedTest {
             Bitmap.CompressFormat.WEBP
         }
 
-    private fun injectExifSegment(jpeg: ByteArray): ByteArray {
+    private fun injectExifSegment(jpeg: ByteArray, orientation: Int = 6): ByteArray {
         val exifPayload = byteArrayOf(
             0x45, 0x78, 0x69, 0x66, 0, 0, // Exif marker
             0x49, 0x49, 0x2a, 0, 8, 0, 0, 0, // little-endian TIFF header
-            0, 0, 0, 0, 0, 0, // empty IFD and next-IFD offset
+            1, 0, // one IFD entry
+            0x12, 0x01, // orientation tag
+            3, 0, // SHORT
+            1, 0, 0, 0, // one value
+            orientation.toByte(), 0, 0, 0, // orientation value and padding
+            0, 0, 0, 0, // next-IFD offset
         )
         val segmentLength = exifPayload.size + 2
         return ByteArrayOutputStream().use { output ->

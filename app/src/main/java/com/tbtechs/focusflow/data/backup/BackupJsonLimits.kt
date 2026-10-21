@@ -46,9 +46,30 @@ object BackupJsonLimits {
     const val MAX_GOAL_LABEL_CHARS = 80
     const val MAX_ASSETS = 200
     const val MAX_ASSET_DATA_CHARS = 400_000
-    const val MAX_ASSET_TOTAL_BYTES = 6 * 1024 * 1024
+    const val MAX_ASSET_TOTAL_BYTES = 4 * 1024 * 1024
+    const val JSON_NON_ASSET_RESERVE = 1 * 1024 * 1024
+    const val MAX_AI_IMAGE_BYTES = 100 * 1024
+    const val MAX_AI_TOTAL_IMAGE_BYTES = 3 * 1024 * 1024
+    const val TASK_ONLY_BACKUP_VERSION = 1
+    const val SUBTASK_BACKUP_VERSION = 2
+    val SUPPORTED_BACKUP_VERSIONS =
+        setOf(TASK_ONLY_BACKUP_VERSION, SUBTASK_BACKUP_VERSION)
     const val MAX_SUBTASK_JSON_BYTES_PER_TASK = 96 * 1024
     const val EXPORT_REENCODE_THRESHOLD_BYTES = 7 * 1024 * 1024
+
+    fun assetBudgetGuidance(): String =
+        "For generated images, keep each image at or below ${formatByteLimit(MAX_AI_IMAGE_BYTES)} " +
+            "and all images combined at or below ${formatByteLimit(MAX_AI_TOTAL_IMAGE_BYTES)}. " +
+            "The importer allows at most $MAX_ASSET_DATA_CHARS base64 characters per image, " +
+            "${formatByteLimit(MAX_ASSET_TOTAL_BYTES)} of decoded image data total, and reserves " +
+            "${formatByteLimit(JSON_NON_ASSET_RESERVE)} within the ${formatByteLimit(MAX_FILE_BYTES)} " +
+            "JSON file limit for task data."
+
+    fun formatByteLimit(bytes: Int): String = when {
+        bytes % (1024 * 1024) == 0 -> "${bytes / (1024 * 1024)} MiB"
+        bytes % 1024 == 0 -> "${bytes / 1024} KB"
+        else -> "$bytes bytes"
+    }
 }
 
 class BackupJsonFormatException(message: String) : IllegalArgumentException(message)

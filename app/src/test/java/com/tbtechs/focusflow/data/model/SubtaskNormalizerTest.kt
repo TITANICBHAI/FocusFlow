@@ -70,6 +70,35 @@ class SubtaskNormalizerTest {
     }
 
     @Test
+    fun invalidRepRangeDropsOnlyTheRangeAndPreservesTheGoal() {
+        val result = SubtaskNormalizer.normalize(
+            listOf(
+                subtask(
+                    id = "too-small",
+                    goal = SubtaskGoal(kind = "sets", sets = 3, reps = 6, repsMax = 5),
+                ),
+                subtask(
+                    id = "wrong-kind",
+                    goal = SubtaskGoal(kind = "duration", seconds = 45, reps = 6, repsMax = 10),
+                ),
+                subtask(
+                    id = "missing-low",
+                    goal = SubtaskGoal(kind = "duration", seconds = 30, repsMax = 10),
+                ),
+            ),
+        )
+
+        assertEquals(3, result.subtasks.size)
+        assertEquals(3, result.subtasks[0].goal?.sets)
+        assertEquals(6, result.subtasks[0].goal?.reps)
+        assertNull(result.subtasks[0].goal?.repsMax)
+        assertNull(result.subtasks[1].goal?.repsMax)
+        assertNull(result.subtasks[2].goal?.repsMax)
+        assertEquals(30, result.subtasks[2].goal?.seconds)
+        assertTrue(result.warnings.any { it.contains("3 invalid repsMax fields") })
+    }
+
+    @Test
     fun skipsBlankRequiredTextAndDropsInvalidOptionalImageAndLayout() {
         val result = SubtaskNormalizer.normalize(
             listOf(

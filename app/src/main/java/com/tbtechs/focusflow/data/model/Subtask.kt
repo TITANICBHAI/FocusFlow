@@ -24,6 +24,7 @@ data class SubtaskGoal(
     val kind: String,
     val sets: Int? = null,
     val reps: Int? = null,
+    val repsMax: Int? = null,
     val seconds: Int? = null,
     val restSeconds: Int? = null,
     val meters: Int? = null,
@@ -181,7 +182,16 @@ object SubtaskNormalizer {
             counts.invalidGoals++
             return null
         }
-        return source.copy(kind = kind, label = label)
+        val repsMaxValid = source.repsMax == null ||
+            (kind in setOf("sets", "reps") &&
+                source.reps != null &&
+                source.repsMax in source.reps..9_999)
+        if (!repsMaxValid) counts.invalidRepRanges++
+        return source.copy(
+            kind = kind,
+            label = label,
+            repsMax = source.repsMax.takeIf { repsMaxValid },
+        )
     }
 
     private fun normalizeImage(
@@ -265,6 +275,7 @@ object SubtaskNormalizer {
         var blankTitles = 0
         var normalizedIds = 0
         var invalidGoals = 0
+        var invalidRepRanges = 0
         var invalidImages = 0
         var invalidLayouts = 0
         var blankSteps = 0
@@ -277,6 +288,7 @@ object SubtaskNormalizer {
             if (blankTitles > 0) add("$blankTitles subtasks with blank titles were skipped.")
             if (normalizedIds > 0) add("$normalizedIds subtask IDs were generated or normalized.")
             if (invalidGoals > 0) add("$invalidGoals invalid subtask goals were removed.")
+            if (invalidRepRanges > 0) add("$invalidRepRanges invalid repsMax fields were removed.")
             if (invalidImages > 0) add("$invalidImages invalid subtask images were removed.")
             if (invalidLayouts > 0) add("$invalidLayouts invalid layout values were reset.")
             if (blankSteps > 0) add("$blankSteps steps with blank text were skipped.")
@@ -300,18 +312,21 @@ object GoalFormatter {
     fun format(goal: SubtaskGoal): FormattedSubtaskGoal? {
         val sets = goal.sets?.takeIf { it in 1..99 }
         val reps = goal.reps?.takeIf { it in 1..9_999 }
+        val repsMax = goal.repsMax?.takeIf {
+            goal.kind in setOf("sets", "reps") && reps != null && it in reps..9_999
+        }
         val seconds = goal.seconds?.takeIf { it in 1..86_400 }
         val meters = goal.meters?.takeIf { it in 1..1_000_000 }
         val primary = when (goal.kind) {
             "sets" -> {
                 val validSets = sets ?: return null
                 when {
-                    reps != null -> "$validSets × $reps"
+                    reps != null -> "$validSets × ${formatReps(reps, repsMax)}"
                     seconds != null -> "$validSets × $seconds s"
                     else -> return null
                 }
             }
-            "reps" -> "${reps ?: return null} reps"
+            "reps" -> "${formatReps(reps ?: return null, repsMax)} reps"
             "duration" -> "${seconds ?: return null} s"
             "distance" -> {
                 val validMeters = meters ?: return null
@@ -339,6 +354,9 @@ object GoalFormatter {
 
     private fun decimal(value: Double): String =
         BigDecimal.valueOf(value).stripTrailingZeros().toPlainString()
+
+    private fun formatReps(reps: Int, repsMax: Int?): String =
+        if (repsMax != null) "$reps–$repsMax" else reps.toString()
 }
 
 enum class SubtaskLayoutMode {

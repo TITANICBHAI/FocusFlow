@@ -41,6 +41,22 @@ class SubtaskImageStoreTest {
     }
 
     @Test
+    fun appliesExifOrientationAndSelectsPngAndLossyQualityPolicy() = withStore { store, codec, _ ->
+        assertEquals(ImageBounds(24, 32), ImageBounds(32, 24).rotatedForExif(6))
+        assertEquals(ImageBounds(24, 32), ImageBounds(32, 24).rotatedForExif(8))
+
+        codec.imageOrientation = 6
+        assertTrue(store.ingest(fakeJpeg()).isSuccess)
+        assertEquals(6, codec.lastOrientation)
+        assertEquals(85, codec.lastQuality)
+        assertFalse(codec.lastPngSource)
+
+        assertTrue(store.ingest(fakePng()).isSuccess)
+        assertEquals(90, codec.lastQuality)
+        assertTrue(codec.lastPngSource)
+    }
+
+    @Test
     fun appliesTenMinuteGracePeriodAndPreservesReferencedFiles() = withStore { store, _, clock ->
         val id = store.ingest(fakePng()).getOrThrow()
         clock.value = store.file(id)!!.lastModified()
@@ -96,13 +112,31 @@ class SubtaskImageStoreTest {
 
     private class FakeCodec : ImageCodec {
         var imageBounds = ImageBounds(64, 64)
+        var imageOrientation = 1
         var reencodeCalls = 0
         var encodedBytes = fakeWebp()
+        var lastOrientation = 1
+        var lastQuality = 0
+        var lastPngSource = false
 
         override fun bounds(bytes: ByteArray): ImageBounds = imageBounds
 
-        override fun reencode(bytes: ByteArray, maxLongEdge: Int, quality: Int): ByteArray {
+        override fun orientation(bytes: ByteArray): Int = imageOrientation
+
+        override fun reencode(bytes: ByteArray, maxLongEdge: Int, quality: Int): ByteArray =
+            encodedBytes
+
+        override fun reencodeWithOrientation(
+            bytes: ByteArray,
+            maxLongEdge: Int,
+            quality: Int,
+            orientation: Int,
+            pngSource: Boolean,
+        ): ByteArray {
             reencodeCalls++
+            lastOrientation = orientation
+            lastQuality = quality
+            lastPngSource = pngSource
             return encodedBytes
         }
     }
@@ -116,6 +150,8 @@ class SubtaskImageStoreTest {
                 0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0,
                 0x57, 0x45, 0x42, 0x50,
             )
+
+        fun fakeJpeg(): ByteArray = byteArrayOf(0xff.toByte(), 0xd8.toByte(), 0xff.toByte())
 
         fun task() = Task(
             id = "task",

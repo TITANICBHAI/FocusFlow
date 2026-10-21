@@ -18,7 +18,10 @@ class SubtaskImageStore(
         require(bytes.isNotEmpty()) { "Image is empty." }
         require(hasSupportedMagic(bytes)) { "Only PNG, JPEG, and WebP images are supported." }
         require(bytes.size <= MAX_INPUT_BYTES) { "Image exceeds the supported size limit." }
-        val bounds = codec.bounds(bytes) ?: error("Image could not be decoded.")
+        val orientation = codec.orientation(bytes).takeIf { it in 1..8 } ?: 1
+        val bounds = codec.bounds(bytes)
+            ?.rotatedForExif(orientation)
+            ?: error("Image could not be decoded.")
         require(bounds.width > 0 && bounds.height > 0) { "Image dimensions are invalid." }
         require(bounds.width <= MAX_SOURCE_EDGE && bounds.height <= MAX_SOURCE_EDGE) {
             "Image dimensions exceed 4096 pixels."
@@ -26,7 +29,15 @@ class SubtaskImageStore(
         require(bounds.width.toLong() * bounds.height <= MAX_SOURCE_PIXELS) {
             "Image dimensions exceed 16 megapixels."
         }
-        val encoded = codec.reencode(bytes, MAX_STORED_EDGE, STORED_QUALITY)
+        val pngSource = isPng(bytes)
+        val quality = if (pngSource) PNG_FALLBACK_QUALITY else STORED_QUALITY
+        val encoded = codec.reencodeWithOrientation(
+            bytes = bytes,
+            maxLongEdge = MAX_STORED_EDGE,
+            quality = quality,
+            orientation = orientation,
+            pngSource = pngSource,
+        )
             ?: error("Image could not be re-encoded.")
         require(isWebp(encoded)) { "Image encoder did not produce WebP data." }
         require(encoded.isNotEmpty() && encoded.size.toLong() <= MAX_STORED_FILE_BYTES) {
@@ -108,7 +119,8 @@ class SubtaskImageStore(
         const val MAX_SOURCE_EDGE = 4_096
         const val MAX_SOURCE_PIXELS = 16L * 1024 * 1024
         const val MAX_STORED_EDGE = 1_280
-        const val STORED_QUALITY = 80
+        const val STORED_QUALITY = 85
+        const val PNG_FALLBACK_QUALITY = 90
         const val GRACE_PERIOD_MILLIS = 10 * 60 * 1_000L
         private const val MAX_INPUT_BYTES = 6 * 1024 * 1024
         private const val MAX_STORED_FILE_BYTES = 6 * 1024 * 1024L

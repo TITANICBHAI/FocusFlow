@@ -57,6 +57,28 @@ class GoalFormatterTest {
     }
 
     @Test
+    fun formatsRepetitionRangesForSetsAndRepetitionGoals() {
+        assertEquals(
+            "2 × 6–10",
+            GoalFormatter.format(
+                SubtaskGoal(kind = "sets", sets = 2, reps = 6, repsMax = 10),
+            )?.primary,
+        )
+        assertEquals(
+            "12–15 reps",
+            GoalFormatter.format(
+                SubtaskGoal(kind = "reps", reps = 12, repsMax = 15),
+            )?.primary,
+        )
+        assertEquals(
+            "12 reps",
+            GoalFormatter.format(
+                SubtaskGoal(kind = "reps", reps = 12, repsMax = 11),
+            )?.primary,
+        )
+    }
+
+    @Test
     fun rejectsGoalsThatDoNotMeetTheRequiredShapeOrRanges() {
         assertNull(GoalFormatter.format(SubtaskGoal(kind = "sets", sets = 0, reps = 12)))
         assertNull(GoalFormatter.format(SubtaskGoal(kind = "sets", sets = 3)))

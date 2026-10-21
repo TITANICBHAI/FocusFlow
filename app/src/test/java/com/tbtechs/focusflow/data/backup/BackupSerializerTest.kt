@@ -327,6 +327,96 @@ class BackupSerializerTest {
     }
 
     @Test
+    fun malformedAssetEntriesAndUnknownAssetFieldsAreIsolated() {
+        val base = Json.parseToJsonElement(
+            BackupSerializer.serializeToJson(
+                BackupSerializer.buildEnvelope(sampleSettings(), listOf(sampleTask()), "1.1.4"),
+            ),
+        ).jsonObject
+        val task = JsonObject(
+            base.getValue("tasks").jsonArray.single().jsonObject +
+                ("subtasks" to Json.parseToJsonElement(
+                    """[{"id":"move","title":"Move","image":{"asset":"good"}}]""",
+                )),
+        )
+        val input = JsonObject(
+            base +
+                ("tasks" to JsonArray(listOf(task))) +
+                ("assets" to Json.parseToJsonElement(
+                    """{
+                      "not-object":true,
+                      "bad-data":{"data":12,"mime":"image/png"},
+                      "bad-mime":{"data":"AQID","mime":false},
+                      "bad-file":{"data":"AQID","file":12},
+                      "bad-sha":{"data":"AQID","sha256":true},
+                      "good":{"data":"AQID","mime":"image/png","assetTypo":true}
+                    }""".trimIndent(),
+                )),
+        )
+
+        val result = BackupSerializer.parseAndValidate(input.toString())
+
+        assertTrue(result is BackupParseResult.Success)
+        val success = result as BackupParseResult.Success
+        assertEquals(1, success.envelope.tasks.size)
+        assertEquals(setOf("good"), success.envelope.assets.keys)
+        assertTrue(success.warnings.any { it.contains("invalid image assets") })
+        assertTrue(success.warnings.any { it.contains("unknown fields ignored") })
+        assertTrue(success.warnings.any { it.contains("assetTypo") })
+    }
+
+    @Test
+    fun acceptsVersionsOneAndTwoAndExportsVersionTwoForSubtasksOrAssets() {
+        val plain = BackupSerializer.buildEnvelope(
+            sampleSettings(),
+            listOf(sampleTask()),
+            "1.1.4",
+        )
+        assertEquals(1, plain.version)
+
+        val withSubtasks = BackupSerializer.buildEnvelope(
+            sampleSettings(),
+            listOf(sampleTask().copy(subtasks = listOf(Subtask(id = "part", title = "Part")))),
+            "1.1.4",
+        )
+        assertEquals(2, withSubtasks.version)
+        val v2Parsed = BackupSerializer.parseAndValidate(
+            BackupSerializer.serializeToJson(withSubtasks),
+        )
+        assertTrue(v2Parsed is BackupParseResult.Success)
+
+        val v1WithSubtasks = BackupSerializer.parseAndValidate(
+            BackupSerializer.serializeToJson(withSubtasks).replace("\"version\": 2", "\"version\": 1"),
+        )
+        assertTrue(v1WithSubtasks is BackupParseResult.Success)
+
+        val withAssets = BackupSerializer.buildEnvelope(
+            sampleSettings(),
+            listOf(sampleTask()),
+            "1.1.4",
+            assets = mapOf("image" to BackupAsset(data = "AQID")),
+        )
+        assertEquals(2, withAssets.version)
+        assertTrue(
+            BackupSerializer.parseAndValidate(BackupSerializer.serializeToJson(withAssets)) is
+                BackupParseResult.Success,
+        )
+        val v1WithAssets = BackupSerializer.parseAndValidate(
+            BackupSerializer.serializeToJson(withAssets).replace("\"version\": 2", "\"version\": 1"),
+        )
+        assertTrue(v1WithAssets is BackupParseResult.Success)
+
+        val unsupported = BackupSerializer.parseAndValidate(
+            BackupSerializer.serializeToJson(withSubtasks).replace("\"version\": 2", "\"version\": 3"),
+        )
+        assertTrue(unsupported is BackupParseResult.Failure)
+        assertEquals(
+            "This FocusFlow backup version is not supported.",
+            (unsupported as BackupParseResult.Failure).message,
+        )
+    }
+
+    @Test
     fun parserAcceptsCommittedV1GoldenBackup() {
         val golden = javaClass.classLoader!!
             .getResourceAsStream("backup/v1-export-golden.json")!!
@@ -341,6 +431,7 @@ class BackupSerializerTest {
         assertEquals(1, envelope.version)
         assertEquals(1, envelope.summary.taskCount)
         assertEquals(JsonPrimitive(false), envelope.settings["focusMirrorVpnEnabled"])
+        assertEquals(golden, BackupSerializer.serializeToJson(envelope))
     }
 
     @Test

@@ -51,6 +51,7 @@ class BackupRestoreEngineTest {
         assertEquals(0, access.deleteAllCalls)
         assertEquals(listOf("backup-restore"), access.reconcileReasons)
         assertEquals(1, access.events.count { it.startsWith("insert:") })
+        assertEquals(1, access.imageSweepCalls)
     }
 
     @Test
@@ -199,6 +200,141 @@ class BackupRestoreEngineTest {
     }
 
     @Test
+    fun restoreProcessesCandidateImagesOneAtATimeAndClearsDecodedBuffers() = runTest {
+        val directory = Files.createTempDirectory("restore-sequential-images").toFile()
+        try {
+            val codec = FakeCodec()
+            val store = SubtaskImageStore(directory, codec)
+            val gate = RecordingGate()
+            val access = FakeAccess(gate)
+            val pngOne = SubtaskImageStoreTest.fakePng()
+            val pngTwo = pngOne.copyOf().also { it[it.lastIndex] = 1 }
+            val incoming = task(
+                id = "two-images",
+                subtasks = listOf(
+                    Subtask(id = "one", title = "One", image = SubtaskImage("image-one")),
+                    Subtask(id = "two", title = "Two", image = SubtaskImage("image-two")),
+                ),
+            )
+            val backup = envelope(
+                incoming,
+                assets = mapOf(
+                    "image-one" to BackupAsset(
+                        mime = "image/png",
+                        data = Base64.getEncoder().encodeToString(pngOne),
+                    ),
+                    "image-two" to BackupAsset(
+                        mime = "image/png",
+                        data = Base64.getEncoder().encodeToString(pngTwo),
+                    ),
+                ),
+            )
+
+            val result = BackupRestoreEngine(
+                access = access,
+                writeGate = gate,
+                clock = { fixedNow },
+                imageStore = store,
+            ).restore(backup, AppSettings(), replaceTasks = false)
+
+            assertEquals(1, success(result).tasksImported)
+            assertEquals(2, codec.reencodeCalls)
+            assertEquals(1, codec.maxConcurrentReencodes)
+            assertTrue(codec.observedInputs.all { bytes -> bytes.all { it == 0.toByte() } })
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun mergeWithOnlyDuplicateImageTasksDoesNotIngestAssetsAndStillSweeps() = runTest {
+        val directory = Files.createTempDirectory("restore-duplicate-images").toFile()
+        try {
+            val store = SubtaskImageStore(directory, FakeCodec())
+            val gate = RecordingGate()
+            val existing = task(id = "same")
+            val access = FakeAccess(gate, tasks = mutableListOf(existing))
+            val incoming = task(id = "same").copy(
+                subtasks = listOf(
+                    Subtask(
+                        id = "part",
+                        title = "Part",
+                        image = SubtaskImage("file-image"),
+                    ),
+                ),
+            )
+            val png = SubtaskImageStoreTest.fakePng()
+            val backup = envelope(
+                incoming,
+                assets = mapOf(
+                    "file-image" to BackupAsset(
+                        mime = "image/png",
+                        data = Base64.getEncoder().encodeToString(png),
+                    ),
+                ),
+            )
+
+            val result = BackupRestoreEngine(
+                access = access,
+                writeGate = gate,
+                clock = { fixedNow },
+                imageStore = store,
+            ).restore(backup, AppSettings(), replaceTasks = false)
+
+            assertEquals(0, success(result).tasksImported)
+            assertEquals(1, success(result).tasksSkipped)
+            assertEquals(0, success(result).imagesStored)
+            assertTrue(directory.listFiles().orEmpty().isEmpty())
+            assertEquals(1, access.imageSweepCalls)
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun failedTaskWriteStillSweepsAfterImagePreparation() = runTest {
+        val directory = Files.createTempDirectory("restore-write-failure").toFile()
+        try {
+            val codec = FakeCodec()
+            val store = SubtaskImageStore(directory, codec)
+            val gate = RecordingGate()
+            val access = FakeAccess(gate).apply {
+                insertFailure = IllegalStateException("task write failed")
+            }
+            val png = SubtaskImageStoreTest.fakePng()
+            val incoming = task(
+                id = "write-failure",
+                subtasks = listOf(
+                    Subtask(id = "part", title = "Part", image = SubtaskImage("file-image")),
+                ),
+            )
+            val backup = envelope(
+                incoming,
+                assets = mapOf(
+                    "file-image" to BackupAsset(
+                        mime = "image/png",
+                        data = Base64.getEncoder().encodeToString(png),
+                    ),
+                ),
+            )
+
+            val result = BackupRestoreEngine(
+                access = access,
+                writeGate = gate,
+                clock = { fixedNow },
+                imageStore = store,
+            ).restore(backup, AppSettings(), replaceTasks = false)
+
+            assertTrue(result is RestoreResult.Failure)
+            assertEquals("task write failed", (result as RestoreResult.Failure).message)
+            assertEquals(1, codec.reencodeCalls)
+            assertEquals(1, access.imageSweepCalls)
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
     fun failedImageIngestWarnsAndKeepsTheTaskWithoutTheImage() = runTest {
         val directory = Files.createTempDirectory("restore-invalid-image").toFile()
         try {
@@ -237,6 +373,7 @@ class BackupRestoreEngineTest {
             assertTrue(restored.warnings.any { it.contains("images could not be decoded or stored") })
             assertEquals(1, access.tasks.size)
             assertNull(access.tasks.single().subtasks.single().image)
+            assertEquals(1, access.imageSweepCalls)
         } finally {
             directory.deleteRecursively()
         }
@@ -291,6 +428,7 @@ class BackupRestoreEngineTest {
         assertEquals(0, access.deleteAllCalls)
         assertTrue(access.insertedTasks.isEmpty())
         assertTrue(access.reconcileReasons.isEmpty())
+        assertEquals(1, access.imageSweepCalls)
     }
 
     @Test
@@ -502,6 +640,7 @@ class BackupRestoreEngineTest {
         var deleteAllCalls = 0
         var replaceSubtaskCalls = 0
         var imageSweepCalls = 0
+        var insertFailure: Throwable? = null
 
         override suspend fun writePreference(key: String, value: LegacyPreferenceValue) {
             check(gate.depth > 0) { "Preference write bypassed RestoreGate." }
@@ -537,6 +676,7 @@ class BackupRestoreEngineTest {
 
         override suspend fun insertTask(task: Task) {
             check(gate.depth > 0) { "Task insert bypassed RestoreGate." }
+            insertFailure?.let { throw it }
             insertedTasks += task
             tasks += task
             events += "insert:${task.id}"
@@ -567,8 +707,23 @@ class BackupRestoreEngineTest {
     }
 
     private class FakeCodec : ImageCodec {
+        var reencodeCalls = 0
+        var activeReencodes = 0
+        var maxConcurrentReencodes = 0
+        val observedInputs = mutableListOf<ByteArray>()
+
         override fun bounds(bytes: ByteArray) = ImageBounds(32, 32)
-        override fun reencode(bytes: ByteArray, maxLongEdge: Int, quality: Int) =
-            SubtaskImageStoreTest.fakeWebp()
+
+        override fun reencode(bytes: ByteArray, maxLongEdge: Int, quality: Int): ByteArray {
+            reencodeCalls++
+            activeReencodes++
+            maxConcurrentReencodes = maxOf(maxConcurrentReencodes, activeReencodes)
+            observedInputs += bytes
+            return try {
+                SubtaskImageStoreTest.fakeWebp()
+            } finally {
+                activeReencodes--
+            }
+        }
     }
 }

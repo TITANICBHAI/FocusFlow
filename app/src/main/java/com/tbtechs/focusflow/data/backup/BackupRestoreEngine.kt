@@ -14,6 +14,8 @@ import com.tbtechs.focusflow.data.restore.RestoreGate
 import java.time.Instant
 import java.util.Base64
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
 
 sealed interface RestoreResult {
@@ -79,8 +81,23 @@ class BackupRestoreEngine internal constructor(
      * represented by [replaceTasks]; the active-session check and destructive
      * replacement run under the same gate as session/task mutations.
      */
-    @Suppress("UNUSED_PARAMETER")
     suspend fun restore(
+        envelope: BackupEnvelope,
+        currentSettings: AppSettings,
+        replaceTasks: Boolean,
+        enrichExistingTasks: Boolean = false,
+    ): RestoreResult = try {
+        restoreInternal(envelope, currentSettings, replaceTasks, enrichExistingTasks)
+    } finally {
+        withContext(NonCancellable) {
+            writeGate.write("BackupRestoreEngine.sweepImages") {
+                access.sweepSubtaskImages()
+            }
+        }
+    }
+
+    @Suppress("UNUSED_PARAMETER")
+    private suspend fun restoreInternal(
         envelope: BackupEnvelope,
         currentSettings: AppSettings,
         replaceTasks: Boolean,
@@ -109,7 +126,38 @@ class BackupRestoreEngine internal constructor(
             )
         }
 
-        val preparedImages = prepareImages(envelope)
+        var blockedDuringPreflight = false
+        val candidateTaskIndexes = try {
+            writeGate.write("BackupRestoreEngine.imageCandidates") {
+                if (replaceTasks && access.hasActiveFocusSession()) {
+                    blockedDuringPreflight = true
+                    emptySet()
+                } else {
+                    val existingById = if (replaceTasks) {
+                        emptyMap()
+                    } else {
+                        access.getAllTasks().associateBy(Task::id)
+                    }
+                    imageCandidateIndexes(
+                        tasks = envelope.tasks,
+                        existingById = existingById,
+                        enrichExistingTasks = enrichExistingTasks,
+                    )
+                }
+            }
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (exception: Exception) {
+            return RestoreResult.Failure(
+                exception.message ?: "Existing tasks could not be read before restore.",
+            )
+        }
+        if (blockedDuringPreflight) {
+            return RestoreResult.Failure(
+                "Cannot replace tasks while a Focus Session is running. Stop the current session first.",
+            )
+        }
+        val preparedImages = prepareImages(envelope, candidateTaskIndexes)
         val settingsWarnings = mutableListOf<String>()
         val workResult = try {
             writeGate.write("BackupRestoreEngine.restore") {
@@ -156,7 +204,22 @@ class BackupRestoreEngine internal constructor(
                 val now = clock()
                 val canonicalNow = CanonicalTimestamp.format(now)
 
-                preparedImages.tasks.forEach { task ->
+                preparedImages.tasks.forEachIndexed { index, task ->
+                    if (index !in candidateTaskIndexes) {
+                        val current = existingById[task.id]
+                        val wouldInsert = task.id.isNotBlank() &&
+                            current == null &&
+                            task.id !in importedIds &&
+                            runCatching { Instant.parse(task.endTime) }.isSuccess
+                        val wouldEnrich = current != null &&
+                            enrichExistingTasks && current.subtasks.isEmpty() &&
+                            task.subtasks.isNotEmpty()
+                        if (wouldInsert || wouldEnrich) {
+                            skippedCount++
+                            warnings += "Skipped task '${task.id}' because the task list changed during image preparation."
+                            return@forEachIndexed
+                        }
+                    }
                     if (task.id.isBlank()) {
                         skippedCount++
                         warnings += "Skipped a backup task without an ID."
@@ -216,12 +279,6 @@ class BackupRestoreEngine internal constructor(
                         access.reconcileAlarms(reason = "backup-restore")
                     }
                 }
-                if (replaceTasks) {
-                    writeGate.write("BackupRestoreEngine.sweepImages") {
-                        access.sweepSubtaskImages()
-                    }
-                }
-
                 RestoreWorkResult.Completed(
                     importedCount = importedCount,
                     skippedCount = skippedCount,
@@ -258,12 +315,48 @@ class BackupRestoreEngine internal constructor(
         val storedCount: Int,
     )
 
+    private fun imageCandidateIndexes(
+        tasks: List<Task>,
+        existingById: Map<String, Task>,
+        enrichExistingTasks: Boolean,
+    ): Set<Int> {
+        val incomingIds = mutableSetOf<String>()
+        val enrichmentIds = mutableSetOf<String>()
+        return tasks.mapIndexedNotNull { index, task ->
+            if (task.id.isBlank()) return@mapIndexedNotNull null
+            val existing = existingById[task.id]
+            if (existing != null) {
+                if (enrichExistingTasks && existing.subtasks.isEmpty() &&
+                    task.subtasks.isNotEmpty() && enrichmentIds.add(task.id)
+                ) {
+                    index
+                } else {
+                    null
+                }
+            } else {
+                if (task.id in incomingIds || runCatching {
+                        Instant.parse(task.endTime)
+                    }.isFailure
+                ) {
+                    null
+                } else {
+                    incomingIds += task.id
+                    index
+                }
+            }
+        }.toSet()
+    }
+
     /**
-     * Decode and ingest file assets before entering RestoreGate. File IDs never
-     * become paths; only the image store's content hash is persisted.
+     * Decode candidate assets after a brief gated task snapshot and before the
+     * batch write. File IDs never become paths; only stored content hashes persist.
      */
-    private fun prepareImages(envelope: BackupEnvelope): PreparedImages {
-        val referenced = SubtaskImageStore.referencedAssetIds(envelope.tasks)
+    private fun prepareImages(
+        envelope: BackupEnvelope,
+        candidateTaskIndexes: Set<Int>,
+    ): PreparedImages {
+        val candidates = envelope.tasks.filterIndexed { index, _ -> index in candidateTaskIndexes }
+        val referenced = SubtaskImageStore.referencedAssetIds(candidates)
         if (referenced.isEmpty()) return PreparedImages(envelope.tasks, emptyList(), 0)
         val store = imageStore
         val remapped = mutableMapOf<String, String>()
@@ -285,21 +378,26 @@ class BackupRestoreEngine internal constructor(
                 failed++
                 return@forEach
             }
-            if (bytes.isEmpty() ||
-                bytes.size > BackupJsonLimits.MAX_ASSET_TOTAL_BYTES - totalBytes
-            ) {
-                failed++
-                return@forEach
-            }
-            totalBytes += bytes.size
-            val storedId = store?.ingest(bytes)?.getOrNull()
-            if (storedId == null) {
-                failed++
-            } else {
-                remapped[fileId] = storedId
+            try {
+                if (bytes.isEmpty() ||
+                    bytes.size > BackupJsonLimits.MAX_ASSET_TOTAL_BYTES - totalBytes
+                ) {
+                    failed++
+                    return@forEach
+                }
+                totalBytes += bytes.size
+                val storedId = store?.ingest(bytes)?.getOrNull()
+                if (storedId == null) {
+                    failed++
+                } else {
+                    remapped[fileId] = storedId
+                }
+            } finally {
+                bytes.fill(0)
             }
         }
-        val tasks = envelope.tasks.map { task ->
+        val tasks = envelope.tasks.mapIndexed { index, task ->
+            if (index !in candidateTaskIndexes) return@mapIndexed task
             task.copy(
                 subtasks = task.subtasks.map { subtask ->
                     subtask.copy(

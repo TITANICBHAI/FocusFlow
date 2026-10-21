@@ -713,6 +713,22 @@ status-card notification, reusable exercise templates referenced by ID across ta
 | `assets/changelog.json`, `app/build.gradle.kts` | changelog, version bump |
 | Tests | per §12 |
 
+## 21. Owner-authorized grouped implementation and verification (2026-10-21)
+
+The owner authorized additive implementation for Phases 4, 8, and 9 in the existing order, with
+test sources added as part of each phase but execution of tests and build/release checks deferred
+until all three implementation phases are complete. Between phases, perform only Git-based checks
+(`git status`, `git diff --check`, and review of the relevant diffs); record their exact outcomes in
+`exercise/TRACKER.md`. Do not run unit or instrumented tests, lint, Android-test compilation, R8,
+APK assembly, or other build/production verification during these three implementation phases.
+
+This is a narrow owner-approved exception to the per-phase verification gates and stop-before-next-
+phase rule in §§0.8 and 13. Keep the original requirements intact: after Phase 9 implementation,
+run the deferred applicable verification together and record each exact result before declaring
+those gates complete. Continue to honor the no-touch list, Phase 8/9 audit rules, and the existing
+verification restrictions (including no APK assembly on Replit and no GitHub Actions unless the
+owner explicitly requests APK-building verification).
+
 ---
 
 ## 15. Definition of done

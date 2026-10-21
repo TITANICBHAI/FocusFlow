@@ -60,6 +60,82 @@ class SubtaskParserTest {
     }
 
     @Test
+    fun invalidNestedValuesAreDroppedWithoutDroppingValidSubtaskContent() {
+        val result = parse(
+            """
+            [{
+              "id":"kept","title":"Kept",
+              "goal":false,
+              "image":42,
+              "steps":[{"title":"No text"},{"text":7},{"text":"Valid step","image":[]}],
+              "tips":["Keep this",42],
+              "avoid":[null,"Avoid this"]
+            },{
+              "id":"empty-image","title":"Empty image","image":{}
+            }]
+            """.trimIndent(),
+        )
+
+        assertEquals(2, result.subtasks.size)
+        val subtask = result.subtasks.first()
+        assertEquals("Kept", subtask.title)
+        assertNull(subtask.goal)
+        assertNull(subtask.image)
+        assertEquals(listOf("Valid step"), subtask.steps.map { it.text })
+        assertNull(subtask.steps.single().image)
+        assertEquals(listOf("Keep this"), subtask.tips)
+        assertEquals(listOf("Avoid this"), subtask.avoid)
+        assertNull(result.subtasks[1].image)
+        assertTrue(result.warnings.any { it.contains("invalid subtask goals") })
+        assertTrue(result.warnings.any { it.contains("unsupported images") })
+        assertTrue(result.warnings.any { it.contains("malformed steps were skipped") })
+        assertTrue(result.warnings.any { it.contains("invalid tips/avoid items") })
+    }
+
+    @Test
+    fun unknownFieldsAreWarnedWithTypoSuggestionAndDoNotRejectSubtask() {
+        val result = parse(
+            """
+            [{
+              "id":"item","title":"Kept","explanaton":"plain text",
+              "goal":{"kind":"sets","sets":2,"reps":6,"goall":"ignored"},
+              "image":{"asset":"photo","decription":"ignored"},
+              "steps":[{"text":"Do this","teh":true}]
+            }]
+            """.trimIndent(),
+            setOf("photo"),
+        )
+
+        assertEquals(1, result.subtasks.size)
+        val warning = result.warnings.joinToString(" ")
+        assertTrue(warning.contains("unknown fields ignored"))
+        assertTrue(warning.contains("explanaton"))
+        assertTrue(warning.contains("explanation"))
+        assertTrue(warning.contains("goall"))
+        assertTrue(warning.contains("decription"))
+        assertTrue(warning.contains("4 unknown fields"))
+    }
+
+    @Test
+    fun parsesRepRangesForSetAndRepetitionGoals() {
+        val result = parse(
+            """
+            [
+              {"id":"sets","title":"Sets","goal":{"kind":"sets","sets":2,"reps":6,"repsMax":10}},
+              {"id":"reps","title":"Reps","goal":{"kind":"reps","reps":12,"repsMax":15}},
+              {"id":"invalid-range","title":"Invalid range","goal":{"kind":"sets","sets":2,"reps":6,"repsMax":5}}
+            ]
+            """.trimIndent(),
+        )
+
+        assertEquals(10, result.subtasks[0].goal?.repsMax)
+        assertEquals(15, result.subtasks[1].goal?.repsMax)
+        assertEquals(6, result.subtasks[2].goal?.reps)
+        assertNull(result.subtasks[2].goal?.repsMax)
+        assertTrue(result.warnings.any { it.contains("invalid repsMax fields") })
+    }
+
+    @Test
     fun missingAssetIsRemovedAndUnknownFieldsAreIgnored() {
         val result = parse(
             """[{"id":"item","title":"Valid","futureField":true,"goal":{"kind":"duration","seconds":45,"future":1},"image":{"asset":"missing"}}]""",

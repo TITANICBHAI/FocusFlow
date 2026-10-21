@@ -214,7 +214,7 @@ class TaskSubtaskUiTest {
     }
 
     @Test
-    fun overviewModeDoesNotRenderTheStepList() {
+    fun overviewModeShowsStepsAsANumberedTextList() {
         composeRule.setContent {
             MaterialTheme {
                 TaskDetailModal(
@@ -224,6 +224,7 @@ class TaskSubtaskUiTest {
                                 id = "overview",
                                 title = "Overview item",
                                 layout = "overview",
+                                image = SubtaskImage(asset = "overview-image", alt = "Overview illustration"),
                                 steps = listOf(
                                     SubtaskStep(title = "Hidden step title", text = "Hidden step body."),
                                 ),
@@ -242,8 +243,10 @@ class TaskSubtaskUiTest {
 
         composeRule.onNodeWithText("Overview item").performClick()
         composeRule.onNodeWithText("Overview").assertExists()
-        composeRule.onNodeWithText("Hidden step title").assertDoesNotExist()
-        composeRule.onNodeWithText("Hidden step body.").assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("Image unavailable: Overview illustration").assertExists()
+        composeRule.onNodeWithText("Steps").assertExists()
+        composeRule.onNodeWithText("Hidden step title").assertExists()
+        composeRule.onNodeWithText("Hidden step body.").assertExists()
     }
 
     @Test

@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.support
 
+import com.tbtechs.focusflow.data.backup.BackupJsonLimits
+
 internal data class FocusFlowGuideItem(
     val title: String,
     val body: String,
@@ -13,9 +15,9 @@ internal const val FOCUSFLOW_RUNTIME_STATE_NOTE =
     "A backup is not a snapshot of the live device. Active Focus sessions, current " +
         "enforcement state, PIN/device security state, and live alarms are not restored."
 
-internal const val FOCUSFLOW_VERSION_NOTE =
-    "Include version 1 when creating a file. The current importer requires the version " +
-        "field and rejects a missing version or any value other than 1."
+internal val FOCUSFLOW_VERSION_NOTE =
+    "Use version 1 for task-only files, or version 2 when subtasks or image assets are " +
+        "included. The importer accepts versions 1 and 2 and rejects other values."
 
 internal const val FOCUSFLOW_SUMMARY_NOTE =
     "Informational metadata only. The importer recalculates taskCount from tasks; the " +
@@ -57,15 +59,16 @@ internal const val FOCUSFLOW_GENERATION_NOTE =
     "Copy the AI task-backup prompt above and describe the tasks, dates, time zone, and constraints. " +
         "It can group one session into a task with subtasks, without changing FocusFlow's other features or global settings."
 
-internal const val FOCUSFLOW_ASSETS_NOTE =
+internal val FOCUSFLOW_ASSETS_NOTE =
     "Images are stored in a top-level assets map and referenced by asset ID. FocusFlow validates, " +
-        "resizes, and stores imported images privately on this device. Remote image links are not supported; " +
-        "keep the complete file under 8 MiB."
+        "resizes, and stores imported images privately on this device. " +
+        BackupJsonLimits.assetBudgetGuidance() +
+        " Keep at most ${BackupJsonLimits.MAX_ASSETS} assets in one file. Remote image links are not supported."
 
 internal val FOCUSFLOW_FILE_FACTS = listOf(
     FocusFlowGuideItem("Extension", ".focusflow"),
     FocusFlowGuideItem("Kind", "FocusFlowBackupV1"),
-    FocusFlowGuideItem("Version", "1 for newly generated files"),
+    FocusFlowGuideItem("Version", "1 for task-only files; 2 when subtasks or image assets are included"),
     FocusFlowGuideItem("Encoding", "UTF-8 JSON"),
     FocusFlowGuideItem("MIME type", "application/octet-stream"),
 )
@@ -99,8 +102,8 @@ internal val FOCUSFLOW_SUBTASK_FIELDS = listOf(
 )
 
 internal val FOCUSFLOW_GOAL_KINDS = listOf(
-    FocusFlowGuideItem("sets", "sets (1–99) plus reps (1–9,999) or seconds (1–86,400); optional restSeconds (0–3,600), weightKg (0–1,000), and label."),
-    FocusFlowGuideItem("reps / duration", "reps needs reps (1–9,999); duration needs seconds (1–86,400)."),
+    FocusFlowGuideItem("sets", "sets (1–99) plus reps (1–9,999) or seconds (1–86,400); repsMax is optional for rep ranges and must be at least reps; optional restSeconds (0–3,600), weightKg (0–1,000), and label."),
+    FocusFlowGuideItem("reps / duration", "reps needs reps (1–9,999) and may include repsMax (at least reps); duration needs seconds (1–86,400)."),
     FocusFlowGuideItem("distance", "meters from 1 to 1,000,000."),
     FocusFlowGuideItem("text", "label is required and can be at most 80 characters."),
 )
@@ -171,7 +174,7 @@ internal val FOCUSFLOW_IMPORT_GUIDANCE = listOf(
 internal const val FOCUSFLOW_ENVELOPE_EXAMPLE = """
 {
   "kind": "FocusFlowBackupV1",
-  "version": 1,
+  "version": 1 or 2,
   "exportedAt": "2025-01-15T10:00:00.000Z",
   "platform": { "os": "android" },
   "assets": { ... },                         // optional; image data used by subtasks
@@ -220,7 +223,7 @@ internal const val FOCUSFLOW_VALID_BACKUP_EXAMPLE = """
 internal const val FOCUSFLOW_SUBTASK_EXAMPLE = """
 {
   "kind": "FocusFlowBackupV1",
-  "version": 1,
+  "version": 2,
   "exportedAt": "2026-10-20T10:00:00.000Z",
   "platform": { "os": "android" },
   "settings": {},
@@ -243,7 +246,7 @@ internal const val FOCUSFLOW_SUBTASK_EXAMPLE = """
       {
         "id": "pushup",
         "title": "Push-ups",
-        "goal": { "kind": "sets", "sets": 3, "reps": 12, "restSeconds": 60 },
+        "goal": { "kind": "sets", "sets": 3, "reps": 12, "repsMax": 15, "restSeconds": 60 },
         "layout": "steps",
         "steps": [
           { "title": "Start position", "text": "Hands just wider than shoulders; brace your core." },

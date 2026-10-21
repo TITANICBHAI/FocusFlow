@@ -82,7 +82,7 @@ If they disagree with this reference, explain the mismatch instead of guessing.
   use `false`. This is a task-level option, not a change to global blocking or
   network settings.
 
-## `.focusflow` V1 format
+## `.focusflow` JSON format
 
 A `.focusflow` file is plain UTF-8 JSON, not a ZIP. Keep it at or below 8 MiB,
 with no more than 20,000 tasks, JSON nesting depth at or below 12, and no more
@@ -91,7 +91,7 @@ than 2,000,000 JSON nodes.
 Create one JSON object with:
 
 - `kind`: exactly `"FocusFlowBackupV1"`
-- `version`: integer `1`
+- `version`: integer `1` for task-only files, or `2` when subtasks or image assets are included
 - `settings`: `{}`
 - `tasks`: an array of task objects
 - `exportedAt`: the file-generation time as an ISO-8601 UTC instant
@@ -139,8 +139,9 @@ Each subtask object:
 - `subtitle`: optional, at most 120 characters
 - `goal`: optional; `kind` is one of:
   - `"sets"`: `sets` (1–99) plus `reps` (1–9999) or `seconds` (1–86400);
+    optional `repsMax` (1–9999) is allowed only with `reps` and must be at least `reps`
     optional `restSeconds` (0–3600) and `weightKg` (0–1000)
-  - `"reps"`: `reps` (1–9999)
+  - `"reps"`: `reps` (1–9999), optionally with `repsMax` (1–9999) at least as large as `reps`
   - `"duration"`: `seconds` (1–86400)
   - `"distance"`: `meters` (1–1000000)
   - `"text"`: `label` (at most 80 characters)
@@ -162,12 +163,12 @@ A subtask may have no steps.
 
 Images are optional. Never invent image data or links. Only when I provide image
 files and you can convert them, resize each to at most 1280 pixels on the long
-edge, save as WebP or JPEG at or under 150 KB, base64-encode without a `data:`
-prefix, and add it under top-level `assets` as `"<asset id>":
+edge, save as WebP or JPEG, base64-encode without a `data:` prefix, and add it
+under top-level `assets` as `"<asset id>":
 {"mime":"image/webp","data":"<base64>"}`. Reuse an asset ID for repeated use of
-the same image. Keep all images combined under 5 MB and the complete file under
-8 MiB. Remote image URLs are not supported. If you cannot produce image data,
-omit every image field and tell me which subtasks could benefit from a photo.
+the same image. ${FOCUSFLOW_ASSETS_NOTE} Remote image URLs are not supported. If
+you cannot produce image data, omit every image field and tell me which subtasks
+could benefit from a photo.
 
 Subtask limits: at most 50 subtasks per task and 200 assets per file.
 

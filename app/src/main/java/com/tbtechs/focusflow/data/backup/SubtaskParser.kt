@@ -23,8 +23,13 @@ internal data class ParsedSubtasks(
 internal object SubtaskParser {
     private val assetIdPattern = Regex("^[A-Za-z0-9_-]{1,64}$")
 
-    fun parse(element: JsonElement?, assetIds: Set<String>): ParsedSubtasks {
+    fun parse(
+        element: JsonElement?,
+        assetIds: Set<String>,
+        sharedUnknownFields: UnknownFieldWarnings? = null,
+    ): ParsedSubtasks {
         val warnings = WarningCounts()
+        val unknownFields = sharedUnknownFields ?: UnknownFieldWarnings()
         val array = when {
             element == null || element == JsonNull -> JsonArray(emptyList())
             element is JsonArray -> element
@@ -42,35 +47,39 @@ internal object SubtaskParser {
         val candidates = array.take(BackupJsonLimits.MAX_SUBTASKS_PER_TASK)
         warnings.truncatedSubtasks = (array.size - candidates.size).coerceAtLeast(0)
         val parsed = candidates.mapNotNull { item ->
-            runCatching { parseCandidate(item, assetIds, warnings) }
+            runCatching { parseCandidate(item, assetIds, warnings, unknownFields) }
                 .onFailure { warnings.malformedSubtasks++ }
                 .getOrNull()
         }
 
         val normalized = SubtaskNormalizer.normalize(parsed)
         warnings.addNormalizerWarnings(normalized.warnings)
-        return ParsedSubtasks(normalized.subtasks, warnings.toMessages())
+        val messages = warnings.toMessages().toMutableList()
+        if (sharedUnknownFields == null) unknownFields.warning()?.let(messages::add)
+        return ParsedSubtasks(normalized.subtasks, messages)
     }
 
     private fun parseCandidate(
         item: JsonElement,
         assetIds: Set<String>,
         warnings: WarningCounts,
+        unknownFields: UnknownFieldWarnings,
     ): Subtask? {
         val objectValue = item as? JsonObject
         if (objectValue == null) {
             warnings.malformedSubtasks++
             return null
         }
+        unknownFields.record(objectValue, SUBTASK_KEYS)
         val title = objectValue.string("title")
         if (title.isNullOrBlank()) {
             warnings.missingTitles++
             return null
         }
 
-        val goal = parseGoal(objectValue["goal"], warnings)
-        val image = parseImage(objectValue["image"], assetIds, warnings)
-        val steps = parseSteps(objectValue["steps"], assetIds, warnings)
+        val goal = parseGoal(objectValue["goal"], warnings, unknownFields)
+        val image = parseImage(objectValue["image"], assetIds, warnings, unknownFields)
+        val steps = parseSteps(objectValue["steps"], assetIds, warnings, unknownFields)
         val tips = parseTextList(objectValue["tips"], warnings)
         val avoid = parseTextList(objectValue["avoid"], warnings)
         return Subtask(
@@ -89,13 +98,18 @@ internal object SubtaskParser {
         )
     }
 
-    private fun parseGoal(element: JsonElement?, warnings: WarningCounts): SubtaskGoal? {
+    private fun parseGoal(
+        element: JsonElement?,
+        warnings: WarningCounts,
+        unknownFields: UnknownFieldWarnings,
+    ): SubtaskGoal? {
         if (element == null || element == JsonNull) return null
         val objectValue = element as? JsonObject
         if (objectValue == null) {
             warnings.invalidGoals++
             return null
         }
+        unknownFields.record(objectValue, GOAL_KEYS)
         val kind = objectValue.string("kind")
         val label = objectValue.stringOrNull("label") ?: run {
             if (objectValue["label"] != null && objectValue["label"] != JsonNull) {
@@ -112,6 +126,8 @@ internal object SubtaskParser {
             warnings.invalidGoals++
             return null
         } else null
+        val rawRepsMax = objectValue.intOrNull("repsMax")
+        val hasInvalidRepsMax = objectValue.hasBadInteger("repsMax")
         val seconds = objectValue.intOrNull("seconds") ?: if (objectValue.hasBadInteger("seconds")) {
             warnings.invalidGoals++
             return null
@@ -134,10 +150,17 @@ internal object SubtaskParser {
             warnings.invalidGoals++
             return null
         }
+        val repsMax = rawRepsMax?.takeIf {
+            kind in REP_RANGE_KINDS && reps != null && it in reps..MAX_REPS
+        }
+        if (hasInvalidRepsMax || rawRepsMax != null && repsMax == null) {
+            warnings.invalidRepRanges++
+        }
         return SubtaskGoal(
             kind = kind,
             sets = sets,
             reps = reps,
+            repsMax = repsMax,
             seconds = seconds,
             restSeconds = restSeconds,
             meters = meters,
@@ -150,6 +173,7 @@ internal object SubtaskParser {
         element: JsonElement?,
         assetIds: Set<String>,
         warnings: WarningCounts,
+        unknownFields: UnknownFieldWarnings,
     ): List<SubtaskStep> {
         if (element == null || element == JsonNull) return emptyList()
         val array = element as? JsonArray
@@ -161,6 +185,7 @@ internal object SubtaskParser {
         warnings.truncatedSteps += (array.size - selected.size).coerceAtLeast(0)
         return selected.mapNotNull { stepElement ->
             val step = stepElement as? JsonObject
+            step?.let { unknownFields.record(it, STEP_KEYS) }
             val text = step?.string("text")
             if (step == null || text.isNullOrBlank()) {
                 warnings.malformedSteps++
@@ -169,7 +194,7 @@ internal object SubtaskParser {
             SubtaskStep(
                 title = step.string("title"),
                 text = text,
-                image = parseImage(step["image"], assetIds, warnings),
+                image = parseImage(step["image"], assetIds, warnings, unknownFields),
             )
         }
     }
@@ -201,11 +226,21 @@ internal object SubtaskParser {
         element: JsonElement?,
         assetIds: Set<String>,
         warnings: WarningCounts,
+        unknownFields: UnknownFieldWarnings,
     ): SubtaskImage? {
         if (element == null || element == JsonNull) return null
         val image = element as? JsonObject
-        if (image == null || "url" in image || "asset" !in image) {
+        if (image == null) {
+            warnings.unsupportedImages++
+            return null
+        }
+        unknownFields.record(image, IMAGE_KEYS)
+        if ("url" in image) {
             warnings.remoteImages++
+            return null
+        }
+        if ("asset" !in image) {
+            warnings.unsupportedImages++
             return null
         }
         val asset = image.string("asset")
@@ -282,7 +317,9 @@ internal object SubtaskParser {
         var missingTitles = 0
         var invalidSubtaskCollections = 0
         var invalidGoals = 0
+        var invalidRepRanges = 0
         var invalidImages = 0
+        var unsupportedImages = 0
         var remoteImages = 0
         var missingImages = 0
         var malformedSteps = 0
@@ -318,7 +355,9 @@ internal object SubtaskParser {
                 add("$oversizedSubtaskPayloads subtask payloads over 96 KiB were ignored.")
             }
             if (invalidGoals > 0) add("$invalidGoals invalid subtask goals were removed.")
+            if (invalidRepRanges > 0) add("$invalidRepRanges invalid repsMax fields were removed.")
             if (invalidImages > 0) add("$invalidImages invalid images were removed.")
+            if (unsupportedImages > 0) add("$unsupportedImages unsupported images were skipped.")
             if (remoteImages > 0) {
                 add("$remoteImages remote images were skipped because remote images aren't supported.")
             }
@@ -341,4 +380,16 @@ internal object SubtaskParser {
             }
         }
     }
+
+    private val SUBTASK_KEYS = setOf(
+        "id", "title", "done", "subtitle", "goal", "setsDone", "image", "layout",
+        "explanation", "steps", "tips", "avoid",
+    )
+    private val GOAL_KEYS = setOf(
+        "kind", "sets", "reps", "repsMax", "seconds", "restSeconds", "meters", "weightKg", "label",
+    )
+    private val STEP_KEYS = setOf("title", "text", "image")
+    private val IMAGE_KEYS = setOf("asset", "alt")
+    private val REP_RANGE_KINDS = setOf("sets", "reps")
+    private const val MAX_REPS = 9_999
 }
