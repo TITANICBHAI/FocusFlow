@@ -138,11 +138,16 @@ class BackupSourceTest {
                 "manifest.json",
             )
 
-            listOf(empty, nested, duplicateManifest).forEach { bytes ->
+            listOf(
+                "empty ZIP" to empty,
+                "nested ZIP" to nested,
+                "duplicate manifest" to duplicateManifest,
+            ).forEach { (label, bytes) ->
                 val failure = runCatching {
                     BackupSource.readStream(ByteArrayInputStream(bytes), cache)
                 }.exceptionOrNull()
-                assertTrue(failure is BackupSourceException)
+                assertTrue("$label should be rejected as an invalid FocusFlow file: $failure",
+                    failure is BackupSourceException)
             }
         } finally {
             cache.deleteRecursively()

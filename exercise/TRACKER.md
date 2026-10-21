@@ -440,6 +440,8 @@ Addendum v2 note (2026-10-21): when this phase runs, the help screens and change
 - Fixed the identified test and backup-format issues: preserve the v1 JSON field order, make the sequential-image fixture retain its PNG signature, compare byte arrays by contents, and inspect central-directory metadata before `ZipFile` so duplicate/encrypted manifests fail explicitly while encrypted/unsupported non-manifest entries are safely skipped in the staged archive. The production test suite must be rerun; these fixes have not yet been verified.
 - `git diff --check` after the Phase 9 test and archive fixes — PASS (no output).
 - Fourth production test attempt: `FOCUSFLOW_SKIP_APK_BUILD=1 bash scripts/build-apk-with-java.sh :app:testProductionDebugUnitTest` — FAILED in 1m 5s (`BUILD FAILED`; exit code 1). Extract this run's test failures before any additional verification command; the combined verification gate remains open.
+- That run compiled production and tests, then executed 365 tests with 1 failure: `BackupSourceTest.emptyZipNestedZipAndDuplicateManifestAreRejected` at the shared assertion on line 145. The other 364 tests passed, including the previous five failing cases. Add the input label to the assertion to identify which invalid container is not being rejected, then rerun the production suite.
+- Added per-container assertion messages for empty ZIP, nested ZIP, and duplicate-manifest fixtures so any remaining failure reports its exact input. The full production unit suite remains the next verification gate.
 
 **Failures / blockers:**
 _None recorded._
