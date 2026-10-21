@@ -214,6 +214,82 @@ class TaskSubtaskUiTest {
     }
 
     @Test
+    fun taskProgressResetRequiresConfirmation() {
+        val resetCalls = AtomicInteger()
+        composeRule.setContent {
+            MaterialTheme {
+                TaskDetailModal(
+                    task = task(
+                        subtasks = listOf(
+                            Subtask(id = "press", title = "Press", done = true),
+                        ),
+                    ),
+                    onDismiss = {},
+                    onComplete = {},
+                    onSkip = {},
+                    onExtend = {},
+                    onStartFocus = {},
+                    onEdit = {},
+                    onResetSubtasks = { resetCalls.incrementAndGet() },
+                )
+            }
+        }
+
+        composeRule.onNodeWithContentDescription("Subtask options").performClick()
+        composeRule.onNodeWithText("Reset progress").performClick()
+        composeRule.onNodeWithText("Reset subtask progress").assertExists()
+        assertEquals(0, resetCalls.get())
+        composeRule.onNodeWithText("Cancel").performClick()
+        assertEquals(0, resetCalls.get())
+
+        composeRule.onNodeWithContentDescription("Subtask options").performClick()
+        composeRule.onNodeWithText("Reset progress").performClick()
+        composeRule.onNodeWithText("Reset").performClick()
+        assertEquals(1, resetCalls.get())
+    }
+
+    @Test
+    fun itemProgressResetRequiresConfirmation() {
+        val resetValues = mutableListOf<Int>()
+        composeRule.setContent {
+            MaterialTheme {
+                TaskDetailModal(
+                    task = task(
+                        subtasks = listOf(
+                            Subtask(
+                                id = "press",
+                                title = "Press",
+                                goal = SubtaskGoal(kind = "sets", sets = 2, reps = 8),
+                                setsDone = 1,
+                            ),
+                        ),
+                    ),
+                    onDismiss = {},
+                    onComplete = {},
+                    onSkip = {},
+                    onExtend = {},
+                    onStartFocus = {},
+                    onEdit = {},
+                    onSubtaskSetsDone = { _, _, value -> resetValues += value },
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Press").performClick()
+        composeRule.onNodeWithContentDescription("Subtask options").performClick()
+        composeRule.onNodeWithText("Reset this item").performClick()
+        composeRule.onNodeWithText("Clear this subtask’s completion and set progress?").assertExists()
+        assertTrue(resetValues.isEmpty())
+        composeRule.onNodeWithText("Cancel").performClick()
+        assertTrue(resetValues.isEmpty())
+
+        composeRule.onNodeWithContentDescription("Subtask options").performClick()
+        composeRule.onNodeWithText("Reset this item").performClick()
+        composeRule.onNodeWithText("Reset").performClick()
+        assertEquals(listOf(0), resetValues)
+    }
+
+    @Test
     fun overviewModeShowsStepsAsANumberedTextList() {
         composeRule.setContent {
             MaterialTheme {
@@ -276,6 +352,41 @@ class TaskSubtaskUiTest {
         composeRule.onNodeWithText("Image item").performClick()
         composeRule.onNodeWithContentDescription("Image unavailable: A clear image description").assertExists()
         composeRule.onNodeWithText("Image unavailable").assertExists()
+    }
+
+    @Test
+    fun subtaskImageOpensAndClosesFullScreenViewer() {
+        composeRule.setContent {
+            MaterialTheme {
+                TaskDetailModal(
+                    task = task(
+                        subtasks = listOf(
+                            Subtask(
+                                id = "image",
+                                title = "Image item",
+                                layout = "overview",
+                                image = SubtaskImage("image-asset", "Overview illustration"),
+                            ),
+                        ),
+                    ),
+                    onDismiss = {},
+                    onComplete = {},
+                    onSkip = {},
+                    onExtend = {},
+                    onStartFocus = {},
+                    onEdit = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Image item").performClick()
+        composeRule.onNodeWithContentDescription(
+            "Open full-screen image: Overview illustration",
+        ).performClick()
+        composeRule.onNodeWithContentDescription("Close full-screen image")
+            .assertExists()
+            .performClick()
+        composeRule.onNodeWithContentDescription("Close full-screen image").assertDoesNotExist()
     }
 
     @Test

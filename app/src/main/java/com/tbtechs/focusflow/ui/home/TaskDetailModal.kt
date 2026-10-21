@@ -45,6 +45,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -56,6 +57,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -63,6 +65,7 @@ import com.tbtechs.focusflow.ui.theme.scaledSp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.tbtechs.focusflow.data.images.SubtaskImageStore
+import com.tbtechs.focusflow.data.model.Subtask
 import com.tbtechs.focusflow.data.model.Task
 import com.tbtechs.focusflow.ui.home.subtask.SubtaskDetailScreen
 import com.tbtechs.focusflow.ui.home.subtask.SubtaskProgressSection
@@ -90,11 +93,13 @@ fun TaskDetailModal(
     onSubtaskDone: (String, String, Boolean) -> Unit = { _, _, _ -> },
     onSubtaskSetsDone: (String, String, Int) -> Unit = { _, _, _ -> },
     onResetSubtasks: (String) -> Unit = {},
+    onReplaceSubtasks: (String, List<Subtask>) -> Unit = { _, _ -> },
 ) {
     var selectedSubtaskId by remember(task.id) { mutableStateOf<String?>(null) }
     val selectedSubtask = selectedSubtaskId?.let { id ->
         task.subtasks.firstOrNull { it.id == id }
     }
+    val showingSubtaskScreen = selectedSubtask != null
     LaunchedEffect(selectedSubtaskId, task.subtasks) {
         if (selectedSubtaskId != null && selectedSubtask == null) {
             selectedSubtaskId = null
@@ -124,6 +129,12 @@ fun TaskDetailModal(
             decorFitsSystemWindows = false,
         ),
     ) {
+        val dialogView = LocalView.current
+        DisposableEffect(dialogView, showingSubtaskScreen) {
+            val wasKeepingScreenOn = dialogView.keepScreenOn
+            if (showingSubtaskScreen) dialogView.keepScreenOn = true
+            onDispose { dialogView.keepScreenOn = wasKeepingScreenOn }
+        }
         AnimatedContent(
             targetState = selectedSubtask?.id,
             modifier = Modifier.fillMaxSize(),
@@ -170,6 +181,9 @@ fun TaskDetailModal(
                         },
                         onSetSetsDone = { setsDone ->
                             onSubtaskSetsDone(task.id, visibleSubtask.id, setsDone)
+                        },
+                        onReplaceSubtasks = { subtasks ->
+                            onReplaceSubtasks(task.id, subtasks)
                         },
                         onCompleteTask = onComplete,
                     )

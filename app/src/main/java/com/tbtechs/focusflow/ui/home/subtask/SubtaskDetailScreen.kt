@@ -106,6 +106,7 @@ internal fun SubtaskDetailScreen(
     onSelectSubtask: (String) -> Unit,
     onSetDone: (Boolean) -> Unit,
     onSetSetsDone: (Int) -> Unit,
+    onReplaceSubtasks: (List<Subtask>) -> Unit,
     onCompleteTask: () -> Unit,
 ) {
     val mode = SubtaskLayoutPolicy.resolve(subtask)
@@ -119,8 +120,22 @@ internal fun SubtaskDetailScreen(
     }
     var menuExpanded by remember(subtask.id) { mutableStateOf(false) }
     var confirmReset by remember(subtask.id) { mutableStateOf(false) }
+    var photoManagerOpen by remember(subtask.id) { mutableStateOf(false) }
+    var zoomedImage by remember(subtask.id) { mutableStateOf<SubtaskImage?>(null) }
+    var restTimerEnabled by remember(subtask.id) { mutableStateOf(true) }
+    var timerState by remember(subtask.id) { mutableStateOf(SubtaskTimerState()) }
     var advanceAfterDone by remember(subtask.id) { mutableStateOf(false) }
     val haptics = LocalHapticFeedback.current
+    LaunchedEffect(timerState.mode, timerState.remainingSeconds) {
+        if (timerState.mode != null && timerState.remainingSeconds > 0) {
+            delay(1_000)
+            val tick = timerState.tick()
+            timerState = tick.state
+            if (tick.finished) {
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+            }
+        }
+    }
     val currentIndex = task.subtasks.indexOfFirst { it.id == subtask.id }
         .takeIf { it >= 0 } ?: index
     val allDone = task.subtasks.isNotEmpty() && task.subtasks.all(Subtask::done)
@@ -152,6 +167,8 @@ internal fun SubtaskDetailScreen(
             itemNumber = currentIndex + 1,
             total = task.subtasks.size,
             onBack = onBack,
+            onManagePhotos = { photoManagerOpen = true },
+            canManagePhotos = imageStore != null,
             onReset = { confirmReset = true },
         )
 
@@ -178,6 +195,7 @@ internal fun SubtaskDetailScreen(
                         imageStore = imageStore,
                         accent = accent,
                         animationsEnabled = animationsEnabled,
+                        onOpenImage = { zoomedImage = it },
                     )
                 }
                 Column(
@@ -204,6 +222,22 @@ internal fun SubtaskDetailScreen(
                         onCuesExpanded = { cuesExpanded = it },
                         accent = accent,
                         onSetSetsDone = onSetSetsDone,
+                        onOpenImage = { zoomedImage = it },
+                        timerState = timerState,
+                        restTimerEnabled = restTimerEnabled,
+                        onRestTimerEnabledChange = { enabled ->
+                            restTimerEnabled = enabled
+                            if (!enabled && timerState.mode == SubtaskTimerMode.REST) {
+                                timerState = timerState.stop()
+                            }
+                        },
+                        onStartRestTimer = { seconds ->
+                            timerState = timerState.start(SubtaskTimerMode.REST, seconds)
+                        },
+                        onStartDurationTimer = { seconds ->
+                            timerState = timerState.start(SubtaskTimerMode.DURATION, seconds)
+                        },
+                        onStopTimer = { timerState = timerState.stop() },
                     )
                     if (allDone && task.status !in setOf("completed", "skipped")) {
                         AllSubtasksDoneBanner(onComplete = onCompleteTask)
@@ -228,6 +262,7 @@ internal fun SubtaskDetailScreen(
                     imageStore = imageStore,
                     accent = accent,
                     animationsEnabled = animationsEnabled,
+                    onOpenImage = { zoomedImage = it },
                 )
                 SubtaskDetailContent(
                     subtask = subtask,
@@ -245,6 +280,22 @@ internal fun SubtaskDetailScreen(
                     onCuesExpanded = { cuesExpanded = it },
                     accent = accent,
                     onSetSetsDone = onSetSetsDone,
+                    onOpenImage = { zoomedImage = it },
+                    timerState = timerState,
+                    restTimerEnabled = restTimerEnabled,
+                    onRestTimerEnabledChange = { enabled ->
+                        restTimerEnabled = enabled
+                        if (!enabled && timerState.mode == SubtaskTimerMode.REST) {
+                            timerState = timerState.stop()
+                        }
+                    },
+                    onStartRestTimer = { seconds ->
+                        timerState = timerState.start(SubtaskTimerMode.REST, seconds)
+                    },
+                    onStartDurationTimer = { seconds ->
+                        timerState = timerState.start(SubtaskTimerMode.DURATION, seconds)
+                    },
+                    onStopTimer = { timerState = timerState.stop() },
                 )
                 if (allDone && task.status !in setOf("completed", "skipped")) {
                     AllSubtasksDoneBanner(onComplete = onCompleteTask)
@@ -308,6 +359,22 @@ internal fun SubtaskDetailScreen(
             },
         )
     }
+
+    SubtaskPhotoAttachment(
+        task = task,
+        subtask = subtask,
+        imageStore = imageStore,
+        visible = photoManagerOpen,
+        onReplaceSubtasks = onReplaceSubtasks,
+        onDismiss = { photoManagerOpen = false },
+    )
+    zoomedImage?.let { image ->
+        SubtaskImageZoomViewer(
+            image = image,
+            imageStore = imageStore,
+            onDismiss = { zoomedImage = null },
+        )
+    }
 }
 
 @Composable
@@ -315,6 +382,8 @@ private fun SubtaskDetailTopBar(
     itemNumber: Int,
     total: Int,
     onBack: () -> Unit,
+    onManagePhotos: () -> Unit,
+    canManagePhotos: Boolean,
     onReset: () -> Unit,
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
@@ -349,6 +418,14 @@ private fun SubtaskDetailTopBar(
             }
             DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
                 DropdownMenuItem(
+                    text = { Text("Manage photos", fontSize = 14.scaledSp) },
+                    enabled = canManagePhotos,
+                    onClick = {
+                        menuExpanded = false
+                        onManagePhotos()
+                    },
+                )
+                DropdownMenuItem(
                     text = { Text("Reset this item", fontSize = 14.scaledSp) },
                     onClick = {
                         menuExpanded = false
@@ -371,6 +448,7 @@ private fun SubtaskHero(
     imageStore: SubtaskImageStore?,
     accent: Color,
     animationsEnabled: Boolean,
+    onOpenImage: (SubtaskImage) -> Unit,
 ) {
     val density = LocalDensity.current
     val isPaged = mode == SubtaskLayoutMode.STEPS && pages.isNotEmpty()
@@ -425,16 +503,26 @@ private fun SubtaskHero(
                     key = { pages[it].stepIndex },
                 ) { page ->
                     val image = pages[page].image
-                    SubtaskImageView(
-                        assetId = image.asset,
-                        imageStore = imageStore,
-                        contentDescription = image.alt?.takeIf(String::isNotBlank)
+                    val imageDescription = image.alt?.takeIf(String::isNotBlank)
                             ?: subtask.steps[pages[page].stepIndex].title
-                            ?: subtask.title,
-                        modifier = Modifier.fillMaxSize(),
-                        targetWidthPx = widthPx,
-                        animate = animationsEnabled,
-                    )
+                            ?: subtask.title
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .semantics(mergeDescendants = true) {
+                                contentDescription = "Open full-screen image: $imageDescription"
+                            }
+                            .clickable(role = Role.Button) { onOpenImage(image) },
+                    ) {
+                        SubtaskImageView(
+                            assetId = image.asset,
+                            imageStore = imageStore,
+                            contentDescription = imageDescription,
+                            modifier = Modifier.fillMaxSize(),
+                            targetWidthPx = widthPx,
+                            animate = animationsEnabled,
+                        )
+                    }
                 }
                 if (pages.size > 1) {
                     Text(
@@ -452,15 +540,25 @@ private fun SubtaskHero(
                 }
             }
             staticImage != null -> {
-                SubtaskImageView(
-                    assetId = staticImage.asset,
-                    imageStore = imageStore,
-                    contentDescription = staticImage.alt?.takeIf(String::isNotBlank) ?: subtask.title,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop,
-                    targetWidthPx = widthPx,
-                    animate = animationsEnabled,
-                )
+                val imageDescription = staticImage.alt?.takeIf(String::isNotBlank) ?: subtask.title
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .semantics(mergeDescendants = true) {
+                            contentDescription = "Open full-screen image: $imageDescription"
+                        }
+                        .clickable(role = Role.Button) { onOpenImage(staticImage) },
+                ) {
+                    SubtaskImageView(
+                        assetId = staticImage.asset,
+                        imageStore = imageStore,
+                        contentDescription = imageDescription,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                        targetWidthPx = widthPx,
+                        animate = animationsEnabled,
+                    )
+                }
             }
             else -> {
                 Column(
@@ -505,6 +603,13 @@ private fun SubtaskDetailContent(
     onCuesExpanded: (Boolean) -> Unit,
     accent: Color,
     onSetSetsDone: (Int) -> Unit,
+    onOpenImage: (SubtaskImage) -> Unit,
+    timerState: SubtaskTimerState,
+    restTimerEnabled: Boolean,
+    onRestTimerEnabledChange: (Boolean) -> Unit,
+    onStartRestTimer: (Int) -> Unit,
+    onStartDurationTimer: (Int) -> Unit,
+    onStopTimer: () -> Unit,
 ) {
     Column(
         modifier = Modifier.semantics(mergeDescendants = false) { },
@@ -555,9 +660,27 @@ private fun SubtaskDetailContent(
                             total = goal.sets,
                             completed = subtask.setsDone.coerceIn(0, goal.sets),
                             accent = accent,
-                            onSetCount = onSetSetsDone,
+                            onSetCount = { setsDone ->
+                                if (
+                                    setsDone > subtask.setsDone &&
+                                    restTimerEnabled &&
+                                    goal.restSeconds != null &&
+                                    goal.restSeconds > 0
+                                ) {
+                                    onStartRestTimer(goal.restSeconds)
+                                }
+                                onSetSetsDone(setsDone)
+                            },
                         )
                     }
+                    SubtaskTimerPanel(
+                        goal = goal,
+                        state = timerState,
+                        restTimerEnabled = restTimerEnabled,
+                        onRestTimerEnabledChange = onRestTimerEnabledChange,
+                        onStartDurationTimer = onStartDurationTimer,
+                        onStopTimer = onStopTimer,
+                    )
                 }
             }
         }
@@ -650,7 +773,13 @@ private fun SubtaskDetailContent(
                                     .width(96.dp)
                                     .height(72.dp)
                                     .clip(RoundedCornerShape(9.dp))
-                                    .clickable(role = Role.Button) { onStepSelected(stepIndex) },
+                                    .semantics(mergeDescendants = true) {
+                                        contentDescription = "Open full-screen image for Step ${stepIndex + 1}"
+                                    }
+                                    .clickable(role = Role.Button) {
+                                        onStepSelected(stepIndex)
+                                        onOpenImage(image)
+                                    },
                             ) {
                                 SubtaskImageView(
                                     assetId = image.asset,

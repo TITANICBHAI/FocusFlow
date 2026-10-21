@@ -2,8 +2,10 @@ package com.tbtechs.focusflow.data.images
 
 import com.tbtechs.focusflow.data.model.Subtask
 import com.tbtechs.focusflow.data.model.Task
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
+import java.io.InputStream
 import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
@@ -48,6 +50,15 @@ class SubtaskImageStore(
         assetId
     }
 
+    fun ingest(input: InputStream): Result<String> = runCatching {
+        val bytes = input.readBounded(MAX_INPUT_BYTES)
+        try {
+            ingest(bytes).getOrThrow()
+        } finally {
+            bytes.fill(0)
+        }
+    }
+
     fun file(assetId: String): File? {
         if (!ASSET_ID.matches(assetId)) return null
         return File(directory, "$assetId.webp")
@@ -60,11 +71,6 @@ class SubtaskImageStore(
         if (target.length() !in 1..MAX_STORED_FILE_BYTES) return null
         val bytes = target.readBytes()
         return bytes.takeIf { isWebp(it) && sha256(it) == assetId }
-    }
-
-    fun reencodeForExport(assetId: String, maxLongEdge: Int, quality: Int): ByteArray? {
-        val source = openForExport(assetId) ?: return null
-        return codec.reencode(source, maxLongEdge, quality)?.takeIf(::isWebp)
     }
 
     /** Delete unreferenced image files only after the import/write grace period. */
@@ -113,6 +119,28 @@ class SubtaskImageStore(
         } finally {
             if (temporary.exists()) temporary.delete()
         }
+    }
+
+    private fun InputStream.readBounded(maxBytes: Int): ByteArray {
+        val output = ByteArrayOutputStream(minOf(maxBytes, 64 * 1024))
+        val buffer = ByteArray(8 * 1024)
+        var total = 0
+        while (true) {
+            val count = read(buffer)
+            if (count < 0) break
+            if (count == 0) {
+                val value = read()
+                if (value < 0) break
+                require(total < maxBytes) { "Image exceeds the supported size limit." }
+                output.write(value)
+                total++
+                continue
+            }
+            require(count <= maxBytes - total) { "Image exceeds the supported size limit." }
+            output.write(buffer, 0, count)
+            total += count
+        }
+        return output.toByteArray()
     }
 
     companion object {

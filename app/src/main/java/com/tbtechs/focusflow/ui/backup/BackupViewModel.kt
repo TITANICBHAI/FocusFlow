@@ -449,7 +449,7 @@ class BackupViewModel internal constructor(
                     return BackupViewModel(
                         operations = operations,
                         appVersion = BuildConfig.VERSION_NAME,
-                        assetExporter = SubtaskAssetExporter(AppModule.subtaskImageStore),
+                        assetExporter = SubtaskAssetExporter(),
                         bundleWriter = BackupBundleWriter(AppModule.subtaskImageStore),
                     ) as T
                 }

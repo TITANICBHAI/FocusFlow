@@ -34,7 +34,7 @@
 | 2 — Format, import/export, images | DONE — evidence recorded; needs device check | 7/7 | 2026-10-21 | 2026-10-21 |
 | 3 — AI prompt and format guide | DONE — evidence recorded | 4/4 | 2026-10-21 | 2026-10-21 |
 | 4 — Viewing UI | IN PROGRESS | 0/6 | 2026-10-21 | — |
-| 5 — Enhancements | NOT STARTED | 0/5 | — | — |
+| 5 — Enhancements | IN PROGRESS | 0/5 | 2026-10-21 | — |
 | 6 — Help, changelog, release checks | NOT STARTED | 0/5 | — | — |
 | 7 — In-app authoring (optional; only if owner asks) | NOT STARTED | 0/1 | — | — |
 | 8 — Hardening of Phases 2–3 (Addendum v2) | IN PROGRESS | 0/8 | 2026-10-21 | — |
@@ -351,9 +351,9 @@ _None recorded._
 
 ## Phase 5 — Enhancements
 
-**Status:** NOT STARTED
-**Blocked by:** Phase 4, Phase 8 and Phase 9 complete (photo attach depends on the Phase 8 EXIF-orientation fix)
-**Started:** —
+**Status:** IN PROGRESS
+**Blocked by:** Verification gates for Phases 4, 8 and 9 remain deferred under the owner-approved `PLAN.md` §21 batch; the Phase 8 image-orientation implementation is present.
+**Started:** 2026-10-21
 **Completed:** —
 **Progress:** 0/5
 **Plan section:** §10
@@ -365,10 +365,27 @@ _None recorded._
 - [ ] Add the stated privacy-policy line and verify applicable behavior; record device-only checks honestly.
 
 **Notes / progress:**
+On 2026-10-21, the owner authorized Phase 5 implementation after the Phase 9 code work, with verification still deferred under `PLAN.md` §21. The pre-edit worktree was clean at `a8cd6fc`. Keep changes within Phase 5; add planned test sources but do not execute tests, builds, lint, Android-test compilation, R8, APK assembly, or device checks.
+
+Added bounded `SubtaskImageStore.ingest(InputStream)` for Photo Picker URIs and the reusable item/step photo-management dialog with add/replace/remove targets. No tests or builds were run.
+
+Wired the subtask replacement callback from `HomeScreen` through `TaskDetailModal` to the subtask screen, using the existing `TaskViewModel.replaceSubtasks` path. The Photo Picker flow is not connected yet; no checks were run.
+
+Connected the Photo Picker attachment controller to the subtask overflow menu and enabled keep-screen-on only while the subtask screen is composed, restoring the previous view flag on disposal. Photo display zoom, timers, policy text, and test sources remain to be added; no verification was run.
+
+Added a full-screen viewer for item and step images with pinch/pan, double-tap zoom, a close action, and swipe-down dismissal. No test/build or device verification was run.
+
+Added a local countdown state machine and goal panel for optional duration timers, rest-timer toggling and automatic rest countdown after completed sets; the screen uses a coroutine delay only while visible and gives haptic feedback at zero. Timer tests and the remaining privacy copy are pending; no checks were run.
+
+Added JVM behavior tests for timer ticks, photo-reference updates and bounded stream ingestion, plus Android UI tests for photo controls, timer actions, the zoom viewer, and confirmed task/item resets. Updated the English and Chinese privacy policy. The existing task-level and item-level reset dialogs were already confirmed in source. Optional Active/Focus entry points were not added. No tests, builds, lint, Android-test compilation, R8, APK assembly, or device verification were run; all Phase 5 checklist boxes remain unchecked until the deferred gate.
+
 On 2026-10-21, the owner explicitly authorized Phase 9 after Phase 8 implementation work. Add test sources, but do not execute tests or build/production checks until the Phase 9 → Phase 5 → Phase 6 implementation batch is complete. Between phase boundaries, perform only Git status, diff-whitespace, and relevant-diff review; record each result before continuing. The initial read-only source-location audit preceded this tracker start entry; no app code was changed during that audit.
 
 **Evidence:**
-_None yet._
+- Before Phase 5 code work, `git status --short` was empty and `git rev-parse --short HEAD` returned `a8cd6fc`.
+- Read-only source search `rg -n "PickVisualMedia|keepScreenOn|Zoomable|detectTransformGestures|pointerInput|restSeconds|Timer|Countdown|onReplaceSubtasks|replaceSubtasks|DisposableEffect" app/src/main/java/com/tbtechs/focusflow/ui/home app/src/main/java/com/tbtechs/focusflow/ui/TaskViewModel.kt app/src/main/java/com/tbtechs/focusflow/ui/legal/PrivacyPolicyScreen.kt` found the existing `TaskViewModel.replaceSubtasks` path and no existing Phase 5 picker, zoom, timer, or keep-awake implementation in the searched UI locations.
+- `git diff --check` produced no output for tracked changes. `git status --short` listed the Phase 5 source, test, report, and tracker edits, including the new photo/timer/viewer components and tests.
+- Reviewed the tracked Phase 5 diff with `git diff -- app/src/main/java/com/tbtechs/focusflow/data/images/SubtaskImageStore.kt app/src/main/java/com/tbtechs/focusflow/ui/home/HomeScreen.kt app/src/main/java/com/tbtechs/focusflow/ui/home/TaskDetailModal.kt app/src/main/java/com/tbtechs/focusflow/ui/home/subtask/SubtaskDetailScreen.kt app/src/main/java/com/tbtechs/focusflow/ui/legal/PrivacyPolicyScreen.kt app/src/test/java/com/tbtechs/focusflow/data/images/SubtaskImageStoreTest.kt app/src/androidTest/java/com/tbtechs/focusflow/ui/home/TaskSubtaskUiTest.kt exercise/report.md exercise/TRACKER.md`. No tests, builds, lint, Android-test compilation, R8, APK assembly, or device verification were run; the tests were added but not executed.
 
 **Failures / blockers:**
 _None recorded._
@@ -501,11 +518,16 @@ Added the startup sweep through the existing IO-backed application scope, connec
 
 Extracted the export notice into a focused composable so its fallback behavior can be covered by Compose tests. Expanded source/writer/restore coverage with stale-temp cleanup, malformed/duplicate containers, entry caps, unsafe paths, unsupported compression, hash checks, lying sizes, total uncompressed read bounds, byte-preserving bundle round-trip, and tick-preserving bundle restore. Added a central-directory flag audit so encrypted manifests are rejected and encrypted entries are omitted; corresponding hostile-entry tests and all verification remain pending.
 
+On 2026-10-21, the owner authorized Phase 9 implementation while explicitly deferring its verification work. Source audit found the obsolete `SubtaskImageStore.reencodeForExport` had no call sites, and `SubtaskAssetExporter` only collects referenced IDs despite accepting an unused image-store parameter. Removed that helper and parameter, and updated the production factory call. Phase 9 checklist items remain unchecked because the owner deferred verification; no tests, builds, lint, Android-test compilation, R8, APK assembly, or device checks were run.
+
 **Evidence:**
 - Initial authorized baseline: `git status --short` was clean; `git diff --check` produced no output; `git rev-parse --short HEAD` returned `4bd3fcd`.
 - Audited with `rg -n "MAX_FILE_BYTES|OpenDocument|ACTION_VIEW|mimeTypes|application/json|focusflow|BackupFileManager|ExternalBackupIntentPolicy|BackupImportIntentRelay|parseAndValidate|buildEnvelope|restore\\(" app/src/main app/src/test app/src/androidTest app/src/main/AndroidManifest.xml`, plus targeted searches for bundle lifecycle/UI and source/test references. The `.focusflow` manifest filters and unrestricted `OpenDocument()` picker already route both JSON and ZIP content; no pre-read size gate beyond content-sniffed `BackupSource` was found.
 - Read current `BackupSource`, `AssetByteSource`, `BackupJsonLimits`, `BackupFileManager`, `BackupSerializer`, `BackupBundleWriter`, `BackupRestoreEngine`, `BackupViewModel`, `ImportConfirmScreen`, `SettingsScreen`, manifest, startup, intent policy, and relevant source tests. Confirmed the listed gaps; implementation/test changes remain pending.
 - Added startup cleanup and surfaced bundle/container/fallback information in the import/export UI. Changed `AppModule.kt`, `FocusFlowApp.kt`, `BackupViewModel.kt`, `ImportConfirmScreen.kt`, and `SettingsScreen.kt`; no test/build/production verification was run.
+- Ran `rg -n "reencodeForExport|SubtaskAssetExporter\\(" app/src/main app/src/test app/src/androidTest` before editing. It found `reencodeForExport` only at its definition; `SubtaskAssetExporter` was instantiated by its no-argument test and by the production factory with the unused image-store argument.
+- Changed `SubtaskImageStore.kt`, `SubtaskAssetExporter.kt`, `BackupViewModel.kt`, `exercise/report.md`, and this tracker entry. No automated verification was run, as explicitly requested; all Phase 9 verification remains deferred.
+- Manually reviewed the changed-file diff with `git diff -- app/src/main/java/com/tbtechs/focusflow/data/images/SubtaskImageStore.kt app/src/main/java/com/tbtechs/focusflow/data/backup/SubtaskAssetExporter.kt app/src/main/java/com/tbtechs/focusflow/ui/backup/BackupViewModel.kt exercise/report.md exercise/TRACKER.md`; the reviewed changes are limited to the obsolete helper, unused constructor parameter/call, and the corresponding report/tracker notes. `git status --short` listed those five modified files.
 
 **Failures / blockers:**
 _None recorded._

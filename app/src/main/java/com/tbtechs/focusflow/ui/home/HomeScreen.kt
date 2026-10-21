@@ -299,6 +299,7 @@ fun HomeScreen(
                 onSubtaskDone = taskViewModel::setSubtaskDone,
                 onSubtaskSetsDone = taskViewModel::setSubtaskSetsDone,
                 onResetSubtasks = taskViewModel::resetSubtasks,
+                onReplaceSubtasks = taskViewModel::replaceSubtasks,
             )
         }
     }

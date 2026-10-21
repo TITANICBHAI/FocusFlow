@@ -4,6 +4,7 @@ import com.tbtechs.focusflow.data.model.Subtask
 import com.tbtechs.focusflow.data.model.SubtaskImage
 import com.tbtechs.focusflow.data.model.SubtaskStep
 import com.tbtechs.focusflow.data.model.Task
+import java.io.ByteArrayInputStream
 import java.nio.file.Files
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -26,6 +27,15 @@ class SubtaskImageStoreTest {
         assertTrue(SubtaskImageStore.isWebp(store.openForExport(expectedId)!!))
         assertTrue(store.file(expectedId)!!.parentFile!!.listFiles().orEmpty()
             .none { it.name.startsWith("ingest-") })
+    }
+
+    @Test
+    fun ingestFromStreamEnforcesTheInputLimitAndStoresSupportedImages() = withStore { store, _, _ ->
+        val id = store.ingest(ByteArrayInputStream(fakePng())).getOrThrow()
+        assertTrue(store.exists(id))
+
+        val oversized = ByteArray(6 * 1024 * 1024 + 1)
+        assertTrue(store.ingest(ByteArrayInputStream(oversized)).isFailure)
     }
 
     @Test
