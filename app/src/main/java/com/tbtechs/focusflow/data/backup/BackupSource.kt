@@ -445,7 +445,7 @@ internal object BackupSource {
         assetPathPattern.matches(name) &&
             name.substringAfterLast('.').lowercase() in SUPPORTED_ASSET_EXTENSIONS
 
-    private fun Enumeration<ZipEntry>.toListBounded(): List<ZipEntry> {
+    private fun Enumeration<out ZipEntry>.toListBounded(): List<ZipEntry> {
         val result = mutableListOf<ZipEntry>()
         while (hasMoreElements()) {
             if (result.size >= BackupJsonLimits.MAX_BUNDLE_ENTRIES + 1) {
@@ -506,7 +506,7 @@ internal object BackupSource {
         )
 }
 
-private data class BundleAssetReference(
+internal data class BundleAssetReference(
     val file: String,
     val sha256: String?,
 )

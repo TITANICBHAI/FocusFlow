@@ -80,7 +80,7 @@ class BackupRestoreEngine internal constructor(
      * represented by [replaceTasks]; the active-session check and destructive
      * replacement run under the same gate as session/task mutations.
      */
-    suspend fun restore(
+    internal suspend fun restore(
         envelope: BackupEnvelope,
         currentSettings: AppSettings,
         replaceTasks: Boolean,
@@ -230,7 +230,7 @@ class BackupRestoreEngine internal constructor(
                     if (task.id.isBlank()) {
                         skippedCount++
                         warnings += "Skipped a backup task without an ID."
-                        return@forEach
+                        return@forEachIndexed
                     }
                     if (task.id in existingIds || task.id in importedIds) {
                         skippedCount++
@@ -246,7 +246,7 @@ class BackupRestoreEngine internal constructor(
                             tasksEnrichedCount++
                             subtasksImportedCount += task.subtasks.size
                         }
-                        return@forEach
+                        return@forEachIndexed
                     }
 
                     val endInstant = try {
@@ -254,7 +254,7 @@ class BackupRestoreEngine internal constructor(
                     } catch (_: Exception) {
                         skippedCount++
                         warnings += "Skipped task '${task.id}' because its end time is invalid."
-                        return@forEach
+                        return@forEachIndexed
                     }
 
                     val taskToInsert = if (

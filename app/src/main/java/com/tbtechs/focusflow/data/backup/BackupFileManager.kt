@@ -18,7 +18,7 @@ object BackupFileManager {
         return readStream(input)
     }
 
-    fun readSource(
+    internal fun readSource(
         contentResolver: ContentResolver,
         cacheDir: java.io.File,
         uri: Uri,
@@ -34,7 +34,7 @@ object BackupFileManager {
         writeStream(output, content)
     }
 
-    fun writeBundleToUri(
+    internal fun writeBundleToUri(
         contentResolver: ContentResolver,
         uri: Uri,
         writer: BackupBundleWriter,
