@@ -423,6 +423,7 @@ Addendum v2 note (2026-10-21): when this phase runs, the help screens and change
 - `jq -e 'type == "array" and .[0].version == "1.1.5" and .[0].sections[0].items | length >= 3' app/src/main/assets/changelog.json` — FAIL (exit 5) because the test expression's pipe precedence attempted `length` on a boolean; this command did not establish JSON validity or content. Corrected focused validation is pending.
 - `jq -e 'type == "array" and .[0].version == "1.1.5" and (.[0].sections[0].items | length >= 3)' app/src/main/assets/changelog.json` — PASS; JSON parsed, latest version is 1.1.5, and the new release has at least three notes.
 - After correcting the Settings help wording to use the actual “Backup & Data” / “Import backup” labels, `git diff --check` — PASS (no output).
+- First combined-pass unit-test attempt: `FOCUSFLOW_SKIP_APK_BUILD=1 bash scripts/build-apk-with-java.sh :app:testProductionDebugUnitTest` — timed out after 300 seconds (shell exit `-1`) while provisioning JDK 17, Android SDK, Gradle, and starting the daemon. No Gradle task result or test result was observed; treat as an incomplete environment-bootstrap attempt, not a test failure. Rerun with the now-cached prerequisites before proceeding to the next verification item.
 
 **Failures / blockers:**
 _None recorded._
