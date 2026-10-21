@@ -143,6 +143,34 @@ internal val GUIDE = listOf(
             GuideStep("Content and Focus settings", "Shorts/Reels blocking, Auto-enable Focus Mode, and keeping focus active for the full task duration change how enforcement behaves. Enable only the layers that match your routine, then test them before starting a long block."),
         ),
     ),
+    GuideSection(
+        "Subtasks and exercise plans",
+        Icons.Outlined.Layers,
+        Color(0xFF082F49),
+        Color(0xFF38BDF8),
+        listOf(
+            GuideStep(
+                "Group a session into one task",
+                "A task can contain several subtasks, such as exercises in one workout. In task details, tap a checkbox to mark an item done or tap its row to open the instructions, steps, and goal.",
+            ),
+            GuideStep(
+                "Track sets and rest",
+                "Set goals show sets and reps, including ranges such as 3 × 6–10. Tap each set circle as you finish it; the optional rest timer starts between sets and can be turned off.",
+            ),
+            GuideStep(
+                "Add a photo",
+                "Open a subtask or step menu to add, replace, or remove a photo. Imported and attached images are resized and stored privately on this device; remote image links are not supported.",
+            ),
+            GuideStep(
+                "Complete the task when you are ready",
+                "Finishing every subtask does not complete the scheduled task automatically. Use the separate Complete task action when you are ready; you can also complete a task with unfinished subtasks.",
+            ),
+            GuideStep(
+                "Import a task plan",
+                "A .focusflow file can be JSON or a ZIP bundle. Use JSON for text or small inline images and a ZIP bundle for image files. Task-only files use version 1; files with subtasks or image assets use version 2.",
+            ),
+        ),
+    ),
 )
 
 @OptIn(ExperimentalMaterial3Api::class)

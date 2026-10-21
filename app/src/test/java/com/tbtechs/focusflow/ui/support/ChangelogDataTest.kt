@@ -12,10 +12,14 @@ class ChangelogDataTest {
 
         val changelog = parseChangelog(source)
 
-        assertEquals("1.1.4", changelog.first().version)
-        assertEquals("September 2026", changelog.first().date)
+        assertEquals("1.1.5", changelog.first().version)
+        assertEquals("October 2026", changelog.first().date)
         assertTrue(changelog.first().sections.isNotEmpty())
-        assertEquals("Protection controls", changelog.first().sections.first().heading)
+        assertEquals("Subtasks and rich imports", changelog.first().sections.first().heading)
+        val releaseNotes = changelog.first().sections.flatMap { it.items }.joinToString(" ")
+        assertTrue(releaseNotes.contains("ZIP bundles"))
+        assertTrue(releaseNotes.contains("version 2"))
+        assertTrue(releaseNotes.contains("rep ranges"))
     }
 
     @Test

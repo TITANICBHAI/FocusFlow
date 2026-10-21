@@ -20,7 +20,7 @@ internal fun SettingsHowToUseScreen(
         isOnboarding = false,
         onBack = onBack,
         onGetStarted = {},
-        additionalSections = GUARDED_ADJUSTMENT_GUIDE,
+        additionalSections = GUARDED_ADJUSTMENT_GUIDE + TASK_PLAN_GUIDE,
         additionalNote = "PINs protect changes that weaken a block; not every Settings value requires one.",
         onOpenRoute = onOpenRoute,
     )
@@ -164,6 +164,29 @@ private val GUARDED_ADJUSTMENT_GUIDE = listOf(
             GuideStep(
                 heading = "Why do some changes stay locked instead of showing a PIN prompt?",
                 body = "An active-block lock is stronger than a PIN prompt for some actions: the change is unavailable until the block ends. Adding a safeguard may still be allowed when removing or weakening it is not.",
+            ),
+        ),
+    ),
+)
+
+private val TASK_PLAN_GUIDE = listOf(
+    GuideSection(
+        title = "Task plans and imports",
+        icon = Icons.Outlined.CalendarMonth,
+        iconBg = Color(0xFF082F49),
+        iconTint = Color(0xFF38BDF8),
+        steps = listOf(
+            GuideStep(
+                heading = "Where do imported plans go?",
+                body = "Open Settings → Backup & Data → Import backup to review a .focusflow file before restoring it. The review shows imported tasks, subtasks, images, and any warnings.",
+            ),
+            GuideStep(
+                heading = "Choose JSON or a ZIP bundle",
+                body = "JSON works for text-only plans or small inline images. Use a ZIP bundle when you have image files; keep manifest.json at the archive root and the images under assets/. Files with subtasks or image assets declare version 2; task-only files use version 1.",
+            ),
+            GuideStep(
+                heading = "How are rep ranges shown?",
+                body = "A goal can include a minimum and maximum rep count, such as 6–10 reps or 3 × 6–10 across three sets. The range describes the goal; it does not change how task scheduling or completion works.",
             ),
         ),
     ),

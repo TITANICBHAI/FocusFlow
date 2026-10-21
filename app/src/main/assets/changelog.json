@@ -1,12 +1,14 @@
 [
   {
-    "version": "1.1.4",
-    "date": "September 2026",
+    "version": "1.1.5",
+    "date": "October 2026",
     "sections": [
       {
-        "heading": "Protection controls",
+        "heading": "Subtasks and rich imports",
         "items": [
-          "Improved app-list loading, scheduled block labels, VPN permission handling, and active-protection guidance."
+          "Subtasks let you tick off parts of a task, with steps, goals, images, and a rest timer. Import files can now include subtasks and images.",
+          "Image-rich .focusflow files can use ZIP bundles; files with subtasks or images declare version 2, while task-only files remain version 1.",
+          "Exercise goals can show rep ranges such as 6–10 reps, and imported or attached images stay stored privately on your device."
         ]
       }
     ]

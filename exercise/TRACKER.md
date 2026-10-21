@@ -395,9 +395,9 @@ _None recorded._
 
 ## Phase 6 — Help, changelog, release checks
 
-**Status:** NOT STARTED
-**Blocked by:** Phase 5 complete
-**Started:** —
+**Status:** IN PROGRESS
+**Blocked by:** Combined verification deferred until Phase 6 code edits are complete, per owner instruction.
+**Started:** 2026-10-21
 **Completed:** —
 **Progress:** 0/5
 **Plan sections:** §11.3, §11.5; release gates from §0 and §13
@@ -409,12 +409,20 @@ _None recorded._
 - [ ] Reconcile all Definition of Done items, unresolved failures, deferred work, and device checks; stop and report.
 
 **Notes / progress:**
-_No work started._
+On 2026-10-21, the owner authorized Phase 6 code edits first, followed by one combined verification pass for Phases 4, 5, 6, 8, and 9. Phase 7 was explicitly excluded as a mistaken mention. The `exercise/report.md` inventory identifies the two help screens, changelog, and app version metadata as the remaining Phase 6 code work. Do not run tests/build/lint/R8 or device checks until these edits are complete; no APK assembly, GitHub push, or Actions run is authorized.
+
+The Phase 6 content edits are now in place: shared subtask usage guidance, a Settings-specific task-plan/import section, release notes for subtasks/ZIP bundles/version 2/rep ranges, and version 1.1.5 (code 16). Updated the changelog unit test for the new release and required release-note terms. Combined verification has not started.
+
+Current Settings source uses a “Backup & Data” section with separate “Import backup” and “Export backup” actions; adjusted the new Settings help copy to match those actual labels and removed an unnecessary self-navigation action.
 
 Addendum v2 note (2026-10-21): when this phase runs, the help screens and changelog must also mention bundles (ZIP `.focusflow`), declared version 2, and rep ranges (`repsMax`), per `PLAN.md` §18.6. Checklist wording above is intentionally unchanged.
 
 **Evidence:**
-_None yet._
+- Changed `HowToUseScreen.kt`, `SettingsHowToUseScreen.kt`, `app/src/main/assets/changelog.json`, `app/build.gradle.kts`, and `ChangelogDataTest.kt`. Source edits follow `exercise/report.md` and PLAN.md §§11.3, 11.5, 18.6; the test now asserts the new release metadata and bundle/version/rep-range copy. Verification is pending.
+- `git diff --check` — PASS (no output) for the Phase 6 diff.
+- `jq -e 'type == "array" and .[0].version == "1.1.5" and .[0].sections[0].items | length >= 3' app/src/main/assets/changelog.json` — FAIL (exit 5) because the test expression's pipe precedence attempted `length` on a boolean; this command did not establish JSON validity or content. Corrected focused validation is pending.
+- `jq -e 'type == "array" and .[0].version == "1.1.5" and (.[0].sections[0].items | length >= 3)' app/src/main/assets/changelog.json` — PASS; JSON parsed, latest version is 1.1.5, and the new release has at least three notes.
+- After correcting the Settings help wording to use the actual “Backup & Data” / “Import backup” labels, `git diff --check` — PASS (no output).
 
 **Failures / blockers:**
 _None recorded._
