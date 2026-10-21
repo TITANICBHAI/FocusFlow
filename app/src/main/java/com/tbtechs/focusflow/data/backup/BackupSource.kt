@@ -569,6 +569,13 @@ internal object BackupSource {
         )
 }
 
+private data class BundleCentralDirectoryEntry(
+    val name: String,
+    val flags: Int,
+    val method: Int,
+    val headerOffset: Long,
+)
+
 internal data class BundleAssetReference(
     val file: String,
     val sha256: String?,
