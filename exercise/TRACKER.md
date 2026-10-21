@@ -439,6 +439,7 @@ Addendum v2 note (2026-10-21): when this phase runs, the help screens and change
 - XML failure details: sequential image test expected peak concurrency 2 but observed 1; golden v1 serializer comparison differs (full expected/actual diff needs focused inspection); unsafe-entry test uses reference equality for `ByteArray` (`assertEquals` reports distinct array instances); empty/nested/duplicate archive assertion fails at line 145; unsupported-compression fixture causes `ZipFile` to throw `ZipException` during source opening; encrypted-manifest/assets assertion fails at line 233. These failures are now under audit; no further verification task has started.
 - Fixed the identified test and backup-format issues: preserve the v1 JSON field order, make the sequential-image fixture retain its PNG signature, compare byte arrays by contents, and inspect central-directory metadata before `ZipFile` so duplicate/encrypted manifests fail explicitly while encrypted/unsupported non-manifest entries are safely skipped in the staged archive. The production test suite must be rerun; these fixes have not yet been verified.
 - `git diff --check` after the Phase 9 test and archive fixes — PASS (no output).
+- Fourth production test attempt: `FOCUSFLOW_SKIP_APK_BUILD=1 bash scripts/build-apk-with-java.sh :app:testProductionDebugUnitTest` — FAILED in 1m 5s (`BUILD FAILED`; exit code 1). Extract this run's test failures before any additional verification command; the combined verification gate remains open.
 
 **Failures / blockers:**
 _None recorded._
