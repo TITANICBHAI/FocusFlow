@@ -9,9 +9,12 @@ import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
 import java.io.InputStream
+import java.io.RandomAccessFile
 import java.util.Collections
 import java.util.Enumeration
 import java.security.MessageDigest
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 import kotlinx.serialization.json.Json
@@ -150,6 +153,7 @@ internal object BackupSource {
     }
 
     private fun openBundle(stagedFile: File): BackupSourceDocument {
+        val encryptedNames = readEncryptedEntryNames(stagedFile)
         val zip = try {
             ZipFile(stagedFile)
         } catch (exception: Exception) {
@@ -172,6 +176,9 @@ internal object BackupSource {
                     if (manifestCount > 1) {
                         throw BackupSourceException("Backup bundle has more than one manifest.json.")
                     }
+                    if (name in encryptedNames) {
+                        throw BackupSourceException("Backup bundle manifest is encrypted.")
+                    }
                     if (entry.isDirectory || entry.method !in SUPPORTED_ZIP_METHODS) {
                         throw BackupSourceException("Backup bundle manifest is invalid.")
                     }
@@ -182,7 +189,7 @@ internal object BackupSource {
                     ignoredEntries++
                     return@forEach
                 }
-                if (!isSafeEntryName(name) || entry.isDirectory ||
+                if (name in encryptedNames || !isSafeEntryName(name) || entry.isDirectory ||
                     entry.method !in SUPPORTED_ZIP_METHODS
                 ) {
                     ignoredEntries++
@@ -323,6 +330,109 @@ internal object BackupSource {
         }
     }
 
+    /**
+     * ZipEntry does not expose general-purpose encryption flags. Read those
+     * flags from the central directory before opening entries so encrypted
+     * assets can be skipped individually and an encrypted manifest is rejected.
+     */
+    private fun readEncryptedEntryNames(file: File): Set<String> =
+        try {
+            RandomAccessFile(file, "r").use { archive ->
+                val fileLength = archive.length()
+                val tailLength = minOf(fileLength, MAX_EOCD_SEARCH_BYTES.toLong()).toInt()
+                if (tailLength < EOCD_MIN_BYTES) {
+                    throw BackupSourceException("This is not a valid FocusFlow file.")
+                }
+                val tail = ByteArray(tailLength)
+                archive.seek(fileLength - tailLength)
+                archive.readFully(tail)
+                val eocdOffset = findEndOfCentralDirectory(tail)
+                    ?: throw BackupSourceException("This is not a valid FocusFlow file.")
+
+                val diskNumber = unsignedShort(tail, eocdOffset + 4)
+                val centralDirectoryDisk = unsignedShort(tail, eocdOffset + 6)
+                val entriesOnDisk = unsignedShort(tail, eocdOffset + 8)
+                val entryCount = unsignedShort(tail, eocdOffset + 10)
+                val centralDirectorySize = unsignedInt(tail, eocdOffset + 12)
+                val centralDirectoryOffset = unsignedInt(tail, eocdOffset + 16)
+                if (diskNumber != 0 || centralDirectoryDisk != 0 ||
+                    entriesOnDisk != entryCount ||
+                    entryCount == ZIP64_SENTINEL ||
+                    centralDirectorySize == ZIP64_SENTINEL_LONG ||
+                    centralDirectoryOffset == ZIP64_SENTINEL_LONG
+                ) {
+                    throw BackupSourceException("This is not a supported FocusFlow bundle.")
+                }
+                if (entryCount > BackupJsonLimits.MAX_BUNDLE_ENTRIES) {
+                    throw BackupSourceException("Backup bundle contains too many entries.")
+                }
+                val directoryEnd = centralDirectoryOffset + centralDirectorySize
+                if (directoryEnd > fileLength || centralDirectoryOffset < 0) {
+                    throw BackupSourceException("This is not a valid FocusFlow file.")
+                }
+
+                archive.seek(centralDirectoryOffset)
+                val encrypted = mutableSetOf<String>()
+                repeat(entryCount) {
+                    val header = ByteArray(CENTRAL_DIRECTORY_HEADER_BYTES)
+                    archive.readFully(header)
+                    if (littleEndianInt(header, 0) != CENTRAL_DIRECTORY_SIGNATURE) {
+                        throw BackupSourceException("This is not a valid FocusFlow file.")
+                    }
+                    val flags = unsignedShort(header, 8)
+                    val nameLength = unsignedShort(header, 28)
+                    val extraLength = unsignedShort(header, 30)
+                    val commentLength = unsignedShort(header, 32)
+                    if (nameLength == 0) {
+                        throw BackupSourceException("This is not a valid FocusFlow file.")
+                    }
+                    val nameBytes = ByteArray(nameLength)
+                    archive.readFully(nameBytes)
+                    val name = nameBytes.toString(Charsets.UTF_8)
+                    if (flags and ENCRYPTION_FLAGS_MASK != 0) {
+                        encrypted += name
+                    }
+                    val trailingLength = extraLength.toLong() + commentLength
+                    if (archive.filePointer + trailingLength > directoryEnd) {
+                        throw BackupSourceException("This is not a valid FocusFlow file.")
+                    }
+                    archive.seek(archive.filePointer + trailingLength)
+                }
+                if (archive.filePointer > directoryEnd) {
+                    throw BackupSourceException("This is not a valid FocusFlow file.")
+                }
+                encrypted
+            }
+        } catch (exception: BackupSourceException) {
+            throw exception
+        } catch (exception: Exception) {
+            throw BackupSourceException("This is not a valid FocusFlow file.", exception)
+        }
+
+    private fun findEndOfCentralDirectory(bytes: ByteArray): Int? {
+        for (offset in bytes.size - EOCD_MIN_BYTES downTo 0) {
+            if (littleEndianInt(bytes, offset) != EOCD_SIGNATURE) continue
+            val commentLength = unsignedShort(bytes, offset + 20)
+            if (offset + EOCD_MIN_BYTES + commentLength == bytes.size) return offset
+        }
+        return null
+    }
+
+    private fun unsignedShort(bytes: ByteArray, offset: Int): Int =
+        (bytes[offset].toInt() and 0xff) or
+            ((bytes[offset + 1].toInt() and 0xff) shl 8)
+
+    private fun unsignedInt(bytes: ByteArray, offset: Int): Long =
+        (bytes[offset].toLong() and 0xff) or
+            ((bytes[offset + 1].toLong() and 0xff) shl 8) or
+            ((bytes[offset + 2].toLong() and 0xff) shl 16) or
+            ((bytes[offset + 3].toLong() and 0xff) shl 24)
+
+    private fun littleEndianInt(bytes: ByteArray, offset: Int): Int =
+        ByteBuffer.wrap(bytes, offset, Int.SIZE_BYTES)
+            .order(ByteOrder.LITTLE_ENDIAN)
+            .int
+
     private fun isSafeEntryName(name: String): Boolean =
         name.isNotEmpty() &&
             !name.contains("..") &&
@@ -372,6 +482,14 @@ internal object BackupSource {
     private const val BUNDLE_CACHE_DIRECTORY = "import_bundle"
     private const val MANIFEST_ENTRY = "manifest.json"
     private const val ASSET_DIRECTORY_PREFIX = "assets/"
+    private const val CENTRAL_DIRECTORY_HEADER_BYTES = 46
+    private const val EOCD_MIN_BYTES = 22
+    private const val MAX_EOCD_SEARCH_BYTES = EOCD_MIN_BYTES + 65_535
+    private const val CENTRAL_DIRECTORY_SIGNATURE = 0x02014b50
+    private const val EOCD_SIGNATURE = 0x06054b50
+    private const val ENCRYPTION_FLAGS_MASK = 0x41
+    private const val ZIP64_SENTINEL = 0xffff
+    private const val ZIP64_SENTINEL_LONG = 0xffff_ffffL
     private val SUPPORTED_ZIP_METHODS = setOf(ZipEntry.STORED, ZipEntry.DEFLATED)
     private val SUPPORTED_ASSET_EXTENSIONS = setOf("webp", "png", "jpg", "jpeg")
     private val DRIVE_PREFIX = Regex("^[A-Za-z]:")

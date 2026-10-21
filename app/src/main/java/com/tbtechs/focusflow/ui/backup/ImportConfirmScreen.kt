@@ -159,6 +159,19 @@ fun ImportConfirmScreen(
                 ImportHeroCard()
                 ImportSectionLabel("THIS FILE CONTAINS")
                 BackupSummaryCard(envelope = envelope)
+                (importState as? ImportState.PendingConfirm)
+                    ?.takeIf { it.isBundle }
+                    ?.let { bundle ->
+                        Text(
+                            text = "Bundle · ${bundle.bundleImageCount} images",
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 4.dp),
+                            color = DarkTextSecondary,
+                            fontSize = 13.scaledSp,
+                            textAlign = TextAlign.Center,
+                        )
+                    }
                 Text(
                     text = "Exported ${envelope.exportedAtHuman.ifBlank { "Unknown" }} · " +
                         "App version ${envelope.appVersion?.takeIf(String::isNotBlank) ?: "Unknown"}",

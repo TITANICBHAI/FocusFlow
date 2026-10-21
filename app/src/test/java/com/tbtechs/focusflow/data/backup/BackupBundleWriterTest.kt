@@ -7,6 +7,7 @@ import com.tbtechs.focusflow.data.model.AppSettings
 import com.tbtechs.focusflow.data.model.Subtask
 import com.tbtechs.focusflow.data.model.SubtaskImage
 import com.tbtechs.focusflow.data.model.Task
+import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.nio.file.Files
 import java.util.zip.ZipEntry
@@ -60,6 +61,23 @@ class BackupBundleWriterTest {
             assertEquals(listOf("manifest.json", "assets/$assetId.webp"), entries.keys.toList())
             assertArrayEquals(imageBytes, entries.getValue("assets/$assetId.webp"))
             assertTrue(entries.getValue("manifest.json").toString(Charsets.UTF_8).contains("\"version\": 2"))
+
+            val cache = Files.createTempDirectory("bundle-round-trip").toFile()
+            val source = BackupSource.readStream(ByteArrayInputStream(first.toByteArray()), cache)
+            try {
+                val parsed = BackupSerializer.parseAndValidate(
+                    jsonText = source.manifestJson,
+                    isBundle = source.isBundle,
+                    bundleAssetIds = source.bundleAssetIds,
+                    sourceWarnings = source.warnings,
+                ) as BackupParseResult.Success
+                assertTrue(parsed.warnings.isEmpty())
+                assertArrayEquals(imageBytes, source.assetByteSource.open(assetId))
+                assertEquals(assetId, parsed.envelope.assets.getValue(assetId).sha256)
+            } finally {
+                source.close()
+                cache.deleteRecursively()
+            }
         } finally {
             directory.deleteRecursively()
         }

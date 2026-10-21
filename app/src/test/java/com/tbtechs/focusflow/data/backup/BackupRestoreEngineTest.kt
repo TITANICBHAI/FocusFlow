@@ -9,9 +9,12 @@ import com.tbtechs.focusflow.data.images.ImageBounds
 import com.tbtechs.focusflow.data.images.ImageCodec
 import com.tbtechs.focusflow.data.images.SubtaskImageStore
 import com.tbtechs.focusflow.data.images.SubtaskImageStoreTest
+import java.io.ByteArrayOutputStream
 import java.nio.file.Files
 import java.time.Instant
 import java.util.Base64
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -196,6 +199,82 @@ class BackupRestoreEngineTest {
             assertTrue(store.exists(storedId))
         } finally {
             directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun bundleImportPreservesDoneTicksAndRemapsImageToStoredHash() = runTest {
+        val directory = Files.createTempDirectory("restore-bundle-image").toFile()
+        val cache = Files.createTempDirectory("restore-bundle-source").toFile()
+        try {
+            val store = SubtaskImageStore(directory, FakeCodec())
+            val gate = RecordingGate()
+            val access = FakeAccess(gate)
+            val png = SubtaskImageStoreTest.fakePng()
+            val task = task(id = "bundle-task").copy(
+                subtasks = listOf(
+                    Subtask(
+                        id = "part",
+                        title = "Part",
+                        done = true,
+                        image = SubtaskImage("photo"),
+                    ),
+                ),
+            )
+            val manifest = BackupSerializer.serializeToJson(
+                BackupSerializer.buildEnvelope(
+                    settings = AppSettings(),
+                    tasks = listOf(task),
+                    appVersion = "test",
+                    assets = mapOf(
+                        "photo" to BackupAsset(
+                            mime = "image/png",
+                            file = "assets/photo.webp",
+                            sha256 = SubtaskImageStore.sha256(png),
+                        ),
+                    ),
+                ),
+            )
+            val source = BackupSource.readStream(
+                ByteArrayInputStream(
+                    zipArchive(
+                        "manifest.json" to manifest.toByteArray(),
+                        "assets/photo.webp" to png,
+                    ),
+                ),
+                cache,
+            )
+            try {
+                val parsed = BackupSerializer.parseAndValidate(
+                    jsonText = source.manifestJson,
+                    isBundle = source.isBundle,
+                    bundleAssetIds = source.bundleAssetIds,
+                    sourceWarnings = source.warnings,
+                ) as BackupParseResult.Success
+                val result = BackupRestoreEngine(
+                    access = access,
+                    writeGate = gate,
+                    clock = { fixedNow },
+                    imageStore = store,
+                ).restore(
+                    envelope = parsed.envelope,
+                    currentSettings = AppSettings(),
+                    replaceTasks = false,
+                    assetByteSource = source.assetByteSource,
+                )
+
+                val importedSubtask = access.tasks.single().subtasks.single()
+                val storedId = SubtaskImageStore.sha256(SubtaskImageStoreTest.fakeWebp())
+                assertEquals(1, success(result).imagesStored)
+                assertTrue(importedSubtask.done)
+                assertEquals(storedId, importedSubtask.image?.asset)
+                assertTrue(store.exists(storedId))
+            } finally {
+                source.close()
+            }
+        } finally {
+            directory.deleteRecursively()
+            cache.deleteRecursively()
         }
     }
 
@@ -609,6 +688,18 @@ class BackupRestoreEngineTest {
         updatedAt = "2026-10-07T12:00:00Z",
         subtasks = subtasks,
     )
+
+    private fun zipArchive(vararg entries: Pair<String, ByteArray>): ByteArray {
+        val output = ByteArrayOutputStream()
+        ZipOutputStream(output).use { zip ->
+            entries.forEach { (name, bytes) ->
+                zip.putNextEntry(ZipEntry(name))
+                zip.write(bytes)
+                zip.closeEntry()
+            }
+        }
+        return output.toByteArray()
+    }
 
     private class RecordingGate : BackupRestoreWriteGate {
         val owners = mutableListOf<String>()

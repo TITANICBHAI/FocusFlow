@@ -170,7 +170,7 @@ class BackupViewModel internal constructor(
                     _exportState.value = ExportState.Success(
                         uri = uri,
                         warnings = emptyList(),
-                        containerDescription = "JSON backup",
+                        containerDescription = "JSON file (no images)",
                     )
                 } else {
                     val exporter = assetExporter
@@ -203,7 +203,7 @@ class BackupViewModel internal constructor(
                             _exportState.value = ExportState.Success(
                                 uri = uri,
                                 warnings = emptyList(),
-                                containerDescription = "ZIP bundle with images",
+                                containerDescription = "ZIP bundle (includes images)",
                             )
                         }
                         is BundleExportPreparation.TooLarge -> {

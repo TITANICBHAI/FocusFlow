@@ -1,6 +1,7 @@
 package com.tbtechs.focusflow.ui.backup
 
 import androidx.lifecycle.ViewModelStore
+import com.tbtechs.focusflow.data.backup.AssetByteSource
 import com.tbtechs.focusflow.data.backup.BackupEnvelope
 import com.tbtechs.focusflow.data.backup.BackupParseResult
 import com.tbtechs.focusflow.data.backup.BackupSerializer
@@ -215,7 +216,7 @@ class BackupViewModelTest {
         val harness = createHarness(testScheduler)
         var restoreStarted = false
         var restoreCancelled = false
-        harness.operations.restoreAction = { _, _, _, _ ->
+        harness.operations.restoreAction = { _, _, _, _, _ ->
             restoreStarted = true
             try {
                 awaitCancellation()
@@ -319,7 +320,8 @@ class BackupViewModelTest {
             AppSettings,
             Boolean,
             Boolean,
-        ) -> RestoreResult = { _, _, _, _ -> restoreResult }
+            AssetByteSource?,
+        ) -> RestoreResult = { _, _, _, _, _ -> restoreResult }
         var lastReplaceTasks = false
         var lastEnrichExistingTasks = true
         var refreshCount = 0
@@ -333,11 +335,18 @@ class BackupViewModelTest {
             currentSettings: AppSettings,
             replaceTasks: Boolean,
             enrichExistingTasks: Boolean,
+            assetByteSource: AssetByteSource?,
         ): RestoreResult {
             restoreCalled = true
             lastReplaceTasks = replaceTasks
             lastEnrichExistingTasks = enrichExistingTasks
-            return restoreAction(envelope, currentSettings, replaceTasks, enrichExistingTasks)
+            return restoreAction(
+                envelope,
+                currentSettings,
+                replaceTasks,
+                enrichExistingTasks,
+                assetByteSource,
+            )
         }
 
         override suspend fun refreshSettingsFromStore() {

@@ -49,6 +49,7 @@ class FocusFlowApp : Application() {
         // 2. Build the Room database and wire all repository singletons.
         StartupLogger.info("Room", "Initializing Room database and repositories")
         AppModule.init(this)
+        AppModule.sweepStaleBackupBundles(cacheDir)
 
         // 3. One-time migration: copy the legacy settings blob to SharedPreferences.
         //    Report notes remain in Room and are upgraded by MIGRATION_4_5.

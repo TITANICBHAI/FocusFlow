@@ -9,6 +9,7 @@ import com.tbtechs.focusflow.notifications.LiveTaskStatusNotificationPublisher
 import com.tbtechs.focusflow.notifications.ReminderChainScheduler
 import com.tbtechs.focusflow.notifications.SharedPreferencesReminderLedgerStore
 import com.tbtechs.focusflow.data.local.FocusFlowDatabase
+import com.tbtechs.focusflow.data.backup.BackupSource
 import com.tbtechs.focusflow.data.images.AndroidBitmapImageCodec
 import com.tbtechs.focusflow.data.images.SubtaskImageStore
 import com.tbtechs.focusflow.data.repository.FocusSessionRepository
@@ -389,6 +390,19 @@ object AppModule {
                     AppErrorEvents.report(
                         tag = "Task alarms",
                         message = "Task-end alarms could not be fully reconciled.",
+                        throwable = it,
+                    )
+                }
+        }
+    }
+
+    fun sweepStaleBackupBundles(cacheDir: java.io.File) {
+        applicationScope.launch {
+            runCatching { BackupSource.sweepStaleBundleFiles(cacheDir) }
+                .onFailure {
+                    AppErrorEvents.report(
+                        tag = "Backup cleanup",
+                        message = "Expired temporary backup files could not be removed.",
                         throwable = it,
                     )
                 }

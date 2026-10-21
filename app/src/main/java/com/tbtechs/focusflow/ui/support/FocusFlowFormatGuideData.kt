@@ -8,8 +8,8 @@ internal data class FocusFlowGuideItem(
 )
 
 internal const val FOCUSFLOW_FORMAT_GUIDE_INTRO =
-    "A .focusflow file is a plain UTF-8 JSON document, not a ZIP archive. " +
-        "It carries portable task and settings data that FocusFlow can validate and restore."
+    "A .focusflow file is either a plain UTF-8 JSON document or a ZIP bundle containing a JSON " +
+        "manifest and image files. It carries portable task and settings data that FocusFlow can validate and restore."
 
 internal const val FOCUSFLOW_RUNTIME_STATE_NOTE =
     "A backup is not a snapshot of the live device. Active Focus sessions, current " +
@@ -57,13 +57,30 @@ internal const val FOCUSFLOW_EXTERNAL_IMPORT_NOTE =
 
 internal const val FOCUSFLOW_GENERATION_NOTE =
     "Copy the AI task-backup prompt above and describe the tasks, dates, time zone, and constraints. " +
-        "It can group one session into a task with subtasks, without changing FocusFlow's other features or global settings."
+        "It can group one session into a task with subtasks and choose JSON or a ZIP bundle for images, " +
+        "without changing FocusFlow's other features or global settings."
 
 internal val FOCUSFLOW_ASSETS_NOTE =
     "Images are stored in a top-level assets map and referenced by asset ID. FocusFlow validates, " +
         "resizes, and stores imported images privately on this device. " +
         BackupJsonLimits.assetBudgetGuidance() +
         " Keep at most ${BackupJsonLimits.MAX_ASSETS} assets in one file. Remote image links are not supported."
+
+internal val FOCUSFLOW_BUNDLE_GUIDANCE =
+    "Use a ZIP bundle when code and image files are available; use JSON for text-only backups or small inline images. " +
+        "The output must be a real ZIP named *.focusflow, with manifest.json at the archive root and image files " +
+        "under assets/ (no extra top-level folder). Use WebP, PNG, or JPEG images with a long edge at most " +
+        "${BackupJsonLimits.MAX_BUNDLE_AGENT_IMAGE_EDGE} px, each at most " +
+        "${BackupJsonLimits.formatByteLimit(BackupJsonLimits.MAX_BUNDLE_AGENT_IMAGE_BYTES)}, and no more than " +
+        "${BackupJsonLimits.MAX_BUNDLE_ASSETS} images. Keep the ZIP at or below " +
+        "${BackupJsonLimits.formatByteLimit(BackupJsonLimits.MAX_BUNDLE_BYTES)}. Never invent image data."
+
+internal const val FOCUSFLOW_BUNDLE_RECIPE = """
+import json, zipfile
+with zipfile.ZipFile("schedule.focusflow", "w", zipfile.ZIP_DEFLATED) as z:
+    z.writestr("manifest.json", json.dumps(doc, ensure_ascii=False))
+    z.write("pushup-start.webp", "assets/pushup-start.webp")
+"""
 
 internal val FOCUSFLOW_FILE_FACTS = listOf(
     FocusFlowGuideItem("Extension", ".focusflow"),
@@ -182,6 +199,43 @@ internal const val FOCUSFLOW_ENVELOPE_EXAMPLE = """
   "tasks": [ ... ],
   "presetSections": [ ... ],
   "summary": { ... }
+}
+"""
+
+internal const val FOCUSFLOW_BUNDLE_MANIFEST_EXAMPLE = """
+{
+  "kind": "FocusFlowBackupV1",
+  "version": 2,
+  "exportedAt": "2026-10-21T10:00:00.000Z",
+  "platform": { "os": "android" },
+  "settings": {},
+  "assets": {
+    "demo-photo": {
+      "file": "assets/demo-photo.webp",
+      "mime": "image/webp"
+    }
+  },
+  "tasks": [{
+    "id": "demo-session",
+    "title": "Demo session",
+    "description": "",
+    "startTime": "2026-10-22T10:00:00.000Z",
+    "endTime": "2026-10-22T10:30:00.000Z",
+    "durationMinutes": 30,
+    "status": "completed",
+    "priority": "medium",
+    "tags": [],
+    "reminders": [],
+    "color": "#6366f1",
+    "focusMode": false,
+    "createdAt": "2026-10-21T10:00:00.000Z",
+    "updatedAt": "2026-10-21T10:30:00.000Z",
+    "subtasks": [{
+      "id": "first-item",
+      "title": "First item",
+      "image": { "asset": "demo-photo", "alt": "Example image" }
+    }]
+  }]
 }
 """
 

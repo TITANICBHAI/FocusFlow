@@ -82,11 +82,15 @@ If they disagree with this reference, explain the mismatch instead of guessing.
   use `false`. This is a task-level option, not a change to global blocking or
   network settings.
 
-## `.focusflow` JSON format
+## `.focusflow` file formats
 
-A `.focusflow` file is plain UTF-8 JSON, not a ZIP. Keep it at or below 8 MiB,
-with no more than 20,000 tasks, JSON nesting depth at or below 12, and no more
-than 2,000,000 JSON nodes.
+A `.focusflow` file can be plain UTF-8 JSON or a ZIP bundle. Use JSON for
+text-only backups or small inline images. Use a ZIP bundle when you can run
+code and have image files. ${FOCUSFLOW_BUNDLE_GUIDANCE}
+
+JSON files must stay at or below 8 MiB, with no more than 20,000 tasks, JSON
+nesting depth at or below 12, and no more than 2,000,000 JSON nodes. Files
+containing subtasks or image assets use version 2; task-only files use version 1.
 
 Create one JSON object with:
 
@@ -161,19 +165,29 @@ Each subtask object:
 
 A subtask may have no steps.
 
-Images are optional. Never invent image data or links. Only when I provide image
-files and you can convert them, resize each to at most 1280 pixels on the long
-edge, save as WebP or JPEG, base64-encode without a `data:` prefix, and add it
-under top-level `assets` as `"<asset id>":
+Images are optional. Never invent image data or links. For JSON, when I provide
+image files and you can convert them, resize them to at most 1280 pixels on the
+long edge, save as WebP or JPEG, base64-encode without a `data:` prefix, and add
+them under top-level `assets` as `"<asset id>":
 {"mime":"image/webp","data":"<base64>"}`. Reuse an asset ID for repeated use of
-the same image. ${FOCUSFLOW_ASSETS_NOTE} Remote image URLs are not supported. If
-you cannot produce image data, omit every image field and tell me which subtasks
-could benefit from a photo.
+the same image. ${FOCUSFLOW_ASSETS_NOTE} For ZIP bundles, put each referenced
+image in `assets/` and point the manifest asset entry to its file, as shown
+below. Remote image URLs are not supported. If you cannot produce image data,
+omit every image field and tell me which subtasks could benefit from a photo.
 
 Subtask limits: at most 50 subtasks per task and 200 assets per file.
 
 Valid subtask example:
 ${FOCUSFLOW_SUBTASK_EXAMPLE}
+
+## ZIP bundle recipe
+
+${FOCUSFLOW_BUNDLE_RECIPE}
+
+${FOCUSFLOW_BUNDLE_GUIDANCE}
+
+The manifest `assets` entries use `file` paths for images inside the ZIP:
+${FOCUSFLOW_BUNDLE_MANIFEST_EXAMPLE}
 
 ## Deliver the file
 

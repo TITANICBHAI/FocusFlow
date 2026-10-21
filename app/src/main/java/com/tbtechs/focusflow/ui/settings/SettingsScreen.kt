@@ -903,52 +903,12 @@ fun SettingsScreen(
     }
 
     exportNotice?.let { state ->
-        val succeeded = state is ExportState.Success
-        AlertDialog(
-            onDismissRequest = {
-                exportNotice = null
-                backupViewModel.resetExport()
-            },
-            containerColor = DarkCard,
-            titleContentColor = DarkTextPrimary,
-            textContentColor = DarkTextSecondary,
-            title = {
-                Text(
-                    if (succeeded) "Backup exported" else "Export failed",
-                    fontWeight = FontWeight.Bold,
-                )
-            },
-            text = {
-                when (state) {
-                    is ExportState.Success ->
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("The backup was saved successfully.")
-                            state.warnings.forEach { warning ->
-                                Text(
-                                    text = warning,
-                                    color = DarkTextSecondary,
-                                    fontSize = 13.scaledSp,
-                                    lineHeight = 19.scaledSp,
-                                )
-                            }
-                        }
-                    is ExportState.Error ->
-                        Text(
-                            text = state.message,
-                            modifier = Modifier
-                                .heightIn(max = 180.dp)
-                                .verticalScroll(rememberScrollState()),
-                        )
-                    else -> Unit
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        exportNotice = null
-                        backupViewModel.resetExport()
-                    },
-                ) { Text("OK", color = BrandPrimary) }
+        BackupExportNoticeDialog(
+            state = state,
+            onDismiss = { exportNotice = null },
+            onReset = backupViewModel::resetExport,
+            onExportWithoutImages = { uriString ->
+                backupViewModel.exportWithoutImages(context.contentResolver, uriString)
             },
         )
     }

@@ -9,7 +9,7 @@
 - **Current phase:** Phase 9 — Hybrid ZIP bundle
 - **Last updated:** 2026-10-21
 - **Run order (Addendum v2):** Phase 4 → Phase 8 → Phase 9 → Phase 5 → Phase 6 (Phase 7 only if the owner asks). Phases 8–9 are defined in `PLAN.md` §16–§20; the completed Phase 0–3 items are unchanged.
-- **Owner-authorized verification timing:** Add tests alongside implementation in Phases 4, 8, 9, 5, and 6, but defer running tests and build/release checks until Phase 9, 5, and 6 implementation is complete. Between these phase boundaries, do Git-based checks only and record exact results. See `PLAN.md` §21.
+- **Owner-authorized verification timing:** Add tests alongside implementation in Phases 4, 8, 9, 5, and 6, but defer running tests and build/release checks until Phase 9, 5, and 6 implementation is complete. Between these phase boundaries, do Git-based checks only and record exact results. After Phase 6, include the deferred Phase 4, 8, and 9 checks in the combined verification pass. See `PLAN.md` §21.
 
 ## Tracker rules
 
@@ -477,9 +477,9 @@ _None recorded._
 
 ## Phase 9 — Hybrid ZIP bundle (Addendum v2)
 
-**Status:** NOT STARTED
+**Status:** IN PROGRESS
 **Blocked by:** Phase 8 complete; explicit owner authorization
-**Started:** —
+**Started:** 2026-10-21
 **Completed:** —
 **Progress:** 0/7
 **Plan sections:** §18 (Addendum v2)
@@ -493,10 +493,19 @@ _None recorded._
 - [ ] 9.7 Run the Phase 9 gate (production JVM suite, lint, Android-test source compile, Release R8), record exact commands/results and device-only checks, and stop at the phase boundary.
 
 **Notes / progress:**
-_No work started._
+On 2026-10-21, the owner confirmed the grouped add-only sequence: implement Phase 9, then Phase 5, then Phase 6; add the planned test sources during each phase, but run only Git status, diff-whitespace, and relevant-diff review between phases. Defer tests and all other build/production verification until after Phase 6, and include the deferred Phase 4 and Phase 8 checks in that combined pass. This follows the existing authorization in `PLAN.md` §21. Begin with a read-only audit of current APIs and behavior; no Phase 9 checklist item is complete until verified.
+
+The Phase 9 audit found that the checkout already contains the core source staging, ZIP reader/writer, versioned manifest parsing, and initial tests. Existing `OpenDocument()` has no MIME restriction, while the manifest accepts `.focusflow` through `*/*` and octet-stream VIEW filters; no picker or manifest change is needed. Gaps to address: startup cleanup is defined but never called, the review screen does not show the bundle/image line, export success does not identify the selected container, the `TooLarge` state has no explicit fallback UI, and ZIP boundary/security tests are incomplete. The `BackupViewModelTest` fake also no longer matches the restore interface.
+
+Added the startup sweep through the existing IO-backed application scope, connected to `FocusFlowApp` after `AppModule.init`. Added the review bundle/image label, container-specific export success copy, and the explicit “Export without images” / “Cancel” choices for `TooLarge`. Phase 9 behavior tests and Git-only boundary check are pending.
+
+Extracted the export notice into a focused composable so its fallback behavior can be covered by Compose tests. Expanded source/writer/restore coverage with stale-temp cleanup, malformed/duplicate containers, entry caps, unsafe paths, unsupported compression, hash checks, lying sizes, total uncompressed read bounds, byte-preserving bundle round-trip, and tick-preserving bundle restore. Added a central-directory flag audit so encrypted manifests are rejected and encrypted entries are omitted; corresponding hostile-entry tests and all verification remain pending.
 
 **Evidence:**
-_None yet._
+- Initial authorized baseline: `git status --short` was clean; `git diff --check` produced no output; `git rev-parse --short HEAD` returned `4bd3fcd`.
+- Audited with `rg -n "MAX_FILE_BYTES|OpenDocument|ACTION_VIEW|mimeTypes|application/json|focusflow|BackupFileManager|ExternalBackupIntentPolicy|BackupImportIntentRelay|parseAndValidate|buildEnvelope|restore\\(" app/src/main app/src/test app/src/androidTest app/src/main/AndroidManifest.xml`, plus targeted searches for bundle lifecycle/UI and source/test references. The `.focusflow` manifest filters and unrestricted `OpenDocument()` picker already route both JSON and ZIP content; no pre-read size gate beyond content-sniffed `BackupSource` was found.
+- Read current `BackupSource`, `AssetByteSource`, `BackupJsonLimits`, `BackupFileManager`, `BackupSerializer`, `BackupBundleWriter`, `BackupRestoreEngine`, `BackupViewModel`, `ImportConfirmScreen`, `SettingsScreen`, manifest, startup, intent policy, and relevant source tests. Confirmed the listed gaps; implementation/test changes remain pending.
+- Added startup cleanup and surfaced bundle/container/fallback information in the import/export UI. Changed `AppModule.kt`, `FocusFlowApp.kt`, `BackupViewModel.kt`, `ImportConfirmScreen.kt`, and `SettingsScreen.kt`; no test/build/production verification was run.
 
 **Failures / blockers:**
 _None recorded._
@@ -587,3 +596,4 @@ Append dated entries; do not replace earlier history.
 | 2026-10-21 | Grouped implementation authorized | Owner authorized additive implementation of Phases 4, 8, and 9 in order, with test sources written during each phase and test/build/release checks deferred until after Phase 9. | Added the narrow workflow exception to `PLAN.md` §21 and recorded it in the tracker; only Git-based checks are allowed between these phases. |
 | 2026-10-21 | Phase 4 implementation boundary | Audited Home live-task state, conditional TaskCard progress, TaskDetailModal wiring, subtask screen, image loader, and existing unit/Compose tests. Corrected Overview mode so optional steps remain visible and updated the Compose assertion. | `git diff --check` passed with no output. Test/build/release checks deferred under §21; Phase 4 remains 0/6 until the grouped verification. |
 | 2026-10-21 | Phase 8 started | Began the audit-first hardening phase under the owner's grouped authorization. | Tracker set to IN PROGRESS before Phase 8 audit; no Phase 8 source/test changes or test/build checks yet. |
+| 2026-10-21 | Phase 9 started; verification timing clarified | Owner confirmed add-only implementation order Phase 9 → Phase 5 → Phase 6, with test sources added now and all non-Git verification deferred until after Phase 6; the final pass must also check Phase 8. | `exercise/TRACKER.md` reconciled to the explicit sequence before Phase 9 audit; current worktree was clean at `4bd3fcd`, and `git diff --check` passed. |

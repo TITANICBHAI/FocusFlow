@@ -56,6 +56,8 @@ object BackupJsonLimits {
     const val MAX_BUNDLE_UNCOMPRESSED_BYTES = 80 * 1024 * 1024
     const val BUNDLE_OVERHEAD_RESERVE_BYTES = 64 * 1024
     const val MAX_BUNDLE_TEMP_AGE_MILLIS = 60 * 60 * 1000L
+    const val MAX_BUNDLE_AGENT_IMAGE_BYTES = 1 * 1024 * 1024
+    const val MAX_BUNDLE_AGENT_IMAGE_EDGE = 1_280
     const val MAX_AI_IMAGE_BYTES = 100 * 1024
     const val MAX_AI_TOTAL_IMAGE_BYTES = 3 * 1024 * 1024
     const val TASK_ONLY_BACKUP_VERSION = 1
