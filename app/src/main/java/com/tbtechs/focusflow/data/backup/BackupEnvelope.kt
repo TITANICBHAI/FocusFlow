@@ -26,7 +26,9 @@ data class BackupEnvelope(
 @Serializable
 data class BackupAsset(
     val mime: String? = null,
-    val data: String,
+    val data: String? = null,
+    val file: String? = null,
+    val sha256: String? = null,
 )
 
 @Serializable

@@ -6,10 +6,10 @@
 
 - **Status:** IN PROGRESS
 - **Progress:** 39.2% (20/51 required checklist items verified)
-- **Current phase:** Phase 8 — Hardening of Phases 2–3
+- **Current phase:** Phase 9 — Hybrid ZIP bundle
 - **Last updated:** 2026-10-21
 - **Run order (Addendum v2):** Phase 4 → Phase 8 → Phase 9 → Phase 5 → Phase 6 (Phase 7 only if the owner asks). Phases 8–9 are defined in `PLAN.md` §16–§20; the completed Phase 0–3 items are unchanged.
-- **Owner-authorized verification timing:** Add tests alongside implementation in Phases 4, 8, and 9, but defer running tests and build/release checks until all three implementation phases are complete. Between those phases, do Git-based checks only and record the exact results. See `PLAN.md` §21.
+- **Owner-authorized verification timing:** Add tests alongside implementation in Phases 4, 8, 9, 5, and 6, but defer running tests and build/release checks until Phase 9, 5, and 6 implementation is complete. Between these phase boundaries, do Git-based checks only and record exact results. See `PLAN.md` §21.
 
 ## Tracker rules
 
@@ -37,8 +37,8 @@
 | 5 — Enhancements | NOT STARTED | 0/5 | — | — |
 | 6 — Help, changelog, release checks | NOT STARTED | 0/5 | — | — |
 | 7 — In-app authoring (optional; only if owner asks) | NOT STARTED | 0/1 | — | — |
-| 8 — Hardening of Phases 2–3 (Addendum v2) | NOT STARTED | 0/8 | — | — |
-| 9 — Hybrid ZIP bundle (Addendum v2) | NOT STARTED | 0/7 | — | — |
+| 8 — Hardening of Phases 2–3 (Addendum v2) | IN PROGRESS | 0/8 | 2026-10-21 | — |
+| 9 — Hybrid ZIP bundle (Addendum v2) | IN PROGRESS | 0/7 | 2026-10-21 | — |
 
 **Progress calculation:** Phases 0–6 and 8–9 contain 51 required checklist items (36 from the original plan plus 15 from Addendum v2). Report required-plan progress as completed verified items / 51. The 20 items already verified under Phases 0–3 are unchanged. Phase 7 is optional, excluded unless explicitly authorized; if authorized, update the denominator and record that decision. The Definition of Done is separately tracked below.
 
@@ -365,7 +365,7 @@ _None recorded._
 - [ ] Add the stated privacy-policy line and verify applicable behavior; record device-only checks honestly.
 
 **Notes / progress:**
-_No work started._
+On 2026-10-21, the owner explicitly authorized Phase 9 after Phase 8 implementation work. Add test sources, but do not execute tests or build/production checks until the Phase 9 → Phase 5 → Phase 6 implementation batch is complete. Between phase boundaries, perform only Git status, diff-whitespace, and relevant-diff review; record each result before continuing. The initial read-only source-location audit preceded this tracker start entry; no app code was changed during that audit.
 
 **Evidence:**
 _None yet._

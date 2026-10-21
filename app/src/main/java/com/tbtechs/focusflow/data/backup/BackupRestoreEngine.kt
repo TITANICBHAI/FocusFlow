@@ -12,7 +12,6 @@ import com.tbtechs.focusflow.data.repository.TaskAlarmReconciler
 import com.tbtechs.focusflow.data.repository.TaskRepository
 import com.tbtechs.focusflow.data.restore.RestoreGate
 import java.time.Instant
-import java.util.Base64
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
@@ -86,8 +85,15 @@ class BackupRestoreEngine internal constructor(
         currentSettings: AppSettings,
         replaceTasks: Boolean,
         enrichExistingTasks: Boolean = false,
+        assetByteSource: AssetByteSource? = null,
     ): RestoreResult = try {
-        restoreInternal(envelope, currentSettings, replaceTasks, enrichExistingTasks)
+        restoreInternal(
+            envelope,
+            currentSettings,
+            replaceTasks,
+            enrichExistingTasks,
+            assetByteSource,
+        )
     } finally {
         withContext(NonCancellable) {
             writeGate.write("BackupRestoreEngine.sweepImages") {
@@ -102,6 +108,7 @@ class BackupRestoreEngine internal constructor(
         currentSettings: AppSettings,
         replaceTasks: Boolean,
         enrichExistingTasks: Boolean = false,
+        assetByteSource: AssetByteSource?,
     ): RestoreResult {
         val preferenceWrites = try {
             val portableSettings = JsonObject(
@@ -157,7 +164,7 @@ class BackupRestoreEngine internal constructor(
                 "Cannot replace tasks while a Focus Session is running. Stop the current session first.",
             )
         }
-        val preparedImages = prepareImages(envelope, candidateTaskIndexes)
+        val preparedImages = prepareImages(envelope, candidateTaskIndexes, assetByteSource)
         val settingsWarnings = mutableListOf<String>()
         val workResult = try {
             writeGate.write("BackupRestoreEngine.restore") {
@@ -354,6 +361,7 @@ class BackupRestoreEngine internal constructor(
     private fun prepareImages(
         envelope: BackupEnvelope,
         candidateTaskIndexes: Set<Int>,
+        assetByteSource: AssetByteSource?,
     ): PreparedImages {
         val candidates = envelope.tasks.filterIndexed { index, _ -> index in candidateTaskIndexes }
         val referenced = SubtaskImageStore.referencedAssetIds(candidates)
@@ -362,25 +370,20 @@ class BackupRestoreEngine internal constructor(
         val remapped = mutableMapOf<String, String>()
         var totalBytes = 0
         var failed = 0
+        val source = assetByteSource ?: InlineAssetByteSource(envelope.assets)
         val idsToProcess = referenced.sorted().take(BackupJsonLimits.MAX_ASSETS)
         if (referenced.size > BackupJsonLimits.MAX_ASSETS) {
             failed += referenced.size - BackupJsonLimits.MAX_ASSETS
         }
         idsToProcess.forEach { fileId ->
-            val asset = envelope.assets[fileId]
-            if (asset == null || asset.data.length > BackupJsonLimits.MAX_ASSET_DATA_CHARS) {
-                failed++
-                return@forEach
-            }
-            val bytes = try {
-                Base64.getDecoder().decode(asset.data)
-            } catch (_: IllegalArgumentException) {
+            val bytes = source.open(fileId)
+            if (bytes == null) {
                 failed++
                 return@forEach
             }
             try {
                 if (bytes.isEmpty() ||
-                    bytes.size > BackupJsonLimits.MAX_ASSET_TOTAL_BYTES - totalBytes
+                    bytes.size > BackupJsonLimits.MAX_BUNDLE_UNCOMPRESSED_BYTES - totalBytes
                 ) {
                     failed++
                     return@forEach

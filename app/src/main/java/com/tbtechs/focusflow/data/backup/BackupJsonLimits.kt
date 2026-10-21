@@ -48,6 +48,14 @@ object BackupJsonLimits {
     const val MAX_ASSET_DATA_CHARS = 400_000
     const val MAX_ASSET_TOTAL_BYTES = 4 * 1024 * 1024
     const val JSON_NON_ASSET_RESERVE = 1 * 1024 * 1024
+    const val MAX_BUNDLE_BYTES = 64 * 1024 * 1024
+    const val MAX_BUNDLE_ASSETS = 300
+    const val MAX_BUNDLE_ENTRIES = MAX_BUNDLE_ASSETS + 1 + 50
+    const val MAX_BUNDLE_ASSET_ENTRY_BYTES = 2 * 1024 * 1024
+    const val MAX_BUNDLE_MANIFEST_BYTES = MAX_FILE_BYTES
+    const val MAX_BUNDLE_UNCOMPRESSED_BYTES = 80 * 1024 * 1024
+    const val BUNDLE_OVERHEAD_RESERVE_BYTES = 64 * 1024
+    const val MAX_BUNDLE_TEMP_AGE_MILLIS = 60 * 60 * 1000L
     const val MAX_AI_IMAGE_BYTES = 100 * 1024
     const val MAX_AI_TOTAL_IMAGE_BYTES = 3 * 1024 * 1024
     const val TASK_ONLY_BACKUP_VERSION = 1
@@ -55,7 +63,6 @@ object BackupJsonLimits {
     val SUPPORTED_BACKUP_VERSIONS =
         setOf(TASK_ONLY_BACKUP_VERSION, SUBTASK_BACKUP_VERSION)
     const val MAX_SUBTASK_JSON_BYTES_PER_TASK = 96 * 1024
-    const val EXPORT_REENCODE_THRESHOLD_BYTES = 7 * 1024 * 1024
 
     fun assetBudgetGuidance(): String =
         "For generated images, keep each image at or below ${formatByteLimit(MAX_AI_IMAGE_BYTES)} " +

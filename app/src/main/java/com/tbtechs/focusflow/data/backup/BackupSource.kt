@@ -1,0 +1,461 @@
+package com.tbtechs.focusflow.data.backup
+
+import android.content.ContentResolver
+import android.net.Uri
+import java.io.ByteArrayOutputStream
+import java.io.Closeable
+import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
+import java.io.IOException
+import java.io.InputStream
+import java.util.Collections
+import java.util.Enumeration
+import java.security.MessageDigest
+import java.util.zip.ZipEntry
+import java.util.zip.ZipFile
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
+
+internal class BackupSourceException(message: String, cause: Throwable? = null) :
+    IOException(message, cause)
+
+/**
+ * A staged backup source stays alive through review and restore. Bundle bytes
+ * remain on disk in cache; only the manifest and one requested asset are read
+ * into memory at a time.
+ */
+internal class BackupSourceDocument(
+    val manifestJson: String,
+    val assetByteSource: AssetByteSource,
+    val isBundle: Boolean,
+    val bundleAssetIds: Set<String>,
+    val warnings: List<String>,
+    private val ownedTempFile: File? = null,
+) : Closeable {
+    override fun close() {
+        runCatching { assetByteSource.close() }
+        ownedTempFile?.delete()
+    }
+}
+
+internal object BackupSource {
+    private val json = Json { ignoreUnknownKeys = true }
+    private val assetPathPattern = Regex("^assets/[A-Za-z0-9._-]{1,100}$")
+
+    fun readUri(
+        contentResolver: ContentResolver,
+        cacheDir: File,
+        uri: Uri,
+    ): BackupSourceDocument {
+        val input = contentResolver.openInputStream(uri)
+            ?: throw BackupSourceException("The selected backup could not be opened.")
+        return readStream(input, cacheDir)
+    }
+
+    internal fun readStream(input: InputStream, cacheDir: File): BackupSourceDocument {
+        val source = input.buffered()
+        val signature = ByteArray(4)
+        var signatureCount = 0
+        while (signatureCount < signature.size) {
+            val read = source.read(signature, signatureCount, signature.size - signatureCount)
+            if (read < 0) break
+            if (read == 0) {
+                val next = source.read()
+                if (next < 0) break
+                signature[signatureCount++] = next.toByte()
+            } else {
+                signatureCount += read
+            }
+        }
+        val isZip = signatureCount == ZIP_SIGNATURE.size &&
+            signature.contentEquals(ZIP_SIGNATURE)
+        val prefixed = PrefixInputStream(signature.copyOf(signatureCount), source)
+        return if (isZip) {
+            readBundle(prefixed, cacheDir)
+        } else {
+            val text = try {
+                BackupJsonPreflight.readUtf8Bounded(prefixed)
+            } catch (exception: BackupJsonFormatException) {
+                throw BackupSourceException(exception.message ?: "Backup JSON is invalid.", exception)
+            } catch (exception: Exception) {
+                throw BackupSourceException("Backup could not be read.", exception)
+            } finally {
+                runCatching { prefixed.close() }
+            }
+            BackupSourceDocument(
+                manifestJson = text,
+                assetByteSource = EmptyAssetByteSource,
+                isBundle = false,
+                bundleAssetIds = emptySet(),
+                warnings = emptyList(),
+            )
+        }
+    }
+
+    fun sweepStaleBundleFiles(cacheDir: File, nowMillis: Long = System.currentTimeMillis()): Int {
+        val directory = File(cacheDir, BUNDLE_CACHE_DIRECTORY)
+        if (!directory.isDirectory) return 0
+        val cutoff = nowMillis - BackupJsonLimits.MAX_BUNDLE_TEMP_AGE_MILLIS
+        var removed = 0
+        directory.listFiles().orEmpty().forEach { file ->
+            if (file.isFile && file.lastModified() < cutoff && file.delete()) removed++
+        }
+        return removed
+    }
+
+    private fun readBundle(input: InputStream, cacheDir: File): BackupSourceDocument {
+        val directory = File(cacheDir, BUNDLE_CACHE_DIRECTORY)
+        if (!directory.exists() && !directory.mkdirs()) {
+            input.close()
+            throw BackupSourceException("Temporary backup storage is unavailable.")
+        }
+        val stagedFile = File.createTempFile("bundle-", ".zip", directory)
+        try {
+            FileOutputStream(stagedFile).use { output ->
+                val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                var total = 0
+                while (true) {
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    if (count == 0) {
+                        val next = input.read()
+                        if (next < 0) break
+                        if (total == BackupJsonLimits.MAX_BUNDLE_BYTES) {
+                            throw BackupSourceException("Backup bundle exceeds the 64 MiB file limit.")
+                        }
+                        output.write(next)
+                        total++
+                        continue
+                    }
+                    if (count > BackupJsonLimits.MAX_BUNDLE_BYTES - total) {
+                        throw BackupSourceException("Backup bundle exceeds the 64 MiB file limit.")
+                    }
+                    output.write(buffer, 0, count)
+                    total += count
+                }
+                output.fd.sync()
+            }
+            input.close()
+            return openBundle(stagedFile)
+        } catch (exception: BackupSourceException) {
+            stagedFile.delete()
+            throw exception
+        } catch (exception: Exception) {
+            stagedFile.delete()
+            throw BackupSourceException("This is not a valid FocusFlow file.", exception)
+        }
+    }
+
+    private fun openBundle(stagedFile: File): BackupSourceDocument {
+        val zip = try {
+            ZipFile(stagedFile)
+        } catch (exception: Exception) {
+            throw BackupSourceException("This is not a valid FocusFlow file.", exception)
+        }
+        try {
+            val entries = zip.entries().toListBounded()
+            if (entries.size > BackupJsonLimits.MAX_BUNDLE_ENTRIES) {
+                throw BackupSourceException("Backup bundle contains too many entries.")
+            }
+            val seenNames = mutableSetOf<String>()
+            val safeEntries = linkedMapOf<String, ZipEntry>()
+            val warnings = mutableListOf<String>()
+            var ignoredEntries = 0
+            var manifestCount = 0
+            entries.forEach { entry ->
+                val name = entry.name
+                if (name == MANIFEST_ENTRY) {
+                    manifestCount++
+                    if (manifestCount > 1) {
+                        throw BackupSourceException("Backup bundle has more than one manifest.json.")
+                    }
+                    if (entry.isDirectory || entry.method !in SUPPORTED_ZIP_METHODS) {
+                        throw BackupSourceException("Backup bundle manifest is invalid.")
+                    }
+                    safeEntries[name] = entry
+                    return@forEach
+                }
+                if (!seenNames.add(name)) {
+                    ignoredEntries++
+                    return@forEach
+                }
+                if (!isSafeEntryName(name) || entry.isDirectory ||
+                    entry.method !in SUPPORTED_ZIP_METHODS
+                ) {
+                    ignoredEntries++
+                    return@forEach
+                }
+                if (name.startsWith(ASSET_DIRECTORY_PREFIX)) {
+                    if (!isSupportedAssetPath(name) ||
+                        safeEntries.keys.count { it.startsWith(ASSET_DIRECTORY_PREFIX) } >=
+                        BackupJsonLimits.MAX_BUNDLE_ASSETS
+                    ) {
+                        ignoredEntries++
+                    } else {
+                        safeEntries[name] = entry
+                    }
+                } else {
+                    ignoredEntries++
+                }
+            }
+            if (manifestCount != 1) {
+                throw BackupSourceException("Backup bundle is missing manifest.json.")
+            }
+            if (ignoredEntries > 0) {
+                warnings += "$ignoredEntries unsupported or extra bundle entries were ignored."
+            }
+
+            val manifestEntry = safeEntries[MANIFEST_ENTRY]
+                ?: throw BackupSourceException("Backup bundle is missing a readable manifest.json.")
+            if (manifestEntry.size > BackupJsonLimits.MAX_BUNDLE_MANIFEST_BYTES) {
+                throw BackupSourceException("Backup bundle manifest exceeds the 8 MiB limit.")
+            }
+            val manifestBytes = readEntryBounded(
+                zip = zip,
+                entry = manifestEntry,
+                cap = BackupJsonLimits.MAX_BUNDLE_MANIFEST_BYTES,
+            )
+            if (manifestBytes == null) {
+                throw BackupSourceException("Backup bundle manifest is invalid or too large.")
+            }
+            val manifestText = try {
+                val decoded = BackupJsonPreflight.readUtf8Bounded(manifestBytes.inputStream())
+                BackupJsonPreflight.validateAndStripBom(decoded)
+            } catch (exception: Exception) {
+                throw BackupSourceException("Backup bundle manifest is invalid.", exception)
+            }
+            val assetReferences = parseBundleAssetPaths(manifestText, safeEntries, warnings)
+            val source = ZipAssetSource(
+                zip = zip,
+                entries = safeEntries,
+                assetReferences = assetReferences,
+                initialUncompressedBytes = manifestBytes.size,
+            )
+            return BackupSourceDocument(
+                manifestJson = manifestText,
+                assetByteSource = source,
+                isBundle = true,
+                bundleAssetIds = assetReferences.keys,
+                warnings = warnings,
+                ownedTempFile = stagedFile,
+            )
+        } catch (exception: BackupSourceException) {
+            zip.close()
+            stagedFile.delete()
+            throw exception
+        } catch (exception: Exception) {
+            zip.close()
+            stagedFile.delete()
+            throw BackupSourceException("This is not a valid FocusFlow file.", exception)
+        }
+    }
+
+    private fun parseBundleAssetPaths(
+        manifest: String,
+        entries: Map<String, ZipEntry>,
+        warnings: MutableList<String>,
+    ): Map<String, BundleAssetReference> {
+        val root = try {
+            json.parseToJsonElement(manifest) as? JsonObject
+        } catch (exception: Exception) {
+            throw BackupSourceException("Backup bundle manifest is invalid.", exception)
+        } ?: throw BackupSourceException("Backup bundle manifest must be a JSON object.")
+        val assetObject = root["assets"] as? JsonObject ?: return emptyMap()
+        val result = linkedMapOf<String, BundleAssetReference>()
+        var missingCount = 0
+        assetObject.forEach { (id, value) ->
+            val file = (value as? JsonObject)
+                ?.get("file")
+                ?.let { it as? JsonPrimitive }
+                ?.takeIf(JsonPrimitive::isString)
+                ?.contentOrNull
+            val sha256 = (value as? JsonObject)
+                ?.get("sha256")
+                ?.let { it as? JsonPrimitive }
+                ?.takeIf(JsonPrimitive::isString)
+                ?.contentOrNull
+            if (file == null || !ASSET_ID_PATTERN.matches(id) || !isSupportedAssetPath(file)) {
+                if (file != null) missingCount++
+                return@forEach
+            }
+            val entry = entries[file]
+            if (entry == null || entry.size > BackupJsonLimits.MAX_BUNDLE_ASSET_ENTRY_BYTES) {
+                missingCount++
+            } else {
+                result[id] = BundleAssetReference(file = file, sha256 = sha256)
+            }
+        }
+        if (missingCount > 0) {
+            warnings += "$missingCount bundle images are missing or invalid."
+        }
+        return result
+    }
+
+    private fun readEntryBounded(zip: ZipFile, entry: ZipEntry, cap: Int): ByteArray? {
+        if (entry.size > cap) return null
+        return try {
+            zip.getInputStream(entry).use { input ->
+                val output = ByteArrayOutputStream(minOf(cap, entry.size.coerceAtLeast(0).toInt()))
+                val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                var total = 0
+                while (true) {
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    if (count == 0) {
+                        val next = input.read()
+                        if (next < 0) break
+                        if (total == cap) return null
+                        output.write(next)
+                        total++
+                        continue
+                    }
+                    if (count > cap - total) return null
+                    output.write(buffer, 0, count)
+                    total += count
+                }
+                output.toByteArray()
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun isSafeEntryName(name: String): Boolean =
+        name.isNotEmpty() &&
+            !name.contains("..") &&
+            !name.startsWith('/') &&
+            '\\' !in name &&
+            '\u0000' !in name &&
+            !DRIVE_PREFIX.containsMatchIn(name)
+
+    private fun isSupportedAssetPath(name: String): Boolean =
+        assetPathPattern.matches(name) &&
+            name.substringAfterLast('.').lowercase() in SUPPORTED_ASSET_EXTENSIONS
+
+    private fun Enumeration<ZipEntry>.toListBounded(): List<ZipEntry> {
+        val result = mutableListOf<ZipEntry>()
+        while (hasMoreElements()) {
+            if (result.size >= BackupJsonLimits.MAX_BUNDLE_ENTRIES + 1) {
+                return result
+            }
+            result += nextElement()
+        }
+        return result
+    }
+
+    private class PrefixInputStream(
+        private val prefix: ByteArray,
+        private val remainder: InputStream,
+    ) : InputStream() {
+        private var index = 0
+
+        override fun read(): Int =
+            if (index < prefix.size) prefix[index++].toInt() and 0xff else remainder.read()
+
+        override fun read(bytes: ByteArray, offset: Int, length: Int): Int {
+            if (length == 0) return 0
+            if (index < prefix.size) {
+                val count = minOf(length, prefix.size - index)
+                prefix.copyInto(bytes, offset, index, index + count)
+                index += count
+                return count
+            }
+            return remainder.read(bytes, offset, length)
+        }
+
+        override fun close() = remainder.close()
+    }
+
+    private const val BUNDLE_CACHE_DIRECTORY = "import_bundle"
+    private const val MANIFEST_ENTRY = "manifest.json"
+    private const val ASSET_DIRECTORY_PREFIX = "assets/"
+    private val SUPPORTED_ZIP_METHODS = setOf(ZipEntry.STORED, ZipEntry.DEFLATED)
+    private val SUPPORTED_ASSET_EXTENSIONS = setOf("webp", "png", "jpg", "jpeg")
+    private val DRIVE_PREFIX = Regex("^[A-Za-z]:")
+    private val ASSET_ID_PATTERN = Regex("^[A-Za-z0-9_-]{1,64}$")
+    private val ZIP_SIGNATURE = byteArrayOf(0x50, 0x4b, 0x03, 0x04)
+
+    internal fun jsonDocument(text: String): BackupSourceDocument =
+        BackupSourceDocument(
+            manifestJson = text,
+            assetByteSource = EmptyAssetByteSource,
+            isBundle = false,
+            bundleAssetIds = emptySet(),
+            warnings = emptyList(),
+        )
+}
+
+private data class BundleAssetReference(
+    val file: String,
+    val sha256: String?,
+)
+
+internal class ZipAssetSource(
+    private val zip: ZipFile,
+    private val entries: Map<String, ZipEntry>,
+    private val assetReferences: Map<String, BundleAssetReference>,
+    initialUncompressedBytes: Int,
+) : AssetByteSource {
+    private var uncompressedBytes = initialUncompressedBytes.toLong()
+
+    @Synchronized
+    override fun open(assetId: String): ByteArray? {
+        val reference = assetReferences[assetId] ?: return null
+        val entry = entries[reference.file] ?: return null
+        if (entry.size > BackupJsonLimits.MAX_BUNDLE_ASSET_ENTRY_BYTES) return null
+        return try {
+            zip.getInputStream(entry).use { input ->
+                val output = ByteArrayOutputStream()
+                val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                var total = 0
+                while (true) {
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    if (count == 0) {
+                        val next = input.read()
+                        if (next < 0) break
+                        if (total == BackupJsonLimits.MAX_BUNDLE_ASSET_ENTRY_BYTES) return null
+                        if (uncompressedBytes >= BackupJsonLimits.MAX_BUNDLE_UNCOMPRESSED_BYTES) return null
+                        output.write(next)
+                        total++
+                        uncompressedBytes++
+                        continue
+                    }
+                    if (count > BackupJsonLimits.MAX_BUNDLE_ASSET_ENTRY_BYTES - total ||
+                        count.toLong() > BackupJsonLimits.MAX_BUNDLE_UNCOMPRESSED_BYTES - uncompressedBytes
+                    ) {
+                        return null
+                    }
+                    output.write(buffer, 0, count)
+                    total += count
+                    uncompressedBytes += count
+                }
+                val bytes = output.toByteArray()
+                if (reference.sha256 != null &&
+                    !reference.sha256.equals(sha256(bytes), ignoreCase = true)
+                ) {
+                    bytes.fill(0)
+                    null
+                } else {
+                    bytes
+                }
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    override fun contains(assetId: String): Boolean = assetId in assetReferences
+
+    override fun close() {
+        zip.close()
+    }
+
+    private fun sha256(bytes: ByteArray): String =
+        MessageDigest.getInstance("SHA-256")
+            .digest(bytes)
+            .joinToString("") { byte -> "%02x".format(byte.toInt() and 0xff) }
+}

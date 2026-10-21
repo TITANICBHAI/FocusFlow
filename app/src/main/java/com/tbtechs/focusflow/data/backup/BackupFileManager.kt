@@ -18,6 +18,13 @@ object BackupFileManager {
         return readStream(input)
     }
 
+    fun readSource(
+        contentResolver: ContentResolver,
+        cacheDir: java.io.File,
+        uri: Uri,
+    ): BackupSourceDocument =
+        BackupSource.readUri(contentResolver, cacheDir, uri)
+
     /**
      * Writes UTF-8 content to a URI returned by ACTION_CREATE_DOCUMENT.
      */
@@ -25,6 +32,17 @@ object BackupFileManager {
         val output = contentResolver.openOutputStream(uri)
             ?: throw IOException("Cannot write to: $uri")
         writeStream(output, content)
+    }
+
+    fun writeBundleToUri(
+        contentResolver: ContentResolver,
+        uri: Uri,
+        writer: BackupBundleWriter,
+        plan: BundleExportPlan,
+    ) {
+        val output = contentResolver.openOutputStream(uri)
+            ?: throw IOException("Cannot write to: $uri")
+        writer.write(plan, output)
     }
 
     internal fun readStream(input: InputStream): String =

@@ -86,7 +86,12 @@ object BackupSerializer {
         return "focusflow-$timestamp.focusflow"
     }
 
-    fun parseAndValidate(jsonText: String): BackupParseResult {
+    fun parseAndValidate(
+        jsonText: String,
+        isBundle: Boolean = false,
+        bundleAssetIds: Set<String> = emptySet(),
+        sourceWarnings: List<String> = emptyList(),
+    ): BackupParseResult {
         return try {
             val normalized = BackupJsonPreflight.validateAndStripBom(jsonText)
             val root = json.parseToJsonElement(normalized) as? JsonObject
@@ -105,7 +110,12 @@ object BackupSerializer {
             val settings = root["settings"] as? JsonObject
                 ?: return BackupParseResult.Failure("Backup settings must be a JSON object.")
             val unknownFields = UnknownFieldWarnings()
-            val parsedAssets = parseAssets(root["assets"], unknownFields)
+            val parsedAssets = parseAssets(
+                element = root["assets"],
+                unknownFields = unknownFields,
+                isBundle = isBundle,
+                bundleAssetIds = bundleAssetIds,
+            )
 
             val tasks = root["tasks"] as? JsonArray
                 ?: return BackupParseResult.Failure("Backup tasks must be a JSON array.")
@@ -155,6 +165,7 @@ object BackupSerializer {
             }
 
             val warnings = mutableListOf<String>()
+            warnings += sourceWarnings
             if (malformedTaskCount > 0) {
                 val recordWord = if (malformedTaskCount == 1) "record will" else "records will"
                 warnings += "$malformedTaskCount malformed task $recordWord be skipped."
@@ -197,6 +208,8 @@ object BackupSerializer {
     private fun parseAssets(
         element: JsonElement?,
         unknownFields: UnknownFieldWarnings,
+        isBundle: Boolean,
+        bundleAssetIds: Set<String>,
     ): AssetParseResult {
         if (element == null) return AssetParseResult(emptyMap(), emptyList())
         val objectValue = element as? JsonObject
@@ -207,9 +220,17 @@ object BackupSerializer {
         val result = linkedMapOf<String, BackupAsset>()
         var invalidCount = 0
         var overLimitCount = 0
+        var fileIgnoredCount = 0
+        var fileWinsCount = 0
+        var missingFileCount = 0
         var decodedBytes = 0L
         objectValue.entries.sortedBy { it.key }.forEach { (id, value) ->
-            if (result.size >= BackupJsonLimits.MAX_ASSETS) {
+            val maxAssets = if (isBundle) {
+                BackupJsonLimits.MAX_BUNDLE_ASSETS
+            } else {
+                BackupJsonLimits.MAX_ASSETS
+            }
+            if (result.size >= maxAssets) {
                 overLimitCount++
                 return@forEach
             }
@@ -222,12 +243,34 @@ object BackupSerializer {
             val data = assetObject?.stringValue("data")
             val mimeElement = assetObject?.get("mime")
             val mime = assetObject?.stringValue("mime")
-            val invalidFile = assetObject?.let { "file" in it && it.stringValue("file") == null } == true
-            val invalidHash =
-                assetObject?.let { "sha256" in it && it.stringValue("sha256") == null } == true
+            val fileElement = assetObject?.get("file")
+            val file = assetObject?.stringValue("file")
+            val hashElement = assetObject?.get("sha256")
+            val sha256 = assetObject?.stringValue("sha256")
+            val invalidMime = mimeElement != null && mime == null
+            val invalidFile = fileElement != null && file == null
+            val invalidHash = hashElement != null &&
+                (sha256 == null || !SHA256_PATTERN.matches(sha256))
+
+            if (isBundle && fileElement != null) {
+                if (data != null) fileWinsCount++
+                if (invalidMime || invalidFile || invalidHash || file == null ||
+                    !isSafeBundleAssetPath(file)
+                ) {
+                    invalidCount++
+                    return@forEach
+                }
+                if (id !in bundleAssetIds) {
+                    missingFileCount++
+                    return@forEach
+                }
+                result[id] = BackupAsset(mime = mime, file = file, sha256 = sha256)
+                return@forEach
+            }
+
+            if (!isBundle && fileElement != null) fileIgnoredCount++
             if (data == null || data.length > BackupJsonLimits.MAX_ASSET_DATA_CHARS ||
-                mimeElement != null && mime == null ||
-                invalidFile || invalidHash
+                invalidMime || invalidHash || invalidFile
             ) {
                 invalidCount++
                 return@forEach
@@ -238,27 +281,43 @@ object BackupSerializer {
                 invalidCount++
                 return@forEach
             }
-            if (bytes.isEmpty() ||
-                bytes.size > BackupJsonLimits.MAX_ASSET_TOTAL_BYTES - decodedBytes
-            ) {
+            val totalAssetLimit = if (isBundle) {
+                BackupJsonLimits.MAX_BUNDLE_UNCOMPRESSED_BYTES
+            } else {
+                BackupJsonLimits.MAX_ASSET_TOTAL_BYTES
+            }
+            if (bytes.isEmpty() || bytes.size > totalAssetLimit - decodedBytes) {
                 bytes.fill(0)
                 overLimitCount++
                 return@forEach
             }
             decodedBytes += bytes.size
             bytes.fill(0)
-            result[id] = BackupAsset(mime = mime, data = data)
+            result[id] = BackupAsset(mime = mime, data = data, sha256 = sha256)
         }
         return AssetParseResult(
             assets = result,
             warnings = buildList {
                 if (invalidCount > 0) add("$invalidCount invalid image assets were ignored.")
+                if (fileIgnoredCount > 0) {
+                    add("$fileIgnoredCount bundle file references were ignored in this JSON backup.")
+                }
+                if (fileWinsCount > 0) {
+                    add("The bundle file entry was used instead of inline data for $fileWinsCount image assets.")
+                }
+                if (missingFileCount > 0) {
+                    add("$missingFileCount bundle image references are missing or invalid.")
+                }
                 if (overLimitCount > 0) {
                     add("$overLimitCount image assets were ignored because the asset count or total size limit was reached.")
                 }
             },
         )
     }
+
+    private fun isSafeBundleAssetPath(path: String): Boolean =
+        path.matches(BUNDLE_ASSET_PATH_PATTERN) &&
+            path.substringAfterLast('.').lowercase() in SUPPORTED_ASSET_EXTENSIONS
 
     private fun JsonObject.stringValue(key: String): String? =
         (this[key] as? JsonPrimitive)?.takeIf(JsonPrimitive::isString)?.content
@@ -387,5 +446,8 @@ object BackupSerializer {
     }
 
     private val ASSET_ID_PATTERN = Regex("^[A-Za-z0-9_-]{1,64}$")
+    private val SHA256_PATTERN = Regex("^[a-fA-F0-9]{64}$")
+    private val BUNDLE_ASSET_PATH_PATTERN = Regex("^assets/[A-Za-z0-9._-]{1,100}$")
+    private val SUPPORTED_ASSET_EXTENSIONS = setOf("webp", "png", "jpg", "jpeg")
     private val WARNING_COUNT_PATTERN = Regex("^(\\d+) (.+)$")
 }

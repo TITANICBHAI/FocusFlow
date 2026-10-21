@@ -729,6 +729,19 @@ those gates complete. Continue to honor the no-touch list, Phase 8/9 audit rules
 verification restrictions (including no APK assembly on Replit and no GitHub Actions unless the
 owner explicitly requests APK-building verification).
 
+### Further owner authorization (2026-10-21)
+
+The owner extended the add-only implementation batch to **Phase 9 → Phase 5 → Phase 6**. Add the
+planned test sources during each phase, but do not execute tests, builds, lint, Android-test
+compilation, R8, APK assembly, or other production/device verification until all three phases'
+implementation work is complete. Between these phase boundaries, run only Git-based checks
+(`git status`, `git diff --check`, and review of the relevant diffs), record exact results in
+`exercise/TRACKER.md`, then proceed to the next phase without treating deferred gates as passed.
+After Phase 6 implementation, perform the applicable deferred verification together and update all
+affected phase gates from observed results. This is a narrow owner-directed exception to the
+phase-stop and verification timing rules; all feature scope, phase order, no-touch rules, and
+no-push/no-Actions restrictions remain unchanged.
+
 ---
 
 ## 15. Definition of done

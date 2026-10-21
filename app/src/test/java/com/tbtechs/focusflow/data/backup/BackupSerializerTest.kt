@@ -5,6 +5,7 @@ import com.tbtechs.focusflow.data.model.AllowedAppPreset
 import com.tbtechs.focusflow.data.model.BlockPreset
 import com.tbtechs.focusflow.data.model.RecurringBlockSchedule
 import com.tbtechs.focusflow.data.model.Subtask
+import com.tbtechs.focusflow.data.model.SubtaskImage
 import com.tbtechs.focusflow.data.model.Task
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -20,6 +21,90 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class BackupSerializerTest {
+    @Test
+    fun bundleAssetFileReferencesAreAcceptedOnlyWhenTheBundleContainsTheEntry() {
+        val task = sampleTask().copy(
+            subtasks = listOf(
+                Subtask(
+                    id = "part",
+                    title = "Part",
+                    image = SubtaskImage("photo"),
+                ),
+            ),
+        )
+        val envelope = BackupSerializer.buildEnvelope(
+            settings = AppSettings(),
+            tasks = listOf(task),
+            appVersion = "test",
+        )
+        val root = Json.parseToJsonElement(
+            BackupSerializer.serializeToJson(envelope),
+        ).jsonObject
+        val withFileAsset = JsonObject(
+            root + (
+                "assets" to JsonObject(
+                    mapOf(
+                        "photo" to JsonObject(
+                            mapOf(
+                                "file" to JsonPrimitive("assets/photo.webp"),
+                                "mime" to JsonPrimitive("image/webp"),
+                                "sha256" to JsonPrimitive("a".repeat(64)),
+                            ),
+                        ),
+                    ),
+                )
+            ),
+        )
+
+        val parsed = BackupSerializer.parseAndValidate(
+            jsonText = withFileAsset.toString(),
+            isBundle = true,
+            bundleAssetIds = setOf("photo"),
+        ) as BackupParseResult.Success
+
+        assertEquals("assets/photo.webp", parsed.envelope.assets.getValue("photo").file)
+        assertEquals(null, parsed.envelope.assets.getValue("photo").data)
+        assertTrue(parsed.warnings.isEmpty())
+
+        val missing = BackupSerializer.parseAndValidate(
+            jsonText = withFileAsset.toString(),
+            isBundle = true,
+            bundleAssetIds = emptySet(),
+        ) as BackupParseResult.Success
+        assertTrue(missing.envelope.assets.isEmpty())
+        assertTrue(missing.warnings.any { it.contains("missing") || it.contains("image") })
+    }
+
+    @Test
+    fun plainJsonFileAssetsAreIgnoredWithWarning() {
+        val task = sampleTask().copy(
+            subtasks = listOf(
+                Subtask(id = "part", title = "Part", image = SubtaskImage("photo")),
+            ),
+        )
+        val envelope = BackupSerializer.buildEnvelope(AppSettings(), listOf(task), "test")
+        val root = Json.parseToJsonElement(
+            BackupSerializer.serializeToJson(envelope),
+        ).jsonObject
+        val json = JsonObject(
+            root + (
+                "assets" to JsonObject(
+                    mapOf(
+                        "photo" to JsonObject(
+                            mapOf("file" to JsonPrimitive("assets/photo.webp")),
+                        ),
+                    ),
+                )
+            ),
+        )
+
+        val parsed = BackupSerializer.parseAndValidate(json.toString()) as BackupParseResult.Success
+
+        assertTrue(parsed.envelope.assets.isEmpty())
+        assertTrue(parsed.warnings.any { it.contains("file") || it.contains("ignored") })
+        assertTrue(parsed.envelope.tasks.single().subtasks.single().image == null)
+    }
+
     @Test
     fun envelopeSerializesAndParsesWithTaskAndPortableSettingsIntact() {
         val task = sampleTask()

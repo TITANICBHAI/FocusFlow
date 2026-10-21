@@ -195,13 +195,13 @@ fun SettingsScreen(
         ActivityResultContracts.OpenDocument(),
     ) { uri ->
         if (uri != null) {
-            backupViewModel.beginImport(context.contentResolver, uri)
+            backupViewModel.beginImport(context.contentResolver, uri, context.cacheDir)
         }
     }
 
     LaunchedEffect(externalImportEventNonce) {
         val uri = BackupImportIntentRelay.consume() ?: return@LaunchedEffect
-        backupViewModel.beginImport(context.contentResolver, uri)
+        backupViewModel.beginImport(context.contentResolver, uri, context.cacheDir)
     }
 
     LaunchedEffect(importState) {
@@ -225,7 +225,10 @@ fun SettingsScreen(
     }
 
     LaunchedEffect(exportState) {
-        if (exportState is ExportState.Success || exportState is ExportState.Error) {
+        if (exportState is ExportState.Success ||
+            exportState is ExportState.Error ||
+            exportState is ExportState.TooLarge
+        ) {
             exportNotice = exportState
         }
     }
