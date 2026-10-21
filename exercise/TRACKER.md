@@ -330,6 +330,7 @@ Strengthened `TaskViewModelSubtasksTest` to compare every non-subtask task field
 
 **Evidence:**
 - `git diff --check` — PASS (no output) after the current Phase 4 code/test changes.
+- `FOCUSFLOW_SKIP_APK_BUILD=1 bash scripts/build-apk-with-java.sh :app:testProductionDebugUnitTest` — FAIL at `:app:compileProductionDebugKotlin`; Kotlin reported unresolved/misplaced Compose imports/APIs in `SubtaskImage.kt`, `TaskCard.kt`, `TaskDetailModal.kt`, `SubtaskComponents.kt`, and `SubtaskDetailScreen.kt`. Unit tests did not run. The wrapper provisioned JDK/SDK outside the repository and did not package an APK.
 
 **Failures / blockers:**
 _None recorded._
@@ -551,4 +552,5 @@ Append dated entries; do not replace earlier history.
 | 2026-10-21 | Phase 4 Compose UI tests added | Added UI behavior coverage for progress, explicit completion, set tracking, Overview/Steps, image placeholder accessibility, all existing task actions, and navigation/back behavior. | Added `app/src/androidTest/java/com/tbtechs/focusflow/ui/home/TaskSubtaskUiTest.kt`; compile and runtime results pending. |
 | 2026-10-21 | Phase 4 no-side-effect evidence | Expanded the ViewModel subtask test to compare task fields across subtask operations. | Changed `TaskViewModelSubtasksTest.kt`; no alarm reconcile, no full-row writes, and non-subtask fields are asserted. Test not yet run. |
 | 2026-10-21 | Diff whitespace check | Checked all current worktree changes. | `git diff --check` passed with no output. |
+| 2026-10-21 | First production unit-test attempt | Ran the production JVM test task through the bootstrap wrapper with APK packaging disabled. | Failed in Kotlin compilation before tests: unresolved Compose import/API symbols in the listed UI sources. No APK task ran. Fixes and a rerun are pending. |
 | 2026-10-21 | Addendum v2 added | Owner asked for a hybrid JSON/ZIP format and revisions after an external review. Added Phase 8 (hardening, 8 items) and Phase 9 (bundle, 7 items) to `PLAN.md` §16–§20 and this tracker; denominator raised from 36 to 51. No completed item was edited or unchecked; no app code changed. | Execution order 4 → 8 → 9 → 5 → 6. Progress recalculated: 20/51 = 39.2%. |
