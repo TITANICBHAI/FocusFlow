@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+message: "If you use or reference FocusFlow, please cite it as below."
+title: "FocusFlow: Open-Source App Blocker and Focus Planner for Android"
+type: software
+authors:
+  - name: "TBTechs"
+    website: "https://tbtechs.pages.dev"
+repository-code: "https://github.com/TITANICBHAI/FocusFlow"
+url: "https://focusflowapp.pages.dev/"
+abstract: >-
+  FocusFlow is a free, open-source Android app that blocks distracting apps and
+  helps plan focused work. It uses Android's Accessibility Service, an optional
+  on-device VPN and optional Device Admin protection, and is built natively with
+  Kotlin and Jetpack Compose. Data stays on the device.
+keywords:
+  - android
+  - app blocker
+  - focus
+  - productivity
+  - digital wellbeing
+  - screen time
+  - kotlin
+  - jetpack compose
+  - open source

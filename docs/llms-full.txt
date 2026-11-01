@@ -8,7 +8,7 @@
 ## What is FocusFlow?
 
 FocusFlow (by TBTechs) is a free, hard-enforcement screen time management and app blocking app for
-Android. It requires no root access and runs on Android 8.0 (API 26) and above across 30+ OEM
+Android. It requires no root access and runs on Android 10 (API 29) and above across 30+ OEM
 brands (Samsung, Xiaomi, Oppo/ColorOS, OnePlus/OxygenOS, Huawei/EMUI, Vivo, Realme, Motorola,
 Asus/ROG, Nothing, Nokia, Sony, Meizu, Lenovo, ZTE, Wiko, Infinix, Transsion, and more).
 
@@ -427,8 +427,8 @@ advertising SDK.
 
 ## Supported Android versions and OEMs
 
-Minimum: Android 8.0 (API level 26)
-Recommended: Android 10+ for best accessibility service reliability
+Minimum: Android 10 (API level 29)
+Note: on Android 13 and newer, installs from outside a store may need "Allow restricted settings" before the Accessibility Service can be enabled.
 
 Tested OEM firmware families:
 Samsung (One UI 3/4/5/6), Xiaomi (MIUI 13/14, HyperOS), Oppo (ColorOS 13/14), OnePlus

@@ -40,7 +40,7 @@ OTHER FEATURES:
 - Pomodoro Mode (auto-cycling work and break sessions)
 - Keyword Blocker (blocks by on-screen text, URL, and search terms)
 - Backup & Restore (.focusflow file format)
-- 7 languages: English, Chinese (Simplified), French, German, Japanese, Korean, Spanish
+- Website available in 7 languages: English, Chinese (Simplified), French, German, Japanese, Korean, Spanish (app interface: English)
 
 PLATFORM:
 Android 10+ (no root required)

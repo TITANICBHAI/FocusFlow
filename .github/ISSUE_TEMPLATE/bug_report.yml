@@ -1,0 +1,94 @@
+name: Bug report
+description: Something in FocusFlow is not working as expected
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve FocusFlow. The more detail you give, the faster this can be fixed.
+        **Security issue?** Please do not file it here. Use the [security policy](https://github.com/TITANICBHAI/FocusFlow/security/policy).
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the problem and what you expected instead.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part of the app?
+      options:
+        - App blocking (Accessibility Service / block screen)
+        - VPN network blocking
+        - Tasks, schedule and focus sessions
+        - Scheduled Blocks / Always-On
+        - Daily Allowance
+        - Keyword Blocker
+        - PIN, System Guard or Device Admin
+        - Notifications, alarms or widget
+        - Stats and reports
+        - Backup and restore (.focusflow)
+        - Permissions and setup
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open ...
+        2. Tap ...
+        3. See ...
+    validations:
+      required: true
+  - type: input
+    id: app-version
+    attributes:
+      label: FocusFlow version
+      description: For example 1.1.5. The version is also in the release you installed.
+    validations:
+      required: true
+  - type: dropdown
+    id: install-source
+    attributes:
+      label: Where did you install FocusFlow from?
+      options:
+        - GitHub Releases (APK)
+        - Huawei AppGallery
+        - Mobile Seva AppStore
+        - Indus Appstore
+        - Built from source
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: android-version
+    attributes:
+      label: Android version
+      placeholder: "e.g. Android 14"
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Phone manufacturer, model and software skin
+      placeholder: "e.g. Samsung Galaxy A54, One UI 6"
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics or screenshots (optional)
+      description: If FocusFlow's built-in diagnostics are available, paste their output. Remove personal information from screenshots first.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and discussions.
+          required: true
+        - label: I checked that all required permissions are granted.
+          required: false
