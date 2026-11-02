@@ -159,7 +159,7 @@ internal val GUIDE = listOf(
             ),
             GuideStep(
                 "Add a photo",
-                "Open a subtask or step menu to add, replace, or remove a photo. Imported and attached images are resized and stored privately on this device; remote image links are not supported.",
+                "Open a subtask or step menu to add, replace, or remove a photo. Items that still need a picture show Photo needed with a short description. On the task, you can download the pictures a file linked to (only after you confirm), add several pictures in order, or copy picture prompts for an image tool. Pictures are resized and stored privately on this device.",
             ),
             GuideStep(
                 "Complete the task when you are ready",
@@ -167,7 +167,7 @@ internal val GUIDE = listOf(
             ),
             GuideStep(
                 "Import a task plan",
-                "A .focusflow file can be JSON or a ZIP bundle. Use JSON for text or small inline images and a ZIP bundle for image files. Task-only files use version 1; files with subtasks or image assets use version 2.",
+                "A .focusflow file is normally plain JSON. Pictures are described as photo slots (a short description and an optional link) that you attach later; a ZIP bundle is only needed for real image files. Task-only files use version 1; files with subtasks use version 2.",
             ),
         ),
     ),

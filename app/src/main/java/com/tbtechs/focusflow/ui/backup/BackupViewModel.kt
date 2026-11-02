@@ -26,6 +26,7 @@ import com.tbtechs.focusflow.data.backup.SubtaskAssetExporter
 import com.tbtechs.focusflow.data.backup.RestoreResult
 import com.tbtechs.focusflow.data.images.SubtaskImageStore
 import com.tbtechs.focusflow.data.model.AppSettings
+import com.tbtechs.focusflow.data.model.SubtaskPhotoSlots
 import com.tbtechs.focusflow.data.model.Task
 import com.tbtechs.focusflow.data.repository.SettingsRepository
 import com.tbtechs.focusflow.data.repository.TaskRepository
@@ -72,6 +73,7 @@ sealed interface ImportState {
         val subtasksImported: Int = 0,
         val imagesStored: Int = 0,
         val tasksEnriched: Int = 0,
+        val photosReused: Int = 0,
     ) : ImportState
     data class Error(val message: String) : ImportState
 }
@@ -346,6 +348,7 @@ class BackupViewModel internal constructor(
                             subtasksImported = result.subtasksImported,
                             imagesStored = result.imagesStored,
                             tasksEnriched = result.tasksEnriched,
+                            photosReused = result.photosReused,
                         )
                     }
                 }
@@ -493,13 +496,4 @@ private class RepositoryBackupViewModelOperations(
 }
 
 private fun List<Task>.withoutImages(): List<Task> =
-    map { task ->
-        task.copy(
-            subtasks = task.subtasks.map { subtask ->
-                subtask.copy(
-                    image = null,
-                    steps = subtask.steps.map { step -> step.copy(image = null) },
-                )
-            },
-        )
-    }
+    map { task -> task.copy(subtasks = SubtaskPhotoSlots.withoutImages(task.subtasks)) }

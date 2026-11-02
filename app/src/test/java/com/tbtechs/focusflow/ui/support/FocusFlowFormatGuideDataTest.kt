@@ -3,6 +3,8 @@ package com.tbtechs.focusflow.ui.support
 import com.tbtechs.focusflow.data.backup.BackupParseResult
 import com.tbtechs.focusflow.data.backup.BackupJsonLimits
 import com.tbtechs.focusflow.data.backup.BackupSerializer
+import com.tbtechs.focusflow.data.model.PhotoLinkCheck
+import com.tbtechs.focusflow.data.model.PhotoLinkPolicy
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -44,5 +46,33 @@ class FocusFlowFormatGuideDataTest {
         assertTrue(FOCUSFLOW_ASSETS_NOTE.contains(byteBudgetText))
         assertTrue(prompt.contains("version 2"))
         assertTrue(FOCUSFLOW_VERSION_NOTE.contains("1 and 2"))
+    }
+
+    @Test
+    fun promptTeachesPhotoSlotsAndTheExampleCarriesThem() {
+        val prompt = FOCUSFLOW_TASK_BACKUP_PROMPT
+
+        assertTrue(prompt.contains("## Pictures: describe them, FocusFlow attaches them"))
+        assertTrue(
+            prompt.contains(
+                BackupJsonLimits.formatByteLimit(BackupJsonLimits.MAX_SUBTASK_JSON_BYTES_PER_TASK),
+            ),
+        )
+        assertTrue(prompt.contains("`brief`"))
+        assertTrue(prompt.contains("`url`"))
+        assertTrue(!prompt.contains("Remote image URLs are not supported"))
+        assertTrue(!FOCUSFLOW_ASSETS_NOTE.contains("Remote image links are not supported"))
+        val placeholder = "https://images.example.com/pushup-side.jpg"
+        assertTrue(prompt.contains(placeholder))
+        assertTrue(PhotoLinkPolicy.check(placeholder) is PhotoLinkCheck.Accepted)
+
+        val parsed = BackupSerializer.parseAndValidate(FOCUSFLOW_SUBTASK_EXAMPLE) as BackupParseResult.Success
+        val subtasks = parsed.envelope.tasks.single().subtasks
+        assertEquals(placeholder, subtasks[0].photo?.url)
+        assertTrue(subtasks[0].steps[1].photo?.brief?.isNotBlank() == true)
+        assertTrue(subtasks[1].photo?.url == null)
+        assertTrue(subtasks[1].photo?.brief?.isNotBlank() == true)
+        assertTrue(subtasks.all { it.image == null })
+        assertTrue(parsed.warnings.isEmpty())
     }
 }

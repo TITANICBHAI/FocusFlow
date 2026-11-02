@@ -10,6 +10,14 @@
           "Image-rich .focusflow files can use ZIP bundles; files with subtasks or images declare version 2, while task-only files remain version 1.",
           "Exercise goals support rep ranges through repsMax, such as 6–10 reps, and imported or attached images stay stored privately on your device."
         ]
+      },
+      {
+        "heading": "Photo slots",
+        "items": [
+          "Task files can now describe a picture with a short brief and an optional link instead of carrying image data. Items show Photo needed until you attach one.",
+          "You can download the pictures a file linked to (only after you confirm), add several pictures in order, copy picture prompts for an image tool, and reuse a picture you already have when an item has the same name.",
+          "Downloaded pictures are checked, resized and stored privately on your device. Links are never opened in a browser."
+        ]
       }
     ]
   },

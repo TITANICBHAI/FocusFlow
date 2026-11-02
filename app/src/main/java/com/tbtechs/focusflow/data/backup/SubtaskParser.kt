@@ -1,5 +1,6 @@
 package com.tbtechs.focusflow.data.backup
 
+import com.tbtechs.focusflow.data.model.PhotoSlot
 import com.tbtechs.focusflow.data.model.Subtask
 import com.tbtechs.focusflow.data.model.SubtaskGoal
 import com.tbtechs.focusflow.data.model.SubtaskImage
@@ -78,7 +79,8 @@ internal object SubtaskParser {
         }
 
         val goal = parseGoal(objectValue["goal"], warnings, unknownFields)
-        val image = parseImage(objectValue["image"], assetIds, warnings, unknownFields)
+        val visual = parseVisual(objectValue["image"], assetIds, warnings, unknownFields)
+        val photo = parsePhoto(objectValue["photo"], warnings, unknownFields) ?: visual.photo
         val steps = parseSteps(objectValue["steps"], assetIds, warnings, unknownFields)
         val tips = parseTextList(objectValue["tips"], warnings)
         val avoid = parseTextList(objectValue["avoid"], warnings)
@@ -89,12 +91,13 @@ internal object SubtaskParser {
             subtitle = objectValue.string("subtitle"),
             goal = goal,
             setsDone = objectValue.int("setsDone") ?: 0,
-            image = image,
+            image = visual.image,
             layout = objectValue.string("layout"),
             explanation = objectValue.string("explanation"),
             steps = steps,
             tips = tips,
             avoid = avoid,
+            photo = photo,
         )
     }
 
@@ -191,10 +194,12 @@ internal object SubtaskParser {
                 warnings.malformedSteps++
                 return@mapNotNull null
             }
+            val visual = parseVisual(step["image"], assetIds, warnings, unknownFields)
             SubtaskStep(
                 title = step.string("title"),
                 text = text,
-                image = parseImage(step["image"], assetIds, warnings, unknownFields),
+                image = visual.image,
+                photo = parsePhoto(step["photo"], warnings, unknownFields) ?: visual.photo,
             )
         }
     }
@@ -222,42 +227,73 @@ internal object SubtaskParser {
         }
     }
 
-    private fun parseImage(
+    private data class ParsedVisual(val image: SubtaskImage?, val photo: PhotoSlot?)
+
+    /**
+     * Reads an `image` object. A real image needs an `asset` that exists in the file.
+     * An object that only has a link, a brief or alt text, or whose asset is invalid or
+     * missing, still becomes a photo slot so the person sees which picture is needed.
+     */
+    private fun parseVisual(
         element: JsonElement?,
         assetIds: Set<String>,
         warnings: WarningCounts,
         unknownFields: UnknownFieldWarnings,
-    ): SubtaskImage? {
-        if (element == null || element == JsonNull) return null
+    ): ParsedVisual {
+        if (element == null || element == JsonNull) return ParsedVisual(null, null)
         val image = element as? JsonObject
         if (image == null) {
             warnings.unsupportedImages++
-            return null
+            return ParsedVisual(null, null)
         }
         unknownFields.record(image, IMAGE_KEYS)
-        if ("url" in image) {
-            warnings.remoteImages++
-            return null
-        }
+        val slot = slotFrom(image)
         if ("asset" !in image) {
-            warnings.unsupportedImages++
-            return null
+            if (slot == null) warnings.unsupportedImages++
+            return ParsedVisual(null, slot)
         }
         val asset = image.string("asset")
         if (asset == null || !assetIdPattern.matches(asset)) {
             warnings.invalidImages++
-            return null
+            return ParsedVisual(null, slot)
         }
         if (asset !in assetIds) {
             warnings.missingImages++
-            return null
+            return ParsedVisual(null, slot)
         }
         val alt = image.stringOrNull("alt")
         if (image["alt"] != null && image["alt"] != JsonNull && alt == null) {
             warnings.invalidImages++
-            return SubtaskImage(asset = asset)
+            return ParsedVisual(SubtaskImage(asset = asset), null)
         }
-        return SubtaskImage(asset = asset, alt = alt)
+        return ParsedVisual(SubtaskImage(asset = asset, alt = alt), null)
+    }
+
+    /** Reads a `photo` object: a picture the person still has to add. */
+    private fun parsePhoto(
+        element: JsonElement?,
+        warnings: WarningCounts,
+        unknownFields: UnknownFieldWarnings,
+    ): PhotoSlot? {
+        if (element == null || element == JsonNull) return null
+        val photo = element as? JsonObject
+        if (photo == null) {
+            warnings.invalidPhotos++
+            return null
+        }
+        unknownFields.record(photo, PHOTO_KEYS)
+        val slot = slotFrom(photo)
+        if (slot == null) warnings.invalidPhotos++
+        return slot
+    }
+
+    /** Link validation happens later, in SubtaskNormalizer, so every code path shares it. */
+    private fun slotFrom(source: JsonObject): PhotoSlot? {
+        val alt = source.stringOrNull("alt")
+        val brief = source.stringOrNull("brief") ?: alt
+        val url = source.stringOrNull("url")
+        if (brief == null && url == null) return null
+        return PhotoSlot(brief = brief, url = url, alt = alt)
     }
 
     private fun JsonObject.string(key: String): String? =
@@ -320,7 +356,7 @@ internal object SubtaskParser {
         var invalidRepRanges = 0
         var invalidImages = 0
         var unsupportedImages = 0
-        var remoteImages = 0
+        var invalidPhotos = 0
         var missingImages = 0
         var malformedSteps = 0
         var invalidStepCollections = 0
@@ -358,9 +394,7 @@ internal object SubtaskParser {
             if (invalidRepRanges > 0) add("$invalidRepRanges invalid repsMax fields were removed.")
             if (invalidImages > 0) add("$invalidImages invalid images were removed.")
             if (unsupportedImages > 0) add("$unsupportedImages unsupported images were skipped.")
-            if (remoteImages > 0) {
-                add("$remoteImages remote images were skipped because remote images aren't supported.")
-            }
+            if (invalidPhotos > 0) add("$invalidPhotos invalid photo fields were removed.")
             if (missingImages > 0) add("$missingImages images referencing missing assets were removed.")
             if (malformedSteps > 0) add("$malformedSteps malformed steps were skipped.")
             if (invalidStepCollections > 0) {
@@ -383,13 +417,16 @@ internal object SubtaskParser {
 
     private val SUBTASK_KEYS = setOf(
         "id", "title", "done", "subtitle", "goal", "setsDone", "image", "layout",
-        "explanation", "steps", "tips", "avoid",
+        "explanation", "steps", "tips", "avoid", "photo",
     )
     private val GOAL_KEYS = setOf(
         "kind", "sets", "reps", "repsMax", "seconds", "restSeconds", "meters", "weightKg", "label",
     )
-    private val STEP_KEYS = setOf("title", "text", "image")
-    private val IMAGE_KEYS = setOf("asset", "alt")
+    private val STEP_KEYS = setOf("title", "text", "image", "photo")
+    // `url` and `brief` are tolerated inside `image` so a picture that is only described
+    // still becomes a photo slot instead of being dropped.
+    private val IMAGE_KEYS = setOf("asset", "alt", "url", "brief")
+    private val PHOTO_KEYS = setOf("brief", "url", "alt")
     private val REP_RANGE_KINDS = setOf("sets", "reps")
     private const val MAX_REPS = 9_999
 }

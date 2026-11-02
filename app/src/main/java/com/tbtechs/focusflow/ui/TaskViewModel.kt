@@ -4,7 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
+import com.tbtechs.focusflow.data.model.DownloadedPhoto
 import com.tbtechs.focusflow.data.model.Subtask
+import com.tbtechs.focusflow.data.model.SubtaskPhotoSlots
 import com.tbtechs.focusflow.data.model.Task
 import com.tbtechs.focusflow.data.repository.AlarmRepository
 import com.tbtechs.focusflow.data.repository.TaskAlarmReconciler
@@ -185,6 +187,34 @@ class TaskViewModel(
         viewModelScope.launch {
             taskRepository.withTaskOperationLock {
                 taskRepository.replaceSubtasks(taskId, subtasks)
+            }
+        }
+    }
+
+    /**
+     * Attaches downloaded pictures to the photo slots they came from. The slots are matched
+     * against the subtasks stored right now (not a copy the screen held), so anything the person
+     * changed while the download ran is kept.
+     */
+    fun attachDownloadedPhotos(taskId: String, downloads: List<DownloadedPhoto>) {
+        if (downloads.isEmpty()) return
+        viewModelScope.launch {
+            taskRepository.withTaskOperationLock {
+                taskRepository.mutateSubtasks(taskId) { current ->
+                    SubtaskPhotoSlots.applyDownloads(current, downloads)
+                }
+            }
+        }
+    }
+
+    /** Fills the first empty photo slots, in reading order, with already stored pictures. */
+    fun attachPhotosInOrder(taskId: String, assetIds: List<String>) {
+        if (assetIds.isEmpty()) return
+        viewModelScope.launch {
+            taskRepository.withTaskOperationLock {
+                taskRepository.mutateSubtasks(taskId) { current ->
+                    SubtaskPhotoSlots.attachInOrder(current, assetIds).first
+                }
             }
         }
     }

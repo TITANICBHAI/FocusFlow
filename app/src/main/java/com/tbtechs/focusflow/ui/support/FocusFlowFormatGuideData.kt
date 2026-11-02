@@ -57,17 +57,17 @@ internal const val FOCUSFLOW_EXTERNAL_IMPORT_NOTE =
 
 internal const val FOCUSFLOW_GENERATION_NOTE =
     "Copy the AI task-backup prompt above and describe the tasks, dates, time zone, and constraints. " +
-        "It can group one session into a task with subtasks and choose JSON or a ZIP bundle for images, " +
-        "without changing FocusFlow's other features or global settings."
+        "It can group one session into a task with subtasks and describe each picture as a photo slot " +
+        "(with an optional download link), without changing FocusFlow's other features or global settings."
 
 internal val FOCUSFLOW_ASSETS_NOTE =
     "Images are stored in a top-level assets map and referenced by asset ID. FocusFlow validates, " +
         "resizes, and stores imported images privately on this device. " +
         BackupJsonLimits.assetBudgetGuidance() +
-        " Keep at most ${BackupJsonLimits.MAX_ASSETS} assets in one file. Remote image links are not supported."
+        " Keep at most ${BackupJsonLimits.MAX_ASSETS} assets in one file. Web links never go in an image; use a photo slot's url instead."
 
 internal val FOCUSFLOW_BUNDLE_GUIDANCE =
-    "Use a ZIP bundle when code and image files are available; use JSON for text-only backups or small inline images. " +
+    "Use a ZIP bundle only when you were given real image files and can run code; otherwise use plain JSON with photo slots. " +
         "The output must be a real ZIP named *.focusflow, with manifest.json at the archive root and image files " +
         "under assets/ (no extra top-level folder). Use WebP, PNG, or JPEG images with a long edge at most " +
         "${BackupJsonLimits.MAX_BUNDLE_AGENT_IMAGE_EDGE} px, each at most " +
@@ -112,9 +112,10 @@ internal val FOCUSFLOW_SUBTASK_FIELDS = listOf(
     FocusFlowGuideItem("subtitle", "Optional short supporting text, at most 120 characters."),
     FocusFlowGuideItem("layout", "Optional steps or overview; omitted layout uses steps when steps exist, otherwise overview."),
     FocusFlowGuideItem("explanation", "Optional plain text, at most 4,000 characters. Blank lines start paragraphs; lines beginning with - are bullets."),
-    FocusFlowGuideItem("steps", "Optional list of up to 30 steps. Each step needs text (up to 1,500 characters); title and image are optional."),
+    FocusFlowGuideItem("steps", "Optional list of up to 30 steps. Each step needs text (up to 1,500 characters); title and photo are optional."),
     FocusFlowGuideItem("tips / avoid", "Optional arrays of up to 10 strings each, up to 300 characters per string."),
-    FocusFlowGuideItem("image", "Optional overview image object with an asset ID and optional alt text."),
+    FocusFlowGuideItem("photo", "Optional picture slot: brief (one sentence, up to 300 characters), optional url (a direct https link to a JPEG, PNG or WebP file) and optional alt. FocusFlow shows Photo needed until a picture is attached; a link is only downloaded after you confirm."),
+    FocusFlowGuideItem("image", "Advanced: an image object with an asset ID and optional alt text. Use it only for image files you supply; for web pictures use photo."),
     FocusFlowGuideItem("progress", "Do not include done or setsDone in generated files; progress belongs to the app."),
 )
 
@@ -304,16 +305,26 @@ internal const val FOCUSFLOW_SUBTASK_EXAMPLE = """
         "layout": "steps",
         "steps": [
           { "title": "Start position", "text": "Hands just wider than shoulders; brace your core." },
-          { "title": "Lower and press", "text": "Lower with control, then press back to the start." }
+          {
+            "title": "Lower and press",
+            "text": "Lower with control, then press back to the start.",
+            "photo": { "brief": "Bottom of a push-up with the elbows at about 45 degrees." }
+          }
         ],
-        "tips": ["Keep a straight line from head to heels"]
+        "tips": ["Keep a straight line from head to heels"],
+        "photo": {
+          "brief": "Side view of a push-up at the bottom, chest just above the floor.",
+          "url": "https://images.example.com/pushup-side.jpg",
+          "alt": "Push-up, side view"
+        }
       },
       {
         "id": "plank",
         "title": "Plank",
         "goal": { "kind": "duration", "seconds": 45 },
         "layout": "overview",
-        "explanation": "Keep your body in a straight line.\n\n- Breathe steadily\n- Keep shoulders above elbows"
+        "explanation": "Keep your body in a straight line.\n\n- Breathe steadily\n- Keep shoulders above elbows",
+        "photo": { "brief": "Side view of a forearm plank with a straight line from head to heels." }
       }
     ]
   }]

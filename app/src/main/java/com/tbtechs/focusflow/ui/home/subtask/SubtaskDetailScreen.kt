@@ -479,12 +479,23 @@ private fun SubtaskHero(
                     fontWeight = FontWeight.Bold,
                 )
             }
-            Text(
-                text = if (mode == SubtaskLayoutMode.STEPS) "Step ${index + 1}" else "Item ${index + 1}",
-                color = RefSecondary,
-                fontSize = 13.scaledSp,
-                fontWeight = FontWeight.SemiBold,
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = if (mode == SubtaskLayoutMode.STEPS) "Step ${index + 1}" else "Item ${index + 1}",
+                    color = RefSecondary,
+                    fontSize = 13.scaledSp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                subtask.photo?.let { slot ->
+                    Text(
+                        text = "Photo needed: " + (slot.brief ?: slot.alt ?: "see this item"),
+                        color = RefSecondary,
+                        fontSize = 12.scaledSp,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
         }
         return
     }

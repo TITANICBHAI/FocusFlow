@@ -3,7 +3,7 @@ package com.tbtechs.focusflow.data.backup
 import com.tbtechs.focusflow.data.model.AppSettings
 import com.tbtechs.focusflow.data.model.CanonicalTimestamp
 import com.tbtechs.focusflow.data.model.Subtask
-import com.tbtechs.focusflow.data.model.SubtaskImage
+import com.tbtechs.focusflow.data.model.SubtaskPhotoSlots
 import com.tbtechs.focusflow.data.model.Task
 import com.tbtechs.focusflow.data.images.SubtaskImageStore
 import com.tbtechs.focusflow.data.repository.FocusSessionRepository
@@ -25,6 +25,7 @@ sealed interface RestoreResult {
         val subtasksImported: Int = 0,
         val imagesStored: Int = 0,
         val tasksEnriched: Int = 0,
+        val photosReused: Int = 0,
     ) : RestoreResult
 
     data class Failure(val message: String) : RestoreResult
@@ -199,6 +200,18 @@ class BackupRestoreEngine internal constructor(
                 val existingTasks = if (replaceTasks) emptyList() else access.getAllTasks()
                 val existingById = existingTasks.associateBy(Task::id)
                 val existingIds = existingById.keys
+                // Pictures the user already has, keyed by item title. Only a merge can reuse them:
+                // "replace" has just deleted the old tasks and swept their pictures from disk.
+                val needsReuse = preparedImages.tasks.any { task ->
+                    task.subtasks.any { it.image == null && it.photo != null }
+                }
+                val titleLibrary = if (needsReuse) {
+                    SubtaskPhotoSlots.buildTitleLibrary(existingTasks) { assetId ->
+                        imageStore?.exists(assetId) == true
+                    }
+                } else {
+                    emptyMap()
+                }
                 val importedIds = mutableSetOf<String>()
                 val enrichedIds = mutableSetOf<String>()
                 val tasksToSchedule = mutableListOf<Task>()
@@ -208,6 +221,7 @@ class BackupRestoreEngine internal constructor(
                 var skippedCount = 0
                 var subtasksImportedCount = 0
                 var tasksEnrichedCount = 0
+                var photosReusedCount = 0
                 val now = clock()
                 val canonicalNow = CanonicalTimestamp.format(now)
 
@@ -240,8 +254,11 @@ class BackupRestoreEngine internal constructor(
                             existing.subtasks.isEmpty() && task.subtasks.isNotEmpty() &&
                             enrichedIds.add(task.id)
                         ) {
+                            val (enrichedSubtasks, enrichedReused) =
+                                SubtaskPhotoSlots.reuseByTitle(task.subtasks, titleLibrary)
+                            photosReusedCount += enrichedReused
                             writeGate.write("BackupRestoreEngine.enrichSubtasks") {
-                                access.replaceSubtasks(task.id, task.subtasks)
+                                access.replaceSubtasks(task.id, enrichedSubtasks)
                             }
                             tasksEnrichedCount++
                             subtasksImportedCount += task.subtasks.size
@@ -257,13 +274,17 @@ class BackupRestoreEngine internal constructor(
                         return@forEachIndexed
                     }
 
-                    val taskToInsert = if (
+                    val statusAdjusted = if (
                         task.status == "scheduled" && endInstant.isBefore(now)
                     ) {
                         task.copy(status = "skipped", updatedAt = canonicalNow)
                     } else {
                         task
                     }
+                    val (reusedSubtasks, reusedNow) =
+                        SubtaskPhotoSlots.reuseByTitle(statusAdjusted.subtasks, titleLibrary)
+                    photosReusedCount += reusedNow
+                    val taskToInsert = statusAdjusted.copy(subtasks = reusedSubtasks)
 
                     writeGate.write("BackupRestoreEngine.insertTask") {
                         access.insertTask(taskToInsert)
@@ -293,6 +314,7 @@ class BackupRestoreEngine internal constructor(
                     subtasksImportedCount = subtasksImportedCount,
                     imagesStoredCount = preparedImages.storedCount,
                     tasksEnrichedCount = tasksEnrichedCount,
+                    photosReusedCount = photosReusedCount,
                 )
             }
         } catch (cancellation: CancellationException) {
@@ -312,6 +334,7 @@ class BackupRestoreEngine internal constructor(
                 subtasksImported = workResult.subtasksImportedCount,
                 imagesStored = workResult.imagesStoredCount,
                 tasksEnriched = workResult.tasksEnrichedCount,
+                photosReused = workResult.photosReusedCount,
             )
         }
     }
@@ -401,16 +424,7 @@ class BackupRestoreEngine internal constructor(
         }
         val tasks = envelope.tasks.mapIndexed { index, task ->
             if (index !in candidateTaskIndexes) return@mapIndexed task
-            task.copy(
-                subtasks = task.subtasks.map { subtask ->
-                    subtask.copy(
-                        image = remapImage(subtask.image, remapped),
-                        steps = subtask.steps.map { step ->
-                            step.copy(image = remapImage(step.image, remapped))
-                        },
-                    )
-                },
-            )
+            task.copy(subtasks = SubtaskPhotoSlots.remapPictures(task.subtasks, remapped))
         }
         return PreparedImages(
             tasks = tasks,
@@ -419,13 +433,6 @@ class BackupRestoreEngine internal constructor(
             },
             storedCount = remapped.values.toSet().size,
         )
-    }
-
-    private fun remapImage(
-        image: SubtaskImage?,
-        ids: Map<String, String>,
-    ): SubtaskImage? = image?.let { source ->
-        ids[source.asset]?.let { newId -> source.copy(asset = newId) }
     }
 }
 
@@ -438,6 +445,7 @@ private sealed interface RestoreWorkResult {
         val subtasksImportedCount: Int,
         val imagesStoredCount: Int,
         val tasksEnrichedCount: Int,
+        val photosReusedCount: Int,
     ) : RestoreWorkResult
 }
 

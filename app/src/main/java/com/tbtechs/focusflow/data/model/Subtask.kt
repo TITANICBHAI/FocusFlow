@@ -17,6 +17,7 @@ data class Subtask(
     val steps: List<SubtaskStep> = emptyList(),
     val tips: List<String> = emptyList(),
     val avoid: List<String> = emptyList(),
+    val photo: PhotoSlot? = null,
 )
 
 @Serializable
@@ -37,6 +38,7 @@ data class SubtaskStep(
     val title: String? = null,
     val text: String,
     val image: SubtaskImage? = null,
+    val photo: PhotoSlot? = null,
 )
 
 @Serializable
@@ -57,6 +59,8 @@ object SubtaskLimits {
     const val MAX_TIPS = 10
     const val MAX_TIP_CHARS = 300
     const val MAX_ALT_CHARS = 200
+    const val MAX_BRIEF_CHARS = 300
+    const val MAX_URL_CHARS = 2_048
     const val MAX_GOAL_LABEL_CHARS = 80
     const val MAX_JSON_BYTES_PER_TASK = 96 * 1024
 }
@@ -95,6 +99,7 @@ object SubtaskNormalizer {
             )
             val goal = normalizeGoal(source.goal, counts)
             val image = normalizeImage(source.image, counts)
+            val photo = if (image != null) null else normalizePhoto(source.photo, counts)
             val layout = normalizeLayout(source.layout, counts)
 
             val selectedSteps = source.steps.take(SubtaskLimits.MAX_STEPS)
@@ -105,6 +110,7 @@ object SubtaskNormalizer {
                     counts.blankSteps++
                     null
                 } else {
+                    val stepImage = normalizeImage(step.image, counts)
                     step.copy(
                         title = boundedOptional(
                             step.title,
@@ -112,7 +118,8 @@ object SubtaskNormalizer {
                             counts,
                         ),
                         text = text,
-                        image = normalizeImage(step.image, counts),
+                        image = stepImage,
+                        photo = if (stepImage != null) null else normalizePhoto(step.photo, counts),
                     )
                 }
             }
@@ -139,6 +146,7 @@ object SubtaskNormalizer {
                 steps = steps,
                 tips = tips,
                 avoid = avoid,
+                photo = photo,
             )
         }
 
@@ -212,6 +220,28 @@ object SubtaskNormalizer {
         )
     }
 
+    /**
+     * Keeps a photo slot only while it still says something useful. A link that is not a plain
+     * https link to a public website is dropped; the brief stays, so the person still sees
+     * which picture is needed.
+     */
+    private fun normalizePhoto(
+        source: PhotoSlot?,
+        counts: WarningCounts,
+    ): PhotoSlot? {
+        source ?: return null
+        val alt = boundedOptional(source.alt, SubtaskLimits.MAX_ALT_CHARS, counts)
+        val brief = boundedOptional(source.brief, SubtaskLimits.MAX_BRIEF_CHARS, counts) ?: alt
+        val link = source.url?.trim()?.takeIf(String::isNotEmpty)
+        val url = link?.takeIf { PhotoLinkPolicy.check(it) is PhotoLinkCheck.Accepted }
+        if (link != null && url == null) counts.invalidPhotoLinks++
+        if (brief == null && url == null) {
+            if (link == null) counts.emptyPhotos++
+            return null
+        }
+        return PhotoSlot(brief = brief, url = url, alt = alt)
+    }
+
     private fun normalizeLayout(source: String?, counts: WarningCounts): String? {
         val layout = boundedOptional(source, 20, counts) ?: return null
         if (layout == "steps" || layout == "overview") return layout
@@ -278,6 +308,8 @@ object SubtaskNormalizer {
         var invalidRepRanges = 0
         var invalidImages = 0
         var invalidLayouts = 0
+        var invalidPhotoLinks = 0
+        var emptyPhotos = 0
         var blankSteps = 0
         var truncatedStrings = 0
         var truncatedSubtasks = 0
@@ -291,6 +323,10 @@ object SubtaskNormalizer {
             if (invalidRepRanges > 0) add("$invalidRepRanges invalid repsMax fields were removed.")
             if (invalidImages > 0) add("$invalidImages invalid subtask images were removed.")
             if (invalidLayouts > 0) add("$invalidLayouts invalid layout values were reset.")
+            if (invalidPhotoLinks > 0) {
+                add("$invalidPhotoLinks photo links were removed (only plain https links to public websites are accepted).")
+            }
+            if (emptyPhotos > 0) add("$emptyPhotos empty photo fields were removed.")
             if (blankSteps > 0) add("$blankSteps steps with blank text were skipped.")
             if (truncatedStrings > 0) add("$truncatedStrings strings were trimmed to their length limits.")
             if (truncatedSubtasks > 0) add("$truncatedSubtasks subtasks were truncated at the list limit.")

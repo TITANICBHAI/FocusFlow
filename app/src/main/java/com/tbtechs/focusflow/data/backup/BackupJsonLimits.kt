@@ -43,6 +43,8 @@ object BackupJsonLimits {
     const val MAX_STEP_TEXT_CHARS = 1_500
     const val MAX_TIP_CHARS = 300
     const val MAX_ALT_CHARS = 200
+    const val MAX_BRIEF_CHARS = 300
+    const val MAX_URL_CHARS = 2_048
     const val MAX_GOAL_LABEL_CHARS = 80
     const val MAX_ASSETS = 200
     const val MAX_ASSET_DATA_CHARS = 400_000

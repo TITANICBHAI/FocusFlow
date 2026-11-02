@@ -69,7 +69,7 @@ internal class UnknownFieldWarnings {
             "id", "title", "done", "subtitle", "goal", "setsDone", "image", "layout",
             "explanation", "steps", "tips", "avoid", "kind", "sets", "reps", "repsMax",
             "seconds", "restSeconds", "meters", "weightKg", "label", "text", "asset", "alt",
-            "mime", "data", "file", "sha256",
+            "mime", "data", "file", "sha256", "photo", "brief", "url",
         )
     }
 }

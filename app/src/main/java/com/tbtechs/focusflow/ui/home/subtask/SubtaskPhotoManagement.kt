@@ -18,6 +18,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.tbtechs.focusflow.data.model.PhotoSlot
 import com.tbtechs.focusflow.data.model.Subtask
 import com.tbtechs.focusflow.data.model.SubtaskImage
 import com.tbtechs.focusflow.ui.theme.scaledSp
@@ -31,6 +32,14 @@ internal fun Subtask.photoAt(target: SubtaskPhotoTarget): SubtaskImage? = when (
     SubtaskPhotoTarget.Item -> image
     is SubtaskPhotoTarget.Step -> steps.getOrNull(target.index)?.image
 }
+
+internal fun Subtask.slotAt(target: SubtaskPhotoTarget): PhotoSlot? = when (target) {
+    SubtaskPhotoTarget.Item -> photo
+    is SubtaskPhotoTarget.Step -> steps.getOrNull(target.index)?.photo
+}
+
+internal fun PhotoSlot.neededText(): String =
+    "Photo needed: " + (brief ?: alt ?: "see this item")
 
 internal fun Subtask.withPhoto(
     target: SubtaskPhotoTarget,
@@ -77,6 +86,7 @@ internal fun SubtaskPhotoManagementDialog(
                     label = "Item photo",
                     target = SubtaskPhotoTarget.Item,
                     hasPhoto = subtask.image != null,
+                    neededText = subtask.photo?.neededText(),
                     busy = busy,
                     onChoosePhoto = onChoosePhoto,
                     onRemovePhoto = onRemovePhoto,
@@ -87,6 +97,7 @@ internal fun SubtaskPhotoManagementDialog(
                         label = step.title?.takeIf(String::isNotBlank) ?: "Step ${index + 1}",
                         target = SubtaskPhotoTarget.Step(index),
                         hasPhoto = step.image != null,
+                        neededText = step.photo?.neededText(),
                         busy = busy,
                         onChoosePhoto = onChoosePhoto,
                         onRemovePhoto = onRemovePhoto,
@@ -107,6 +118,7 @@ private fun PhotoTargetRow(
     label: String,
     target: SubtaskPhotoTarget,
     hasPhoto: Boolean,
+    neededText: String?,
     busy: Boolean,
     onChoosePhoto: (SubtaskPhotoTarget) -> Unit,
     onRemovePhoto: (SubtaskPhotoTarget) -> Unit,
@@ -116,7 +128,10 @@ private fun PhotoTargetRow(
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         Text(label, fontSize = 14.scaledSp, fontWeight = FontWeight.SemiBold)
-        Text(if (hasPhoto) "Photo attached" else "No photo", fontSize = 12.scaledSp)
+        Text(
+            text = if (hasPhoto) "Photo attached" else neededText ?: "No photo",
+            fontSize = 12.scaledSp,
+        )
         Row {
             TextButton(
                 onClick = { onChoosePhoto(target) },

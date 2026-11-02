@@ -17,6 +17,7 @@ import androidx.compose.ui.text.font.FontWeight
 import com.tbtechs.focusflow.data.images.SubtaskImageStore
 import com.tbtechs.focusflow.data.model.Subtask
 import com.tbtechs.focusflow.data.model.SubtaskImage
+import com.tbtechs.focusflow.data.model.SubtaskLimits
 import com.tbtechs.focusflow.data.model.Task
 import com.tbtechs.focusflow.ui.theme.scaledSp
 import kotlinx.coroutines.CancellationException
@@ -69,9 +70,12 @@ internal fun SubtaskPhotoAttachment(
                         SubtaskPhotoTarget.Item -> "Attached item photo"
                         is SubtaskPhotoTarget.Step -> "Step ${target.index + 1} photo"
                     }
+                    val slot = currentSubtask.slotAt(target)
                     val attachedImage = SubtaskImage(
                         asset = assetId,
-                        alt = previousImage?.alt ?: defaultAlt,
+                        alt = previousImage?.alt
+                            ?: (slot?.alt ?: slot?.brief)?.take(SubtaskLimits.MAX_ALT_CHARS)
+                            ?: defaultAlt,
                     )
                     onReplaceSubtasks(
                         task.subtasks.map { item ->

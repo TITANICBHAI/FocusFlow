@@ -69,6 +69,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tbtechs.focusflow.data.backup.BackupEnvelope
 import com.tbtechs.focusflow.data.images.SubtaskImageStore
+import com.tbtechs.focusflow.data.model.SubtaskPhotoSlots
 import com.tbtechs.focusflow.ui.theme.BrandPrimary
 import com.tbtechs.focusflow.ui.theme.DarkBackground
 import com.tbtechs.focusflow.ui.theme.DarkBorder
@@ -366,6 +367,9 @@ fun ImportConfirmScreen(
                     }
                     if (success.imagesStored > 0) {
                         Text("${success.imagesStored} images stored.")
+                    }
+                    if (success.photosReused > 0) {
+                        Text("${success.photosReused} pictures reused from items with the same name.")
                     }
                     if (success.warnings.isNotEmpty()) {
                         Text(
@@ -678,6 +682,7 @@ private fun DestructiveImportWarning() {
 private fun BackupSummaryCard(envelope: BackupEnvelope) {
     val subtaskCount = envelope.tasks.sumOf { it.subtasks.size }
     val imageCount = SubtaskImageStore.referencedAssetIds(envelope.tasks).size
+    val photoSlotCount = envelope.tasks.sumOf { SubtaskPhotoSlots.count(it.subtasks) }
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(10.dp),
@@ -687,7 +692,8 @@ private fun BackupSummaryCard(envelope: BackupEnvelope) {
         Column(modifier = Modifier.padding(horizontal = 12.dp)) {
             if (subtaskCount > 0) {
                 Text(
-                    text = "${envelope.summary.taskCount} tasks · $subtaskCount subtasks · $imageCount images",
+                    text = "${envelope.summary.taskCount} tasks · $subtaskCount subtasks · $imageCount images" +
+                        if (photoSlotCount > 0) " · $photoSlotCount photo slots" else "",
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 12.dp),

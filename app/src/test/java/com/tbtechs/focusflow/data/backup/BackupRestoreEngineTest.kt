@@ -2,6 +2,7 @@ package com.tbtechs.focusflow.data.backup
 
 import com.tbtechs.focusflow.data.model.AppSettings
 import com.tbtechs.focusflow.data.model.CanonicalTimestamp
+import com.tbtechs.focusflow.data.model.PhotoSlot
 import com.tbtechs.focusflow.data.model.Subtask
 import com.tbtechs.focusflow.data.model.SubtaskImage
 import com.tbtechs.focusflow.data.model.Task
@@ -633,6 +634,232 @@ class BackupRestoreEngineTest {
         assertTrue(success(result).warnings.single().contains("end time is invalid"))
         assertTrue(access.tasks.isEmpty())
         assertTrue(access.reconcileReasons.isEmpty())
+    }
+
+    @Test
+    fun photoSlotsSurviveARestoreUnchanged() = runTest {
+        val gate = RecordingGate()
+        val access = FakeAccess(gate)
+        val incoming = task(id = "slots").copy(
+            subtasks = listOf(
+                Subtask(
+                    id = "a",
+                    title = "Push-up",
+                    photo = PhotoSlot(brief = "A push-up", url = "https://example.com/p.jpg"),
+                ),
+            ),
+        )
+
+        val result = engine(access, gate).restore(
+            envelope(incoming),
+            currentSettings = AppSettings(),
+            replaceTasks = false,
+        )
+
+        assertEquals(0, success(result).photosReused)
+        assertEquals(
+            PhotoSlot(brief = "A push-up", url = "https://example.com/p.jpg"),
+            access.tasks.single().subtasks.single().photo,
+        )
+        assertNull(access.tasks.single().subtasks.single().image)
+    }
+
+    @Test
+    fun aSlotReusesThePictureYouAlreadyHaveForTheSameTitleWhenMerging() = runTest {
+        val directory = Files.createTempDirectory("restore-reuse").toFile()
+        try {
+            val store = SubtaskImageStore(directory, FakeCodec())
+            val storedId = store.ingest(SubtaskImageStoreTest.fakePng()).getOrThrow()
+            val gate = RecordingGate()
+            val access = FakeAccess(
+                gate,
+                tasks = mutableListOf(
+                    task(id = "old").copy(
+                        subtasks = listOf(
+                            Subtask(id = "o", title = "Push-up", image = SubtaskImage(storedId, "Push-up")),
+                        ),
+                    ),
+                ),
+            )
+            val incoming = task(id = "new").copy(
+                subtasks = listOf(
+                    Subtask(id = "n1", title = "  push-UP ", photo = PhotoSlot(brief = "A push-up")),
+                    Subtask(id = "n2", title = "Squat", photo = PhotoSlot(brief = "A squat")),
+                    Subtask(id = "n3", title = "Plank"),
+                    Subtask(id = "n4", title = "Push-up"),
+                ),
+            )
+
+            val result = BackupRestoreEngine(
+                access = access,
+                writeGate = gate,
+                clock = { fixedNow },
+                imageStore = store,
+            ).restore(envelope(incoming), AppSettings(), replaceTasks = false)
+
+            val inserted = access.tasks.single { it.id == "new" }.subtasks
+            assertEquals(1, success(result).photosReused)
+            assertEquals(storedId, inserted[0].image?.asset)
+            assertNull(inserted[0].photo)
+            assertNull(inserted[1].image)
+            assertEquals(PhotoSlot(brief = "A squat"), inserted[1].photo)
+            assertNull(inserted[2].image)
+            assertNull(inserted[2].photo)
+            assertNull(inserted[3].image)
+            assertNull(inserted[3].photo)
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun aPictureWhoseFileIsMissingIsNeverReused() = runTest {
+        val directory = Files.createTempDirectory("restore-reuse-missing").toFile()
+        try {
+            val store = SubtaskImageStore(directory, FakeCodec())
+            val gate = RecordingGate()
+            val access = FakeAccess(
+                gate,
+                tasks = mutableListOf(
+                    task(id = "old").copy(
+                        subtasks = listOf(
+                            Subtask(id = "o", title = "Push-up", image = SubtaskImage("0".repeat(64))),
+                        ),
+                    ),
+                ),
+            )
+            val incoming = task(id = "new").copy(
+                subtasks = listOf(Subtask(id = "n1", title = "Push-up", photo = PhotoSlot(brief = "A push-up"))),
+            )
+
+            val result = BackupRestoreEngine(
+                access = access,
+                writeGate = gate,
+                clock = { fixedNow },
+                imageStore = store,
+            ).restore(envelope(incoming), AppSettings(), replaceTasks = false)
+
+            assertEquals(0, success(result).photosReused)
+            val inserted = access.tasks.single { it.id == "new" }.subtasks.single()
+            assertNull(inserted.image)
+            assertEquals(PhotoSlot(brief = "A push-up"), inserted.photo)
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun replacingNeverReusesPicturesOfTheTasksItDeletes() = runTest {
+        val directory = Files.createTempDirectory("restore-reuse-replace").toFile()
+        try {
+            val store = SubtaskImageStore(directory, FakeCodec())
+            val storedId = store.ingest(SubtaskImageStoreTest.fakePng()).getOrThrow()
+            val gate = RecordingGate()
+            val access = FakeAccess(
+                gate,
+                tasks = mutableListOf(
+                    task(id = "old").copy(
+                        subtasks = listOf(
+                            Subtask(id = "o", title = "Push-up", image = SubtaskImage(storedId)),
+                        ),
+                    ),
+                ),
+            )
+            val incoming = task(id = "new").copy(
+                subtasks = listOf(Subtask(id = "n1", title = "Push-up", photo = PhotoSlot(brief = "A push-up"))),
+            )
+
+            val result = BackupRestoreEngine(
+                access = access,
+                writeGate = gate,
+                clock = { fixedNow },
+                imageStore = store,
+            ).restore(envelope(incoming), AppSettings(), replaceTasks = true)
+
+            assertEquals(0, success(result).photosReused)
+            val inserted = access.tasks.single().subtasks.single()
+            assertNull(inserted.image)
+            assertEquals(PhotoSlot(brief = "A push-up"), inserted.photo)
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun enrichingATaskAlsoReusesPicturesYouAlreadyHave() = runTest {
+        val directory = Files.createTempDirectory("restore-reuse-enrich").toFile()
+        try {
+            val store = SubtaskImageStore(directory, FakeCodec())
+            val storedId = store.ingest(SubtaskImageStoreTest.fakePng()).getOrThrow()
+            val gate = RecordingGate()
+            val access = FakeAccess(
+                gate,
+                tasks = mutableListOf(
+                    task(id = "other").copy(
+                        subtasks = listOf(Subtask(id = "o", title = "Push-up", image = SubtaskImage(storedId))),
+                    ),
+                    task(id = "target"),
+                ),
+            )
+            val incoming = task(id = "target").copy(
+                subtasks = listOf(Subtask(id = "n1", title = "Push-up", photo = PhotoSlot(brief = "A push-up"))),
+            )
+
+            val result = BackupRestoreEngine(
+                access = access,
+                writeGate = gate,
+                clock = { fixedNow },
+                imageStore = store,
+            ).restore(
+                envelope(incoming),
+                AppSettings(),
+                replaceTasks = false,
+                enrichExistingTasks = true,
+            )
+
+            assertEquals(1, success(result).tasksEnriched)
+            assertEquals(1, success(result).photosReused)
+            val enriched = access.tasks.single { it.id == "target" }.subtasks.single()
+            assertEquals(storedId, enriched.image?.asset)
+            assertNull(enriched.photo)
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun aPictureThatCannotBeStoredBecomesASlotFromItsAltText() = runTest {
+        val directory = Files.createTempDirectory("restore-lost-picture").toFile()
+        try {
+            val store = SubtaskImageStore(directory, FakeCodec())
+            val gate = RecordingGate()
+            val access = FakeAccess(gate)
+            val incoming = task(id = "lost").copy(
+                subtasks = listOf(
+                    Subtask(id = "a", title = "Plank", image = SubtaskImage("missing", "Plank from the side")),
+                    Subtask(id = "b", title = "Bridge", image = SubtaskImage("missing-too")),
+                ),
+            )
+
+            val result = BackupRestoreEngine(
+                access = access,
+                writeGate = gate,
+                clock = { fixedNow },
+                imageStore = store,
+            ).restore(envelope(incoming), AppSettings(), replaceTasks = false)
+
+            val inserted = access.tasks.single().subtasks
+            assertNull(inserted[0].image)
+            assertEquals(
+                PhotoSlot(brief = "Plank from the side", alt = "Plank from the side"),
+                inserted[0].photo,
+            )
+            assertNull(inserted[1].image)
+            assertNull(inserted[1].photo)
+            assertTrue(success(result).warnings.any { it.contains("could not be decoded or stored") })
+        } finally {
+            directory.deleteRecursively()
+        }
     }
 
     private fun engine(access: FakeAccess, gate: RecordingGate) =

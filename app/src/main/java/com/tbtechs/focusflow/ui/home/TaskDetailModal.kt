@@ -66,9 +66,17 @@ import androidx.compose.ui.unit.dp
 import com.tbtechs.focusflow.ui.theme.scaledSp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.tbtechs.focusflow.data.images.PhotoDownloader
 import com.tbtechs.focusflow.data.images.SubtaskImageStore
+import com.tbtechs.focusflow.data.model.DownloadedPhoto
 import com.tbtechs.focusflow.data.model.Subtask
+import com.tbtechs.focusflow.data.model.SubtaskPhotoSlots
 import com.tbtechs.focusflow.data.model.Task
+import com.tbtechs.focusflow.ui.home.subtask.PhotoDownloadDialogs
+import com.tbtechs.focusflow.ui.home.subtask.PhotoPromptDialog
+import com.tbtechs.focusflow.ui.home.subtask.PhotoSlotsBanner
+import com.tbtechs.focusflow.ui.home.subtask.rememberBatchPhotoPicker
+import com.tbtechs.focusflow.ui.home.subtask.rememberPhotoDownloadController
 import com.tbtechs.focusflow.ui.home.subtask.SubtaskDetailScreen
 import com.tbtechs.focusflow.ui.home.subtask.SubtaskAuthoringDialog
 import com.tbtechs.focusflow.ui.home.subtask.SubtaskProgressSection
@@ -97,10 +105,26 @@ fun TaskDetailModal(
     onSubtaskSetsDone: (String, String, Int) -> Unit = { _, _, _ -> },
     onResetSubtasks: (String) -> Unit = {},
     onReplaceSubtasks: (String, List<Subtask>) -> Unit = { _, _ -> },
+    onAttachDownloadedPhotos: (String, List<DownloadedPhoto>) -> Unit = { _, _ -> },
+    onAttachPhotosInOrder: (String, List<String>) -> Unit = { _, _ -> },
+    photoDownloader: PhotoDownloader? = null,
     availableTasks: List<Task> = emptyList(),
 ) {
     var selectedSubtaskId by remember(task.id) { mutableStateOf<String?>(null) }
     var authoringOpen by remember(task.id) { mutableStateOf(false) }
+    var photoPromptOpen by remember(task.id) { mutableStateOf(false) }
+    val photoSlots = remember(task.subtasks) { SubtaskPhotoSlots.collect(task.subtasks) }
+    val photoDownloads = rememberPhotoDownloadController(
+        taskId = task.id,
+        imageStore = imageStore,
+        downloader = photoDownloader,
+        onAttach = onAttachDownloadedPhotos,
+    )
+    val pickPhotosInOrder = rememberBatchPhotoPicker(
+        slotCount = photoSlots.size,
+        imageStore = imageStore,
+        onPicked = { assetIds -> onAttachPhotosInOrder(task.id, assetIds) },
+    )
     val selectedSubtask = selectedSubtaskId?.let { id ->
         task.subtasks.firstOrNull { it.id == id }
     }
@@ -246,6 +270,21 @@ fun TaskDetailModal(
                     .padding(horizontal = 16.dp, vertical = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                PhotoDownloadDialogs(controller = photoDownloads)
+                if (photoPromptOpen) {
+                    PhotoPromptDialog(task = task, onDismiss = { photoPromptOpen = false })
+                }
+                if (photoSlots.isNotEmpty()) {
+                    PhotoSlotsBanner(
+                        slotCount = photoSlots.size,
+                        linkCount = photoSlots.mapNotNull { it.slot.url }.distinct().size,
+                        canDownload = imageStore != null && photoDownloader != null,
+                        canAddInOrder = imageStore != null,
+                        onDownload = { photoDownloads.requestDownload(task) },
+                        onAddInOrder = pickPhotosInOrder,
+                        onCopyPrompts = { photoPromptOpen = true },
+                    )
+                }
                 if (task.subtasks.isNotEmpty()) {
                     SubtaskProgressSection(
                         task = task,

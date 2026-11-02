@@ -11,7 +11,10 @@ import com.tbtechs.focusflow.notifications.SharedPreferencesReminderLedgerStore
 import com.tbtechs.focusflow.data.local.FocusFlowDatabase
 import com.tbtechs.focusflow.data.backup.BackupSource
 import com.tbtechs.focusflow.data.images.AndroidBitmapImageCodec
+import com.tbtechs.focusflow.data.images.PhotoDownloader
 import com.tbtechs.focusflow.data.images.SubtaskImageStore
+import com.tbtechs.focusflow.data.images.SystemHostResolver
+import com.tbtechs.focusflow.data.images.UrlConnectionFetch
 import com.tbtechs.focusflow.data.repository.FocusSessionRepository
 import com.tbtechs.focusflow.data.repository.ForegroundServiceController
 import com.tbtechs.focusflow.data.repository.AlarmRepository
@@ -93,6 +96,11 @@ object AppModule {
 
     lateinit var subtaskImageStore: SubtaskImageStore
         private set
+
+    /** Downloads photo links, only after the person agreed. It keeps no state. */
+    val photoDownloader: PhotoDownloader by lazy {
+        PhotoDownloader(resolver = SystemHostResolver(), fetch = UrlConnectionFetch())
+    }
 
     // ─── Repositories ─────────────────────────────────────────────────────────
 

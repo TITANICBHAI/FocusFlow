@@ -47,7 +47,7 @@ class SubtaskParserTest {
     }
 
     @Test
-    fun invalidGoalAndRemoteImageAreRemovedButSubtaskSurvives() {
+    fun invalidGoalAndUnusableImageLinkAreRemovedButSubtaskSurvives() {
         val result = parse(
             """[{"id":"item","title":"Keep me","goal":{"kind":"sets","sets":0},"image":{"url":"https://example.invalid/image.png"}}]""",
         )
@@ -55,8 +55,9 @@ class SubtaskParserTest {
         assertEquals(1, result.subtasks.size)
         assertNull(result.subtasks.single().goal)
         assertNull(result.subtasks.single().image)
+        assertNull(result.subtasks.single().photo)
         assertTrue(result.warnings.any { it.contains("invalid subtask goals") })
-        assertTrue(result.warnings.any { it.contains("remote images aren't supported") })
+        assertTrue(result.warnings.any { it.contains("photo links were removed") })
     }
 
     @Test

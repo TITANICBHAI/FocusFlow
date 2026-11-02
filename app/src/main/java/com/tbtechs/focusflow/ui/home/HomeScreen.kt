@@ -300,6 +300,9 @@ fun HomeScreen(
                 onSubtaskSetsDone = taskViewModel::setSubtaskSetsDone,
                 onResetSubtasks = taskViewModel::resetSubtasks,
                 onReplaceSubtasks = taskViewModel::replaceSubtasks,
+                onAttachDownloadedPhotos = taskViewModel::attachDownloadedPhotos,
+                onAttachPhotosInOrder = taskViewModel::attachPhotosInOrder,
+                photoDownloader = AppModule.photoDownloader,
                 availableTasks = tasks,
             )
         }

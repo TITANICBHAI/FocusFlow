@@ -22,7 +22,7 @@ If they disagree with this reference, explain the mismatch instead of guessing.
 ## Scope of this backup
 
 - Create task records for the task-planning feature only. A task may include
-  optional subtasks (with optional steps and images) when I request them, plus
+  optional subtasks (with optional steps and picture slots) when I request them, plus
   per-task Focus mode and an app allow-list when I explicitly request those.
 - Always set `settings` to `{}`. This file must not change app-wide focus
   preferences, reminders, app/network blocking, daily allowances, presets,
@@ -84,23 +84,23 @@ If they disagree with this reference, explain the mismatch instead of guessing.
 
 ## `.focusflow` file formats
 
-A `.focusflow` file can be plain UTF-8 JSON or a ZIP bundle. Use JSON for
-text-only backups or small inline images. Use a ZIP bundle when you can run
-code and have image files. ${FOCUSFLOW_BUNDLE_GUIDANCE}
+A `.focusflow` file is plain UTF-8 JSON. Always make plain JSON with no picture
+data inside it. Only if I give you real image files do you need the ZIP bundle
+described in the "Advanced" section near the end.
 
 JSON files must stay at or below 8 MiB, with no more than 20,000 tasks, JSON
 nesting depth at or below 12, and no more than 2,000,000 JSON nodes. Files
-containing subtasks or image assets use version 2; task-only files use version 1.
+containing subtasks use version 2; task-only files use version 1.
 
 Create one JSON object with:
 
 - `kind`: exactly `"FocusFlowBackupV1"`
-- `version`: integer `1` for task-only files, or `2` when subtasks or image assets are included
+- `version`: integer `1` for task-only files, or `2` when subtasks are included
 - `settings`: `{}`
 - `tasks`: an array of task objects
 - `exportedAt`: the file-generation time as an ISO-8601 UTC instant
 - `platform`: `{"os":"android"}`
-- optional `assets`: image data referenced by subtask images
+- optional `assets`: only for image files I give you (see "Advanced"); otherwise leave it out
 
 Omit optional `summary`, `presetSections`, and `appVersion` metadata.
 They are not needed to import tasks.
@@ -155,32 +155,105 @@ Each subtask object:
 - `explanation`: optional plain text, at most 4,000 characters. Blank lines
   start paragraphs; lines beginning with `- ` are bullets. No Markdown or HTML.
 - `steps`: optional array of at most 30 objects; each has required `text` (at
-  most 1,500 characters), optional `title` (at most 120), and optional `image`
+  most 1,500 characters), optional `title` (at most 120), and an optional
+  `photo` (see "Pictures")
 - `tips`, `avoid`: optional arrays of at most 10 strings each, at most 300
   characters per string
-- `image`: optional overview image object with `asset` and optional `alt`
-  (at most 200 characters)
+- `photo`: optional picture request for the whole subtask; see "Pictures" below
+- `image`: leave it out unless I gave you real image files (see "Advanced")
 - Do not set `done` or `setsDone`; leave progress to the app. Do not add other
   subtask fields.
 
 A subtask may have no steps.
 
-Images are optional. Never invent image data or links. For JSON, when I provide
-image files and you can convert them, resize them to at most 1280 pixels on the
-long edge, save as WebP or JPEG, base64-encode without a `data:` prefix, and add
-them under top-level `assets` as `"<asset id>":
-{"mime":"image/webp","data":"<base64>"}`. Reuse an asset ID for repeated use of
-the same image. ${FOCUSFLOW_ASSETS_NOTE} For ZIP bundles, put each referenced
-image in `assets/` and point the manifest asset entry to its file, as shown
-below. Remote image URLs are not supported. If you cannot produce image data,
-omit every image field and tell me which subtasks could benefit from a photo.
-
-Subtask limits: at most 50 subtasks per task and 200 assets per file.
+Subtask limits: at most 50 subtasks per task, and all subtasks of one task together
+must stay under ${com.tbtechs.focusflow.data.backup.BackupJsonLimits.formatByteLimit(com.tbtechs.focusflow.data.backup.BackupJsonLimits.MAX_SUBTASK_JSON_BYTES_PER_TASK)}
+of JSON. Long explanations and links add up.
 
 Valid subtask example:
 ${FOCUSFLOW_SUBTASK_EXAMPLE}
 
-## ZIP bundle recipe
+## Pictures: describe them, FocusFlow attaches them
+
+You cannot reliably make or attach good pictures, so do not try. Never put image
+data in the file. Instead, add a `photo` object where a picture would help. In
+FocusFlow that item then shows "Photo needed", and I add the picture later, or
+let the app download it from your link.
+
+A `photo` object has these fields (all plain text):
+
+- `brief`: ONE sentence that says what the picture should show: the subject, the
+  angle and the key detail. Aim for under 160 characters; never more than 300.
+- `url`: optional. A direct `https://` link to a JPEG, PNG or WebP picture file.
+  Follow the link rules below.
+- `alt`: optional, at most 200 characters. A short description of the picture.
+
+Always include `brief`, even when you add `url`, because the brief is what I see
+if the link does not work. This is how a `photo` looks:
+
+"photo": {
+  "brief": "Side view of a push-up at the bottom, chest just above the floor.",
+  "url": "https://images.example.com/pushup-side.jpg",
+  "alt": "Push-up, side view"
+}
+
+The link above is a made-up placeholder. Never reuse it.
+
+Where to put `photo`:
+
+- Put one `photo` on each subtask where a picture helps, such as an exercise or
+  a set-up. Skip subtasks where a picture adds nothing.
+- Put a `photo` on a step only when that step looks clearly different from the
+  others, such as the start and the end position. Use at most 3 step photos per
+  subtask.
+- `photo` goes only on subtasks and steps. Never put it on a task.
+- If the same item appears in many tasks, repeat the same `brief` and the same
+  `url` every time. FocusFlow downloads each different link only once.
+
+A good `brief`: "Side view of a push-up at the bottom, chest just above the floor."
+A bad `brief`: "push-up", "a nice picture", or a whole paragraph.
+
+Rules for `url`. When in doubt, leave `url` out and keep the `brief`. Leaving it
+out is always fine:
+
+1. Only use a link you opened yourself, or that a search result showed as a
+   picture. Never invent, guess or rebuild a link from memory, and never edit one.
+   If you cannot browse the web, leave out every `url`.
+2. The link must lead straight to the picture file, not to a web page that shows
+   it. Good: a direct file link such as `https://upload.wikimedia.org/...jpg`.
+3. Prefer sites that allow reuse: Wikimedia Commons, Unsplash, Pexels, Pixabay.
+   Do not use Google Images, Pinterest, Instagram, Facebook or other social sites.
+4. Do not use links that expire or need a sign-in (for example ones containing
+   `token=`, `Expires=` or `Signature=`), shortened links, or links that bounce
+   through several other sites.
+5. Plain `https://` only: no `http://`, no user name or password, no `#` part, no
+   port number, no IP address, no `localhost`, no spaces, at most 2,048 characters.
+
+FocusFlow downloads a link only after I tap Download. It then checks that the
+file is really a JPEG, PNG or WebP picture of at most 6 MiB, stores its own
+copy privately on my phone, and shows only that copy. It never opens a link in
+a browser. Do not claim that a link works unless you opened it.
+
+Before you deliver, check that:
+
+- every `photo` has a `brief` of at most 300 characters;
+- every `url` starts with `https://`, has no spaces, and is a link you opened;
+- there is no `photo` on a task, and no `image` or `assets` unless I gave you
+  image files;
+- the file is valid JSON and `version` is 2.
+
+## Advanced: only if I give you real image files
+
+Skip this whole section unless I attached actual image files and asked you to put
+them in the file. Use `image` (not `photo`) for those pictures. Never invent
+image data. ${FOCUSFLOW_ASSETS_NOTE}
+
+For JSON, resize each image to at most 1280 pixels on the long edge, save it as
+WebP or JPEG, base64-encode it without a `data:` prefix, and add it under
+top-level `assets` as `"<asset id>": {"mime":"image/webp","data":"<base64>"}`.
+Reuse an asset ID for repeated use of the same image.
+
+For a ZIP bundle:
 
 ${FOCUSFLOW_BUNDLE_RECIPE}
 
@@ -196,7 +269,9 @@ create files, return the complete raw JSON so I can save it with that extension;
 keep any explanation outside the JSON.
 
 After the file, briefly report the task count, covered dates, interpreted time
-zone, and any assumptions or limitations. FocusFlow shows an import review
+zone, how many picture slots you added and how many of them have a `url` (and
+which links you opened yourself), and any assumptions or limitations. FocusFlow
+shows an import review
 before applying anything. Do not claim that the file was imported or tested in
 FocusFlow unless that actually happened.
 
