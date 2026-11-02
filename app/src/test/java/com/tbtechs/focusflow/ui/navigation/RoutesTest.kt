@@ -36,4 +36,21 @@ class RoutesTest {
         assertTrue(Routes.IMPORT_CONFIRM in Routes.architectureRoutes)
         assertFalse(Routes.IMPORT_CONFIRM in Routes.externalLinkableRoutes)
     }
+
+    @Test
+    fun ownNotificationLinksOpenHomeInsteadOfNotFound() {
+        assertEquals(Routes.HOME, Routes.fromLink("focusflow-internal", "live-task", "/3f2a9c"))
+        assertEquals(Routes.HOME, Routes.fromLink("focusflow-internal", "reminder", "/slot-1"))
+        assertEquals(Routes.HOME, Routes.fromLink(null, null, null))
+    }
+
+    @Test
+    fun widgetAndAppLinksResolveByPathOrHost() {
+        assertEquals(Routes.FOCUS, Routes.fromLink("focusflow", "app", "/focus"))
+        assertEquals(Routes.FOCUS, Routes.fromLink("focusflow", "focus", null))
+        assertEquals(Routes.FOCUS, Routes.fromLink("focusflow", null, "/focus"))
+        assertEquals(Routes.PERMISSIONS, Routes.fromLink("focusflow", "app", "/permissions"))
+        assertEquals(Routes.HOME, Routes.fromLink("focusflow", "app", "/"))
+        assertEquals(Routes.NOT_FOUND, Routes.fromLink("focusflow", "app", "/nope"))
+    }
 }

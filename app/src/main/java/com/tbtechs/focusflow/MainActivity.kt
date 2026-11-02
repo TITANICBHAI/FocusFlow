@@ -172,7 +172,7 @@ class MainActivity : ComponentActivity() {
             return Routes.SETTINGS
         }
 
-        return Routes.fromPath(uri?.path)
+        return Routes.fromLink(uri?.scheme, uri?.host, uri?.path)
     }
 }
 
@@ -324,6 +324,7 @@ private fun FocusFlowRoot(
         privacyAccepted,
         onboardingComplete,
         externalBackupImportNonce,
+        notificationEventNonce,
     ) {
         if (!isDbReady) return@LaunchedEffect
         val currentRoute = navController.currentBackStackEntry?.destination?.route
@@ -364,6 +365,18 @@ private fun FocusFlowRoot(
             RouteTextScaleContext.routeBase(guardedRoute)
         ) {
             navController.navigate(guardedRoute) {
+                launchSingleTop = true
+            }
+        } else if (
+            notificationEventNonce > 0 &&
+            guardedRoute == Routes.HOME &&
+            currentRoute != null &&
+            RouteTextScaleContext.routeBase(currentRoute) != Routes.HOME
+        ) {
+            // A notification or widget tapped while the app is open on another screen
+            // used to do nothing when it pointed at Home.
+            navController.navigate(Routes.HOME) {
+                popUpTo(navController.graph.findStartDestination().id) { saveState = false }
                 launchSingleTop = true
             }
         }

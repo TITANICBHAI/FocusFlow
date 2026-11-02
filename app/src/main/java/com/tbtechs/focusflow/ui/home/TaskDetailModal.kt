@@ -114,6 +114,7 @@ fun TaskDetailModal(
     var authoringOpen by remember(task.id) { mutableStateOf(false) }
     var photoPromptOpen by remember(task.id) { mutableStateOf(false) }
     val photoSlots = remember(task.subtasks) { SubtaskPhotoSlots.collect(task.subtasks) }
+    val photoSummary = remember(task.subtasks) { SubtaskPhotoSlots.summarize(task.subtasks) }
     val photoDownloads = rememberPhotoDownloadController(
         taskId = task.id,
         imageStore = imageStore,
@@ -276,13 +277,18 @@ fun TaskDetailModal(
                 }
                 if (photoSlots.isNotEmpty()) {
                     PhotoSlotsBanner(
-                        slotCount = photoSlots.size,
-                        linkCount = photoSlots.mapNotNull { it.slot.url }.distinct().size,
+                        taskId = task.id,
+                        summary = photoSummary,
+                        lastFailures = photoDownloads.lastFailures,
                         canDownload = imageStore != null && photoDownloader != null,
                         canAddInOrder = imageStore != null,
                         onDownload = { photoDownloads.requestDownload(task) },
                         onAddInOrder = pickPhotosInOrder,
                         onCopyPrompts = { photoPromptOpen = true },
+                        onStopAsking = {
+                            val cleaned = SubtaskPhotoSlots.clearUnresolved(task.subtasks).first
+                            onReplaceSubtasks(task.id, cleaned)
+                        },
                     )
                 }
                 if (task.subtasks.isNotEmpty()) {

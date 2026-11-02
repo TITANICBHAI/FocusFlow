@@ -152,13 +152,39 @@ class BackupViewModel internal constructor(
             try {
                 val settings = operations.readSettings()
                 val tasks = operations.readTasks()
-                val imageIds = if (stripImages) {
+                val referencedIds = if (stripImages) {
                     emptySet()
                 } else {
                     SubtaskImageStore.referencedAssetIds(tasks)
                 }
+                // A picture whose file is gone must not block the whole backup. Leave it out,
+                // keep its description as a "photo needed" slot, and tell the person.
+                val imageIds = bundleWriter?.readableAssets(referencedIds) ?: referencedIds
+                val missingIds = referencedIds - imageIds
+                var missingReferences = 0
+                val backupTasks = if (missingIds.isEmpty()) {
+                    tasks
+                } else {
+                    tasks.map { task ->
+                        val (fixed, changed) =
+                            SubtaskPhotoSlots.withoutMissingImages(task.subtasks, missingIds)
+                        missingReferences += changed
+                        if (changed == 0) task else task.copy(subtasks = fixed)
+                    }
+                }
+                val exportWarnings = if (missingIds.isEmpty()) {
+                    emptyList()
+                } else {
+                    listOf(
+                        "$missingReferences " +
+                            (if (missingReferences == 1) "picture was" else "pictures were") +
+                            " missing from this device and left out of the backup. Where a " +
+                            "picture had a description, it is kept as a \"picture needed\" " +
+                            "placeholder.",
+                    )
+                }
                 if (imageIds.isEmpty()) {
-                    val exportTasks = if (stripImages) tasks.withoutImages() else tasks
+                    val exportTasks = if (stripImages) backupTasks.withoutImages() else backupTasks
                     val json = BackupSerializer.serializeToJson(
                         BackupSerializer.buildEnvelope(settings, exportTasks, appVersion),
                     )
@@ -171,7 +197,7 @@ class BackupViewModel internal constructor(
                     currentCoroutineContext().ensureActive()
                     _exportState.value = ExportState.Success(
                         uri = uri,
-                        warnings = emptyList(),
+                        warnings = exportWarnings,
                         containerDescription = "JSON file (no images)",
                     )
                 } else {
@@ -188,14 +214,14 @@ class BackupViewModel internal constructor(
                     }
                     val envelope = BackupSerializer.buildEnvelope(
                         settings = settings,
-                        tasks = tasks,
+                        tasks = backupTasks,
                         appVersion = appVersion,
                         assets = bundleAssets,
                     )
                     val manifest = BackupSerializer.serializeToJson(envelope)
                     when (val preparation = writer.prepare(
                         manifestJson = manifest,
-                        assetIds = exporter.referencedAssetIds(tasks),
+                        assetIds = exporter.referencedAssetIds(backupTasks),
                     )) {
                         is BundleExportPreparation.Ready -> {
                             val write = writeBundle
@@ -204,7 +230,7 @@ class BackupViewModel internal constructor(
                             currentCoroutineContext().ensureActive()
                             _exportState.value = ExportState.Success(
                                 uri = uri,
-                                warnings = emptyList(),
+                                warnings = exportWarnings,
                                 containerDescription = "ZIP bundle (includes images)",
                             )
                         }

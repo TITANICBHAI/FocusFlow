@@ -1,379 +1,60 @@
 package com.tbtechs.focusflow.widget
 
+import android.app.AlarmManager
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.res.ColorStateList
 import android.graphics.Color
 import android.net.Uri
+import android.os.Build
+import android.os.SystemClock
 import android.view.View
 import android.widget.RemoteViews
 import com.tbtechs.focusflow.MainActivity
 import com.tbtechs.focusflow.R
-import org.json.JSONArray
-import java.util.Calendar
+import com.tbtechs.focusflow.data.model.Task
+import com.tbtechs.focusflow.di.AppModule
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+import java.text.SimpleDateFormat
+import java.time.Instant
+import java.time.ZoneId
+import java.util.Date
+import java.util.Locale
 
 /**
- * FocusFlowWidget
+ * Home screen widget: a live clock and date, plus the task that matters right now.
  *
- * Home screen widget (4 × 1). Four render states:
+ *  - NOW      a task is running: its name, when it ends, a live countdown and a progress bar.
+ *  - NEXT UP  nothing is running: the next task, when it starts and a countdown to it.
+ *  - EMPTY    nothing planned: how today went, and a hint to add a task.
  *
- *   1. ACTIVE TASK       — task in progress, end time in the future.
- *      Header: task color · "ACTIVE TASK"
- *      Left:   task name
- *      Right:  "Nm remaining" + thin progress bar
- *      Tap → Focus tab
+ * It deliberately shows nothing about Always-On, daily allowance or keyword blocking.
  *
- *   2. AWAITING DECISION — task timer hit zero but user hasn't resolved it.
- *      Header: task color · "TIME'S UP"
- *      Left:   task name
- *      Right:  "Tap to resolve"
- *      Tap → Focus tab
- *
- *   3. NEXT UP           — no running task but one is coming today.
- *      Header: indigo · "NEXT UP"
- *      Left:   upcoming task name
- *      Right:  "Starts in Nm"
- *      Tap → Schedule tab
- *
- *   4. STANDALONE BLOCK  — standalone app block active (no task).
- *      Header: indigo · "BLOCK ACTIVE"
- *      Left:   "Blocking N apps · until HH:MM"
- *      Right:  (hidden)
- *      Tap → Schedule tab
- *
- *   5. IDLE              — nothing scheduled or running.
- *      Header: indigo · "FOCUSFLOW"
- *      Left:   "Nothing scheduled"
- *      Right:  "+ Add Task" pill
- *      Tap → Schedule tab
- *
- * SharedPrefs keys read (namespace: focusday_prefs):
- *   task_name                String  — active / awaiting task display name
- *   task_end_ms              Long    — task end epoch ms
- *   task_start_ms            Long    — task start epoch ms (for progress %)
- *   task_color               String  — task accent hex (e.g. "#6366f1")
- *   task_awaiting_decision   String  — "true" when task ended, user not resolved yet
- *   next_upcoming_name       String  — name of the next upcoming task (idle only)
- *   next_upcoming_start_ms   String  — start epoch ms as a string (idle only)
- *   standalone_block_active  Boolean
- *   standalone_block_until_ms Long
- *   standalone_blocked_packages String JSON array
- *
- * Update triggers:
- *   • System periodic onUpdate() every 30 min (Android minimum)
- *   • ForegroundTaskService.pushWidgetUpdate() during focus sessions (every ~10s)
- *   • SharedPrefsModule.pushWidgetUpdate() called from JS on any state change
+ * Data comes straight from the task database (the same source as the app), so it no longer
+ * depends on values that only a focus session wrote. The clock and the countdown tick by
+ * themselves (TextClock / Chronometer). A cheap inexact alarm redraws the widget at the next
+ * boundary (a task starting or ending), and the app pushes an update whenever tasks change.
  */
 class FocusFlowWidget : AppWidgetProvider() {
 
-    companion object {
-        private const val PREFS_NAME     = "focusday_prefs"
-        private const val DEFAULT_ACCENT = "#6366f1"
-        private const val WARNING_ACCENT = "#F87171"
-        private const val PROTECTION_ACCENT = "#22C55E"
-
-        // PendingIntent request codes — must be unique per target
-        private const val PI_TAP_ROOT = 100
-        private const val PI_TAP_CTA  = 101
-
-        fun pushWidgetUpdate(context: Context) {
-            val manager = AppWidgetManager.getInstance(context)
-            val ids = manager.getAppWidgetIds(
-                ComponentName(context, FocusFlowWidget::class.java)
-            )
-            if (ids.isEmpty()) return
-            val views = buildViews(context)
-            manager.updateAppWidget(ids, views)
-        }
-
-        // ─── Helpers ──────────────────────────────────────────────────────────
-
-        private fun parseColor(hex: String?): Int = try {
-            Color.parseColor(if (hex.isNullOrBlank()) DEFAULT_ACCENT else hex)
-        } catch (_: Exception) {
-            Color.parseColor(DEFAULT_ACCENT)
-        }
-
-        private fun pendingDeepLink(context: Context, requestCode: Int, path: String): PendingIntent {
-            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("focusflow://$path")).apply {
-                setClass(context, MainActivity::class.java)
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+    override fun onReceive(context: Context, intent: Intent) {
+        when (intent.action) {
+            ACTION_REFRESH,
+            Intent.ACTION_TIME_CHANGED,
+            Intent.ACTION_TIMEZONE_CHANGED,
+            -> {
+                val pending = goAsync()
+                refreshAsync(context.applicationContext) { pending.finish() }
             }
-            return PendingIntent.getActivity(
-                context, requestCode, intent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-        }
-
-        private fun formatHmm(epochMs: Long): String {
-            val cal = Calendar.getInstance().apply { timeInMillis = epochMs }
-            return String.format("%02d:%02d", cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE))
-        }
-
-        private fun minsUntilStr(startMs: Long): String {
-            val now = System.currentTimeMillis()
-            val minsUntil = ((startMs - now) / 60_000L).coerceAtLeast(0L)
-            return when {
-                minsUntil < 1L  -> "Starting now"
-                minsUntil == 1L -> "Starts in 1m"
-                minsUntil < 60L -> "Starts in ${minsUntil}m"
-                else -> {
-                    val h = minsUntil / 60; val m = minsUntil % 60
-                    if (m == 0L) "Starts in ${h}h" else "Starts in ${h}h ${m}m"
-                }
-            }
-        }
-
-        private fun standaloneBlockedCount(json: String?): Int {
-            if (json.isNullOrBlank() || json == "[]") return 0
-            return try { JSONArray(json).length() } catch (_: Exception) { 0 }
-        }
-
-        /**
-         * Builds the "Done · 3/5 tasks · 45m today" subtitle shown on the widget
-         * in idle / next-up states. Falls back to focus-only or task-only forms
-         * when one half is missing, and returns null when there's nothing to say
-         * (so callers can hide the row entirely).
-         */
-        private fun buildStatsSubtitle(tasksDone: Int, tasksTotal: Int, focusMins: Int): String? {
-            val parts = mutableListOf<String>()
-            if (tasksTotal > 0) {
-                val prefix = if (tasksDone >= tasksTotal && tasksTotal > 0) "Done · " else ""
-                parts += "${prefix}${tasksDone}/${tasksTotal} tasks"
-            }
-            if (focusMins > 0) {
-                val mins = if (focusMins >= 60) "${focusMins / 60}h ${focusMins % 60}m" else "${focusMins}m"
-                parts += "${mins} today"
-            }
-            if (parts.isEmpty()) return null
-            return parts.joinToString(" · ")
-        }
-
-        /** Sets the stats subtitle row (or hides it if there's nothing to show). */
-        private fun applyStatsSubtitle(views: RemoteViews, text: String?) {
-            if (text.isNullOrBlank()) {
-                views.setViewVisibility(R.id.widget_stats_line, View.GONE)
-            } else {
-                views.setTextViewText(R.id.widget_stats_line, text)
-                views.setViewVisibility(R.id.widget_stats_line, View.VISIBLE)
-            }
-        }
-
-        // ─── State builder ────────────────────────────────────────────────────
-
-        private fun buildViews(context: Context): RemoteViews {
-            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            val now   = System.currentTimeMillis()
-            val views = RemoteViews(context.packageName, R.layout.widget_focusflow)
-
-            // ── Active / awaiting-decision task signals ──────────────────────
-            val taskName        = prefs.getString("task_name",  "") ?: ""
-            val endTimeMs       = prefs.getLong("task_end_ms", 0L)
-            val startMs         = prefs.getLong("task_start_ms", 0L)
-            val taskColor       = prefs.getString("task_color", DEFAULT_ACCENT)
-            val awaitingDecision= prefs.getString("task_awaiting_decision", "") == "true"
-
-            // ── Next upcoming task (shown in idle when nothing is running) ───
-            val nextUpName      = prefs.getString("next_upcoming_name", "") ?: ""
-            val nextUpStartMs   = prefs.getString("next_upcoming_start_ms", "0")
-                                       ?.toLongOrNull() ?: 0L
-
-            // ── Standalone block signals ─────────────────────────────────────
-            val saActive        = prefs.getBoolean("standalone_block_active", false)
-            val saUntil         = prefs.getLong("standalone_block_until_ms", 0L)
-            val saPkgJson       = prefs.getString("standalone_blocked_packages", "[]")
-
-            // ── Daily progress stats (shown in idle / next-up subtitle) ──────
-            val tasksDone       = prefs.getInt("daily_tasks_done", 0)
-            val tasksTotal      = prefs.getInt("daily_tasks_total", 0)
-            val focusMins       = prefs.getInt("daily_focus_mins", 0)
-            val streakDays      = prefs.getInt("streak_days", 0)
-
-            val isTaskRunning   = taskName.isNotBlank() && endTimeMs > now
-            val isAwaiting      = !isTaskRunning && awaitingDecision && taskName.isNotBlank()
-            val isStandalone    = saActive && saUntil > now && standaloneBlockedCount(saPkgJson) > 0
-            val hasUpcoming     = nextUpName.isNotBlank() && nextUpStartMs > now
-
-            when {
-                isTaskRunning -> renderActiveTask(context, views, taskName, taskColor, startMs, endTimeMs, streakDays)
-                isAwaiting    -> renderAwaitingDecision(context, views, taskName, taskColor)
-                isStandalone  -> renderStandaloneBlock(context, views, standaloneBlockedCount(saPkgJson), saUntil)
-                hasUpcoming   -> renderNextUp(context, views, nextUpName, nextUpStartMs, tasksDone, tasksTotal, focusMins)
-                else          -> renderIdle(context, views, tasksDone, tasksTotal, focusMins, streakDays)
-            }
-
-            return views
-        }
-
-        // ─── Render modes ─────────────────────────────────────────────────────
-
-        /** State 1: task is in progress (endTime still in the future). */
-        private fun renderActiveTask(
-            context: Context,
-            views: RemoteViews,
-            taskName: String,
-            taskColorHex: String?,
-            startMs: Long,
-            endTimeMs: Long,
-            streakDays: Int,
-        ) {
-            val now          = System.currentTimeMillis()
-            val remainingMs  = (endTimeMs - now).coerceAtLeast(0L)
-            val totalMs      = if (startMs > 0L) endTimeMs - startMs else remainingMs
-            val progressPct  = if (totalMs > 0L)
-                ((totalMs - remainingMs) * 100L / totalMs).toInt().coerceIn(0, 100)
-            else 0
-
-            val remainingMins = remainingMs / 60_000
-            val timeStr = when {
-                remainingMins < 1L  -> "< 1m left"
-                remainingMins == 1L -> "1m left"
-                else                -> "${remainingMins}m left"
-            }
-
-            val accent = parseColor(taskColorHex)
-            views.setInt(R.id.widget_accent_bar, "setBackgroundColor", accent)
-            // Append a streak suffix to the header so the user sees momentum
-            // even mid-task — costs no vertical space, fits within 4×1.
-            val headerText = if (streakDays >= 2) "ACTIVE TASK · 🔥 ${streakDays}" else "ACTIVE TASK"
-            views.setTextViewText(R.id.widget_header_label, headerText)
-            views.setTextColor(R.id.widget_header_label, accent)
-            views.setTextViewText(R.id.widget_task_name, taskName)
-            views.setTextViewText(R.id.widget_time_remaining, timeStr)
-            views.setTextColor(R.id.widget_time_remaining, accent)
-            views.setViewVisibility(R.id.widget_time_remaining, View.VISIBLE)
-            views.setProgressBar(R.id.widget_progress, 100, progressPct, false)
-            views.setViewVisibility(R.id.widget_progress, View.VISIBLE)
-            views.setViewVisibility(R.id.widget_add_task_btn, View.GONE)
-            // Active task takes the full focus — hide the stats subtitle so the
-            // task name sits centred and the progress bar reads cleanly.
-            applyStatsSubtitle(views, null)
-
-            val tap = pendingDeepLink(context, PI_TAP_ROOT, "/focus")
-            views.setOnClickPendingIntent(R.id.widget_root, tap)
-        }
-
-        /**
-         * State 2: task timer hit zero, user hasn't resolved it yet.
-         * The JS side sets task_awaiting_decision="true" and keeps task_name
-         * in SharedPrefs so this state can be shown without the app running.
-         */
-        private fun renderAwaitingDecision(
-            context: Context,
-            views: RemoteViews,
-            taskName: String,
-            taskColorHex: String?,
-        ) {
-            views.setInt(R.id.widget_accent_bar, "setBackgroundColor", Color.parseColor(WARNING_ACCENT))
-            views.setTextViewText(R.id.widget_header_label, "TIME'S UP")
-            views.setTextColor(R.id.widget_header_label, Color.parseColor(WARNING_ACCENT))
-            views.setTextViewText(R.id.widget_task_name, taskName)
-            views.setTextViewText(R.id.widget_time_remaining, "Tap to resolve →")
-            views.setTextColor(R.id.widget_time_remaining, Color.parseColor(WARNING_ACCENT))
-            views.setViewVisibility(R.id.widget_time_remaining, View.VISIBLE)
-            views.setViewVisibility(R.id.widget_progress, View.GONE)
-            views.setViewVisibility(R.id.widget_add_task_btn, View.GONE)
-            applyStatsSubtitle(views, null)
-
-            val tap = pendingDeepLink(context, PI_TAP_ROOT, "/focus")
-            views.setOnClickPendingIntent(R.id.widget_root, tap)
-        }
-
-        /** State 3 (when no task is active but a block session is running). */
-        private fun renderStandaloneBlock(
-            context: Context,
-            views: RemoteViews,
-            blockedCount: Int,
-            untilMs: Long,
-        ) {
-            val accent = Color.parseColor(PROTECTION_ACCENT)
-            views.setInt(R.id.widget_accent_bar, "setBackgroundColor", accent)
-            val plural = if (blockedCount == 1) "app" else "apps"
-            views.setTextViewText(R.id.widget_header_label, "BLOCK ACTIVE")
-            views.setTextColor(R.id.widget_header_label, accent)
-            views.setTextViewText(
-                R.id.widget_task_name,
-                "Blocking $blockedCount $plural · until ${formatHmm(untilMs)}",
-            )
-            views.setTextViewText(R.id.widget_time_remaining, "")
-            views.setViewVisibility(R.id.widget_time_remaining, View.GONE)
-            views.setViewVisibility(R.id.widget_progress, View.GONE)
-            views.setViewVisibility(R.id.widget_add_task_btn, View.GONE)
-            applyStatsSubtitle(views, null)
-
-            val tap = pendingDeepLink(context, PI_TAP_ROOT, "/")
-            views.setOnClickPendingIntent(R.id.widget_root, tap)
-        }
-
-        /**
-         * State 4: nothing running right now but a task is coming up today.
-         * Shows the task name and a countdown to its start time, plus today's
-         * progress so the user sees momentum even before the next task starts.
-         */
-        private fun renderNextUp(
-            context: Context,
-            views: RemoteViews,
-            taskName: String,
-            startMs: Long,
-            tasksDone: Int,
-            tasksTotal: Int,
-            focusMins: Int,
-        ) {
-            val accent = parseColor(DEFAULT_ACCENT)
-            views.setInt(R.id.widget_accent_bar, "setBackgroundColor", accent)
-            views.setTextViewText(R.id.widget_header_label, "NEXT UP")
-            views.setTextColor(R.id.widget_header_label, accent)
-            views.setTextViewText(R.id.widget_task_name, taskName)
-            views.setTextViewText(R.id.widget_time_remaining, minsUntilStr(startMs))
-            views.setTextColor(R.id.widget_time_remaining, accent)
-            views.setViewVisibility(R.id.widget_time_remaining, View.VISIBLE)
-            views.setViewVisibility(R.id.widget_progress, View.GONE)
-            views.setViewVisibility(R.id.widget_add_task_btn, View.GONE)
-            applyStatsSubtitle(views, buildStatsSubtitle(tasksDone, tasksTotal, focusMins))
-
-            val tap = pendingDeepLink(context, PI_TAP_ROOT, "/")
-            views.setOnClickPendingIntent(R.id.widget_root, tap)
-        }
-
-        /**
-         * State 5: truly idle — no active task, no upcoming task, no block.
-         * Header shows brand + streak; subtitle shows today's stats so the
-         * widget is never just empty space.
-         */
-        private fun renderIdle(
-            context: Context,
-            views: RemoteViews,
-            tasksDone: Int,
-            tasksTotal: Int,
-            focusMins: Int,
-            streakDays: Int,
-        ) {
-            val accent = parseColor(DEFAULT_ACCENT)
-            views.setInt(R.id.widget_accent_bar, "setBackgroundColor", accent)
-            val headerText = if (streakDays >= 2) "FOCUSFLOW · 🔥 ${streakDays}" else "FOCUSFLOW"
-            views.setTextViewText(R.id.widget_header_label, headerText)
-            views.setTextColor(R.id.widget_header_label, accent)
-            // Friendlier idle message when the day's done.
-            val title = when {
-                tasksTotal > 0 && tasksDone >= tasksTotal -> "All done for today \uD83C\uDF89"
-                tasksTotal > 0                           -> "Nothing scheduled now"
-                else                                     -> "Nothing scheduled"
-            }
-            views.setTextViewText(R.id.widget_task_name, title)
-            // Hide the time-remaining slot — the add-task pill fills the right column
-            views.setTextViewText(R.id.widget_time_remaining, "")
-            views.setViewVisibility(R.id.widget_time_remaining, View.GONE)
-            views.setViewVisibility(R.id.widget_progress, View.GONE)
-            views.setViewVisibility(R.id.widget_add_task_btn, View.VISIBLE)
-            applyStatsSubtitle(views, buildStatsSubtitle(tasksDone, tasksTotal, focusMins))
-
-            val tap    = pendingDeepLink(context, PI_TAP_ROOT, "/")
-            val tapCta = pendingDeepLink(context, PI_TAP_CTA,  "/")
-            views.setOnClickPendingIntent(R.id.widget_root, tap)
-            views.setOnClickPendingIntent(R.id.widget_add_task_btn, tapCta)
+            else -> super.onReceive(context, intent)
         }
     }
 
@@ -382,9 +63,241 @@ class FocusFlowWidget : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray,
     ) {
-        val views = buildViews(context)
-        for (id in appWidgetIds) {
-            appWidgetManager.updateAppWidget(id, views)
+        val pending = goAsync()
+        refreshAsync(context.applicationContext) { pending.finish() }
+    }
+
+    override fun onEnabled(context: Context) {
+        refreshAsync(context.applicationContext)
+    }
+
+    override fun onDisabled(context: Context) {
+        cancelTick(context.applicationContext)
+    }
+
+    companion object {
+        const val ACTION_REFRESH = "com.tbtechs.focusflow.action.WIDGET_REFRESH"
+
+        private const val PREFS_NAME = "focusday_prefs"
+        private const val DEFAULT_ACCENT = "#6366f1"
+        private const val REQUEST_TAP = 100
+        private const val REQUEST_TICK = 101
+        private const val ACTIVE_REDRAW_MS = 5L * 60 * 1000
+        private const val NEXT_REDRAW_MS = 15L * 60 * 1000
+        private const val IDLE_REDRAW_MS = 60L * 60 * 1000
+        private const val MAX_COUNTDOWN_MS = 12L * 60 * 60 * 1000
+
+        private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+        /** Kept for existing callers (focus service, settings). Never blocks the caller. */
+        fun pushWidgetUpdate(context: Context) {
+            refreshAsync(context.applicationContext)
+        }
+
+        /** Called by code that already holds a fresh task list, so no second database read is needed. */
+        fun onTasksChanged(context: Context, tasks: List<Task>, nowMs: Long = System.currentTimeMillis()) {
+            runCatching { render(context.applicationContext, tasks, nowMs) }
+        }
+
+        private fun refreshAsync(context: Context, onDone: () -> Unit = {}) {
+            scope.launch {
+                try {
+                    val tasks = withTimeoutOrNull(5_000L) {
+                        runCatching { AppModule.taskRepository.getAllTasks() }.getOrNull()
+                    }
+                    runCatching { render(context, tasks, System.currentTimeMillis()) }
+                } finally {
+                    onDone()
+                }
+            }
+        }
+
+        /** [tasks] null means the database could not be read; then only a running session is drawn. */
+        private fun render(context: Context, tasks: List<Task>?, nowMs: Long) {
+            val manager = AppWidgetManager.getInstance(context)
+            val ids = manager.getAppWidgetIds(ComponentName(context, FocusFlowWidget::class.java))
+            if (ids.isEmpty()) {
+                cancelTick(context)
+                return
+            }
+            val session = readSession(context, nowMs)
+            if (tasks == null && session == null) return
+            val snapshot = WidgetSnapshotBuilder.build(tasks.orEmpty(), nowMs, session)
+            manager.updateAppWidget(ids, buildViews(context, snapshot, nowMs))
+            scheduleTick(context, nextRedrawMs(snapshot, nowMs))
+        }
+
+        private fun readSession(context: Context, nowMs: Long): WidgetSession? {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val name = prefs.getString("task_name", "").orEmpty()
+            val end = prefs.getLong("task_end_ms", 0L)
+            if (name.isBlank() || end <= nowMs) return null
+            return WidgetSession(
+                name = name,
+                startMs = prefs.getLong("task_start_ms", 0L),
+                endMs = end,
+                colorHex = prefs.getString("task_color", DEFAULT_ACCENT),
+            )
+        }
+
+        // ─── Drawing ──────────────────────────────────────────────────────────
+
+        private fun buildViews(context: Context, snap: WidgetSnapshot, nowMs: Long): RemoteViews {
+            val views = RemoteViews(context.packageName, R.layout.widget_focusflow)
+            val accent = parseColor(snap.colorHex)
+            val progress = when (snap.mode) {
+                WidgetMode.ACTIVE -> progressPercent(snap.startMs, snap.endMs, nowMs)
+                else -> -1
+            }
+            val dayStats = if (snap.totalToday > 0) " · ${snap.doneToday}/${snap.totalToday}" else ""
+
+            when (snap.mode) {
+                WidgetMode.ACTIVE -> {
+                    views.setTextViewText(R.id.widget_label, "NOW$dayStats")
+                    views.setTextViewText(R.id.widget_title, snap.title)
+                    val following = snap.followingTitle?.let { " · Next: $it" }.orEmpty()
+                    views.setTextViewText(
+                        R.id.widget_detail,
+                        "Until ${formatTime(context, snap.endMs)}$following",
+                    )
+                    showCountdown(views, snap.endMs, nowMs, accent)
+                }
+                WidgetMode.NEXT -> {
+                    views.setTextViewText(R.id.widget_label, "NEXT UP$dayStats")
+                    views.setTextViewText(R.id.widget_title, snap.title)
+                    val day = if (snap.startsToday) "" else "${weekday(snap.startMs)} "
+                    views.setTextViewText(
+                        R.id.widget_detail,
+                        "Starts $day${formatTime(context, snap.startMs)}",
+                    )
+                    showCountdown(views, snap.startMs, nowMs, accent)
+                }
+                WidgetMode.EMPTY -> {
+                    val allDone = snap.totalToday > 0 && snap.doneToday >= snap.totalToday
+                    views.setTextViewText(R.id.widget_label, "FOCUSFLOW")
+                    views.setTextViewText(
+                        R.id.widget_title,
+                        if (allDone) "All done for today" else "Nothing scheduled",
+                    )
+                    views.setTextViewText(
+                        R.id.widget_detail,
+                        if (snap.totalToday > 0) {
+                            "${snap.doneToday}/${snap.totalToday} tasks done today"
+                        } else {
+                            "Tap to plan your day"
+                        },
+                    )
+                    hideCountdown(views)
+                }
+            }
+            views.setTextColor(R.id.widget_label, accent)
+
+            if (progress >= 0) {
+                views.setProgressBar(R.id.widget_progress, 100, progress, false)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    views.setColorStateList(
+                        R.id.widget_progress,
+                        "setProgressTintList",
+                        ColorStateList.valueOf(accent),
+                    )
+                }
+                views.setViewVisibility(R.id.widget_progress, View.VISIBLE)
+            } else {
+                views.setViewVisibility(R.id.widget_progress, View.GONE)
+            }
+
+            val target = if (snap.mode == WidgetMode.ACTIVE) "focus" else "home"
+            views.setOnClickPendingIntent(R.id.widget_root, openAppIntent(context, target))
+            return views
+        }
+
+        private fun showCountdown(views: RemoteViews, targetMs: Long, nowMs: Long, accent: Int) {
+            val remaining = targetMs - nowMs
+            if (remaining <= 0L || remaining > MAX_COUNTDOWN_MS) {
+                hideCountdown(views)
+                return
+            }
+            views.setChronometerCountDown(R.id.widget_timer, true)
+            views.setChronometer(
+                R.id.widget_timer,
+                SystemClock.elapsedRealtime() + remaining,
+                null,
+                true,
+            )
+            views.setTextColor(R.id.widget_timer, accent)
+            views.setViewVisibility(R.id.widget_timer, View.VISIBLE)
+        }
+
+        private fun hideCountdown(views: RemoteViews) {
+            views.setChronometer(R.id.widget_timer, SystemClock.elapsedRealtime(), null, false)
+            views.setViewVisibility(R.id.widget_timer, View.GONE)
+        }
+
+        private fun progressPercent(startMs: Long, endMs: Long, nowMs: Long): Int {
+            val total = endMs - startMs
+            if (startMs <= 0L || total <= 0L) return 0
+            return ((nowMs - startMs) * 100L / total).toInt().coerceIn(0, 100)
+        }
+
+        private fun parseColor(hex: String?): Int = try {
+            Color.parseColor(if (hex.isNullOrBlank()) DEFAULT_ACCENT else hex)
+        } catch (_: IllegalArgumentException) {
+            Color.parseColor(DEFAULT_ACCENT)
+        }
+
+        private fun formatTime(context: Context, epochMs: Long): String =
+            android.text.format.DateFormat.getTimeFormat(context).format(Date(epochMs))
+
+        private fun weekday(epochMs: Long): String =
+            SimpleDateFormat("EEE", Locale.getDefault()).format(Date(epochMs))
+
+        private fun openAppIntent(context: Context, route: String): PendingIntent {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("focusflow://app/$route")).apply {
+                setClass(context, MainActivity::class.java)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            return PendingIntent.getActivity(
+                context,
+                REQUEST_TAP,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+        }
+
+        // ─── Redraw alarm (inexact, no special permission) ────────────────────
+
+        private fun nextRedrawMs(snap: WidgetSnapshot, nowMs: Long): Long {
+            val next = when (snap.mode) {
+                WidgetMode.ACTIVE -> minOf(snap.endMs, nowMs + ACTIVE_REDRAW_MS)
+                WidgetMode.NEXT -> minOf(snap.startMs, nowMs + NEXT_REDRAW_MS)
+                WidgetMode.EMPTY -> minOf(nextMidnightMs(nowMs), nowMs + IDLE_REDRAW_MS)
+            }
+            return next.coerceAtLeast(nowMs + 15_000L)
+        }
+
+        private fun nextMidnightMs(nowMs: Long): Long =
+            Instant.ofEpochMilli(nowMs).atZone(ZoneId.systemDefault())
+                .toLocalDate().plusDays(1)
+                .atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+        private fun tickIntent(context: Context): PendingIntent =
+            PendingIntent.getBroadcast(
+                context,
+                REQUEST_TICK,
+                Intent(context, FocusFlowWidget::class.java).setAction(ACTION_REFRESH),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+
+        private fun scheduleTick(context: Context, atMs: Long) {
+            val alarms = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
+            runCatching {
+                alarms.setAndAllowWhileIdle(AlarmManager.RTC, atMs, tickIntent(context))
+            }
+        }
+
+        private fun cancelTick(context: Context) {
+            val alarms = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
+            runCatching { alarms.cancel(tickIntent(context)) }
         }
     }
 }

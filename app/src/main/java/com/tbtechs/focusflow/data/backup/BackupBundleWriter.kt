@@ -28,6 +28,22 @@ internal data class BundleAssetEntry(
 internal class BackupBundleWriter(
     private val imageStore: SubtaskImageStore,
 ) {
+    /**
+     * The ids in [assetIds] whose image file exists and passes the store's integrity check right
+     * now. The export uses it to leave out pictures that have lost their file, instead of
+     * refusing to write any backup at all.
+     */
+    fun readableAssets(assetIds: Set<String>): Set<String> =
+        assetIds.filterTo(linkedSetOf()) { assetId ->
+            val bytes = imageStore.openForExport(assetId)
+            if (bytes != null) {
+                bytes.fill(0)
+                true
+            } else {
+                false
+            }
+        }
+
     fun prepare(
         manifestJson: String,
         assetIds: Set<String>,

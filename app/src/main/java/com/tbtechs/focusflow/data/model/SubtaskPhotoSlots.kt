@@ -42,6 +42,59 @@ object SubtaskPhotoSlots {
 
     fun count(subtasks: List<Subtask>): Int = collect(subtasks).size
 
+    /** What the empty slots of a task can still do. A slot is one item or step without a picture. */
+    data class Summary(
+        val total: Int,
+        /** Different working links that can be downloaded. */
+        val downloadableLinks: Int,
+        /** Slots whose link can never be downloaded (not https, private address, ...). */
+        val brokenLinkSlots: Int,
+        /** Slots that only describe a picture and have no link at all. */
+        val noLinkSlots: Int,
+    )
+
+    fun summarize(subtasks: List<Subtask>): Summary {
+        val slots = collect(subtasks)
+        val good = linkedSetOf<String>()
+        var broken = 0
+        var none = 0
+        slots.forEach { ref ->
+            val url = ref.slot.url
+            when {
+                url.isNullOrBlank() -> none++
+                PhotoLinkPolicy.check(url) is PhotoLinkCheck.Accepted -> good += url
+                else -> broken++
+            }
+        }
+        return Summary(slots.size, good.size, broken, none)
+    }
+
+    /**
+     * Removes every empty picture slot (items and steps that have no picture). Text, steps and
+     * pictures that are already attached are untouched. Returns the new list and how many slots
+     * were removed. Use it when a picture can never be downloaded and the person does not want
+     * to be reminded about it any more.
+     */
+    fun clearUnresolved(subtasks: List<Subtask>): Pair<List<Subtask>, Int> {
+        var cleared = 0
+        val result = subtasks.map { subtask ->
+            val clearItem = subtask.image == null && subtask.photo != null
+            if (clearItem) cleared++
+            subtask.copy(
+                photo = if (clearItem) null else subtask.photo,
+                steps = subtask.steps.map { step ->
+                    if (step.image == null && step.photo != null) {
+                        cleared++
+                        step.copy(photo = null)
+                    } else {
+                        step
+                    }
+                },
+            )
+        }
+        return result to cleared
+    }
+
     /**
      * Attaches stored pictures. A slot is only filled while it still has an empty image and the
      * same link, so a change the user made while a download ran is never overwritten.
@@ -131,6 +184,37 @@ object SubtaskPhotoSlots {
                 step.copy(image = null, photo = step.photo ?: step.image.asPhotoSlot())
             },
         )
+    }
+
+    /**
+     * For an export: pictures whose file is gone from this device ([missing] asset ids) are
+     * removed, and each one that had alt text is kept as a photo slot, so the receiver still sees
+     * that a picture belonged there. Returns the new list and how many items/steps were changed.
+     */
+    fun withoutMissingImages(
+        subtasks: List<Subtask>,
+        missing: Set<String>,
+    ): Pair<List<Subtask>, Int> {
+        if (missing.isEmpty()) return subtasks to 0
+        var affected = 0
+        val isGone = { image: SubtaskImage? -> image != null && image.asset in missing }
+        val result = subtasks.map { subtask ->
+            val itemGone = isGone(subtask.image)
+            if (itemGone) affected++
+            subtask.copy(
+                image = if (itemGone) null else subtask.image,
+                photo = if (itemGone) subtask.photo ?: subtask.image.asPhotoSlot() else subtask.photo,
+                steps = subtask.steps.map { step ->
+                    if (isGone(step.image)) {
+                        affected++
+                        step.copy(image = null, photo = step.photo ?: step.image.asPhotoSlot())
+                    } else {
+                        step
+                    }
+                },
+            )
+        }
+        return result to affected
     }
 
     /**

@@ -6,6 +6,7 @@ import android.content.Intent
 import android.util.Log
 import com.tbtechs.focusflow.di.AppModule
 import com.tbtechs.focusflow.notifications.LiveTaskStatusNotificationPublisher
+import com.tbtechs.focusflow.widget.FocusFlowWidget
 import com.tbtechs.focusflow.notifications.ReminderChainAlarmIdentity
 import com.tbtechs.focusflow.notifications.ReminderDelivery
 import com.tbtechs.focusflow.notifications.ReminderKind
@@ -98,6 +99,7 @@ class ReminderReceiver : BroadcastReceiver() {
                         // publish or refresh a live card only while a task's
                         // scheduled interval is currently in progress.
                         LiveTaskStatusNotificationPublisher.sync(appContext, tasks, nowMs)
+                        FocusFlowWidget.onTasksChanged(appContext, tasks, nowMs)
 
                         val replanNowMs = System.currentTimeMillis()
                         val nextPlan = ReminderPlanner.plan(

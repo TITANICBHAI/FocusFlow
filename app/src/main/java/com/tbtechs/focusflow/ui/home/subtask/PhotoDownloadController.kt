@@ -57,13 +57,20 @@ internal class PhotoDownloadController(
     var state: PhotoDownloadUiState by mutableStateOf(PhotoDownloadUiState.Idle)
         private set
 
+    /** What failed in the last try, so the banner can still explain it after the dialog is closed. */
+    var lastFailures: Map<PhotoDownloadFailure, Int> by mutableStateOf(emptyMap())
+        private set
+
     @Volatile
     private var stopRequested = false
 
     /** Step 1: collect the slots that have a link and ask for consent. */
     fun requestDownload(task: Task) {
         if (coordinator == null || state is PhotoDownloadUiState.Running) return
-        val slots = SubtaskPhotoSlots.collect(task.subtasks).filter { it.slot.url != null }
+        // Only links that can actually be downloaded. Broken or missing links are reported by
+        // the banner instead of failing again on every try.
+        val slots = SubtaskPhotoSlots.collect(task.subtasks)
+            .filter { PhotoLinkPolicy.check(it.slot.url) is PhotoLinkCheck.Accepted }
         if (slots.isEmpty()) return
         val hosts = slots
             .mapNotNull { (PhotoLinkPolicy.check(it.slot.url) as? PhotoLinkCheck.Accepted)?.uri?.host }
@@ -96,6 +103,7 @@ internal class PhotoDownloadController(
                 )
             }
             if (outcome.downloads.isNotEmpty()) onAttach(pending.taskId, outcome.downloads)
+            lastFailures = outcome.failures
             state = PhotoDownloadUiState.Finished(
                 saved = outcome.succeeded,
                 failures = outcome.failures,

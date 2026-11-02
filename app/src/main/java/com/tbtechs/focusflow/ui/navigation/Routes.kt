@@ -119,4 +119,27 @@ object Routes {
         if (normalized.isBlank()) return HOME
         return if (route in externalLinkableRoutes) route else NOT_FOUND
     }
+
+    /**
+     * Resolves the destination for any intent link the app itself or an external app can send.
+     *
+     * - `focusflow-internal://...` links are built by our own notifications (task reminders and
+     *   the live task card). They carry an id in the path, not a route, so they always open HOME.
+     *   Before this, the id was read as a route and ended on the "not found" screen.
+     * - `focusflow://app/<route>` and `focusflow:///<route>` use the path.
+     * - `focusflow://<route>` (no path) uses the host as the route.
+     * - No link at all opens HOME.
+     */
+    fun fromLink(scheme: String?, host: String?, path: String?): String {
+        if (scheme.equals(INTERNAL_SCHEME, ignoreCase = true)) return HOME
+        val cleanPath = path?.trim()?.removePrefix("/").orEmpty()
+        val effective = when {
+            cleanPath.isNotEmpty() -> path
+            !host.isNullOrBlank() && !host.equals("app", ignoreCase = true) -> host
+            else -> null
+        }
+        return fromPath(effective)
+    }
+
+    const val INTERNAL_SCHEME = "focusflow-internal"
 }
