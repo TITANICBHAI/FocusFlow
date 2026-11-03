@@ -1,0 +1,1021 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Unified FocusFlow .focusflow V1 file format reference, canonical examples, import/export semantics, validation limits, and builder guidance.">
+<title>FocusFlow .focusflow — Unified V1 Format Reference</title>
+<style>
+:root{--bg:#07111f;--panel:#0d1828;--panel2:#101f33;--line:#1e314b;--text:#e8f0fa;--muted:#94a8bf;--accent:#7dd3fc;--accent2:#a78bfa;--ok:#86efac;--warn:#fbbf24;--danger:#fb7185;--shadow:0 18px 50px rgba(0,0,0,.22);--code:#081522}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:linear-gradient(180deg,#06101d 0%,#081322 45%,#0a1422 100%);color:var(--text);font:15px/1.65 Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}code{font-size:.92em;color:#d6eaff}.wrap{max-width:1460px;margin:0 auto;padding:28px 24px 72px}header{padding:48px 0 24px;max-width:980px}.eyebrow{letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:800;font-size:12px}h1{font-size:clamp(36px,5vw,66px);line-height:1.03;margin:12px 0 18px;letter-spacing:-.03em}h2{font-size:29px;line-height:1.15;margin:58px 0 18px;letter-spacing:-.02em}h3{font-size:20px;margin:34px 0 12px}p{color:#c8d5e5}.lede{font-size:18px;color:#bfd0e3;max-width:900px}.badges{display:flex;gap:10px;flex-wrap:wrap;margin:20px 0}.badge{border:1px solid var(--line);background:rgba(16,31,51,.9);padding:7px 11px;border-radius:999px;font-size:12px;color:#d7e6f4}.grid{display:grid;grid-template-columns:300px minmax(0,1fr);gap:24px;align-items:start}nav{position:sticky;top:16px;max-height:calc(100vh - 32px);overflow:auto;padding:16px;border:1px solid var(--line);border-radius:16px;background:rgba(9,22,37,.92);box-shadow:var(--shadow)}nav strong{display:block;margin-bottom:10px}nav ol{list-style:none;padding:0;margin:0}nav li{margin:4px 0}nav a{display:block;padding:7px 8px;border-radius:9px;color:#b8c9dc}nav a:hover{background:rgba(125,211,252,.08);text-decoration:none;color:#eaf7ff}main{min-width:0}.card{border:1px solid var(--line);background:linear-gradient(180deg,rgba(16,31,51,.94),rgba(11,23,38,.94));border-radius:18px;padding:22px;box-shadow:var(--shadow);margin:18px 0}.card.tight{padding:16px}.callout{border-left:4px solid var(--accent);padding:14px 16px;background:#0a1a2b;border-radius:10px;margin:16px 0}.callout.warn{border-left-color:var(--warn)}.callout.danger{border-left-color:var(--danger)}.callout.ok{border-left-color:var(--ok)}.split{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.triple{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}@media(max-width:980px){.grid{grid-template-columns:1fr}nav{position:relative;top:0;max-height:none}.split,.triple{grid-template-columns:1fr}}table{width:100%;border-collapse:collapse;font-size:14px}th,td{border-bottom:1px solid var(--line);padding:11px 10px;vertical-align:top;text-align:left}th{color:#dcecff;background:#0c1d30;position:sticky;top:0}tr:last-child td{border-bottom:0}.pill{display:inline-block;padding:3px 7px;border-radius:999px;font-size:11px;font-weight:800;letter-spacing:.04em}.policy{background:rgba(134,239,172,.12);border:1px solid rgba(134,239,172,.22);color:var(--ok)}.tag{display:inline-block;margin:4px 6px 4px 0;padding:5px 8px;border:1px solid var(--line);border-radius:8px;background:#0c1a2b}.tag.muted{opacity:.85}pre{background:var(--code);border:1px solid #19314a;border-radius:12px;padding:16px;overflow:auto;color:#dbeafe;line-height:1.5;font-size:13px;position:relative}.codebar{display:flex;justify-content:space-between;gap:10px;align-items:center;margin:20px 0 8px}button{border:1px solid var(--line);background:#10243a;color:#e9f4ff;padding:8px 11px;border-radius:9px;cursor:pointer}button:hover{border-color:#37617f}textarea{width:100%;min-height:520px;background:#071421;color:#dcecff;border:1px solid var(--line);border-radius:12px;padding:16px;font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;resize:vertical}.status{margin-top:10px;padding:11px 12px;border-radius:10px;border:1px solid var(--line);background:#09192a}.status.good{border-color:rgba(134,239,172,.35)}.status.bad{border-color:rgba(251,113,133,.35)}details{border:1px solid var(--line);border-radius:12px;background:#0a1727;margin:12px 0}summary{cursor:pointer;padding:12px 14px;font-weight:800}details>div{padding:0 14px 14px}.kicker{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.09em;font-weight:800}.mono-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.mono-list code{display:block;padding:8px 9px;border:1px solid var(--line);border-radius:8px;background:#091625;word-break:break-word}@media(max-width:900px){.mono-list{grid-template-columns:1fr}}.check{display:grid;grid-template-columns:26px 1fr;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}.check:last-child{border-bottom:0}.check span:first-child{color:var(--ok);font-weight:900}footer{margin-top:70px;padding-top:22px;border-top:1px solid var(--line);color:var(--muted)}.small{font-size:13px;color:var(--muted)}.search{width:100%;padding:10px 12px;border:1px solid var(--line);background:#071421;color:#dff2ff;border-radius:9px;margin-bottom:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header id="overview">
+  <div class="eyebrow">FocusFlow · Canonical V1</div>
+  <h1>.focusflow — Unified File Format Reference</h1>
+  <p class="lede">The practical guide, complete field reference, import/export semantics, builder rules, validation limits, and agent-facing corrections combined into one self-contained page.</p>
+  <div class="badges">
+    <span class="badge">JSON · UTF-8</span><span class="badge">kind = FocusFlowBackupV1</span><span class="badge">version = 1</span><span class="badge">MIME = application/octet-stream</span><span class="badge">No ZIP / no database dump</span>
+  </div>
+  <div class="callout ok"><strong>Mental model:</strong> <code>.focusflow</code> contains portable persistent FocusFlow configuration + task/reminder data + enough information to rebuild derived scheduling. It is <strong>not</strong> an active-session dump, live blocking snapshot, or authoritative AlarmManager database.</div>
+  <div class="triple">
+    <div class="card tight"><div class="kicker">FORMAT VALID</div><p>UTF-8 + strict JSON + V1 envelope + field shapes + limits.</p></div>
+    <div class="card tight"><div class="kicker">IMPORT SAFE</div><p>Compatible with the restore planner and its conflict/normalization rules.</p></div>
+    <div class="card tight"><div class="kicker">PRODUCT CORRECT</div><p>Portable fields mean what FocusFlow actually intends them to mean.</p></div>
+  </div>
+</header>
+
+<div class="grid">
+<nav>
+  <strong>On this page</strong>
+  <input class="search" id="navSearch" placeholder="Filter sections…" aria-label="Filter sections">
+  <ol id="toc"><li><a href="#overview">Overview</a></li><li><a href="#transport">1. File identity &amp; transport</a></li><li><a href="#envelope">2. Top-level V1 envelope</a></li><li><a href="#tasks">3. Tasks</a></li><li><a href="#reminders">4. Reminders</a></li><li><a href="#focus">5. Focus Mode &amp; package semantics</a></li><li><a href="#settings">6. Portable settings — exhaustive</a></li><li><a href="#nested">7. Nested setting types</a></li><li><a href="#presets">8. presetSections</a></li><li><a href="#state">9. Portable vs runtime state</a></li><li><a href="#protected">10. Protected packages</a></li><li><a href="#time">11. Time &amp; timezone</a></li><li><a href="#colors">12. Colors</a></li><li><a href="#limits">13. Validation &amp; resource limits</a></li><li><a href="#import">14. Import / restore semantics</a></li><li><a href="#external">15. Android external opening</a></li><li><a href="#export">16. Export semantics</a></li><li><a href="#compat">17. Compatibility &amp; legacy</a></li><li><a href="#builder">18. Builder / generator rules</a></li><li><a href="#examples">19. Canonical examples</a></li><li><a href="#pitfalls">20. Do-not-make-these-mistakes</a></li><li><a href="#acceptance">21. Acceptance checklist</a></li><li><a href="#meaning">22. What “valid” actually means</a></li></ol>
+</nav>
+<main>
+
+<section id="transport">
+<h2>1. File identity &amp; transport</h2>
+<div class="card"><table><thead><tr><th>Property</th><th>Canonical V1 rule</th></tr></thead><tbody>
+<tr><td>Extension</td><td><code>.focusflow</code></td></tr>
+<tr><td>Content</td><td>JSON text encoded as UTF-8.</td></tr>
+<tr><td>MIME</td><td><code>application/octet-stream</code></td></tr>
+<tr><td>Wire kind</td><td><code>FocusFlowBackupV1</code></td></tr>
+<tr><td>Wire version</td><td><code>1</code> for generated files.</td></tr>
+<tr><td>Export filename</td><td><code>focusflow-YYYY-MM-DDTHH-mm-ss.focusflow</code></td></tr>
+<tr><td>Container</td><td>None. The file is not a ZIP or SQLite export.</td></tr>
+</tbody></table></div>
+<div class="callout"><strong>Transport metadata is not the schema.</strong> Android File Manager, Drive and other providers can attach filenames and MIME types. Once FocusFlow has the content, the envelope is authoritative.</div>
+</section>
+
+<section id="envelope">
+<h2>2. Top-level V1 envelope</h2>
+<p>The canonical generator emits the following envelope. Some metadata fields are optional for compatible reading, but generated files should be explicit.</p>
+<div class="codebar"><span class="kicker">Canonical starter</span><button data-copy="minimal-json">Copy</button></div>
+<pre id="minimal-json">{
+  &quot;kind&quot;: &quot;FocusFlowBackupV1&quot;,
+  &quot;version&quot;: 1,
+  &quot;exportedAt&quot;: &quot;2026-09-01T01:30:00.000Z&quot;,
+  &quot;exportedAtHuman&quot;: &quot;01/09/2026, 07:00:00&quot;,
+  &quot;platform&quot;: {
+    &quot;os&quot;: &quot;android&quot;
+  },
+  &quot;settings&quot;: {
+    &quot;defaultDuration&quot;: 60,
+    &quot;defaultReminderOffsets&quot;: [
+      -10,
+      -5,
+      0
+    ],
+    &quot;allowedInFocus&quot;: [
+      &quot;com.android.phone&quot;,
+      &quot;com.android.contacts&quot;,
+      &quot;com.example.music&quot;
+    ],
+    &quot;pomodoroDuration&quot;: 25,
+    &quot;pomodoroBreak&quot;: 5,
+    &quot;protectionMode&quot;: &quot;standard&quot;,
+    &quot;alwaysOnPackages&quot;: [],
+    &quot;alwaysOnVpnPackages&quot;: [],
+    &quot;focusMirrorVpnEnabled&quot;: false,
+    &quot;allowedAppPresets&quot;: [],
+    &quot;blockPresets&quot;: [],
+    &quot;dailyAllowanceEntries&quot;: [],
+    &quot;blockedWords&quot;: [],
+    &quot;weekStartDay&quot;: 0,
+    &quot;greyoutSchedule&quot;: [],
+    &quot;recurringBlockSchedules&quot;: [],
+    &quot;launcherTheme&quot;: &quot;glassy&quot;,
+    &quot;focusToolPackages&quot;: [],
+    &quot;launcherHiddenPackages&quot;: [],
+    &quot;launcherBlockUninstall&quot;: false,
+    &quot;launcherLockDuringStandalone&quot;: true,
+    &quot;keepFocusActiveUntilTaskEnd&quot;: true,
+    &quot;autoRescheduleEnabled&quot;: false,
+    &quot;overlayQuotes&quot;: [],
+    &quot;userProfile&quot;: {
+      &quot;name&quot;: &quot;Example User&quot;,
+      &quot;focusSessionLength&quot;: 60,
+      &quot;breakStyle&quot;: &quot;short_frequent&quot;
+    }
+  },
+  &quot;tasks&quot;: [
+    {
+      &quot;id&quot;: &quot;task-example-001&quot;,
+      &quot;title&quot;: &quot;Plan the week&quot;,
+      &quot;description&quot;: &quot;Choose the three most important tasks.&quot;,
+      &quot;startTime&quot;: &quot;2026-09-01T01:30:00.000Z&quot;,
+      &quot;endTime&quot;: &quot;2026-09-01T02:30:00.000Z&quot;,
+      &quot;durationMinutes&quot;: 60,
+      &quot;status&quot;: &quot;scheduled&quot;,
+      &quot;priority&quot;: &quot;medium&quot;,
+      &quot;tags&quot;: [
+        &quot;planning&quot;
+      ],
+      &quot;reminders&quot;: [
+        {
+          &quot;id&quot;: &quot;reminder-example-001&quot;,
+          &quot;taskId&quot;: &quot;task-example-001&quot;,
+          &quot;offsetMinutes&quot;: -5,
+          &quot;type&quot;: &quot;pre-start&quot;
+        }
+      ],
+      &quot;color&quot;: &quot;#3b82f6&quot;,
+      &quot;focusMode&quot;: true,
+      &quot;createdAt&quot;: &quot;2026-08-31T05:00:00.000Z&quot;,
+      &quot;updatedAt&quot;: &quot;2026-08-31T05:00:00.000Z&quot;
+    }
+  ],
+  &quot;presetSections&quot;: [],
+  &quot;summary&quot;: {
+    &quot;taskCount&quot;: 1,
+    &quot;blockedWordCount&quot;: 0,
+    &quot;greyoutWindowCount&quot;: 0,
+    &quot;dailyAllowanceCount&quot;: 0
+  }
+}</pre>
+<div class="card"><table><thead><tr><th>Field</th><th>Generator</th><th>Meaning</th></tr></thead><tbody>
+<tr><td><code>kind</code></td><td>Required</td><td>Must be exactly <code>FocusFlowBackupV1</code>.</td></tr>
+<tr><td><code>version</code></td><td>Required</td><td>Integer <code>1</code>. Current Kotlin V1 reading also accepts omission as V1 for compatibility.</td></tr>
+<tr><td><code>exportedAt</code></td><td>Required</td><td>Export instant. Canonical form is UTC ISO-8601 ending in <code>Z</code>.</td></tr>
+<tr><td><code>exportedAtHuman</code></td><td>Recommended / exporter emits</td><td>Display-only metadata; not a timezone authority.</td></tr>
+<tr><td><code>appVersion</code></td><td>Optional</td><td>Diagnostic metadata. Does not decide schema compatibility.</td></tr>
+<tr><td><code>platform</code></td><td>Optional</td><td>Informational metadata such as <code>{"os":"android"}</code>.</td></tr>
+<tr><td><code>settings</code></td><td>Required</td><td>Portable V1 settings object.</td></tr>
+<tr><td><code>tasks</code></td><td>Required</td><td>Task array.</td></tr>
+<tr><td><code>presetSections</code></td><td>Strongly recommended</td><td>Descriptive inventory, not live activation commands.</td></tr>
+<tr><td><code>summary</code></td><td>Strongly recommended</td><td>Derived metadata only. Importers must recalculate counts from payload.</td></tr>
+</tbody></table></div>
+<div class="callout warn"><strong>Summary is never authoritative.</strong> <code>summary.taskCount</code> should equal <code>tasks.length</code> in generated files, but an importer must not trust the summary instead of inspecting the payload.</div>
+</section>
+
+<section id="tasks">
+<h2>3. Tasks</h2>
+<div class="card"><table><thead><tr><th>Field</th><th>Type</th><th>Canonical rule</th></tr></thead><tbody>
+<tr><td><code>id</code></td><td>string</td><td>Non-empty stable identifier; max 128 chars; unique within the file; no control characters.</td></tr>
+<tr><td><code>title</code></td><td>string</td><td>Non-blank; max 1,000 chars.</td></tr>
+<tr><td><code>description</code></td><td>string</td><td>Emit explicitly; <code>""</code> is valid. Missing/null are normalized to an empty string when read.</td></tr>
+<tr><td><code>startTime</code></td><td>string</td><td>ISO-8601 instant. Generator should emit UTC <code>Z</code>.</td></tr>
+<tr><td><code>endTime</code></td><td>string</td><td>ISO-8601 instant, never before <code>startTime</code>.</td></tr>
+<tr><td><code>durationMinutes</code></td><td>integer</td><td>Whole minutes. Current V1 parser accepts 0–100000; generator should derive from timestamps and keep it mathematically consistent.</td></tr>
+<tr><td><code>status</code></td><td>enum</td><td><code>scheduled</code>, <code>active</code>, <code>completed</code>, <code>skipped</code>, <code>overdue</code>.</td></tr>
+<tr><td><code>priority</code></td><td>enum</td><td><code>low</code>, <code>medium</code>, <code>high</code>, <code>critical</code>.</td></tr>
+<tr><td><code>tags</code></td><td>string[]</td><td>Up to 100 tags/task; each tag up to 100 chars.</td></tr>
+<tr><td><code>reminders</code></td><td>Reminder[]</td><td>Reminder objects. Up to 100/task in current Kotlin V1.</td></tr>
+<tr><td><code>color</code></td><td>string</td><td>Task color string. Parser allows up to 32 chars; common values are listed below.</td></tr>
+<tr><td><code>focusMode</code></td><td>boolean</td><td><code>true</code> enables task-time focus blocking behavior. Missing defaults to <code>false</code>.</td></tr>
+<tr><td><code>focusAllowedPackages</code></td><td>array / null / absent</td><td>Absent or null = inherit global setting. Non-empty array = task-specific allow-list. Empty array has explicit block-all semantics and should not be used casually.</td></tr>
+<tr><td><code>createdAt</code></td><td>string</td><td>ISO-8601 instant.</td></tr>
+<tr><td><code>updatedAt</code></td><td>string</td><td>ISO-8601 instant.</td></tr>
+</tbody></table></div>
+<h3>Task invariants</h3>
+<pre>task.id is unique within the file
+endTime >= startTime
+durationMinutes = (endTime - startTime) / 60_000
+all task timestamps parse as instants
+status and priority are known enums</pre>
+<div class="callout"><strong>Past scheduled task:</strong> when an imported task is <code>scheduled</code> but its <code>endTime</code> is already before the captured import <code>now</code>, the target restore contract normalizes it to <code>skipped</code> and does not create a future alarm for it. Historical <code>completed</code>, <code>skipped</code>, and <code>overdue</code> states are not rewritten by that rule.</div>
+<h3>Optional task fields are optional on read, explicit in canonical output</h3>
+<p>The current V1 reader supplies defaults for omitted <code>description</code>, <code>tags</code>, <code>reminders</code>, <code>color</code>, and <code>focusMode</code>. A generator should still emit them so the file is self-describing and deterministic.</p>
+</section>
+
+<section id="reminders">
+<h2>4. Reminders</h2>
+<p>Reminder data is an array of objects. It is not an array of integer offsets.</p>
+<pre>{
+  &quot;id&quot;: &quot;reminder-001&quot;,
+  &quot;taskId&quot;: &quot;task-001&quot;,
+  &quot;offsetMinutes&quot;: -5,
+  &quot;type&quot;: &quot;pre-start&quot;,
+  &quot;notifId&quot;: &quot;optional-device-id&quot;
+}</pre>
+<div class="card"><table><thead><tr><th>Field</th><th>Rule</th></tr></thead><tbody>
+<tr><td><code>id</code></td><td>Non-empty stable reminder identity; max 128 chars.</td></tr>
+<tr><td><code>taskId</code></td><td>Parent task ID. Restore rewrites this when a parent task ID is remapped.</td></tr>
+<tr><td><code>offsetMinutes</code></td><td>Integer offset relative to the task schedule. Preserve exactly.</td></tr>
+<tr><td><code>type</code></td><td><code>pre-start</code>, <code>at-start</code>, or <code>post-start</code>.</td></tr>
+<tr><td><code>notifId</code></td><td>Optional/null. Treat as device-derived notification bookkeeping unless explicitly preserved by the exporter; do not invent one solely to make the object look complete.</td></tr>
+</tbody></table></div>
+<div class="callout warn"><strong>Persistent data ≠ Android registration.</strong> A <code>Reminder</code> object is task data. It is not automatically a one-to-one representation of an Android <code>AlarmManager</code> alarm or notification request.</div>
+</section>
+
+<section id="focus">
+<h2>5. Focus Mode &amp; package semantics</h2>
+<div class="split">
+<div class="card"><div class="kicker">Global allow-list</div><pre>{"allowedInFocus":["com.android.phone","com.whatsapp","com.example.music"]}</pre></div>
+<div class="card"><div class="kicker">Per-task override</div><pre>{"focusMode":true,"focusAllowedPackages":["com.whatsapp","com.example.music"]}</pre></div>
+</div>
+<div class="card"><table><thead><tr><th>Task field state</th><th>Effective meaning</th></tr></thead><tbody>
+<tr><td>Absent</td><td>Use <code>settings.allowedInFocus</code>.</td></tr>
+<tr><td><code>null</code></td><td>No task-specific override; use the global setting.</td></tr>
+<tr><td>Non-empty array</td><td>Use the task-specific allow-list.</td></tr>
+<tr><td><code>[]</code></td><td>Explicit empty effective allow-list. The native focus path maps an empty effective list to <code>com.focusflow.internal.blockall</code>, so non-protected foreground apps can be blocked.</td></tr>
+</tbody></table></div>
+<div class="callout danger"><strong>Do not document <code>[]</code> as “all apps allowed”.</strong> That wording existed in older UI/source comments, but it does not match the effective enforcement behavior. Omit the field when inheritance is intended.</div>
+<p>Package references are exact Android package IDs. Label/name similarity is not a valid portability mechanism.</p>
+</section>
+
+<section id="settings">
+<h2>6. Portable settings — exhaustive</h2>
+<p>These are the canonical public V1 settings fields. The import policy shown here is the target field-level policy: portable fields overwrite their corresponding portable configuration; omitted fields remain local; runtime fields are not activated.</p>
+<div class="card"><table><thead><tr><th>Wire field</th><th>Type</th><th>Policy</th><th>Semantics</th></tr></thead><tbody><tr><td><code>darkMode</code></td><td>boolean</td><td><span class="pill policy">OVERWRITE</span></td><td>Portable appearance preference.</td></tr><tr><td><code>defaultDuration</code></td><td>integer</td><td><span class="pill policy">OVERWRITE</span></td><td>Default task/focus duration in minutes; 5–480.</td></tr><tr><td><code>defaultReminderOffsets</code></td><td>integer[]</td><td><span class="pill policy">OVERWRITE</span></td><td>Default offsets used when creating new tasks; configuration data, not active alarms.</td></tr><tr><td><code>allowedInFocus</code></td><td>string[]</td><td><span class="pill policy">OVERWRITE</span></td><td>Global focus allow-list; exact Android package IDs.</td></tr><tr><td><code>pomodoroDuration</code></td><td>integer</td><td><span class="pill policy">OVERWRITE</span></td><td>Pomodoro work duration; 1–180.</td></tr><tr><td><code>pomodoroBreak</code></td><td>integer</td><td><span class="pill policy">OVERWRITE</span></td><td>Pomodoro break duration; 1–60.</td></tr><tr><td><code>protectionMode</code></td><td>standard | iron</td><td><span class="pill policy">OVERWRITE</span></td><td>Portable protection preference.</td></tr><tr><td><code>alwaysOnPackages</code></td><td>string[]</td><td><span class="pill policy">OVERWRITE</span></td><td>Persistent Always-On package configuration; live enforcement switch is local.</td></tr><tr><td><code>alwaysOnVpnPackages</code></td><td>string[]</td><td><span class="pill policy">OVERWRITE</span></td><td>Persistent Always-On VPN target package configuration.</td></tr><tr><td><code>focusMirrorVpnEnabled</code></td><td>boolean</td><td><span class="pill policy">OVERWRITE</span></td><td>Imported value wins when present; do not merge with local using OR.</td></tr><tr><td><code>allowedAppPresets</code></td><td>object[]</td><td><span class="pill policy">OVERWRITE</span></td><td>Named allowed-app preset collection.</td></tr><tr><td><code>blockPresets</code></td><td>object[]</td><td><span class="pill policy">OVERWRITE</span></td><td>Named block preset collection.</td></tr><tr><td><code>dailyAllowanceEntries</code></td><td>object[]</td><td><span class="pill policy">OVERWRITE</span></td><td>Per-package allowance definitions.</td></tr><tr><td><code>blockedWords</code></td><td>string[]</td><td><span class="pill policy">OVERWRITE</span></td><td>Keyword/blocking vocabulary.</td></tr><tr><td><code>weekStartDay</code></td><td>integer 0..6</td><td><span class="pill policy">OVERWRITE</span></td><td>TS calendar anchor; preserve its meaning.</td></tr><tr><td><code>greyoutSchedule</code></td><td>GreyoutWindow[]</td><td><span class="pill policy">OVERWRITE</span></td><td>User-authored greyout windows; keep separate from recurring schedules.</td></tr><tr><td><code>recurringBlockSchedules</code></td><td>RecurringBlockSchedule[]</td><td><span class="pill policy">OVERWRITE</span></td><td>Recurring schedule definitions.</td></tr><tr><td><code>launcherTheme</code></td><td>classic | glassy</td><td><span class="pill policy">OVERWRITE</span></td><td>Portable launcher theme.</td></tr><tr><td><code>focusToolPackages</code></td><td>string[]</td><td><span class="pill policy">OVERWRITE</span></td><td>Focus Tools package list.</td></tr><tr><td><code>launcherHiddenPackages</code></td><td>string[]</td><td><span class="pill policy">OVERWRITE</span></td><td>Exact package IDs.</td></tr><tr><td><code>launcherBlockUninstall</code></td><td>boolean</td><td><span class="pill policy">OVERWRITE</span></td><td>Persistent launcher behavior preference.</td></tr><tr><td><code>launcherLockDuringStandalone</code></td><td>boolean</td><td><span class="pill policy">OVERWRITE</span></td><td>Persistent launcher behavior preference.</td></tr><tr><td><code>keepFocusActiveUntilTaskEnd</code></td><td>boolean</td><td><span class="pill policy">OVERWRITE</span></td><td>Persistent session preference; does not restore an active session.</td></tr><tr><td><code>autoRescheduleEnabled</code></td><td>boolean</td><td><span class="pill policy">OVERWRITE</span></td><td>Persistent scheduling preference.</td></tr><tr><td><code>overlayQuotes</code></td><td>string[]</td><td><span class="pill policy">OVERWRITE</span></td><td>Portable overlay quote pool.</td></tr><tr><td><code>userProfile</code></td><td>object</td><td><span class="pill policy">OVERWRITE</span></td><td>Portable profile object with field-level validation.</td></tr></tbody></table></div>
+<div class="callout warn"><strong>Important:</strong> Kotlin internal property names are implementation details. Keep the public TS-stable wire names such as <code>allowedInFocus</code>; do not rename them to Kotlin names in generated files.</div>
+<h3>Presence-sensitive setting</h3>
+<p><code>focusMirrorVpnEnabled</code> is presence-sensitive. When present, the imported value wins. Do not combine it with the local value using logical OR or another “keep true” merge.</p>
+<h3>Collection semantics</h3>
+<p>Portable settings collections listed above are replaced as a collection under the V1 restore policy rather than being blindly unioned. A future format version may introduce explicit per-field policies, but the V1 contract should not invent them.</p>
+</section>
+
+<section id="nested">
+<h2>7. Nested setting types</h2>
+<h3>AllowedAppPreset</h3>
+<pre>{
+  &quot;id&quot;: &quot;allowed-study&quot;,
+  &quot;name&quot;: &quot;Study tools&quot;,
+  &quot;packages&quot;: [
+    &quot;com.example.reader&quot;,
+    &quot;com.example.notes&quot;
+  ]
+}</pre>
+<p><code>id</code> is non-blank (max 128); <code>name</code> is bounded text (max 1,000); packages are exact Android package IDs. An empty package array is allowed for this preset shape.</p>
+<h3>BlockPreset</h3>
+<pre>{
+  &quot;id&quot;: &quot;social&quot;,
+  &quot;name&quot;: &quot;Social apps&quot;,
+  &quot;packages&quot;: [
+    &quot;com.instagram.android&quot;,
+    &quot;com.reddit.frontpage&quot;
+  ]
+}</pre>
+<p>Same identity/name rules; packages are exact package IDs.</p>
+<h3>DailyAllowanceEntry</h3>
+<pre>{
+  &quot;packageName&quot;: &quot;com.example.video&quot;,
+  &quot;mode&quot;: &quot;count&quot;,
+  &quot;countPerDay&quot;: 3,
+  &quot;budgetMinutes&quot;: 30,
+  &quot;intervalMinutes&quot;: 5,
+  &quot;intervalHours&quot;: 1
+}</pre>
+<div class="card"><table><thead><tr><th>Field</th><th>Rule</th></tr></thead><tbody>
+<tr><td><code>packageName</code></td><td>Exact Android package ID.</td></tr><tr><td><code>mode</code></td><td><code>count</code>, <code>time_budget</code>, or <code>interval</code>.</td></tr>
+<tr><td><code>countPerDay</code></td><td>1–100000 when used.</td></tr><tr><td><code>budgetMinutes</code></td><td>1–100000 when used.</td></tr>
+<tr><td><code>intervalMinutes</code></td><td>1–100000 when used.</td></tr><tr><td><code>intervalHours</code></td><td>1–8760 when used.</td></tr>
+</tbody></table></div>
+<p>Compatibility note: the Kotlin adapter also understands a legacy/internal <code>package</code> alias and can derive <code>dailyAllowanceMs</code>. Canonical hand-generated TS-wire files should use <code>packageName</code> and the documented mode fields.</p>
+<h3>RecurringBlockSchedule</h3>
+<pre>{
+  &quot;id&quot;: &quot;evening&quot;,
+  &quot;name&quot;: &quot;Evening block&quot;,
+  &quot;packages&quot;: [
+    &quot;com.example.social&quot;
+  ],
+  &quot;days&quot;: [
+    1,
+    3,
+    5
+  ],
+  &quot;startHour&quot;: 21,
+  &quot;startMin&quot;: 0,
+  &quot;endHour&quot;: 22,
+  &quot;endMin&quot;: 30,
+  &quot;enabled&quot;: true,
+  &quot;vpnEnabled&quot;: false,
+  &quot;vpnPackages&quot;: []
+}</pre>
+<p>Days use the TS/Java Calendar convention: <code>1=Sunday</code>, <code>2=Monday</code>, …, <code>7=Saturday</code>. Hours are 0–23 and minutes 0–59. Keep recurring definitions separate from direct greyout windows.</p>
+<h3>GreyoutWindow</h3>
+<pre>{
+  &quot;pkg&quot;: &quot;com.example.video&quot;,
+  &quot;pkgs&quot;: [
+    &quot;com.example.video&quot;
+  ],
+  &quot;startHour&quot;: 9,
+  &quot;startMin&quot;: 0,
+  &quot;endHour&quot;: 10,
+  &quot;endMin&quot;: 0,
+  &quot;days&quot;: [
+    2
+  ],
+  &quot;vpnEnabled&quot;: false
+}</pre>
+<p><code>pkg</code> is the backward-compatible primary package field. <code>pkgs</code>, when present, can contain multiple packages and overrides <code>pkg</code>. <code>scheduleId</code>/<code>scheduleName</code> identify derived windows generated from recurring schedules; they are not ordinary user-authored greyout entries. The current Kotlin V1 normalizer drops derived windows carrying <code>scheduleId</code> from direct <code>greyoutSchedule</code> application.</p>
+<h3>UserProfile</h3>
+<div class="card"><table><thead><tr><th>Field</th><th>Accepted form</th></tr></thead><tbody>
+<tr><td><code>name</code></td><td>string</td></tr><tr><td><code>occupation</code></td><td>string</td></tr><tr><td><code>dailyGoalHours</code></td><td>number, 1–16</td></tr><tr><td><code>wakeUpTime</code> / <code>sleepTime</code></td><td><code>HH:mm</code></td></tr>
+<tr><td><code>focusGoals</code> / <code>distractionTriggers</code> / <code>motivationStyle</code></td><td>bounded string arrays</td></tr>
+<tr><td><code>chronotype</code></td><td><code>morning | midday | afternoon | evening | night | flexible</code></td></tr>
+<tr><td><code>focusSessionLength</code></td><td>number, 1–480</td></tr>
+<tr><td><code>breakStyle</code></td><td><code>short_frequent | balanced | long_infrequent | no_break</code></td></tr>
+<tr><td><code>weeklyReviewDay</code></td><td><code>sun | mon | tue | wed | thu | fri | sat</code></td></tr>
+</tbody></table></div>
+<p>Do not use a profile field merely to create runtime state. The profile is portable preference/data.</p>
+</section>
+
+<section id="presets">
+<h2>8. <code>presetSections</code></h2>
+<p>The current TS exporter uses these descriptive section IDs:</p>
+<div class="mono-list"><code>focus-mode</code><code>standalone-block</code><code>always-on</code><code>daily-allowance</code><code>keyword-blocker</code><code>block-schedules</code><code>defense</code></div>
+<pre>{
+  &quot;id&quot;: &quot;focus-mode&quot;,
+  &quot;name&quot;: &quot;Focus Mode&quot;,
+  &quot;configured&quot;: true,
+  &quot;appPackages&quot;: [
+    &quot;com.example.music&quot;
+  ],
+  &quot;itemCount&quot;: 2,
+  &quot;details&quot;: {
+    &quot;allowedAppPresets&quot;: []
+  }
+}</pre>
+<p>Possible fields include <code>id</code>, <code>name</code>, <code>configured</code>, optional <code>appPackages</code>, optional <code>vpnPackages</code>, optional <code>itemCount</code>, and optional descriptive <code>details</code>.</p>
+<div class="callout"><strong>Descriptive only:</strong> <code>presetSections</code> describe what the backup contains. They do not activate blocking, resurrect timers, or override the user's import choices.</div>
+</section>
+
+<section id="state">
+<h2>9. Portable vs runtime state</h2>
+<div class="card"><table><thead><tr><th>Layer</th><th>Examples</th><th>In the file?</th></tr></thead><tbody>
+<tr><td>Persistent portable truth</td><td>Tasks, portable settings, presets, schedules, profile</td><td><strong>Yes</strong></td></tr>
+<tr><td>Derived OS state</td><td>AlarmManager registrations, notification requests</td><td><strong>Recreated</strong>, not serialized as authoritative runtime truth</td></tr>
+<tr><td>Runtime/session state</td><td>Active focus session, current blocking state, current task-session allow-list</td><td><strong>No</strong></td></tr>
+<tr><td>Device-local setup/security</td><td>Onboarding/consent, PIN state, live enforcement switches</td><td><strong>No</strong></td></tr>
+<tr><td>External resources</td><td>Local wallpaper/file URIs</td><td>Only if an explicit transferable representation exists</td></tr>
+</tbody></table></div>
+<p>The simplest test is: “Could another device reconstruct the persistent preference/data from this value without assuming that the source device is currently in a particular runtime state?” Portable fields pass that test; active sessions and live OS registrations do not.</p>
+<h3>Runtime-only settings that must not become active portable state</h3>
+<div class="card"><span class="tag"><code>focusModeEnabled</code></span><span class="tag"><code>pomodoroEnabled</code></span><span class="tag"><code>notificationsEnabled</code></span><span class="tag"><code>weeklyReportEnabled</code></span><span class="tag"><code>standaloneBlockPackages</code></span><span class="tag"><code>standaloneBlockUntil</code></span><span class="tag"><code>standaloneVpnPackages</code></span><span class="tag"><code>alwaysOnEnforcementEnabled</code></span><span class="tag"><code>autoCopyToAlwaysOn</code></span><span class="tag"><code>autoCopiedAlwaysOnPackages</code></span><span class="tag"><code>aversionDimmerEnabled</code></span><span class="tag"><code>aversionVibrateEnabled</code></span><span class="tag"><code>aversionSoundEnabled</code></span><span class="tag"><code>systemGuardEnabled</code></span><span class="tag"><code>blockInstallActionsEnabled</code></span><span class="tag"><code>blockYoutubeShortsEnabled</code></span><span class="tag"><code>blockInstagramReelsEnabled</code></span><span class="tag"><code>vpnBlockEnabled</code></span><span class="tag"><code>vpnSelfHealEnabled</code></span><span class="tag"><code>pinProtectionEnabled</code></span><span class="tag"><code>launcherEnabled</code></span><span class="tag"><code>launcherWallpaperUri</code></span><span class="tag"><code>overlayWallpaper</code></span><span class="tag"><code>onboardingComplete</code></span><span class="tag"><code>privacyAccepted</code></span></div>
+</section>
+
+<section id="protected">
+<h2>10. System-protected packages</h2>
+<p>FocusFlow's protected package list is safety infrastructure, not user data. A <code>.focusflow</code> file cannot override it.</p>
+<details open><summary>Exact protected package list</summary><div class="mono-list"><code>com.android.launcher</code><code>com.android.launcher2</code><code>com.android.launcher3</code><code>com.sec.android.app.launcher</code><code>com.google.android.apps.nexuslauncher</code><code>com.miui.launcher</code><code>com.huawei.android.launcher</code><code>com.coloros.launcher</code><code>com.oneplus.launcher</code><code>com.oppo.launcher</code><code>com.motorola.launcher3</code><code>com.nothing.launcher</code><code>com.realme.launcher</code><code>com.iqoo.launcher</code><code>com.vivo.launcher</code><code>com.asus.launcher</code><code>com.ZenUI.launcher</code><code>com.lge.launcher3</code><code>com.htc.launcher</code><code>com.sonyericsson.home</code><code>com.tcl.launcher</code><code>com.nokia.launcher</code><code>com.infinix.launcher</code><code>com.transsion.launcher</code><code>com.hihonor.launcher</code><code>com.android.systemui</code><code>com.android.phone</code><code>com.android.server.telecom</code><code>com.android.dialer</code><code>com.samsung.android.incallui</code><code>com.google.android.dialer</code><code>com.google.android.apps.googledialer</code><code>com.google.android.gms</code><code>com.android.packageinstaller</code><code>com.google.android.packageinstaller</code><code>com.samsung.android.packageinstaller</code><code>com.samsung.android.wallet</code><code>com.samsung.android.samsungpay</code><code>com.google.android.apps.walletnfcrel</code><code>com.tbtechs.focusflow</code></div></details>
+<div class="callout warn">These IDs cover Android launchers, System UI, phone/telecom, Google Play Services, package installers/wallets, and FocusFlow itself. The goal is recoverability and basic device access.</div>
+</section>
+
+<section id="time">
+<h2>11. Time &amp; timezone</h2>
+<h3>Absolute task timestamps</h3>
+<ul>
+<li>Use ISO-8601 instants.</li><li>Canonical generated form: UTC with <code>Z</code>, e.g. <code>2026-09-01T01:30:00.000Z</code>.</li>
+<li>The V1 reader accepts explicit offsets and normalizes them to the same instant.</li><li><code>exportedAtHuman</code> is display text, not timezone authority.</li>
+</ul>
+<div class="card"><table><thead><tr><th>Local IST</th><th>File UTC</th></tr></thead><tbody><tr><td>07:00</td><td>01:30Z</td></tr><tr><td>10:00</td><td>04:30Z</td></tr><tr><td>22:30</td><td>17:00Z</td></tr></tbody></table></div>
+<h3>Recurring schedules</h3>
+<p>Recurring schedules are wall-clock rules. Preserve the explicit schedule data and let the destination device apply it in its local schedule context. The current V1 format does not introduce an authoritative stored timezone field for these recurring rules.</p>
+<div class="callout danger">Do not compare timestamps as arbitrary strings. Parse instants, compare instants, and calculate <code>durationMinutes</code> from the timestamp difference.</div>
+</section>
+
+<section id="colors">
+<h2>12. Colors</h2>
+<p>These common colors appear in the existing UI as visual conventions:</p>
+<div class="card"><table><thead><tr><th>Hex</th><th>Typical emphasis</th></tr></thead><tbody>
+<tr><td><code>#22c55e</code></td><td>medium</td></tr><tr><td><code>#86efac</code></td><td>low</td></tr><tr><td><code>#3b82f6</code></td><td>critical</td></tr><tr><td><code>#a855f7</code></td><td>critical / high</td></tr><tr><td><code>#f59e0b</code></td><td>high</td></tr><tr><td><code>#ec4899</code></td><td>critical / high</td></tr>
+</tbody></table></div>
+<div class="callout"><strong>Visual convention, not enum.</strong> Color is a bounded string. The current parser allows up to 32 characters; these examples are not a closed list.</div>
+</section>
+
+<section id="limits">
+<h2>13. Validation &amp; resource limits</h2>
+<div class="card"><table><thead><tr><th>Limit</th><th>Value</th><th>Applies to</th></tr></thead><tbody>
+<tr><td><code>MAX_FILE_BYTES</code></td><td>8 MiB</td><td>Whole UTF-8 input</td></tr><tr><td><code>MAX_DEPTH</code></td><td>12</td><td>JSON nesting</td></tr><tr><td><code>MAX_JSON_NODES</code></td><td>2,000,000</td><td>Total parsed/scanned nodes</td></tr><tr><td><code>MAX_TASKS</code></td><td>20,000</td><td>Top-level tasks</td></tr><tr><td><code>MAX_STRING_CHARS</code></td><td>20,000</td><td>Generic string</td></tr><tr><td><code>MAX_TITLE_CHARS</code></td><td>1,000</td><td>Task/preset title</td></tr><tr><td><code>MAX_TAG_CHARS</code></td><td>100</td><td>Each tag</td></tr><tr><td><code>MAX_ID_CHARS</code></td><td>128</td><td>Task/reminder/preset IDs</td></tr><tr><td><code>MAX_PACKAGE_CHARS</code></td><td>255</td><td>Android package string</td></tr><tr><td><code>MAX_PACKAGES_PER_LIST</code></td><td>5,000</td><td>Package list</td></tr><tr><td><code>MAX_BLOCKED_WORDS</code></td><td>5,000</td><td>Blocked words</td></tr><tr><td><code>MAX_BLOCKED_WORD_CHARS</code></td><td>200</td><td>Each blocked word</td></tr><tr><td><code>MAX_ALLOWANCE_ENTRIES</code></td><td>1,000</td><td>Daily allowances</td></tr><tr><td><code>MAX_RECURRING_SCHEDULES</code></td><td>500</td><td>Recurring schedules</td></tr><tr><td><code>MAX_GREYOUT_WINDOWS</code></td><td>5,000</td><td>Greyout windows</td></tr><tr><td><code>MAX_PRESETS</code></td><td>500</td><td>Preset arrays</td></tr><tr><td><code>MAX_OVERLAY_QUOTES</code></td><td>500</td><td>Overlay quotes</td></tr><tr><td><code>MAX_TAGS_PER_TASK</code></td><td>100</td><td>Task tags</td></tr><tr><td><code>MAX_REMINDERS_PER_TASK</code></td><td>100</td><td>Task reminders</td></tr>
+</tbody></table></div>
+<div class="split"><div class="card"><h3>Strict input rules</h3><ul><li>Invalid UTF-8 is rejected; do not silently repair malformed bytes.</li><li>Duplicate JSON object keys are rejected before accepting the document.</li><li>Standard JSON only: no comments and no trailing commas.</li><li>Unknown optional fields may be tolerated for compatible V1 reads.</li></ul></div><div class="card"><h3>Enum safety</h3><p>Unknown enum values must not silently fall back to a default meaning. Reject the affected incompatible value/object at validation/planning time.</p></div></div>
+</section>
+
+<section id="import">
+<h2>14. Import / restore semantics</h2>
+<div class="card"><div class="kicker">Conceptual flow</div><pre>obtain .focusflow
+      ↓
+validate envelope + limits
+      ↓
+stage a durable PendingImport snapshot
+      ↓
+ImportConfirmScreen
+      ↓
+choose portable settings / tasks-reminders
+      ↓
+choose Merge or Replace for tasks
+      ↓
+preflight / deterministic RestorePlan
+      ↓
+persist target state
+      ↓
+reconcile derived reminders / alarms / OS state
+      ↓
+result + warnings</pre></div>
+<h3>Merge</h3>
+<div class="card"><table><thead><tr><th>Incoming task ID</th><th>Local state</th><th>Result</th></tr></thead><tbody>
+<tr><td>Not present</td><td>—</td><td>Preserve incoming ID.</td></tr><tr><td>Present</td><td>Semantically equivalent projection</td><td>Duplicate/skip.</td></tr><tr><td>Present</td><td>Materially different projection</td><td>Explicit <code>ID_CONFLICT</code>; do not let Room <code>INSERT OR IGNORE</code> decide semantics.</td></tr>
+</tbody></table></div>
+<p>Duplicate task IDs inside the incoming backup are malformed/conflicting input and must be rejected before mutation. A deliberate re-import is otherwise allowed; there is no blanket “backup was already imported” dedupe requirement.</p>
+<h3>Task duplicate projection</h3>
+<p>The semantic comparison should canonicalize the task fields that define task identity/content, including reminder semantics. A reminder's own <code>id</code> is independent identity; when a parent task ID is remapped, update the reminder's <code>taskId</code> reference.</p>
+<h3>Replace</h3>
+<p>Replace changes the complete task-owned persistent graph as defined by the app contract. It does <strong>not</strong> mean “replace every setting, security field, runtime flag, live focus session, or OS registration.” Derived scheduling is reconciled separately.</p>
+<h3>Settings</h3>
+<p>Matching portable fields follow their field-specific policy. Omitted fields remain local. Runtime/device-local fields never become active because they happened to appear in an old file.</p>
+<div class="callout warn"><strong>Active session guard:</strong> importing “replace” while an active focus session exists is a prohibited mutation in the target restore contract. Portable settings may be imported without restoring an active session; the session object itself is never serialized into V1.</div>
+<h3>Atomicity and recovery contract for implementers</h3>
+<p>A restore implementation should be modeled as a durable state machine rather than a chain of UI calls:</p>
+<pre>PREPARED → MUTATING → STORES_COMMITTED → RECONCILING → COMPLETED
+          ↘ ABORTED_PRE_MUTATION
+          ↘ RECOVERY_BLOCKED / RECOVERING</pre>
+<p>The durable <strong>RestorePlan</strong> is the exact target plan. Startup recovery should execute the persisted plan, not re-plan from changed device state. A global persistence write gate should block normal task/settings/maintenance writers while restore is active.</p>
+<div class="callout"><strong>Scheduler registry:</strong> desired FocusFlow-owned alarm/scheduler identities belong to the persistent restore target. The registry describes what FocusFlow intends to own; it is not proof that Android currently has a matching AlarmManager registration.</div>
+</section>
+
+<section id="external">
+<h2>15. Android external opening</h2>
+<p>A <code>.focusflow</code> can be opened directly from a file manager or provider such as Android Files or Drive.</p>
+<pre>File Manager / Drive
+      ↓
+ACTION_VIEW
+      ↓
+FocusFlow receives URI
+      ↓
+bounded read + strict parse
+      ↓
+normalize + stage PendingImport
+      ↓
+ImportConfirmScreen
+      ↓
+user review / restore
+</pre>
+<div class="card"><table><thead><tr><th>Lifecycle</th><th>Required behavior</th></tr></thead><tbody>
+<tr><td>Cold start</td><td>Process the initial intent/URI exactly once and route into import review.</td></tr>
+<tr><td>Warm start / new intent</td><td>Handle a new delivered URI without requiring process death.</td></tr>
+<tr><td>Repeated URI</td><td>Do not create duplicate staging. Cancellation must not permanently make that URI impossible to re-open.</td></tr>
+<tr><td>Two files rapidly</td><td>Serialize import staging/review; do not silently overwrite one pending backup with another.</td></tr>
+<tr><td>Provider failure</td><td>Surface a read/parse failure and allow later retry.</td></tr>
+<tr><td><code>content://</code></td><td>Supported path for modern Android document providers.</td></tr>
+<tr><td><code>file://</code></td><td>Support safely or reject deterministically; never assume filesystem access from the URI alone.</td></tr>
+</tbody></table></div>
+<div class="callout">Content envelope validation is authoritative once the content arrives. Provider filename/MIME metadata helps Android discover the app but does not replace schema validation.</div>
+</section>
+
+<section id="export">
+<h2>16. Export semantics</h2>
+<p>Canonical export includes portable settings, all task records, descriptive <code>presetSections</code>, derived summary counts, and export metadata.</p>
+<ul><li>Task timestamps are canonicalized to UTC <code>Z</code>.</li><li>Suggested filename: <code>focusflow-2026-09-01T14-30-00.focusflow</code>.</li><li>Android transport uses SAF document creation and <code>application/octet-stream</code>.</li><li>Writing the file is successful when the provider write completes; automated readback verification is recommended.</li></ul>
+<h3>Do not export these as authoritative runtime state</h3><p>Active alarm registrations, active focus sessions, live notification permission/channel state, current foreground app, or the device's live blocking state are derived/local concerns.</p>
+</section>
+
+<section id="compat">
+<h2>17. Compatibility &amp; legacy fields</h2>
+<p>Older files may contain fields that are readable for compatibility but should not be generated for the current Kotlin target.</p>
+<div class="card"><span class="tag muted"><code>launcherPinnedPackages</code></span><span class="tag muted"><code>launcherDockPackages</code></span><span class="tag muted"><code>launcherClockStyle</code></span><span class="tag muted"><code>beginnerMode</code></span><span class="tag muted"><code>tipsCardDismissed</code></span><span class="tag muted"><code>tipsCardFirstShownAt</code></span><span class="tag muted"><code>lastShownStreakMilestone</code></span><span class="tag muted"><code>pendingAchievementCelebration</code></span><span class="tag muted"><code>pendingPresets</code></span></div>
+<p>These legacy keys are accepted/ignored for compatibility rather than promoted into new Kotlin behavior:</p>
+<div class="card"><table><thead><tr><th>Field</th><th>Compatibility action</th></tr></thead><tbody>
+<tr><td><code>launcherPinnedPackages</code></td><td>READ_IGNORE_LEGACY — accept where compatible, do not depend on a current Kotlin persistence target.</td></tr><tr><td><code>launcherDockPackages</code></td><td>READ_IGNORE_LEGACY — accept where compatible, do not depend on a current Kotlin persistence target.</td></tr><tr><td><code>launcherClockStyle</code></td><td>READ_IGNORE_LEGACY — accept where compatible, do not depend on a current Kotlin persistence target.</td></tr><tr><td><code>beginnerMode</code></td><td>READ_IGNORE_LEGACY — accept where compatible, do not depend on a current Kotlin persistence target.</td></tr><tr><td><code>tipsCardDismissed</code></td><td>READ_IGNORE_LEGACY — accept where compatible, do not depend on a current Kotlin persistence target.</td></tr><tr><td><code>tipsCardFirstShownAt</code></td><td>READ_IGNORE_LEGACY — accept where compatible, do not depend on a current Kotlin persistence target.</td></tr><tr><td><code>lastShownStreakMilestone</code></td><td>READ_IGNORE_LEGACY — accept where compatible, do not depend on a current Kotlin persistence target.</td></tr><tr><td><code>pendingAchievementCelebration</code></td><td>READ_IGNORE_LEGACY — accept where compatible, do not depend on a current Kotlin persistence target.</td></tr><tr><td><code>pendingPresets</code></td><td>READ_IGNORE_LEGACY — accept where compatible, do not depend on a current Kotlin persistence target.</td></tr>
+</tbody></table></div>
+<div class="callout warn"><strong>Unknown fields vs unknown enum values:</strong> extra optional fields may be tolerated, but an unknown enum must not silently acquire a default meaning.</div>
+</section>
+
+<section id="builder">
+<h2>18. Builder / generator rules</h2>
+<div class="split">
+<div class="card"><h3>Builder capabilities</h3><ol><li>Canonical starter template.</li><li>Full-feature example.</li><li>Validator using the published V1 rules.</li><li>Section-aware controls or reusable templates.</li><li>Human-readable validation errors.</li><li>Download with <code>.focusflow</code> extension.</li><li>No network upload.</li></ol></div>
+<div class="card"><h3>Generate canonical data, not merely accepted data</h3><ul><li>Always emit <code>version: 1</code>.</li><li>Emit canonical UTC <code>Z</code> timestamps.</li><li>Emit reminders as objects.</li><li>Calculate summary from payload.</li><li>Exclude runtime-only state.</li><li>Do not invent <code>notifId</code>.</li><li>Keep recurring schedules and greyout windows separate.</li><li>Preserve absent/null/empty <code>focusAllowedPackages</code> semantics.</li></ul></div>
+</div>
+<h3>Embedded quick builder</h3>
+<div class="card"><div class="codebar"><span class="kicker">Edit JSON → check → download</span><div><button id="loadMinimal">Load minimal</button> <button id="loadRich">Load full example</button> <button id="validateBtn">Validate</button> <button id="downloadBtn">Download .focusflow</button></div></div><textarea id="builderInput">{
+  &quot;kind&quot;: &quot;FocusFlowBackupV1&quot;,
+  &quot;version&quot;: 1,
+  &quot;exportedAt&quot;: &quot;2026-09-01T01:30:00.000Z&quot;,
+  &quot;exportedAtHuman&quot;: &quot;01/09/2026, 07:00:00&quot;,
+  &quot;platform&quot;: {
+    &quot;os&quot;: &quot;android&quot;
+  },
+  &quot;settings&quot;: {
+    &quot;defaultDuration&quot;: 60,
+    &quot;defaultReminderOffsets&quot;: [
+      -10,
+      -5,
+      0
+    ],
+    &quot;allowedInFocus&quot;: [
+      &quot;com.android.phone&quot;,
+      &quot;com.android.contacts&quot;,
+      &quot;com.example.music&quot;
+    ],
+    &quot;pomodoroDuration&quot;: 25,
+    &quot;pomodoroBreak&quot;: 5,
+    &quot;protectionMode&quot;: &quot;standard&quot;,
+    &quot;alwaysOnPackages&quot;: [],
+    &quot;alwaysOnVpnPackages&quot;: [],
+    &quot;focusMirrorVpnEnabled&quot;: false,
+    &quot;allowedAppPresets&quot;: [],
+    &quot;blockPresets&quot;: [],
+    &quot;dailyAllowanceEntries&quot;: [],
+    &quot;blockedWords&quot;: [],
+    &quot;weekStartDay&quot;: 0,
+    &quot;greyoutSchedule&quot;: [],
+    &quot;recurringBlockSchedules&quot;: [],
+    &quot;launcherTheme&quot;: &quot;glassy&quot;,
+    &quot;focusToolPackages&quot;: [],
+    &quot;launcherHiddenPackages&quot;: [],
+    &quot;launcherBlockUninstall&quot;: false,
+    &quot;launcherLockDuringStandalone&quot;: true,
+    &quot;keepFocusActiveUntilTaskEnd&quot;: true,
+    &quot;autoRescheduleEnabled&quot;: false,
+    &quot;overlayQuotes&quot;: [],
+    &quot;userProfile&quot;: {
+      &quot;name&quot;: &quot;Example User&quot;,
+      &quot;focusSessionLength&quot;: 60,
+      &quot;breakStyle&quot;: &quot;short_frequent&quot;
+    }
+  },
+  &quot;tasks&quot;: [
+    {
+      &quot;id&quot;: &quot;task-example-001&quot;,
+      &quot;title&quot;: &quot;Plan the week&quot;,
+      &quot;description&quot;: &quot;Choose the three most important tasks.&quot;,
+      &quot;startTime&quot;: &quot;2026-09-01T01:30:00.000Z&quot;,
+      &quot;endTime&quot;: &quot;2026-09-01T02:30:00.000Z&quot;,
+      &quot;durationMinutes&quot;: 60,
+      &quot;status&quot;: &quot;scheduled&quot;,
+      &quot;priority&quot;: &quot;medium&quot;,
+      &quot;tags&quot;: [
+        &quot;planning&quot;
+      ],
+      &quot;reminders&quot;: [
+        {
+          &quot;id&quot;: &quot;reminder-example-001&quot;,
+          &quot;taskId&quot;: &quot;task-example-001&quot;,
+          &quot;offsetMinutes&quot;: -5,
+          &quot;type&quot;: &quot;pre-start&quot;
+        }
+      ],
+      &quot;color&quot;: &quot;#3b82f6&quot;,
+      &quot;focusMode&quot;: true,
+      &quot;createdAt&quot;: &quot;2026-08-31T05:00:00.000Z&quot;,
+      &quot;updatedAt&quot;: &quot;2026-08-31T05:00:00.000Z&quot;
+    }
+  ],
+  &quot;presetSections&quot;: [],
+  &quot;summary&quot;: {
+    &quot;taskCount&quot;: 1,
+    &quot;blockedWordCount&quot;: 0,
+    &quot;greyoutWindowCount&quot;: 0,
+    &quot;dailyAllowanceCount&quot;: 0
+  }
+}</textarea><div id="builderStatus" class="status">Ready.</div></div>
+<p class="small">The embedded checker is intentionally client-side. Production FocusFlow readers still need bounded byte reading, strict UTF-8 decoding, duplicate-key detection, parser limits, version migration, and the durable restore flow described elsewhere on this page.</p>
+</section>
+
+<section id="examples">
+<h2>19. Canonical examples</h2>
+<h3>Minimal canonical example</h3>
+<pre>{
+  &quot;kind&quot;: &quot;FocusFlowBackupV1&quot;,
+  &quot;version&quot;: 1,
+  &quot;exportedAt&quot;: &quot;2026-09-01T01:30:00.000Z&quot;,
+  &quot;exportedAtHuman&quot;: &quot;01/09/2026, 07:00:00&quot;,
+  &quot;platform&quot;: {
+    &quot;os&quot;: &quot;android&quot;
+  },
+  &quot;settings&quot;: {
+    &quot;defaultDuration&quot;: 60,
+    &quot;defaultReminderOffsets&quot;: [
+      -10,
+      -5,
+      0
+    ],
+    &quot;allowedInFocus&quot;: [
+      &quot;com.android.phone&quot;,
+      &quot;com.android.contacts&quot;,
+      &quot;com.example.music&quot;
+    ],
+    &quot;pomodoroDuration&quot;: 25,
+    &quot;pomodoroBreak&quot;: 5,
+    &quot;protectionMode&quot;: &quot;standard&quot;,
+    &quot;alwaysOnPackages&quot;: [],
+    &quot;alwaysOnVpnPackages&quot;: [],
+    &quot;focusMirrorVpnEnabled&quot;: false,
+    &quot;allowedAppPresets&quot;: [],
+    &quot;blockPresets&quot;: [],
+    &quot;dailyAllowanceEntries&quot;: [],
+    &quot;blockedWords&quot;: [],
+    &quot;weekStartDay&quot;: 0,
+    &quot;greyoutSchedule&quot;: [],
+    &quot;recurringBlockSchedules&quot;: [],
+    &quot;launcherTheme&quot;: &quot;glassy&quot;,
+    &quot;focusToolPackages&quot;: [],
+    &quot;launcherHiddenPackages&quot;: [],
+    &quot;launcherBlockUninstall&quot;: false,
+    &quot;launcherLockDuringStandalone&quot;: true,
+    &quot;keepFocusActiveUntilTaskEnd&quot;: true,
+    &quot;autoRescheduleEnabled&quot;: false,
+    &quot;overlayQuotes&quot;: [],
+    &quot;userProfile&quot;: {
+      &quot;name&quot;: &quot;Example User&quot;,
+      &quot;focusSessionLength&quot;: 60,
+      &quot;breakStyle&quot;: &quot;short_frequent&quot;
+    }
+  },
+  &quot;tasks&quot;: [
+    {
+      &quot;id&quot;: &quot;task-example-001&quot;,
+      &quot;title&quot;: &quot;Plan the week&quot;,
+      &quot;description&quot;: &quot;Choose the three most important tasks.&quot;,
+      &quot;startTime&quot;: &quot;2026-09-01T01:30:00.000Z&quot;,
+      &quot;endTime&quot;: &quot;2026-09-01T02:30:00.000Z&quot;,
+      &quot;durationMinutes&quot;: 60,
+      &quot;status&quot;: &quot;scheduled&quot;,
+      &quot;priority&quot;: &quot;medium&quot;,
+      &quot;tags&quot;: [
+        &quot;planning&quot;
+      ],
+      &quot;reminders&quot;: [
+        {
+          &quot;id&quot;: &quot;reminder-example-001&quot;,
+          &quot;taskId&quot;: &quot;task-example-001&quot;,
+          &quot;offsetMinutes&quot;: -5,
+          &quot;type&quot;: &quot;pre-start&quot;
+        }
+      ],
+      &quot;color&quot;: &quot;#3b82f6&quot;,
+      &quot;focusMode&quot;: true,
+      &quot;createdAt&quot;: &quot;2026-08-31T05:00:00.000Z&quot;,
+      &quot;updatedAt&quot;: &quot;2026-08-31T05:00:00.000Z&quot;
+    }
+  ],
+  &quot;presetSections&quot;: [],
+  &quot;summary&quot;: {
+    &quot;taskCount&quot;: 1,
+    &quot;blockedWordCount&quot;: 0,
+    &quot;greyoutWindowCount&quot;: 0,
+    &quot;dailyAllowanceCount&quot;: 0
+  }
+}</pre>
+<h3>Full-feature canonical example</h3>
+<pre id="rich-json">{
+  &quot;kind&quot;: &quot;FocusFlowBackupV1&quot;,
+  &quot;version&quot;: 1,
+  &quot;exportedAt&quot;: &quot;2026-10-01T05:30:00.000Z&quot;,
+  &quot;exportedAtHuman&quot;: &quot;01/10/2026, 11:00:00&quot;,
+  &quot;appVersion&quot;: &quot;1.0.6&quot;,
+  &quot;platform&quot;: {
+    &quot;os&quot;: &quot;android&quot;
+  },
+  &quot;settings&quot;: {
+    &quot;darkMode&quot;: true,
+    &quot;defaultDuration&quot;: 60,
+    &quot;defaultReminderOffsets&quot;: [
+      -10,
+      -5,
+      0
+    ],
+    &quot;allowedInFocus&quot;: [
+      &quot;com.android.phone&quot;,
+      &quot;com.android.contacts&quot;,
+      &quot;com.example.music&quot;
+    ],
+    &quot;pomodoroDuration&quot;: 25,
+    &quot;pomodoroBreak&quot;: 5,
+    &quot;protectionMode&quot;: &quot;iron&quot;,
+    &quot;alwaysOnPackages&quot;: [
+      &quot;com.example.notes&quot;
+    ],
+    &quot;alwaysOnVpnPackages&quot;: [
+      &quot;com.example.music&quot;
+    ],
+    &quot;focusMirrorVpnEnabled&quot;: false,
+    &quot;allowedAppPresets&quot;: [
+      {
+        &quot;id&quot;: &quot;study-tools&quot;,
+        &quot;name&quot;: &quot;Study tools&quot;,
+        &quot;packages&quot;: [
+          &quot;com.example.notes&quot;,
+          &quot;com.example.reader&quot;
+        ]
+      }
+    ],
+    &quot;blockPresets&quot;: [
+      {
+        &quot;id&quot;: &quot;social&quot;,
+        &quot;name&quot;: &quot;Social apps&quot;,
+        &quot;packages&quot;: [
+          &quot;com.instagram.android&quot;,
+          &quot;com.reddit.frontpage&quot;
+        ]
+      }
+    ],
+    &quot;dailyAllowanceEntries&quot;: [
+      {
+        &quot;packageName&quot;: &quot;com.example.video&quot;,
+        &quot;mode&quot;: &quot;count&quot;,
+        &quot;countPerDay&quot;: 3
+      },
+      {
+        &quot;packageName&quot;: &quot;com.example.social&quot;,
+        &quot;mode&quot;: &quot;time_budget&quot;,
+        &quot;budgetMinutes&quot;: 30
+      },
+      {
+        &quot;packageName&quot;: &quot;com.example.browser&quot;,
+        &quot;mode&quot;: &quot;interval&quot;,
+        &quot;intervalMinutes&quot;: 5,
+        &quot;intervalHours&quot;: 1
+      }
+    ],
+    &quot;blockedWords&quot;: [
+      &quot;shorts&quot;,
+      &quot;reels&quot;,
+      &quot;doomscroll&quot;
+    ],
+    &quot;weekStartDay&quot;: 1,
+    &quot;greyoutSchedule&quot;: [
+      {
+        &quot;pkg&quot;: &quot;com.example.video&quot;,
+        &quot;pkgs&quot;: [
+          &quot;com.example.video&quot;
+        ],
+        &quot;startHour&quot;: 9,
+        &quot;startMin&quot;: 0,
+        &quot;endHour&quot;: 10,
+        &quot;endMin&quot;: 0,
+        &quot;days&quot;: [
+          2
+        ],
+        &quot;vpnEnabled&quot;: false
+      }
+    ],
+    &quot;recurringBlockSchedules&quot;: [
+      {
+        &quot;id&quot;: &quot;evening&quot;,
+        &quot;name&quot;: &quot;Evening block&quot;,
+        &quot;packages&quot;: [
+          &quot;com.example.social&quot;
+        ],
+        &quot;days&quot;: [
+          1,
+          3,
+          5
+        ],
+        &quot;startHour&quot;: 21,
+        &quot;startMin&quot;: 0,
+        &quot;endHour&quot;: 22,
+        &quot;endMin&quot;: 30,
+        &quot;enabled&quot;: true,
+        &quot;vpnEnabled&quot;: false,
+        &quot;vpnPackages&quot;: []
+      }
+    ],
+    &quot;launcherTheme&quot;: &quot;glassy&quot;,
+    &quot;focusToolPackages&quot;: [
+      &quot;com.example.notes&quot;
+    ],
+    &quot;launcherHiddenPackages&quot;: [
+      &quot;com.example.video&quot;
+    ],
+    &quot;launcherBlockUninstall&quot;: false,
+    &quot;launcherLockDuringStandalone&quot;: true,
+    &quot;keepFocusActiveUntilTaskEnd&quot;: true,
+    &quot;autoRescheduleEnabled&quot;: true,
+    &quot;overlayQuotes&quot;: [
+      &quot;Do the next right thing.&quot;,
+      &quot;Protect the hour.&quot;
+    ],
+    &quot;userProfile&quot;: {
+      &quot;name&quot;: &quot;Example User&quot;,
+      &quot;occupation&quot;: &quot;Developer&quot;,
+      &quot;dailyGoalHours&quot;: 6,
+      &quot;wakeUpTime&quot;: &quot;06:30&quot;,
+      &quot;focusGoals&quot;: [
+        &quot;Deep work&quot;,
+        &quot;Learning&quot;
+      ],
+      &quot;sleepTime&quot;: &quot;23:00&quot;,
+      &quot;chronotype&quot;: &quot;morning&quot;,
+      &quot;focusSessionLength&quot;: 60,
+      &quot;breakStyle&quot;: &quot;balanced&quot;,
+      &quot;distractionTriggers&quot;: [
+        &quot;social apps&quot;
+      ],
+      &quot;motivationStyle&quot;: [
+        &quot;progress&quot;,
+        &quot;consistency&quot;
+      ],
+      &quot;weeklyReviewDay&quot;: &quot;sun&quot;
+    }
+  },
+  &quot;tasks&quot;: [
+    {
+      &quot;id&quot;: &quot;task-completed-001&quot;,
+      &quot;title&quot;: &quot;Review architecture&quot;,
+      &quot;description&quot;: &quot;Check the import pipeline against the canonical contract.&quot;,
+      &quot;startTime&quot;: &quot;2026-09-25T04:00:00.000Z&quot;,
+      &quot;endTime&quot;: &quot;2026-09-25T05:00:00.000Z&quot;,
+      &quot;durationMinutes&quot;: 60,
+      &quot;status&quot;: &quot;completed&quot;,
+      &quot;priority&quot;: &quot;high&quot;,
+      &quot;tags&quot;: [
+        &quot;architecture&quot;,
+        &quot;review&quot;
+      ],
+      &quot;reminders&quot;: [],
+      &quot;color&quot;: &quot;#22c55e&quot;,
+      &quot;focusMode&quot;: true,
+      &quot;createdAt&quot;: &quot;2026-09-24T08:00:00.000Z&quot;,
+      &quot;updatedAt&quot;: &quot;2026-09-25T05:05:00.000Z&quot;
+    },
+    {
+      &quot;id&quot;: &quot;task-future-001&quot;,
+      &quot;title&quot;: &quot;Implement restore planner&quot;,
+      &quot;description&quot;: &quot;Build deterministic normalization and conflict planning.&quot;,
+      &quot;startTime&quot;: &quot;2026-10-05T04:00:00.000Z&quot;,
+      &quot;endTime&quot;: &quot;2026-10-05T05:30:00.000Z&quot;,
+      &quot;durationMinutes&quot;: 90,
+      &quot;status&quot;: &quot;scheduled&quot;,
+      &quot;priority&quot;: &quot;critical&quot;,
+      &quot;tags&quot;: [
+        &quot;kotlin&quot;,
+        &quot;restore&quot;,
+        &quot;focusflow&quot;
+      ],
+      &quot;reminders&quot;: [
+        {
+          &quot;id&quot;: &quot;reminder-future-001&quot;,
+          &quot;taskId&quot;: &quot;task-future-001&quot;,
+          &quot;offsetMinutes&quot;: -10,
+          &quot;type&quot;: &quot;pre-start&quot;
+        },
+        {
+          &quot;id&quot;: &quot;reminder-future-002&quot;,
+          &quot;taskId&quot;: &quot;task-future-001&quot;,
+          &quot;offsetMinutes&quot;: 0,
+          &quot;type&quot;: &quot;at-start&quot;
+        }
+      ],
+      &quot;color&quot;: &quot;#3b82f6&quot;,
+      &quot;focusMode&quot;: true,
+      &quot;focusAllowedPackages&quot;: [
+        &quot;com.example.notes&quot;,
+        &quot;com.example.reader&quot;
+      ],
+      &quot;createdAt&quot;: &quot;2026-10-01T05:00:00.000Z&quot;,
+      &quot;updatedAt&quot;: &quot;2026-10-01T05:10:00.000Z&quot;
+    }
+  ],
+  &quot;presetSections&quot;: [
+    {
+      &quot;id&quot;: &quot;focus-mode&quot;,
+      &quot;name&quot;: &quot;Focus Mode&quot;,
+      &quot;configured&quot;: true,
+      &quot;appPackages&quot;: [
+        &quot;com.example.notes&quot;,
+        &quot;com.example.reader&quot;
+      ],
+      &quot;itemCount&quot;: 1,
+      &quot;details&quot;: {
+        &quot;allowedAppPresets&quot;: [
+          &quot;study-tools&quot;
+        ]
+      }
+    },
+    {
+      &quot;id&quot;: &quot;daily-allowance&quot;,
+      &quot;name&quot;: &quot;Daily Allowance&quot;,
+      &quot;configured&quot;: true,
+      &quot;appPackages&quot;: [
+        &quot;com.example.video&quot;,
+        &quot;com.example.social&quot;,
+        &quot;com.example.browser&quot;
+      ],
+      &quot;itemCount&quot;: 3
+    },
+    {
+      &quot;id&quot;: &quot;block-schedules&quot;,
+      &quot;name&quot;: &quot;Block Schedules&quot;,
+      &quot;configured&quot;: true,
+      &quot;appPackages&quot;: [
+        &quot;com.example.social&quot;
+      ],
+      &quot;itemCount&quot;: 1
+    },
+    {
+      &quot;id&quot;: &quot;keyword-blocker&quot;,
+      &quot;name&quot;: &quot;Keyword Blocker&quot;,
+      &quot;configured&quot;: true,
+      &quot;itemCount&quot;: 3
+    }
+  ],
+  &quot;summary&quot;: {
+    &quot;taskCount&quot;: 2,
+    &quot;blockedWordCount&quot;: 3,
+    &quot;greyoutWindowCount&quot;: 1,
+    &quot;dailyAllowanceCount&quot;: 3
+  }
+}</pre>
+<div class="callout ok"><strong>Example properties:</strong> the full example contains multiple task statuses, reminders, task-specific focus allow-list, all three allowance modes, presets, a recurring schedule, a separate greyout window, blocked words, Always-On data, VPN package data, profile data, launcher settings, and correct summary counts.</div>
+</section>
+
+<section id="pitfalls">
+<h2>20. Do-not-make-these-mistakes</h2>
+<div class="card"><div class="check"><span>✓</span><div>Do not turn <code>.focusflow</code> into a ZIP, SQLite dump, or binary database backup.</div></div>
+<div class="check"><span>✓</span><div>Do not replace public TS-stable wire names with Kotlin internal property names.</div></div>
+<div class="check"><span>✓</span><div>Do not encode reminders as integer offsets.</div></div>
+<div class="check"><span>✓</span><div>Do not use <code>presetSections</code> as live activation instructions.</div></div>
+<div class="check"><span>✓</span><div>Do not serialize the active focus session as if it were portable.</div></div>
+<div class="check"><span>✓</span><div>Do not treat AlarmManager registrations as persistent backup truth.</div></div>
+<div class="check"><span>✓</span><div>Do not invent notification IDs to make reminder objects look complete.</div></div>
+<div class="check"><span>✓</span><div>Do not merge <code>greyoutSchedule</code> and <code>recurringBlockSchedules</code>.</div></div>
+<div class="check"><span>✓</span><div>Do not use <code>summary</code> as the source of truth.</div></div>
+<div class="check"><span>✓</span><div>Do not use app labels as package identity.</div></div>
+<div class="check"><span>✓</span><div>Do not casually emit an empty <code>focusAllowedPackages</code> list.</div></div>
+<div class="check"><span>✓</span><div>Do not claim every persisted Reminder object directly schedules one Android notification.</div></div>
+<div class="check"><span>✓</span><div>Do not silently reinterpret unsupported legacy settings as active Kotlin features.</div></div>
+<div class="check"><span>✓</span><div>Do not claim import restores live alarms or active blocking sessions verbatim.</div></div></div>
+</section>
+
+<section id="acceptance">
+<h2>21. Acceptance checklist</h2>
+<div class="card"><div class="check"><span>✓</span><div>UTF-8 decode succeeds without replacement characters.</div></div>
+<div class="check"><span>✓</span><div>Standard JSON parses; no comments or trailing commas.</div></div>
+<div class="check"><span>✓</span><div>No duplicate object keys.</div></div>
+<div class="check"><span>✓</span><div>Top-level value is an object.</div></div>
+<div class="check"><span>✓</span><div><code>kind === "FocusFlowBackupV1"</code>.</div></div>
+<div class="check"><span>✓</span><div><code>version === 1</code> for generated files.</div></div>
+<div class="check"><span>✓</span><div><code>settings</code> is an object and <code>tasks</code> is an array.</div></div>
+<div class="check"><span>✓</span><div>Task IDs are unique within the file.</div></div>
+<div class="check"><span>✓</span><div>All task timestamps are valid instants.</div></div>
+<div class="check"><span>✓</span><div><code>endTime >= startTime</code> and <code>durationMinutes</code> matches the timestamp difference.</div></div>
+<div class="check"><span>✓</span><div>Task statuses/priorities and nested enums are known values.</div></div>
+<div class="check"><span>✓</span><div>Reminders are valid objects whose <code>taskId</code> references the parent task.</div></div>
+<div class="check"><span>✓</span><div>Package strings use exact Android IDs and obey length/list limits.</div></div>
+<div class="check"><span>✓</span><div>Resource limits are respected.</div></div>
+<div class="check"><span>✓</span><div>Summary counts are derived from payload.</div></div>
+<div class="check"><span>✓</span><div>No runtime-only state is being used as portable state.</div></div>
+<div class="check"><span>✓</span><div><code>presetSections</code> are descriptive and consistent with the payload.</div></div></div>
+</section>
+
+<section id="meaning">
+<h2>22. What “valid” actually means</h2>
+<div class="split">
+<div class="card"><div class="kicker">Format valid</div><p>JSON and schema constraints pass.</p></div>
+<div class="card"><div class="kicker">Import safe</div><p>The content can be normalized and planned without malformed/unsupported restore behavior.</p></div>
+</div>
+<div class="card"><div class="kicker">Product semantically correct</div><p>The fields describe the intended FocusFlow behavior: portable persistence is portable, runtime state stays local, derived scheduling is rebuilt, and package/schedule/time semantics are preserved.</p></div>
+<p>The third level is the actual target for canonical files and builders.</p>
+</section>
+
+<footer>
+  <p><strong>FocusFlow .focusflow V1 — unified reference.</strong> Keep this page and any interactive builder synchronized. When the V1 wire contract changes, update the canonical specification first, then the reference and validator together.</p>
+  <p class="small">The page intentionally separates file semantics from Android runtime behavior. OS registration, notification presentation, exact-alarm capability, and full-screen intent behavior are derived platform state; they are not portable file fields.</p>
+</footer>
+
+</main></div></div>
+<script>
+const minimal = {"kind": "FocusFlowBackupV1", "version": 1, "exportedAt": "2026-09-01T01:30:00.000Z", "exportedAtHuman": "01/09/2026, 07:00:00", "platform": {"os": "android"}, "settings": {"defaultDuration": 60, "defaultReminderOffsets": [-10, -5, 0], "allowedInFocus": ["com.android.phone", "com.android.contacts", "com.example.music"], "pomodoroDuration": 25, "pomodoroBreak": 5, "protectionMode": "standard", "alwaysOnPackages": [], "alwaysOnVpnPackages": [], "focusMirrorVpnEnabled": false, "allowedAppPresets": [], "blockPresets": [], "dailyAllowanceEntries": [], "blockedWords": [], "weekStartDay": 0, "greyoutSchedule": [], "recurringBlockSchedules": [], "launcherTheme": "glassy", "focusToolPackages": [], "launcherHiddenPackages": [], "launcherBlockUninstall": false, "launcherLockDuringStandalone": true, "keepFocusActiveUntilTaskEnd": true, "autoRescheduleEnabled": false, "overlayQuotes": [], "userProfile": {"name": "Example User", "focusSessionLength": 60, "breakStyle": "short_frequent"}}, "tasks": [{"id": "task-example-001", "title": "Plan the week", "description": "Choose the three most important tasks.", "startTime": "2026-09-01T01:30:00.000Z", "endTime": "2026-09-01T02:30:00.000Z", "durationMinutes": 60, "status": "scheduled", "priority": "medium", "tags": ["planning"], "reminders": [{"id": "reminder-example-001", "taskId": "task-example-001", "offsetMinutes": -5, "type": "pre-start"}], "color": "#3b82f6", "focusMode": true, "createdAt": "2026-08-31T05:00:00.000Z", "updatedAt": "2026-08-31T05:00:00.000Z"}], "presetSections": [], "summary": {"taskCount": 1, "blockedWordCount": 0, "greyoutWindowCount": 0, "dailyAllowanceCount": 0}};
+const rich = {"kind": "FocusFlowBackupV1", "version": 1, "exportedAt": "2026-10-01T05:30:00.000Z", "exportedAtHuman": "01/10/2026, 11:00:00", "appVersion": "1.0.6", "platform": {"os": "android"}, "settings": {"darkMode": true, "defaultDuration": 60, "defaultReminderOffsets": [-10, -5, 0], "allowedInFocus": ["com.android.phone", "com.android.contacts", "com.example.music"], "pomodoroDuration": 25, "pomodoroBreak": 5, "protectionMode": "iron", "alwaysOnPackages": ["com.example.notes"], "alwaysOnVpnPackages": ["com.example.music"], "focusMirrorVpnEnabled": false, "allowedAppPresets": [{"id": "study-tools", "name": "Study tools", "packages": ["com.example.notes", "com.example.reader"]}], "blockPresets": [{"id": "social", "name": "Social apps", "packages": ["com.instagram.android", "com.reddit.frontpage"]}], "dailyAllowanceEntries": [{"packageName": "com.example.video", "mode": "count", "countPerDay": 3}, {"packageName": "com.example.social", "mode": "time_budget", "budgetMinutes": 30}, {"packageName": "com.example.browser", "mode": "interval", "intervalMinutes": 5, "intervalHours": 1}], "blockedWords": ["shorts", "reels", "doomscroll"], "weekStartDay": 1, "greyoutSchedule": [{"pkg": "com.example.video", "pkgs": ["com.example.video"], "startHour": 9, "startMin": 0, "endHour": 10, "endMin": 0, "days": [2], "vpnEnabled": false}], "recurringBlockSchedules": [{"id": "evening", "name": "Evening block", "packages": ["com.example.social"], "days": [1, 3, 5], "startHour": 21, "startMin": 0, "endHour": 22, "endMin": 30, "enabled": true, "vpnEnabled": false, "vpnPackages": []}], "launcherTheme": "glassy", "focusToolPackages": ["com.example.notes"], "launcherHiddenPackages": ["com.example.video"], "launcherBlockUninstall": false, "launcherLockDuringStandalone": true, "keepFocusActiveUntilTaskEnd": true, "autoRescheduleEnabled": true, "overlayQuotes": ["Do the next right thing.", "Protect the hour."], "userProfile": {"name": "Example User", "occupation": "Developer", "dailyGoalHours": 6, "wakeUpTime": "06:30", "focusGoals": ["Deep work", "Learning"], "sleepTime": "23:00", "chronotype": "morning", "focusSessionLength": 60, "breakStyle": "balanced", "distractionTriggers": ["social apps"], "motivationStyle": ["progress", "consistency"], "weeklyReviewDay": "sun"}}, "tasks": [{"id": "task-completed-001", "title": "Review architecture", "description": "Check the import pipeline against the canonical contract.", "startTime": "2026-09-25T04:00:00.000Z", "endTime": "2026-09-25T05:00:00.000Z", "durationMinutes": 60, "status": "completed", "priority": "high", "tags": ["architecture", "review"], "reminders": [], "color": "#22c55e", "focusMode": true, "createdAt": "2026-09-24T08:00:00.000Z", "updatedAt": "2026-09-25T05:05:00.000Z"}, {"id": "task-future-001", "title": "Implement restore planner", "description": "Build deterministic normalization and conflict planning.", "startTime": "2026-10-05T04:00:00.000Z", "endTime": "2026-10-05T05:30:00.000Z", "durationMinutes": 90, "status": "scheduled", "priority": "critical", "tags": ["kotlin", "restore", "focusflow"], "reminders": [{"id": "reminder-future-001", "taskId": "task-future-001", "offsetMinutes": -10, "type": "pre-start"}, {"id": "reminder-future-002", "taskId": "task-future-001", "offsetMinutes": 0, "type": "at-start"}], "color": "#3b82f6", "focusMode": true, "focusAllowedPackages": ["com.example.notes", "com.example.reader"], "createdAt": "2026-10-01T05:00:00.000Z", "updatedAt": "2026-10-01T05:10:00.000Z"}], "presetSections": [{"id": "focus-mode", "name": "Focus Mode", "configured": true, "appPackages": ["com.example.notes", "com.example.reader"], "itemCount": 1, "details": {"allowedAppPresets": ["study-tools"]}}, {"id": "daily-allowance", "name": "Daily Allowance", "configured": true, "appPackages": ["com.example.video", "com.example.social", "com.example.browser"], "itemCount": 3}, {"id": "block-schedules", "name": "Block Schedules", "configured": true, "appPackages": ["com.example.social"], "itemCount": 1}, {"id": "keyword-blocker", "name": "Keyword Blocker", "configured": true, "itemCount": 3}], "summary": {"taskCount": 2, "blockedWordCount": 3, "greyoutWindowCount": 1, "dailyAllowanceCount": 3}};
+function pretty(x) { return JSON.stringify(x, null, 2); }
+function setStatus(msg, good) { const el=document.getElementById('builderStatus'); el.textContent=msg; el.className='status ' + (good?'good':'bad'); }
+function validateQuick(text) {
+  let x;
+  try { x=JSON.parse(text); } catch(e) { return ['Invalid JSON: '+e.message]; }
+  const errors=[];
+  if (!x || typeof x!=='object' || Array.isArray(x)) errors.push('Top-level value must be an object.');
+  if (x.kind!=='FocusFlowBackupV1') errors.push('kind must be FocusFlowBackupV1.');
+  if (x.version!==1) errors.push('Generated files must set version to 1.');
+  if (!x.settings || typeof x.settings!=='object' || Array.isArray(x.settings)) errors.push('settings must be an object.');
+  if (!Array.isArray(x.tasks)) errors.push('tasks must be an array.');
+  if (Array.isArray(x.tasks)) {
+    const ids=new Set();
+    for (let i=0;i<x.tasks.length;i++) {
+      const t=x.tasks[i];
+      if (!t || typeof t!=='object' || Array.isArray(t)) { errors.push('tasks['+i+'] must be an object.'); continue; }
+      if (typeof t.id!=='string' || !t.id.trim()) errors.push('tasks['+i+'].id must be non-blank.');
+      else if (ids.has(t.id)) errors.push('Duplicate task id: '+t.id);
+      else ids.add(t.id);
+      if (typeof t.title!=='string' || !t.title.trim()) errors.push('tasks['+i+'].title must be non-blank.');
+      const st=Date.parse(t.startTime), et=Date.parse(t.endTime);
+      if (!Number.isFinite(st) || !Number.isFinite(et)) errors.push('tasks['+i+'] has invalid startTime/endTime.');
+      else if (et<st) errors.push('tasks['+i+'].endTime is before startTime.');
+      else if (Number.isInteger(t.durationMinutes) && t.durationMinutes !== Math.round((et-st)/60000)) errors.push('tasks['+i+'].durationMinutes does not match timestamps.');
+      const allowedStatus=['scheduled','active','completed','skipped','overdue'];
+      const allowedPriority=['low','medium','high','critical'];
+      if (!allowedStatus.includes(t.status)) errors.push('tasks['+i+'].status is invalid.');
+      if (!allowedPriority.includes(t.priority)) errors.push('tasks['+i+'].priority is invalid.');
+      if (t.reminders!==undefined && !Array.isArray(t.reminders)) errors.push('tasks['+i+'].reminders must be an array.');
+      if (Array.isArray(t.reminders)) for (const [j,r] of t.reminders.entries()) { if (!r || typeof r!=='object' || Array.isArray(r)) errors.push('tasks['+i+'].reminders['+j+'] must be an object.'); else if (r.taskId!==t.id) errors.push('Reminder taskId mismatch in tasks['+i+'].'); }
+    }
+  }
+  if (x.summary && Array.isArray(x.tasks) && x.summary.taskCount!==x.tasks.length) errors.push('summary.taskCount does not equal tasks.length.');
+  return errors;
+}
+document.querySelectorAll('button[data-copy]').forEach(btn=>btn.addEventListener('click',()=>{
+  const el=document.getElementById(btn.dataset.copy); navigator.clipboard?.writeText(el.textContent); btn.textContent='Copied'; setTimeout(()=>btn.textContent='Copy',900);
+}));
+document.getElementById('loadMinimal').onclick=()=>document.getElementById('builderInput').value=pretty(minimal);
+document.getElementById('loadRich').onclick=()=>document.getElementById('builderInput').value=pretty(rich);
+document.getElementById('validateBtn').onclick=()=>{ const errs=validateQuick(document.getElementById('builderInput').value); setStatus(errs.length?'Not valid for quick checks: '+errs.join(' '):'Quick validation passed. For production parity, also enforce UTF-8/duplicate-key/limit checks before import.',!errs.length); };
+document.getElementById('downloadBtn').onclick=()=>{
+  const text=document.getElementById('builderInput').value; const errs=validateQuick(text); if (errs.length) { setStatus('Fix validation errors before downloading: '+errs.join(' '),false); return; }
+  const blob=new Blob([text],{type:'application/octet-stream'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='focusflow-'+new Date().toISOString().slice(0,19).replaceAll(':','-')+'.focusflow'; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+};
+document.getElementById('navSearch').addEventListener('input',e=>{ const q=e.target.value.toLowerCase(); document.querySelectorAll('#toc li').forEach(li=>li.style.display=li.textContent.toLowerCase().includes(q)?'':'none'); });
+</script>
+</body></html>
