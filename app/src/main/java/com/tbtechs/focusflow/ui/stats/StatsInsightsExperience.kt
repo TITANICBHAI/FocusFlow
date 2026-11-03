@@ -167,13 +167,20 @@ fun StatsInsightsExperience(
                                 weeklyStandout?.let { InsightCardView(it) }
                             }
                             DataHealthNotice(loaded)
+                            // Phone usage alone is enough to show Stats: nothing here may
+                            // depend on the person having tasks or focus sessions.
+                            val hasPhoneUsage = loaded.phoneUsage?.apps?.isNotEmpty() == true
                             val isEmpty = loaded.tasks.total == 0 &&
                                 loaded.sessions.total == 0 &&
-                                loaded.blocking.totalAttempts == 0
+                                loaded.blocking.totalAttempts == 0 &&
+                                !hasPhoneUsage
                             if (isEmpty) {
                                 EmptyStatsState(window)
                             } else {
-                                FocusTimeHero(loaded)
+                                if (loaded.tasks.total > 0 || loaded.sessions.total > 0) {
+                                    FocusTimeHero(loaded)
+                                }
+                                PhoneTimeCard(loaded, onOpenQuickBlock)
                                 insights
                                     .filter {
                                         it.id != weeklyStandout?.id &&
@@ -211,9 +218,7 @@ fun StatsInsightsExperience(
                                 }
                                 TemptationStats(loaded, onOpenQuickBlock)
                             }
-                            if (window != ANALYTICS_THREE_MONTHS) {
-                                achievements?.let { AchievementRow(it, loaded, lifetime) }
-                            }
+                            StatsReadinessSection()
                             FindingsSection(
                                 activeFindings = activeFindings,
                                 pendingQuestion = pendingQuestion,
@@ -223,7 +228,11 @@ fun StatsInsightsExperience(
                                 onIntentional = statsViewModel::acknowledgeFindingIntentional,
                                 onAware = statsViewModel::acknowledgeFindingAware,
                                 onAnswerQuestion = statsViewModel::answerClarifyingQuestion,
+                                onBlockApp = onOpenQuickBlock,
                             )
+                            if (window != ANALYTICS_THREE_MONTHS) {
+                                achievements?.let { AchievementRow(it, loaded, lifetime) }
+                            }
                         }
                     }
                 }

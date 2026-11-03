@@ -27,6 +27,6 @@ fun EmptyStatsState(window: AnalyticsWindow) = StatsCard {
             else -> "No activity recorded this week"
         }
         Text(title, style = MaterialTheme.typography.titleMedium)
-        Text("Insights will appear here once FocusFlow has a task, session, or blocked-app attempt to read.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("Insights will appear here once FocusFlow can read your phone-use history, or has a task, session, or blocked-app attempt to read.", color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

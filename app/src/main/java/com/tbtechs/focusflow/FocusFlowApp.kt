@@ -60,6 +60,7 @@ class FocusFlowApp : Application() {
         StartupLogger.info("Notifications", "Creating application notification channels")
         NotificationChannels.createAll(this)
         DayRatingNotificationScheduler.ensureScheduled(this)
+        com.tbtechs.focusflow.notifications.HabitNudgeScheduler.rescheduleAsync(this)
         UsageMaintenanceWorker.enqueuePeriodic(this)
         AppModule.usageRollupCoordinator.trigger("app_open")
         StartupLogger.info("FocusFlowApp", "Application startup completed")

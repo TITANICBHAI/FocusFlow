@@ -56,6 +56,9 @@ class UsageMaintenanceWorker(
 
             override suspend fun runDetection(today: LocalDate, zoneId: ZoneId) {
                 AppModule.findingDetectionRunner.runAll()
+                runCatching {
+                    com.tbtechs.focusflow.notifications.HabitNudgeScheduler.reschedule(applicationContext)
+                }
             }
 
             override suspend fun prune(cutoffDate: LocalDate, cutoffInstant: Instant) {

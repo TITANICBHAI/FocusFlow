@@ -111,6 +111,7 @@ class BootReceiver : BroadcastReceiver() {
         // Always recreate the alarm: AlarmManager alarms are cleared by reboot,
         // but the scheduler's persisted metadata survives.
         DayRatingNotificationScheduler.ensureScheduled(context)
+        com.tbtechs.focusflow.notifications.HabitNudgeScheduler.rescheduleAsync(context)
 
         if (sessionValid && endTimeMs > 0L) {
             // ── Restart in ACTIVE focus mode ──────────────────────────────────

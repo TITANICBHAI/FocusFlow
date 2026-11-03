@@ -42,6 +42,7 @@ fun FindingsSection(
     onIntentional: (String, String) -> Unit,
     onAware: (String, String) -> Unit,
     onAnswerQuestion: suspend (id: String, response: String) -> Boolean,
+    onBlockApp: (String?) -> Unit = {},
 ) {
     Text(
         "FINDINGS",
@@ -62,7 +63,7 @@ fun FindingsSection(
                 )
                 Spacer(Modifier.height(8.dp))
                 BaselineRow("Days of history", dayCount, 14)
-                BaselineRow("Days rated", ratingCount, 7)
+                BaselineRow("Days rated (optional)", ratingCount, 7)
             }
         }
         Spacer(Modifier.height(12.dp))
@@ -80,7 +81,7 @@ fun FindingsSection(
     activeFindings
         .filter { it.state == "detected" || it.state == "seen" }
         .forEach { finding ->
-            FindingCardView(finding, onMarkSeen, onIntentional, onAware)
+            FindingCardView(finding, onMarkSeen, onIntentional, onAware, onBlockApp)
             Spacer(Modifier.height(4.dp))
         }
 
@@ -93,7 +94,7 @@ fun FindingsSection(
             modifier = Modifier.padding(top = 4.dp, bottom = 2.dp),
         )
         watching.forEach { finding ->
-            FindingCardView(finding, onMarkSeen, onIntentional, onAware)
+            FindingCardView(finding, onMarkSeen, onIntentional, onAware, onBlockApp)
             Spacer(Modifier.height(4.dp))
         }
     }

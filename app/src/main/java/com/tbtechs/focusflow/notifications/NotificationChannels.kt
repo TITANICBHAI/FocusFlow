@@ -21,6 +21,7 @@ object NotificationChannels {
     const val INSIGHTS = "insights"
     const val RESISTANCE = "resistance"
     const val DAY_RATING = "day-rating"
+    const val HABIT_NUDGES = "habit-nudges"
 
     const val TASK_REMINDERS_NAME = "Task Reminders"
     const val LIVE_TASK_STATUS_NAME = "Live Task Status"
@@ -138,6 +139,14 @@ object NotificationChannels {
                 description = "Daily prompt to rate your day"
                 setSound(null, null)
                 enableVibration(false)
+                setShowBadge(false)
+            },
+            NotificationChannel(
+                HABIT_NUDGES,
+                "Habit heads-ups",
+                NotificationManager.IMPORTANCE_DEFAULT,
+            ).apply {
+                description = "Opt-in heads-ups shortly before the times your own usage data says you slip."
                 setShowBadge(false)
             },
         )

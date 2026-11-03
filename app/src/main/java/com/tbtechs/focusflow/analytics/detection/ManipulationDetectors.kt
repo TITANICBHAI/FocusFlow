@@ -34,10 +34,6 @@ private fun durationStats(sessions: List<AppSessionEntity>): DurationStats? {
     )
 }
 
-private val STREAK_ELIGIBLE_CATEGORIES =
-    setOf("social", "entertainment", "communication")
-private val ALLOWANCE_ELIGIBLE_CATEGORIES = setOf("social", "entertainment")
-
 internal data class WeeklyAverages(
     val appName: String,
     val week1: Double,
@@ -100,6 +96,7 @@ fun detectVariableRewardLoop(
     dailyStats: List<SessionStatRow>,
     rawSessionsByPackage: Map<String, List<AppSessionEntity>>,
     appNames: Map<String, String>,
+    categories: Map<String, String?>? = null,
 ): FindingEntity? {
     data class Candidate(
         val packageName: String,
@@ -112,6 +109,11 @@ fun detectVariableRewardLoop(
     val candidates = dailyStats
         .groupBy { it.packageName }
         .mapNotNull { (packageName, days) ->
+            if (categories != null &&
+                !DetectorEligibility.isEngagementDesigned(packageName, categories[packageName])
+            ) {
+                return@mapNotNull null
+            }
             val totalSessions = days.sumOf { it.sessionCount }
             val sampleDays = days.size
             if (sampleDays < 10 || totalSessions == 0) return@mapNotNull null
@@ -147,11 +149,11 @@ fun detectVariableRewardLoop(
 
     return newFinding(
         detectionType = "VARIABLE_REWARD_LOOP",
-        headline = "Variable reward loop",
-        body = "You open $appName about $averageLaunches times a day. Average session: " +
-            "${round(winner.meanMinutes * 10) / 10}m — but they range from " +
-            "${round(minMinutes * 10) / 10}m to ${round(maxMinutes * 10) / 10}m. Sessions with " +
-            "no consistent length are the signature of a feed with no designed stopping point.",
+        headline = "Frequent short checks",
+        body = "You open $appName about $averageLaunches times a day. A typical visit lasts " +
+            "${round(winner.meanMinutes * 10) / 10} min, though they range from " +
+            "${round(minMinutes * 10) / 10} to ${round(maxMinutes * 10) / 10} min. Many short " +
+            "opens add up to a checking habit that is easy to interrupt with a block.",
         evidenceLine = "Observed across ${winner.sampleDays} days, " +
             "${winner.raw.size} sessions",
         fingerprint = fingerprint,
@@ -184,7 +186,9 @@ fun detectInfiniteSessionDesign(
     val candidates = dailyStats
         .groupBy { it.packageName }
         .mapNotNull { (packageName, days) ->
-            if (categories[packageName] == "utility") return@mapNotNull null
+            if (!DetectorEligibility.isEngagementDesigned(packageName, categories[packageName])) {
+                return@mapNotNull null
+            }
             val sampleDays = days.size
             if (sampleDays < 14) return@mapNotNull null
 
@@ -225,11 +229,11 @@ fun detectInfiniteSessionDesign(
 
     return newFinding(
         detectionType = "INFINITE_SESSION_DESIGN",
-        headline = "Infinite session design",
-        body = "Your $appName sessions have no typical length. They've run as short as a " +
-            "few minutes and as long as ${round(winner.maxMinutes).toInt()}m. That variance " +
-            "isn't your preference — it's the absence of a designed stopping point. You " +
-            "supply the brake each time.",
+        headline = "Sessions with no stopping point",
+        body = "Your $appName sessions vary a lot: typically about " +
+            "${round(winner.meanMinutes).toInt()} min, but up to " +
+            "${round(winner.maxMinutes).toInt()} min. Open-ended sessions are easy to lose " +
+            "track of; a block or a time limit gives you a stopping point.",
         evidenceLine = "Observed across ${winner.sampleDays} days, " +
             "${winner.sessionCount} sessions",
         fingerprint = fingerprint,
@@ -267,8 +271,7 @@ fun detectMorningHijack(
     val candidates = firstSessions
         .groupBy { it.packageName }
         .mapNotNull { (packageName, rows) ->
-            val category = categories[packageName]
-            if (category != "social" && category != "entertainment") {
+            if (!DetectorEligibility.isEngagementDesigned(packageName, categories[packageName])) {
                 return@mapNotNull null
             }
             val fraction = rows.size.toDouble() / totalDays
@@ -293,11 +296,10 @@ fun detectMorningHijack(
 
     val finding = newFinding(
         detectionType = "MORNING_HIJACK",
-        headline = "Morning hijack",
-        body = "On $percentage% of recent mornings, ${winner.appName} was the first thing " +
-            "you opened — before starting anything else. Apps compete for this window " +
-            "specifically. Whoever captures your attention first shapes the mode you " +
-            "work in for the rest of the day.",
+        headline = "First app of the day",
+        body = "On $percentage% of recent mornings, ${winner.appName} was the first app " +
+            "you opened. If you would rather start the day another way, a short morning " +
+            "block on it is a simple place to begin.",
         evidenceLine = "Observed on ${winner.dates.size} of $totalDays days",
         fingerprint = fingerprint,
         evidenceJson = """{"fraction_pct":$percentage,"sample_days":$totalDays}""",
@@ -320,6 +322,7 @@ fun detectMorningHijack(
 fun detectEscalatingCapture(
     usageRows: List<AppUsageRangeRow>,
     today: LocalDate,
+    onlyEngagementApps: Boolean = false,
 ): FindingEntity? {
     data class Candidate(
         val packageName: String,
@@ -329,7 +332,15 @@ fun detectEscalatingCapture(
         val week4Minutes: Double,
     )
 
+    val categoryByPackage = usageRows
+        .groupBy { it.packageName }
+        .mapValues { (_, rows) -> rows.firstOrNull { it.category != null }?.category }
     val candidates = computeWeeklyAverages(usageRows, today).mapNotNull { (packageName, weeks) ->
+        if (onlyEngagementApps &&
+            !DetectorEligibility.isEngagementDesigned(packageName, categoryByPackage[packageName])
+        ) {
+            return@mapNotNull null
+        }
         if (!(weeks.week2 > weeks.week1 &&
                 weeks.week3 > weeks.week2 &&
                 weeks.week4 > weeks.week3)
@@ -362,12 +373,11 @@ fun detectEscalatingCapture(
 
     return newFinding(
         detectionType = "ESCALATING_CAPTURE",
-        headline = "Escalating capture",
-        body = "${winner.appName} was taking ${round(winner.week1Minutes).toInt()}m of your day " +
-            "4 weeks ago. It's at ${round(winner.week4Minutes).toInt()}m now — up " +
-            "$growthPercentage%. Usage that grows every week without a deliberate decision " +
-            "is the algorithm improving its model of you, not you choosing to spend more " +
-            "time there.",
+        headline = "Rising use",
+        body = "${winner.appName} averaged ${round(winner.week1Minutes).toInt()} min a day " +
+            "4 weeks ago and ${round(winner.week4Minutes).toInt()} min a day now, up " +
+            "$growthPercentage%. It rose in each of the last three weeks. If that was not a " +
+            "choice, a daily limit stops the climb early.",
         evidenceLine = "Growth measured over 4 weeks",
         fingerprint = fingerprint,
         evidenceJson = """{"growth_pct":$growthPercentage,"week1_min":${round(winner.week1Minutes).toInt()},"week4_min":${round(winner.week4Minutes).toInt()}}""",
@@ -449,8 +459,8 @@ fun detectSubstitution(
         headline = "Same time, different destination",
         body = "Your combined time across these two apps has barely changed over the last " +
             "4 weeks. What shifted: ${winner.downName} is down ${winner.downPercent}% while " +
-            "${winner.upName} is up ${winner.upPercent}%. The time budget stayed the same — " +
-            "the destination moved.",
+            "${winner.upName} is up ${winner.upPercent}%. Time you cut from one app may simply " +
+            "be moving to the other.",
         evidenceLine = "Compared over 4 weeks",
         fingerprint = fingerprint,
         evidenceJson = """{"down_app":${jsonString(winner.downName)},"down_pct":${winner.downPercent},"up_app":${jsonString(winner.upName)},"up_pct":${winner.upPercent}}""",
@@ -468,7 +478,7 @@ fun detectAllowanceSuggestion(
     if (ratings.size < 7) return null
     val ratingByDate = ratings.associateBy { it.date }
     val byPackage = usageRows
-        .filter { it.category in ALLOWANCE_ELIGIBLE_CATEGORIES }
+        .filter { DetectorEligibility.isEngagementDesigned(it.packageName, it.category) }
         .groupBy { it.packageName }
 
     data class Candidate(
@@ -580,7 +590,7 @@ fun detectStreakLockIn(
     val candidates = usageRows
         .filter {
             it.launchCount > 0 &&
-                it.category in STREAK_ELIGIBLE_CATEGORIES
+                DetectorEligibility.isEngagementDesigned(it.packageName, it.category)
         }
         .groupBy { it.packageName }
         .mapNotNull { (packageName, rows) ->
@@ -617,12 +627,11 @@ fun detectStreakLockIn(
 
     return newFinding(
         detectionType = "STREAK_LOCK_IN",
-        headline = "Streak lock-in",
-        body = "You've opened ${winner.appName} on ${winner.openDates.size} of the last " +
-            "$windowDays days — including ${winner.lowRatedDates.size} days you rated " +
-            "${round(winner.averageLowRating * 10) / 10}/10 or lower. Streak mechanics " +
-            "use loss aversion — the fear of losing what you've built — to require daily " +
-            "engagement regardless of whether the day is going well.",
+        headline = "Daily habit, even on bad days",
+        body = "You opened ${winner.appName} on ${winner.openDates.size} of the last " +
+            "$windowDays days, including ${winner.lowRatedDates.size} days you rated " +
+            "${round(winner.averageLowRating * 10) / 10}/10 or lower. Using it every day no " +
+            "matter how the day goes is a sign of habit rather than choice.",
         evidenceLine = "Observed across ${winner.openDates.size} days, " +
             "${winner.lowRatedDates.size} low-rated",
         fingerprint = fingerprint,

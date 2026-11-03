@@ -324,11 +324,38 @@ class StatsViewModel(
     }
 
     suspend fun answerClarifyingQuestion(id: String, response: String): Boolean {
+        val question = _pendingQuestion.value?.takeIf { it.id == id }
         val saved = clarifyingQuestionRepository.answer(id, response)
         if (saved) {
+            applyAnswerToFindings(question, response)
             _pendingQuestion.value = clarifyingQuestionRepository.getPending()
         }
         return saved
+    }
+
+    /**
+     * The answer to "was that intentional?" now changes the finding it was asked about:
+     * "Yes" quiets it for 60 days, "Not really" moves it to the watched list.
+     */
+    private suspend fun applyAnswerToFindings(
+        question: ClarifyingQuestionEntity?,
+        response: String,
+    ) {
+        if (question?.questionType != "morning_high_rating") return
+        val finding = findingRepository.getActiveFindings()
+            .firstOrNull { it.detectionType == "MORNING_HIJACK" } ?: return
+        when (response) {
+            "yes_intentional" ->
+                findingRepository.acknowledgeIntentional(
+                    finding.id,
+                    finding.evidenceFingerprint,
+                    "clarifying_question",
+                )
+            "not_really" ->
+                findingRepository.acknowledgeAware(finding.id, finding.evidenceFingerprint)
+            else -> return
+        }
+        _activeFindings.value = findingRepository.getActiveFindings()
     }
 
     suspend fun saveColdStartAnswers(answers: List<BehaviouralHypothesisEntity>): Boolean {

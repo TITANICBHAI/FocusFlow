@@ -141,10 +141,10 @@ fun detectPostFailureCascade(tasks: List<TaskEntity>): FindingEntity? {
 
     return newFinding(
         detectionType = "POST_FAILURE_CASCADE",
-        headline = "First task predicts the rest",
-        body = "When your first task of the day is missed or skipped, the rest of " +
-            "the day completes at $missedPct% on average. When the first task " +
-            "lands, that rises to $completedPct% — a $gapPct point gap.",
+        headline = "Your day follows its first task",
+        body = "On days your first task was missed or skipped, you finished $missedPct% " +
+            "of the rest. When it was completed, $completedPct% — a $gapPct point gap. " +
+            "It is a pattern in your history, not proof that one causes the other.",
         evidenceLine = "Observed across ${missedFirstRates.size} low-start days and " +
             "${completedFirstRates.size} on-track days",
         fingerprint = fingerprint,
@@ -232,8 +232,7 @@ fun detectSessionSweetSpot(sessions: List<SessionOverrideCountRow>): FindingEnti
         body = "Sessions you run for ${peakBin.label} are clean " +
             "${round(peakRate * 100).toInt()}% of the time. Beyond that, at " +
             "${dropOff.label}, clean sessions drop to " +
-            "${round(dropRate * 100).toInt()}%. Your schedule may have sessions " +
-            "longer than your data supports.",
+            "${round(dropRate * 100).toInt()}%. Shorter sessions may suit you better.",
         evidenceLine = "Observed across ${closed.size} sessions",
         fingerprint = fingerprint,
         evidenceJson = """{"peak_bin":"${peakBin.label}","peak_rate_pct":${round(peakRate * 100).toInt()},"dropoff_bin":"${dropOff.label}","dropoff_rate_pct":${round(dropRate * 100).toInt()}}""",
@@ -269,8 +268,7 @@ fun detectEstimationDrift(errors: List<EstimationErrorRow>): FindingEntity? {
         headline = "Your estimates shift through the day",
         body = "Tasks you start before noon run ${signedMinutes(morningError)} " +
             "vs planned, on average. Tasks starting after 2pm run " +
-            "${signedMinutes(afternoonError)}. That's a consistent pattern, " +
-            "not a one-off week.",
+            "${signedMinutes(afternoonError)}. Plan your afternoon tasks with that gap in mind.",
         evidenceLine = "Observed across ${morning.size} morning and " +
             "${afternoon.size} afternoon sessions",
         fingerprint = fingerprint,
@@ -324,8 +322,8 @@ fun detectDayOfWeekOutlier(tasks: List<TaskEntity>): FindingEntity? {
         detectionType = "DAY_OF_WEEK_OUTLIER",
         headline = "$dayName is your outlier",
         body = "Your average completion rate is $meanPct%. $dayName sits at " +
-            "$worstPct% — $gapPct points below your own baseline. Not occasionally. " +
-            "Consistently.",
+            "$worstPct%, $gapPct points below your usual. Consider planning " +
+            "fewer tasks that day.",
         evidenceLine = "Observed across ${byDayOfWeek.getValue(worstDay).size} " +
             "${dayName}s",
         fingerprint = fingerprint,

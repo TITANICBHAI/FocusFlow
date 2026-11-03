@@ -70,6 +70,10 @@ class FindingDetectionRunner(
             .onFailure { Log.e(TAG, "substitution failed", it) }
         runCatching { runAllowanceSuggestion() }
             .onFailure { Log.e(TAG, "allowanceSuggestion failed", it) }
+        runCatching { runLateNightUse() }
+            .onFailure { Log.e(TAG, "lateNightUse failed", it) }
+        runCatching { runHeavyDailyUse() }
+            .onFailure { Log.e(TAG, "heavyDailyUse failed", it) }
     }
 
     private suspend fun runPostFailureCascade() {
@@ -168,7 +172,7 @@ class FindingDetectionRunner(
             .keys
         val rawByPackage = loadRawSessions(history.sessions, roughCandidates)
 
-        detectVariableRewardLoop(dailyStats, rawByPackage, appNames)
+        detectVariableRewardLoop(dailyStats, rawByPackage, appNames, categoriesOf(history))
             ?.let { findingRepository.submit(it) }
     }
 
@@ -190,7 +194,8 @@ class FindingDetectionRunner(
         val roughCandidates = dailyStats
             .groupBy { it.packageName }
             .filter { (packageName, days) ->
-                categories[packageName] != "utility" && days.size >= 14
+                DetectorEligibility.isEngagementDesigned(packageName, categories[packageName]) &&
+                    days.size >= 14
             }
             .keys
         val rawByPackage = loadRawSessions(history.sessions, roughCandidates)
@@ -207,7 +212,7 @@ class FindingDetectionRunner(
         val usageRows = detectorHistory(range.start.toString(), range.end.toString())?.appDays ?: return
         if (usageRows.isEmpty()) return
 
-        detectEscalatingCapture(usageRows, localToday())
+        detectEscalatingCapture(usageRows, localToday(), onlyEngagementApps = true)
             ?.let { findingRepository.submit(it) }
     }
 
@@ -249,6 +254,37 @@ class FindingDetectionRunner(
         detectAllowanceSuggestion(usageRows, ratings)
             ?.let { findingRepository.submit(it) }
     }
+
+    private suspend fun runLateNightUse() {
+        val window = UsageDetectorWindow.LATE_NIGHT_USE
+        val range = UsageDetectorWindows.range(window, today = localToday())
+        val history = detectorHistory(range.start.toString(), range.end.toString()) ?: return
+        if (history.sessions.isEmpty()) return
+
+        detectLateNightUse(
+            sessions = history.sessions,
+            categories = categoriesOf(history),
+            windowDays = window.days.toInt(),
+            zone = zoneId,
+        )?.let { findingRepository.submit(it) }
+    }
+
+    private suspend fun runHeavyDailyUse() {
+        val window = UsageDetectorWindow.HEAVY_DAILY_USE
+        val range = UsageDetectorWindows.range(window, today = localToday())
+        val usageRows = detectorHistory(range.start.toString(), range.end.toString())?.appDays ?: return
+        if (usageRows.isEmpty()) return
+
+        detectHeavyDailyUse(usageRows, window.days.toInt())
+            ?.let { findingRepository.submit(it) }
+    }
+
+    private fun categoriesOf(history: DetectorUsageHistory): Map<String, String?> =
+        history.appDays
+            .groupBy { it.packageName }
+            .mapValues { (_, rows) ->
+                rows.asReversed().firstOrNull { it.category != null }?.category
+            }
 
     private suspend fun detectorHistory(
         startDate: String,

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -22,14 +23,6 @@ import com.tbtechs.focusflow.ui.theme.BrandPrimary
 import com.tbtechs.focusflow.ui.theme.DarkTextSecondary
 import com.tbtechs.focusflow.ui.theme.SunAmber
 
-private val MANIPULATION_TYPES = setOf(
-    "VARIABLE_REWARD_LOOP",
-    "INFINITE_SESSION_DESIGN",
-    "MORNING_HIJACK",
-    "ESCALATING_CAPTURE",
-    "STREAK_LOCK_IN",
-    "NOTIFICATION_CONDITIONING",
-)
 private val NO_RESPONSE_TYPES = setOf("ALLOWANCE_SUGGESTION")
 
 @Composable
@@ -38,7 +31,9 @@ fun FindingCardView(
     onMarkSeen: (String) -> Unit,
     onIntentional: (String, String) -> Unit,
     onAware: (String, String) -> Unit,
+    onBlockApp: (String?) -> Unit = {},
 ) {
+    val actions = findingActions(finding)
     val isNew = finding.state == "detected"
     val showReply =
         finding.state == "seen" && finding.detectionType !in NO_RESPONSE_TYPES
@@ -80,6 +75,19 @@ fun FindingCardView(
             Spacer(Modifier.height(6.dp))
             Text(finding.evidenceLine, fontSize = 11.sp, color = DarkTextSecondary)
 
+            actions.forEach { action ->
+                Spacer(Modifier.height(8.dp))
+                Button(
+                    onClick = {
+                        if (isNew) onMarkSeen(finding.id)
+                        onBlockApp(action.packageName)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(action.label, fontSize = 13.sp)
+                }
+            }
+
             if (showReply) {
                 Spacer(Modifier.height(10.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -101,7 +109,7 @@ fun FindingCardView(
 
 private fun findingCategoryLabel(finding: FindingEntity): String = when {
     finding.detectionType == "ALLOWANCE_SUGGESTION" -> "BASED ON YOUR DATA"
-    finding.detectionType in MANIPULATION_TYPES && finding.subjectAppName != null ->
-        "WHAT ${finding.subjectAppName.uppercase()} IS DOING"
+    finding.detectionType in APP_FINDING_TYPES && finding.subjectAppName != null ->
+        "ABOUT ${finding.subjectAppName.uppercase()}"
     else -> "pattern"
 }
