@@ -137,7 +137,7 @@ class FindingDetectionRunnerImpl5Test {
     }
 
     @Test
-    fun allSevenUsageDetectorsSubmitNothingForAWindowCrossingTheSourceSeam() = runBlocking {
+    fun allUsageDetectorsSubmitNothingForAWindowCrossingTheSourceSeam() = runBlocking {
         val today = LocalDate.now()
         val cutoverDate = today.minusDays(7)
         val store = CrossingSeamHistoryStore(cutoverDate)
@@ -196,7 +196,7 @@ class FindingDetectionRunnerImpl5Test {
         )
         runner.runAll()
 
-        assertEquals(7, store.pipelineStateReads)
+        assertEquals(UsageDetectorWindow.entries.size, store.pipelineStateReads)
         assertEquals(0, store.legacyReads)
         assertEquals(0, store.rollupReads)
         assertTrue(submitted.isEmpty())
