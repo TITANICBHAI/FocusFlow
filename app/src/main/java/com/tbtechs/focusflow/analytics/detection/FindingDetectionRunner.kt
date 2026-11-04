@@ -14,6 +14,7 @@ import com.tbtechs.focusflow.data.local.entity.ClarifyingQuestionEntity
 import com.tbtechs.focusflow.data.repository.ClarifyingQuestionRepository
 import com.tbtechs.focusflow.data.repository.FindingRepository
 import com.tbtechs.focusflow.analytics.DetectorUsageHistory
+import com.tbtechs.focusflow.analytics.TemptationEntry
 import com.tbtechs.focusflow.analytics.UsageHistoryRepository
 import java.time.Clock
 import java.time.Instant
@@ -41,6 +42,7 @@ class FindingDetectionRunner(
     private val usageHistoryRepository: UsageHistoryRepository? = null,
     private val clock: Clock = Clock.systemDefaultZone(),
     private val zoneId: ZoneId = clock.zone,
+    private val temptationLogProvider: suspend () -> String = { "[]" },
 ) {
     private companion object {
         private const val TAG = "FindingDetectionRunner"
@@ -48,6 +50,22 @@ class FindingDetectionRunner(
     }
 
     suspend fun runAll() {
+        // The surfacing cooldown allows one new finding a week, so the order is the priority.
+        // Phone-habit findings come first because they work without any tasks.
+        runCatching { runLateNightUse() }
+            .onFailure { Log.e(TAG, "lateNightUse failed", it) }
+        runCatching { runBlockedAttemptPeak() }
+            .onFailure { Log.e(TAG, "blockedAttemptPeak failed", it) }
+        runCatching { runEntryApp() }
+            .onFailure { Log.e(TAG, "entryApp failed", it) }
+        runCatching { runHeavyDailyUse() }
+            .onFailure { Log.e(TAG, "heavyDailyUse failed", it) }
+        runCatching { runWeekendSpike() }
+            .onFailure { Log.e(TAG, "weekendSpike failed", it) }
+        runCatching { runAppHopping() }
+            .onFailure { Log.e(TAG, "appHopping failed", it) }
+        runCatching { runQuickCheckHabit() }
+            .onFailure { Log.e(TAG, "quickCheckHabit failed", it) }
         runCatching { runPostFailureCascade() }
             .onFailure { Log.e(TAG, "postFailureCascade failed", it) }
         runCatching { runSessionSweetSpot() }
@@ -70,10 +88,6 @@ class FindingDetectionRunner(
             .onFailure { Log.e(TAG, "substitution failed", it) }
         runCatching { runAllowanceSuggestion() }
             .onFailure { Log.e(TAG, "allowanceSuggestion failed", it) }
-        runCatching { runLateNightUse() }
-            .onFailure { Log.e(TAG, "lateNightUse failed", it) }
-        runCatching { runHeavyDailyUse() }
-            .onFailure { Log.e(TAG, "heavyDailyUse failed", it) }
     }
 
     private suspend fun runPostFailureCascade() {
@@ -267,6 +281,62 @@ class FindingDetectionRunner(
             windowDays = window.days.toInt(),
             zone = zoneId,
         )?.let { findingRepository.submit(it) }
+    }
+
+    private suspend fun runEntryApp() {
+        val window = UsageDetectorWindow.ENTRY_APP
+        val range = UsageDetectorWindows.range(window, today = localToday())
+        val history = detectorHistory(range.start.toString(), range.end.toString()) ?: return
+        if (history.sessions.isEmpty()) return
+        detectEntryApp(history.sessions, categoriesOf(history), window.days.toInt(), zoneId)
+            ?.let { findingRepository.submit(it) }
+    }
+
+    private suspend fun runQuickCheckHabit() {
+        val window = UsageDetectorWindow.QUICK_CHECK_HABIT
+        val range = UsageDetectorWindows.range(window, today = localToday())
+        val history = detectorHistory(range.start.toString(), range.end.toString()) ?: return
+        if (history.sessions.isEmpty()) return
+        detectQuickCheckHabit(history.sessions, window.days.toInt(), zoneId)
+            ?.let { findingRepository.submit(it) }
+    }
+
+    private suspend fun runWeekendSpike() {
+        val window = UsageDetectorWindow.WEEKEND_SPIKE
+        val range = UsageDetectorWindows.range(window, today = localToday())
+        val usageRows = detectorHistory(range.start.toString(), range.end.toString())?.appDays ?: return
+        if (usageRows.isEmpty()) return
+        detectWeekendSpike(usageRows, window.days.toInt())
+            ?.let { findingRepository.submit(it) }
+    }
+
+    private suspend fun runAppHopping() {
+        val window = UsageDetectorWindow.APP_HOPPING
+        val range = UsageDetectorWindows.range(window, today = localToday())
+        val history = detectorHistory(range.start.toString(), range.end.toString()) ?: return
+        if (history.sessions.isEmpty()) return
+        detectAppHopping(history.sessions, categoriesOf(history), window.days.toInt(), zoneId)
+            ?.let { findingRepository.submit(it) }
+    }
+
+    private suspend fun runBlockedAttemptPeak() {
+        val raw = temptationLogProvider()
+        if (raw.length <= 2) return
+        val entries = runCatching {
+            val array = org.json.JSONArray(raw)
+            (0 until array.length()).mapNotNull { index ->
+                val item = array.optJSONObject(index) ?: return@mapNotNull null
+                val pkg = item.optString("pkg").takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                TemptationEntry(
+                    pkg = pkg,
+                    appName = item.optString("appName").takeIf { it.isNotBlank() },
+                    timestamp = item.optLong("timestamp", 0L),
+                )
+            }
+        }.getOrDefault(emptyList())
+        if (entries.isEmpty()) return
+        detectBlockedAttemptPeak(entries, clock.millis(), zoneId)
+            ?.let { findingRepository.submit(it) }
     }
 
     private suspend fun runHeavyDailyUse() {

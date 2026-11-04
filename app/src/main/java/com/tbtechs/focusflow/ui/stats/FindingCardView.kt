@@ -8,11 +8,17 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -32,8 +38,37 @@ fun FindingCardView(
     onIntentional: (String, String) -> Unit,
     onAware: (String, String) -> Unit,
     onBlockApp: (String?) -> Unit = {},
+    onSetLimit: (String, Int) -> Unit = { _, _ -> },
 ) {
     val actions = findingActions(finding)
+    var pendingLimit by remember { mutableStateOf<FindingAction?>(null) }
+    pendingLimit?.let { action ->
+        AlertDialog(
+            onDismissRequest = { pendingLimit = null },
+            title = { Text("Set a daily limit?", fontSize = 18.sp, fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    "${finding.subjectAppName ?: "This app"} will be blocked for the rest of the day " +
+                        "once you pass ${action.minutes ?: 0} min. You can change or remove the " +
+                        "limit in Settings. While a Focus session has no allowed-apps list, only " +
+                        "apps that have a daily allowance can be opened.",
+                    fontSize = 14.sp,
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (finding.state == "detected") onMarkSeen(finding.id)
+                        onSetLimit(action.packageName, action.minutes ?: 0)
+                        pendingLimit = null
+                    },
+                ) { Text("Set limit") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingLimit = null }) { Text("Cancel") }
+            },
+        )
+    }
     val isNew = finding.state == "detected"
     val showReply =
         finding.state == "seen" && finding.detectionType !in NO_RESPONSE_TYPES
@@ -77,14 +112,23 @@ fun FindingCardView(
 
             actions.forEach { action ->
                 Spacer(Modifier.height(8.dp))
-                Button(
-                    onClick = {
-                        if (isNew) onMarkSeen(finding.id)
-                        onBlockApp(action.packageName)
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(action.label, fontSize = 13.sp)
+                if (action.kind == FindingActionKind.BLOCK_NOW) {
+                    Button(
+                        onClick = {
+                            if (isNew) onMarkSeen(finding.id)
+                            onBlockApp(action.packageName)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(action.label, fontSize = 13.sp)
+                    }
+                } else {
+                    OutlinedButton(
+                        onClick = { pendingLimit = action },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(action.label, fontSize = 13.sp)
+                    }
                 }
             }
 

@@ -61,6 +61,7 @@ class StatsViewModel(
 ) : ViewModel() {
     companion object {
         const val COLD_START_DISMISSED_KEY = "stats_cold_start_dismissed"
+        const val REFLEX_CARD_DISMISSED_KEY = "stats_reflex_card_dismissed"
         val Factory: ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -121,6 +122,8 @@ class StatsViewModel(
     private val _activeFindings = MutableStateFlow<List<FindingEntity>>(emptyList())
     private val _pendingQuestion = MutableStateFlow<ClarifyingQuestionEntity?>(null)
     private val _needsColdStart = MutableStateFlow(false)
+    private val _reflexApp = MutableStateFlow<ReflexApp?>(null)
+    val reflexApp: StateFlow<ReflexApp?> = _reflexApp.asStateFlow()
     private val ratingSaveMutex = Mutex()
     var dataHealthDayCount: Int = 0
         private set
@@ -365,6 +368,7 @@ class StatsViewModel(
             }
             AppModule.settingsRepository.putString(COLD_START_DISMISSED_KEY, "true")
             _needsColdStart.value = false
+            refreshReflexApp()
             true
         } catch (cancelled: CancellationException) {
             throw cancelled
@@ -408,6 +412,32 @@ class StatsViewModel(
         _pendingQuestion.value = clarifyingQuestionRepository.getPending()
         val wasDismissed = AppModule.settingsRepository.getString(COLD_START_DISMISSED_KEY) == "true"
         _needsColdStart.value = !wasDismissed && hypothesisRepository.needsColdStart()
+        refreshReflexApp()
+    }
+
+    /** The app the person named as a reflex, if it was matched to an installed app and not dismissed. */
+    private suspend fun refreshReflexApp() {
+        if (settingsRepository.getString(REFLEX_CARD_DISMISSED_KEY) == "true") {
+            _reflexApp.value = null
+            return
+        }
+        val answer = hypothesisRepository.getAll().firstOrNull {
+            it.questionId == "reflex_app" && !it.answerPackage.isNullOrBlank()
+        }
+        _reflexApp.value = answer?.let { ReflexApp(it.answerPackage.orEmpty(), it.answerText.trim()) }
+    }
+
+    /** Sets one app's daily time limit from a finding, keeping every other app's limit. */
+    fun setDailyLimit(packageName: String, minutes: Int) {
+        viewModelScope.launch {
+            val existing = settingsRepository.readAppSettings().dailyAllowanceConfigJson
+            settingsRepository.setDailyAllowanceConfig(DailyLimit.merge(existing, packageName, minutes))
+        }
+    }
+
+    fun dismissReflexCard() {
+        _reflexApp.value = null
+        viewModelScope.launch { settingsRepository.putString(REFLEX_CARD_DISMISSED_KEY, "true") }
     }
 
     private suspend fun buildSuggestedChips(date: String): List<SuggestedChip> {

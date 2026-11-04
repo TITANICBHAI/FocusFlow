@@ -38,4 +38,38 @@ class FindingActionsTest {
         assertTrue(findingActions(finding("SUBSTITUTION", null, null)).isEmpty())
         assertTrue(findingActions(finding("LATE_NIGHT_USE", null, "Feed")).isEmpty())
     }
+
+    @Test
+    fun timeSinkAndAllowanceFindingsAlsoOfferTheSuggestedLimit() {
+        val json = """{"avg_min":120,"suggested_min":90}"""
+        val actions = findingActions(finding("HEAVY_DAILY_USE", "com.video", "Video").copy(evidenceJson = json))
+        assertEquals(2, actions.size)
+        assertEquals(FindingActionKind.BLOCK_NOW, actions[0].kind)
+        assertEquals(FindingActionKind.SET_LIMIT, actions[1].kind)
+        assertEquals(90, actions[1].minutes)
+        assertEquals("Limit Video to 90 min a day", actions[1].label)
+    }
+
+    @Test
+    fun noLimitIsOfferedForAbsurdOrMissingMinutes() {
+        val tiny = finding("ALLOWANCE_SUGGESTION", "com.video", "Video").copy(evidenceJson = """{"suggested_min":2}""")
+        assertEquals(1, findingActions(tiny).size)
+        assertEquals(1, findingActions(finding("ALLOWANCE_SUGGESTION", "com.video", "Video")).size)
+    }
+
+    @Test
+    fun entryAppOffersABlockOnlyForFeedApps() {
+        val feed = finding("ENTRY_APP", "com.feed", "Feed").copy(evidenceJson = """{"blockable":true}""")
+        val chat = finding("ENTRY_APP", "com.chat", "Chat").copy(evidenceJson = """{"blockable":false}""")
+        assertEquals(1, findingActions(feed).size)
+        assertTrue(findingActions(chat).isEmpty())
+    }
+
+    @Test
+    fun weekendSpikeOffersTheSuggestedLimit() {
+        val json = """{"weekend_avg_min":120,"weekday_avg_min":40,"suggested_min":50}"""
+        val actions = findingActions(finding("WEEKEND_SPIKE", "com.video", "Video").copy(evidenceJson = json))
+        assertEquals(listOf(FindingActionKind.BLOCK_NOW, FindingActionKind.SET_LIMIT), actions.map { it.kind })
+        assertEquals(50, actions[1].minutes)
+    }
 }

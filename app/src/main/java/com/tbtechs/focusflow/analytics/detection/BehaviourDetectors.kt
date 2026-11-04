@@ -3,6 +3,7 @@ package com.tbtechs.focusflow.analytics.detection
 import com.tbtechs.focusflow.data.local.dao.AppUsageRangeRow
 import com.tbtechs.focusflow.data.local.entity.AppSessionEntity
 import com.tbtechs.focusflow.data.local.entity.FindingEntity
+import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -15,6 +16,10 @@ private const val LATE_NIGHT_MIN_MINUTES = 10.0
 private const val LATE_NIGHT_MIN_NIGHTS = 5
 private const val HEAVY_USE_MIN_AVERAGE_MINUTES = 60.0
 private const val HEAVY_USE_MIN_DAYS = 10
+private const val WEEKEND_MIN_WEEKEND_DAYS = 3
+private const val WEEKEND_MIN_WEEKDAYS = 8
+private const val WEEKEND_MIN_RATIO = 1.6
+private const val WEEKEND_MIN_DIFF_MINUTES = 30.0
 
 /**
  * Finds an attention-capture app that keeps being used late at night.
@@ -168,4 +173,77 @@ private fun peakHourOf(rows: List<AppUsageRangeRow>): Int? {
     if (!found) return null
     val best = totals.indices.maxByOrNull { totals[it] } ?: return null
     return if (totals[best] > 0L) best else null
+}
+
+/**
+ * Finds an attention-capture app used far more on weekends than on weekdays.
+ *
+ * Needs at least 3 weekend days and 8 weekdays with phone data. The app must average at least
+ * 30 minutes more per day on weekends and at least 1.6 times its weekday average. The suggested
+ * limit is a quarter above the weekday average, so it only trims the weekend peak.
+ */
+fun detectWeekendSpike(
+    usageRows: List<AppUsageRangeRow>,
+    windowDays: Int,
+): FindingEntity? {
+    val dates = usageRows.map { it.date }.toSet()
+        .mapNotNull { value -> runCatching { LocalDate.parse(value) }.getOrNull() }
+    val weekendDates = dates
+        .filter { it.dayOfWeek == DayOfWeek.SATURDAY || it.dayOfWeek == DayOfWeek.SUNDAY }
+        .map { it.toString() }
+        .toSet()
+    val weekdayDates = dates.map { it.toString() }.toSet() - weekendDates
+    if (weekendDates.size < WEEKEND_MIN_WEEKEND_DAYS || weekdayDates.size < WEEKEND_MIN_WEEKDAYS) return null
+
+    data class Candidate(
+        val packageName: String,
+        val appName: String,
+        val weekendAverage: Double,
+        val weekdayAverage: Double,
+    )
+
+    val candidates = usageRows
+        .filter { DetectorEligibility.isEngagementDesigned(it.packageName, it.category) }
+        .groupBy { it.packageName }
+        .mapNotNull { (packageName, rows) ->
+            val minutesByDate = rows.groupBy { it.date }
+                .mapValues { (_, dayRows) -> dayRows.sumOf { it.foregroundMs } / MS_PER_MINUTE }
+            val weekendAverage = weekendDates.sumOf { minutesByDate[it] ?: 0.0 } / weekendDates.size
+            val weekdayAverage = weekdayDates.sumOf { minutesByDate[it] ?: 0.0 } / weekdayDates.size
+            if (weekendAverage - weekdayAverage < WEEKEND_MIN_DIFF_MINUTES ||
+                weekendAverage < weekdayAverage * WEEKEND_MIN_RATIO
+            ) {
+                return@mapNotNull null
+            }
+            Candidate(packageName, rows.first().appName, weekendAverage, weekdayAverage)
+        }
+    val winner = candidates.maxByOrNull { it.weekendAverage - it.weekdayAverage } ?: return null
+
+    val weekend = round(winner.weekendAverage).toInt()
+    val weekday = round(winner.weekdayAverage).toInt()
+    val suggested = (round(maxOf(winner.weekdayAverage * 1.25, 15.0) / 5.0) * 5.0).toInt()
+    val comparison = if (winner.weekdayAverage >= 1.0) {
+        "${round(winner.weekendAverage / winner.weekdayAverage * 10) / 10}x as much"
+    } else {
+        "far more"
+    }
+    return newFinding(
+        detectionType = "WEEKEND_SPIKE",
+        headline = "Weekends are your heaviest days",
+        body = "${winner.appName} averages $weekend min a day on weekends and $weekday min on " +
+            "weekdays, $comparison. A daily limit near $suggested min keeps weekends closer to " +
+            "your weekdays.",
+        evidenceLine = "${weekendDates.size} weekend days vs ${weekdayDates.size} weekdays",
+        fingerprint = evidenceFingerprint(
+            detectionType = "WEEKEND_SPIKE",
+            subjectPackage = winner.packageName,
+            sampleSize = weekendDates.size + weekdayDates.size,
+            keyMetric = winner.weekendAverage,
+            metricUnit = 15.0,
+        ),
+        evidenceJson = """{"weekend_avg_min":$weekend,"weekday_avg_min":$weekday,"weekend_days":${weekendDates.size},"weekday_days":${weekdayDates.size},"window_days":$windowDays,"suggested_min":$suggested}""",
+    ).copy(
+        subjectPackage = winner.packageName,
+        subjectAppName = winner.appName,
+    )
 }

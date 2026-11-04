@@ -101,4 +101,43 @@ class BehaviourDetectorsTest {
         assertNotNull(finding)
         assertTrue(finding!!.evidenceJson.contains("\"peak_hour\":20"))
     }
+
+    @Test
+    fun weekendSpikeFindsAnAppUsedFarMoreOnWeekends() {
+        val monday = LocalDate.of(2026, 10, 5)
+        val rows = (0 until 28).flatMap { day ->
+            val date = monday.plusDays(day.toLong())
+            val weekend = date.dayOfWeek.value >= 6
+            listOf(
+                usage("video", date, if (weekend) 120 else 40, "entertainment"),
+                usage("steady", date, 50, "social"),
+            )
+        }
+        val finding = detectWeekendSpike(rows, 28)
+        assertNotNull(finding)
+        assertEquals("WEEKEND_SPIKE", finding!!.detectionType)
+        assertEquals("video", finding.subjectPackage)
+        assertTrue(finding.evidenceJson.contains("\"weekend_avg_min\":120"))
+        assertTrue(finding.evidenceJson.contains("\"weekday_avg_min\":40"))
+        assertTrue(finding.evidenceJson.contains("\"suggested_min\":50"))
+    }
+
+    @Test
+    fun weekendSpikeNeedsAClearGapAndEnoughWeekendDays() {
+        val monday = LocalDate.of(2026, 10, 5)
+        val flat = (0 until 28).map { usage("video", monday.plusDays(it.toLong()), 60, "entertainment") }
+        assertNull(detectWeekendSpike(flat, 28))
+
+        val tooShort = (0 until 10).map { day ->
+            val date = monday.plusDays(day.toLong())
+            usage("video", date, if (date.dayOfWeek.value >= 6) 120 else 40, "entertainment")
+        }
+        assertNull(detectWeekendSpike(tooShort, 28))
+
+        val tools = (0 until 28).map { day ->
+            val date = monday.plusDays(day.toLong())
+            usage("video", date, if (date.dayOfWeek.value >= 6) 120 else 40, "utility")
+        }
+        assertNull(detectWeekendSpike(tools, 28))
+    }
 }

@@ -43,6 +43,7 @@ fun FindingsSection(
     onAware: (String, String) -> Unit,
     onAnswerQuestion: suspend (id: String, response: String) -> Boolean,
     onBlockApp: (String?) -> Unit = {},
+    onSetLimit: (String, Int) -> Unit = { _, _ -> },
 ) {
     Text(
         "FINDINGS",
@@ -81,7 +82,7 @@ fun FindingsSection(
     activeFindings
         .filter { it.state == "detected" || it.state == "seen" }
         .forEach { finding ->
-            FindingCardView(finding, onMarkSeen, onIntentional, onAware, onBlockApp)
+            FindingCardView(finding, onMarkSeen, onIntentional, onAware, onBlockApp, onSetLimit)
             Spacer(Modifier.height(4.dp))
         }
 
@@ -94,7 +95,7 @@ fun FindingsSection(
             modifier = Modifier.padding(top = 4.dp, bottom = 2.dp),
         )
         watching.forEach { finding ->
-            FindingCardView(finding, onMarkSeen, onIntentional, onAware, onBlockApp)
+            FindingCardView(finding, onMarkSeen, onIntentional, onAware, onBlockApp, onSetLimit)
             Spacer(Modifier.height(4.dp))
         }
     }

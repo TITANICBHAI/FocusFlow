@@ -12,6 +12,10 @@ internal enum class UsageDetectorWindow(val days: Long) {
     ALLOWANCE_SUGGESTION(30),
     LATE_NIGHT_USE(14),
     HEAVY_DAILY_USE(14),
+    ENTRY_APP(14),
+    QUICK_CHECK_HABIT(14),
+    APP_HOPPING(14),
+    WEEKEND_SPIKE(28),
 }
 
 internal data class CompletedUsageDateRange(

@@ -388,6 +388,9 @@ object AppModule {
             usageHistoryRepository = usageHistoryRepository,
             clock = Clock.systemDefaultZone(),
             zoneId = ZoneId.systemDefault(),
+            temptationLogProvider = {
+                com.tbtechs.focusflow.enforcement.TemptationLogManager.getLogJson(app)
+            },
         )
 
     }

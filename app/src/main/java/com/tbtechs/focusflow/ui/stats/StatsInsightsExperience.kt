@@ -69,6 +69,8 @@ fun StatsInsightsExperience(
     val activeFindings by statsViewModel.activeFindings.collectAsState()
     val pendingQuestion by statsViewModel.pendingQuestion.collectAsState()
     val needsColdStart by statsViewModel.needsColdStart.collectAsState()
+    val reflexApp by statsViewModel.reflexApp.collectAsState()
+    val appContext = androidx.compose.ui.platform.LocalContext.current
     val settingsRepository = remember { AppModule.settingsRepository }
     val reflectionPromptsEnabled = settingsRepository.getBoolean(
         SettingsRepository.REFLECTION_PROMPTS_ENABLED_KEY,
@@ -84,7 +86,11 @@ fun StatsInsightsExperience(
         needsColdStart &&
         (window == ANALYTICS_TODAY || window == ANALYTICS_YESTERDAY)
     ) {
-        ColdStartSheet(onComplete = statsViewModel::saveColdStartAnswers)
+        ColdStartSheet(
+            onComplete = { answers ->
+                statsViewModel.saveColdStartAnswers(withResolvedReflexApp(appContext, answers))
+            },
+        )
     }
 
     Column(modifier = androidx.compose.ui.Modifier.fillMaxSize()) {
@@ -218,6 +224,13 @@ fun StatsInsightsExperience(
                                 }
                                 TemptationStats(loaded, onOpenQuickBlock)
                             }
+                            reflexApp?.let { app ->
+                                ReflexAppCard(
+                                    app = app,
+                                    onBlock = onOpenQuickBlock,
+                                    onDismiss = statsViewModel::dismissReflexCard,
+                                )
+                            }
                             StatsReadinessSection()
                             FindingsSection(
                                 activeFindings = activeFindings,
@@ -229,6 +242,14 @@ fun StatsInsightsExperience(
                                 onAware = statsViewModel::acknowledgeFindingAware,
                                 onAnswerQuestion = statsViewModel::answerClarifyingQuestion,
                                 onBlockApp = onOpenQuickBlock,
+                                onSetLimit = { packageName, minutes ->
+                                    statsViewModel.setDailyLimit(packageName, minutes)
+                                    android.widget.Toast.makeText(
+                                        appContext,
+                                        "Daily limit set to $minutes min",
+                                        android.widget.Toast.LENGTH_SHORT,
+                                    ).show()
+                                },
                             )
                             if (window != ANALYTICS_THREE_MONTHS) {
                                 achievements?.let { AchievementRow(it, loaded, lifetime) }

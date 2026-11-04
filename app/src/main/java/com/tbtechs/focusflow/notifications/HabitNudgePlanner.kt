@@ -16,7 +16,9 @@ data class HabitNudge(
  *
  * Only findings that carry a time are used, so a nudge is never an arbitrary reminder:
  *  - late-night use: shortly before bedtime
+ *  - hardest hour (blocked-app attempts): 15 minutes before the hour they cluster
  *  - biggest time sink: 15 minutes before the hour the app is used most
+ *  - first app after picking up the phone: 15 minutes before the hour it is reached for most
  */
 object HabitNudgePlanner {
     private const val MAX_NUDGES = 2
@@ -40,6 +42,19 @@ object HabitNudgePlanner {
                 )
             }
 
+        live.firstOrNull { it.detectionType == "TEMPTATION_PEAK" }?.let { finding ->
+            val peak = PEAK_HOUR.find(finding.evidenceJson)?.groupValues?.get(1)?.toIntOrNull()
+            val minute = peak?.takeIf { it in 0..23 }?.let { it * 60 - 15 }
+            if (peak != null && minute != null && minute >= 0) {
+                val name = finding.subjectAppName?.takeIf { it.isNotBlank() } ?: "a blocked app"
+                nudges += HabitNudge(
+                    minuteOfDay = minute,
+                    title = "Your hardest hour is coming",
+                    text = "You often try to open $name around ${hourText(peak)}. Start a block now?",
+                )
+            }
+        }
+
         live.firstOrNull { it.detectionType == "HEAVY_DAILY_USE" && !it.subjectAppName.isNullOrBlank() }
             ?.let { finding ->
                 val peak = PEAK_HOUR.find(finding.evidenceJson)?.groupValues?.get(1)?.toIntOrNull()
@@ -57,13 +72,34 @@ object HabitNudgePlanner {
                 }
             }
 
-        val spaced = mutableListOf<HabitNudge>()
-        nudges.sortedBy { it.minuteOfDay }.forEach { nudge ->
-            if (spaced.none { abs(it.minuteOfDay - nudge.minuteOfDay) < MIN_GAP_MINUTES }) {
-                spaced += nudge
+        live.firstOrNull {
+            it.detectionType == "ENTRY_APP" &&
+                it.evidenceJson.contains("\"blockable\":true") &&
+                !it.subjectAppName.isNullOrBlank()
+        }?.let { finding ->
+            val peak = PEAK_HOUR.find(finding.evidenceJson)?.groupValues?.get(1)?.toIntOrNull()
+            val minute = peak?.takeIf { it in 0..23 }?.let { it * 60 - 15 }
+            if (peak != null && minute != null && minute >= 0) {
+                val name = finding.subjectAppName
+                nudges += HabitNudge(
+                    minuteOfDay = minute,
+                    title = "Before you reach for $name",
+                    text = "Around ${hourText(peak)} you usually open $name first. " +
+                        "Start a short block now?",
+                )
             }
         }
-        return spaced.take(MAX_NUDGES)
+
+        // Kept in priority order (the order they were added), then shown in clock order.
+        val chosen = mutableListOf<HabitNudge>()
+        nudges.forEach { nudge ->
+            if (chosen.size < MAX_NUDGES &&
+                chosen.none { abs(it.minuteOfDay - nudge.minuteOfDay) < MIN_GAP_MINUTES }
+            ) {
+                chosen += nudge
+            }
+        }
+        return chosen.sortedBy { it.minuteOfDay }
     }
 
     /** Half an hour before bedtime, but always before the 23:00 start of the late-night window. */
