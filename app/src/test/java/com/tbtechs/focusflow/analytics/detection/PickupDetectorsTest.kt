@@ -33,14 +33,14 @@ class PickupDetectorsTest {
     )
 
     /** Six pickups a day, an hour apart; [entryFor] decides the app of each one. */
-    private fun dailyPickups(days: Int, entryFor: (Int) -> String, seconds: Long = 20): List<AppSessionEntity> =
+    private fun dailyPickups(days: Int, seconds: Long = 20, entryFor: (Int) -> String): List<AppSessionEntity> =
         (0 until days).flatMap { day ->
             (0 until 6).map { k -> session(entryFor(k), atMs(start.plusDays(day.toLong()), 8 + k), seconds) }
         }
 
     @Test
     fun entryAppIsTheAppOpenedFirstMostOften() {
-        val sessions = dailyPickups(10, { k -> if (k == 0) "mail" else "feed" })
+        val sessions = dailyPickups(10) { k -> if (k == 0) "mail" else "feed" }
         val finding = detectEntryApp(sessions, categories, 14, zone)
         assertNotNull(finding)
         assertEquals("ENTRY_APP", finding!!.detectionType)
@@ -51,7 +51,7 @@ class PickupDetectorsTest {
 
     @Test
     fun entryAppIsNotBlockableWhenItIsAMessagingApp() {
-        val sessions = dailyPickups(10, { k -> if (k == 0) "feed" else "mail" })
+        val sessions = dailyPickups(10) { k -> if (k == 0) "feed" else "mail" }
         val finding = detectEntryApp(sessions, categories, 14, zone)
         assertNotNull(finding)
         assertEquals("mail", finding!!.subjectPackage)
