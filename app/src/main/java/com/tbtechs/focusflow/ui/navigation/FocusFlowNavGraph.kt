@@ -766,6 +766,7 @@ fun FocusFlowNavGraph(
                     appName = pendingQuickBlockAppName.ifBlank { packageName },
                     settings = settings,
                     settingsRepository = AppModule.settingsRepository,
+                    onSettingsChanged = { settingsViewModel.refreshSettingsFromStore() },
                     onClose = {
                         pendingQuickBlockPackage = null
                         pendingQuickBlockAppName = ""

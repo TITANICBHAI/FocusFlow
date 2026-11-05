@@ -3,7 +3,6 @@ package com.tbtechs.focusflow.ui.launcher
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.content.Context
-import android.content.pm.ApplicationInfo
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -54,6 +53,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tbtechs.focusflow.data.model.AppSettings
 import com.tbtechs.focusflow.data.repository.SettingsRepository
+import com.tbtechs.focusflow.enforcement.AppBlockerAccessibilityService
 import com.tbtechs.focusflow.ui.theme.BrandPrimary
 import com.tbtechs.focusflow.ui.theme.DarkBackground
 import com.tbtechs.focusflow.ui.theme.DarkBorder
@@ -83,6 +83,7 @@ fun QuickBlockSheet(
     onClose: () -> Unit,
     onOpenActive: () -> Unit,
     onOpenAlwaysOn: () -> Unit,
+    onSettingsChanged: suspend () -> Unit = {},
 ) {
     if (!visible) return
     val context = LocalContext.current
@@ -92,7 +93,10 @@ fun QuickBlockSheet(
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var protectedWarning by remember { mutableStateOf(false) }
-    val isAlwaysOn = packageName in settings.alwaysBlockPackages
+    val inAlwaysOnList = packageName in settings.alwaysBlockPackages
+    // Listed apps are only enforced while the Always-On master toggle is on.
+    val isAlwaysOn = inAlwaysOnList && settings.alwaysBlockEnabled
+    val listedButToggleOff = inAlwaysOnList && !settings.alwaysBlockEnabled
     val isTemporarilyBlocked = settings.standaloneBlockActive &&
         packageName in settings.standaloneBlockPackages &&
         settings.standaloneBlockUntilMs > System.currentTimeMillis()
@@ -106,12 +110,19 @@ fun QuickBlockSheet(
             loading = true
             error = null
             try {
-                val until = System.currentTimeMillis() + durationMs.coerceAtLeast(1L)
+                val nowMs = System.currentTimeMillis()
+                val requested = nowMs + durationMs.coerceAtLeast(1L)
+                // The temporary block has ONE shared expiry. Keep other already-blocked
+                // apps for their full time (never shorten), and drop stale expired ones.
+                val live = settings.standaloneBlockActive && settings.standaloneBlockUntilMs > nowMs
+                val until = if (live) maxOf(requested, settings.standaloneBlockUntilMs) else requested
+                val pkgs = if (live) settings.standaloneBlockPackages + packageName else listOf(packageName)
                 settingsRepository.setStandaloneBlock(
                     active = true,
-                    packages = (settings.standaloneBlockPackages + packageName).distinct(),
+                    packages = pkgs.distinct(),
                     untilMs = until,
                 )
+                runCatching { onSettingsChanged() }
                 onClose()
             } catch (exception: Exception) {
                 error = exception.message ?: "Could not start the temporary block."
@@ -216,7 +227,9 @@ fun QuickBlockSheet(
                     label = "Until tonight",
                     onClick = {
                         val now = LocalDateTime.now()
-                        val tonight = LocalDateTime.of(now.toLocalDate(), LocalTime.of(20, 0))
+                        var tonight = LocalDateTime.of(now.toLocalDate(), LocalTime.of(20, 0))
+                        // Already past 8 PM: block until midnight instead of a 1 ms no-op.
+                        if (!tonight.isAfter(now)) tonight = now.toLocalDate().plusDays(1).atStartOfDay()
                         applyUntil(tonight.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli())
                     },
                     enabled = !loading,
@@ -231,8 +244,12 @@ fun QuickBlockSheet(
                     icon = Icons.Outlined.Nightlight,
                     label = "Tomorrow morning",
                     onClick = {
-                        val tomorrow = LocalDate.now().plusDays(1)
-                        val wakeUp = LocalDateTime.of(tomorrow, LocalTime.of(7, 0))
+                        val now = LocalDateTime.now()
+                        val morning = profileWakeTime(settingsRepository)
+                        // Before the morning cutoff (e.g. 1 AM) "morning" means today, not ~30 h away.
+                        val day = if (now.toLocalTime().isBefore(morning)) now.toLocalDate()
+                        else now.toLocalDate().plusDays(1)
+                        val wakeUp = LocalDateTime.of(day, morning)
                         applyUntil(wakeUp.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli())
                     },
                     enabled = !loading,
@@ -288,13 +305,18 @@ fun QuickBlockSheet(
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
                     Text(
-                        if (isAlwaysOn) "Already Always-On" else "Block always",
+                        when {
+                            isAlwaysOn -> "Already Always-On"
+                            listedButToggleOff -> "In list, enforcement is off"
+                            else -> "Block always"
+                        },
                         fontSize = 13.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = if (isAlwaysOn) StatusReadyText else DarkTextPrimary,
                     )
                     Text(
-                        "Keep this app blocked until you remove it from the Always-On list",
+                        if (listedButToggleOff) "Turn Always-On enforcement back on to block this app"
+                        else "Keep this app blocked until you remove it from the Always-On list",
                         fontSize = 11.sp,
                         lineHeight = 16.sp,
                         color = DarkTextSecondary,
@@ -307,10 +329,13 @@ fun QuickBlockSheet(
                                 protectedWarning = true
                             } else {
                                 scope.launch {
+                                    // Turns the master toggle on and keeps every app already
+                                    // in the list (even ones kept while the toggle was off).
                                     settingsRepository.setAlwaysBlockActive(
                                         active = true,
                                         packages = (settings.alwaysBlockPackages + packageName).distinct(),
                                     )
+                                    runCatching { onSettingsChanged() }
                                     onClose()
                                     onOpenAlwaysOn()
                                 }
@@ -318,7 +343,7 @@ fun QuickBlockSheet(
                         },
                         shape = RoundedCornerShape(14.dp),
                     ) {
-                        Text("Block", color = StatusNotSetUpText, fontWeight = FontWeight.Bold)
+                        Text(if (listedButToggleOff) "Turn on" else "Block", color = StatusNotSetUpText, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -492,18 +517,40 @@ private fun ProtectedSystemAppDialog(onDismiss: () -> Unit) {
     )
 }
 
+/** Fallback "Tomorrow morning" time when no wake-up time is set in the profile. */
+private val DEFAULT_MORNING: LocalTime = LocalTime.of(7, 0)
+
+/** Wake-up time from Settings > Profile ("WHEN DO YOU USUALLY WAKE UP?"), else 7:00. */
+private fun profileWakeTime(settingsRepository: SettingsRepository): LocalTime =
+    runCatching {
+        val json = settingsRepository.getString("user_profile") ?: return@runCatching null
+        val raw = org.json.JSONObject(json).optString("wakeUpTime")
+        if (raw.isBlank()) null else LocalTime.parse(raw)
+    }.getOrNull() ?: DEFAULT_MORNING
+
 private fun formatExpiry(untilMs: Long): String =
     java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(untilMs)
 
+/**
+ * Only truly critical packages are protected (launchers, dialer/telecom,
+ * system UI, installer, own app) — the same list the enforcement service
+ * ignores. Preinstalled-but-ordinary apps (YouTube, Chrome, Calendar, OEM
+ * browsers, etc.) carry FLAG_SYSTEM on many OEM ROMs and MUST stay blockable.
+ */
 private fun isProtectedSystemApp(context: Context, packageName: String): Boolean =
-    runCatching {
-        val info = context.packageManager.getApplicationInfo(packageName, 0)
-        info.flags and ApplicationInfo.FLAG_SYSTEM != 0
-    }.getOrDefault(false)
+    packageName.equals(context.packageName, ignoreCase = true) ||
+        packageName.equals("android", ignoreCase = true) ||
+        packageName.equals("com.android.systemui", ignoreCase = true) ||
+        packageName.equals("com.google.android.gms", ignoreCase = true) ||
+        packageName.equals("com.google.android.gsf", ignoreCase = true) ||
+        packageName.contains("packageinstaller", ignoreCase = true) ||
+        packageName.contains("permissioncontroller", ignoreCase = true) ||
+        packageName.contains("launcher", ignoreCase = true) ||
+        AppBlockerAccessibilityService.NEVER_BLOCK.any { it.equals(packageName, ignoreCase = true) }
 
 private fun showCustomDateTimePicker(context: Context, onSelected: (Long) -> Unit) {
     val now = LocalDateTime.now()
-    DatePickerDialog(
+    val dialog = DatePickerDialog(
         context,
         { _, year, month, day ->
             TimePickerDialog(
@@ -523,5 +570,8 @@ private fun showCustomDateTimePicker(context: Context, onSelected: (Long) -> Uni
         now.year,
         now.monthValue - 1,
         now.dayOfMonth,
-    ).show()
+    )
+    // Past days are greyed out and cannot be selected.
+    dialog.datePicker.minDate = System.currentTimeMillis() - 1000L
+    dialog.show()
 }
