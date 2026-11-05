@@ -113,8 +113,17 @@ jobs:
           ref: ${{ needs.select_build.outputs.head_sha }}
           fetch-depth: 0
 
+      # The release scripts come from the commit this workflow was started on, not from the
+      # selected build commit, so fixing a script never requires rebuilding the APKs first.
+      - name: Check out release tooling from this workflow's commit
+        uses: actions/checkout@v4
+        with:
+          path: release-tools
+
       - name: Test release notes and changelog
-        run: python3 scripts/test_generate_github_release_notes.py
+        env:
+          RELEASE_SOURCE_DIR: .
+        run: python3 release-tools/scripts/test_release_notes.py
 
       - name: Set up Android SDK tools for APK verification
         uses: android-actions/setup-android@v3
@@ -204,6 +213,9 @@ jobs:
           EXPECTED_VERSION_NAME: ${{ steps.metadata.outputs.version_name }}
           EXPECTED_VERSION_CODE: ${{ steps.metadata.outputs.version_code }}
         run: |
+          # GitHub's default shell has no pipefail; without it a failed check inside
+          # "{ ...; } | tee" is silently ignored and the release would still go out.
+          set -o pipefail
           SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
           AAPT="$SDK_ROOT/build-tools/35.0.0/aapt"
           APKSIGNER="$SDK_ROOT/build-tools/35.0.0/apksigner"
@@ -287,25 +299,24 @@ jobs:
             done < /tmp/verified-tbtechs-apks.tsv
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Generate changelog and install instructions
+      - name: Generate release notes
         env:
           BUILD_SHA: ${{ needs.select_build.outputs.head_sha }}
-          VERSION_NAME: ${{ steps.metadata.outputs.version_name }}
           RELEASE_TAG: ${{ steps.metadata.outputs.release_tag }}
-          APK_ARM64_NAME: ${{ steps.stage.outputs.arm64_v8a_name }}
-          APK_ARM32_NAME: ${{ steps.stage.outputs.armeabi_v7a_name }}
-          APK_UNIVERSAL_NAME: ${{ steps.stage.outputs.universal_name }}
+          APK_ARM64: ${{ steps.stage.outputs.arm64_v8a_path }}
+          APK_ARM32: ${{ steps.stage.outputs.armeabi_v7a_path }}
+          APK_UNIVERSAL: ${{ steps.stage.outputs.universal_path }}
         run: |
-          python3 scripts/generate_github_release_notes.py \
+          python3 release-tools/scripts/release_notes.py \
             --changelog app/src/main/assets/changelog.json \
-            --output release-notes.md \
-            --version-name "$VERSION_NAME" \
+            --gradle app/build.gradle.kts \
             --repository "$GITHUB_REPOSITORY" \
             --release-tag "$RELEASE_TAG" \
             --source-sha "$BUILD_SHA" \
-            --apk-arm64-name "$APK_ARM64_NAME" \
-            --apk-arm32-name "$APK_ARM32_NAME" \
-            --apk-universal-name "$APK_UNIVERSAL_NAME"
+            --apk-arm64 "$APK_ARM64" \
+            --apk-arm32 "$APK_ARM32" \
+            --apk-universal "$APK_UNIVERSAL" \
+            --output release-notes.md
 
       - name: Publish GitHub release
         id: release
