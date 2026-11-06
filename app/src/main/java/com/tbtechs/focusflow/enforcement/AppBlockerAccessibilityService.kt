@@ -52,6 +52,16 @@ import kotlinx.coroutines.cancel
 // import com.tbtechs.focusflow.enforcement.BlockOverlayActivity (same package)
 // import com.tbtechs.focusflow.enforcement.NetworkBlockerVpnService (same package)
 import org.json.JSONArray
+import android.graphics.Rect
+import com.tbtechs.focusflow.enforcement.customrules.CaptureHolder
+import com.tbtechs.focusflow.enforcement.customrules.CaptureResult
+import com.tbtechs.focusflow.enforcement.customrules.CustomRuleStore
+import com.tbtechs.focusflow.enforcement.customrules.CustomScreenRule
+import com.tbtechs.focusflow.enforcement.customrules.CustomScreenRules
+import com.tbtechs.focusflow.enforcement.customrules.NodeFields
+import com.tbtechs.focusflow.enforcement.customrules.NodeSnapshot
+import com.tbtechs.focusflow.enforcement.customrules.RuleEvaluator
+import com.tbtechs.focusflow.enforcement.customrules.RuleMatcher
 
 /**
  * AppBlockerAccessibilityService
@@ -100,6 +110,10 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         const val PREFS_NAME       = "focusday_prefs"
         const val PREF_ALLOWED_PKG = "allowed_packages"
         const val PREF_FOCUS_ON    = "focus_active"
+
+        /** The connected service, or null. Used by the custom-rule capture screen. */
+        @Volatile
+        var instance: AppBlockerAccessibilityService? = null
 
         const val PREF_SA_ACTIVE   = "standalone_block_active"
         const val PREF_SA_PKGS     = "standalone_blocked_packages"
@@ -520,6 +534,19 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     private var textDebounceRunnable: Runnable? = null
     // Content-changed events fire on every layout pass — throttled per package.
     private val lastContentScanMs = mutableMapOf<String, Long>()
+
+    // ── Custom screen rules: parsed-rules cache + per-package scan throttle ───
+    private var customRulesRaw: String? = null
+    private var customRulesCache: List<CustomScreenRule> = emptyList()
+    private val lastRuleScanMs = mutableMapOf<String, Long>()
+    private fun customRules(): List<CustomScreenRule> {
+        val raw = prefs.getString(CustomRuleStore.PREF_KEY, "[]") ?: "[]"
+        if (raw != customRulesRaw) {
+            customRulesRaw = raw
+            customRulesCache = CustomScreenRules.fromJson(raw)
+        }
+        return customRulesCache
+    }
     private var foregroundWatchdogRunnable: Runnable? = null
     private var cachedHomePackages: Set<String> = emptySet()
     private var homePackagesCachedAtMs: Long = 0L
@@ -568,6 +595,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         startForegroundWatchdog()
         usageSessionTracker = AppModule.createAppUsageAndSessionTracker(this)
         AppModule.usageRollupCoordinator.trigger("service_start")
+        instance = this
     }
 
     /**
@@ -1428,6 +1456,20 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             handleBlockedApp(pkg, "Instagram Reels are blocked by your FocusFlow rule")
             return
         }
+        // Custom screen rules (Settings → Custom Screen Rules). Each enabled rule is its own
+        // Defense toggle and, like the two toggles above, runs independent of any session.
+        if (hasEnabledCustomRule(pkg)) {
+            val ruleRoot = ev.source
+            try {
+                val hit = matchingCustomRule(pkg, ruleRoot, throttle = false)
+                if (hit != null) {
+                    handleBlockedApp(pkg, "Custom rule: ${hit.name}")
+                    return
+                }
+            } finally {
+                ruleRoot?.recycle()
+            }
+        }
 
         // ── Word blocking ─────────────────────────────────────────────────────
         // The Keyword Blocker runs continuously whenever any blocked words are
@@ -1570,6 +1612,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     }
 
     override fun onDestroy() {
+        instance = null
         allowanceUsageCoordinator?.onServiceStopping()
         allowanceScope?.cancel()
         allowanceScope = null
@@ -3416,6 +3459,8 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                 prefs.getBoolean(PREF_BLOCK_IG_REELS, false)
             blockReason?.startsWith("Blocked keyword") == true ->
                 getBlockedWords().isNotEmpty()
+            blockReason?.startsWith("Custom rule") == true ->
+                customRules().any { it.enabled && blockReason == "Custom rule: ${it.name}" }
             else -> {
                 val now = System.currentTimeMillis()
                 val focusActive = isFocusActiveNow(now)
@@ -3763,6 +3808,31 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     private fun handleContentChanged(event: AccessibilityEvent) {
         val pkg = event.packageName?.toString() ?: return
         if (pkg == packageName) return
+
+        // ── Custom screen rules — checked before the keyword guard so they work with
+        // no keywords configured. Cheap package check first: most apps have no rule.
+        if (hasEnabledCustomRule(pkg) && customRuleScanDue(pkg)) {
+            // A content event's own source is only the part of the screen that changed, so
+            // prefer the whole active window when it belongs to this app.
+            val activeRoot = rootInActiveWindow
+            val useActive = activeRoot != null &&
+                activeRoot.packageName?.toString().equals(pkg, ignoreCase = true)
+            val ruleRoot = if (useActive) {
+                activeRoot
+            } else {
+                activeRoot?.recycle()
+                event.source
+            }
+            try {
+                val hit = matchingCustomRule(pkg, ruleRoot, throttle = true)
+                if (hit != null) {
+                    handleBlockedApp(pkg, "Custom rule: ${hit.name}")
+                    return
+                }
+            } finally {
+                ruleRoot?.recycle()
+            }
+        }
 
         val now = System.currentTimeMillis()
 
@@ -4257,6 +4327,139 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         }
         walk(root)
         return match[0]
+    }
+
+    // ── Custom screen rules ───────────────────────────────────────────────────
+
+    /** Launchers and other hard-locked packages are never blocked, rules included. */
+    private fun isNeverBlockedPackage(pkg: String): Boolean =
+        pkg == packageName || NEVER_BLOCK.any { pkg.equals(it, ignoreCase = true) }
+
+    private fun hasEnabledCustomRule(pkg: String): Boolean =
+        !isNeverBlockedPackage(pkg) &&
+            customRules().any { it.enabled && it.packageName.equals(pkg, ignoreCase = true) }
+
+    /** True when a content-change scan of [pkg] is not suppressed by the per-package throttle. */
+    private fun customRuleScanDue(pkg: String): Boolean =
+        System.currentTimeMillis() - (lastRuleScanMs[pkg] ?: 0L) >= CONTENT_SCAN_THROTTLE_MS
+
+    /**
+     * Returns the first enabled custom rule of [pkg] whose matchers are satisfied by the
+     * tree under [root], or null. The caller owns [root] and recycles it; every child
+     * obtained here is recycled here.
+     *
+     * [throttle] limits the scan to once per [CONTENT_SCAN_THROTTLE_MS] per package. The
+     * window-state path passes false: it fires once per screen change, and a throttled
+     * miss there would not be retried until the next content event.
+     */
+    private fun matchingCustomRule(
+        pkg: String,
+        root: AccessibilityNodeInfo?,
+        throttle: Boolean,
+    ): CustomScreenRule? {
+        if (root == null || isNeverBlockedPackage(pkg)) return null
+        val candidates = customRules().filter {
+            it.enabled && it.packageName.equals(pkg, ignoreCase = true)
+        }
+        if (candidates.isEmpty()) return null
+
+        val now = System.currentTimeMillis()
+        if (throttle) {
+            val last = lastRuleScanMs[pkg] ?: 0L
+            if (now - last < CONTENT_SCAN_THROTTLE_MS) return null
+        }
+        lastRuleScanMs[pkg] = now
+
+        val evaluators = candidates.map { RuleEvaluator(it) }
+        var hit: CustomScreenRule? = null
+        var visited = 0
+        fun walk(node: AccessibilityNodeInfo, depth: Int) {
+            if (hit != null || depth > RuleMatcher.MAX_DEPTH || visited >= RuleMatcher.MAX_NODES) return
+            visited++
+            val fields = NodeFields(
+                viewId = node.viewIdResourceName,
+                className = node.className?.toString(),
+                text = node.text?.toString(),
+                desc = node.contentDescription?.toString(),
+            )
+            for (evaluator in evaluators) {
+                evaluator.accept(fields)
+                if (evaluator.isSatisfied) {
+                    hit = evaluator.rule
+                    return
+                }
+            }
+            for (i in 0 until node.childCount) {
+                if (hit != null || visited >= RuleMatcher.MAX_NODES) break
+                val child = node.getChild(i) ?: continue
+                try {
+                    walk(child, depth + 1)
+                } finally {
+                    child.recycle()
+                }
+            }
+        }
+        walk(root, 0)
+        return hit
+    }
+
+    /**
+     * Captures the screen of whatever app is in front after [delayMs] and publishes it to
+     * [CaptureHolder] for the "Add rule from screen" flow. Publishes an empty result with a
+     * blank package when nothing readable is on screen or FocusFlow itself is in front.
+     */
+    fun captureSnapshotAfter(delayMs: Long) {
+        handler.postDelayed({ publishCapture() }, delayMs)
+    }
+
+    private fun publishCapture() {
+        val root = try {
+            rootInActiveWindow
+        } catch (_: Exception) {
+            null
+        }
+        val rootPkg = root?.packageName?.toString()
+        if (root == null || rootPkg.isNullOrBlank() || rootPkg == packageName) {
+            root?.recycle()
+            CaptureHolder.snapshot.value = CaptureResult("", emptyList(), System.currentTimeMillis())
+            return
+        }
+        val nodes = ArrayList<NodeSnapshot>()
+        val rect = Rect()
+        fun walk(node: AccessibilityNodeInfo, depth: Int) {
+            if (nodes.size >= RuleMatcher.MAX_NODES || depth > RuleMatcher.MAX_DEPTH) return
+            node.getBoundsInScreen(rect)
+            // What the user typed (password and other editable fields) is never captured.
+            val text = if (node.isPassword || node.isEditable) null else node.text?.toString()
+            nodes += NodeSnapshot(
+                depth = depth,
+                viewId = node.viewIdResourceName,
+                className = node.className?.toString(),
+                text = text?.take(CustomScreenRules.MAX_FIELD_LEN),
+                desc = node.contentDescription?.toString()?.take(CustomScreenRules.MAX_FIELD_LEN),
+                bounds = "${rect.left},${rect.top},${rect.right},${rect.bottom}",
+            )
+            for (i in 0 until node.childCount) {
+                if (nodes.size >= RuleMatcher.MAX_NODES) break
+                val child = node.getChild(i) ?: continue
+                try {
+                    walk(child, depth + 1)
+                } finally {
+                    child.recycle()
+                }
+            }
+        }
+        try {
+            walk(root, 0)
+        } finally {
+            root.recycle()
+        }
+        CaptureHolder.snapshot.value = CaptureResult(rootPkg, nodes, System.currentTimeMillis())
+        android.widget.Toast.makeText(
+            this,
+            "FocusFlow captured ${nodes.size} elements — open FocusFlow to continue",
+            android.widget.Toast.LENGTH_LONG,
+        ).show()
     }
 
     private fun collectNodeText(root: AccessibilityNodeInfo): String {

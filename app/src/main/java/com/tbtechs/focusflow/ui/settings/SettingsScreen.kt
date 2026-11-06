@@ -143,6 +143,7 @@ fun SettingsScreen(
     onOpenPrivacyTerms: () -> Unit = {},
     onOpenImportConfirmation: (() -> Unit)? = null,
     externalImportEventNonce: Int = 0,
+    onOpenCustomRules: () -> Unit = {},
 ) {
     val dimensions = LocalFocusFlowDimensions.current
     val settings by settingsViewModel.settings.collectAsState()
@@ -634,6 +635,19 @@ fun SettingsScreen(
                         title = "Manage Permissions",
                         description = "Accessibility, Usage Access, Battery, Notifications",
                         onClick = onOpenPermissions,
+                    )
+                }
+            }
+
+            // 9b. SCREEN RULES
+            item {
+                SettingsSectionHeader("SCREEN RULES")
+                SettingsCard {
+                    SettingsActionRow(
+                        icon = Icons.Outlined.Tune,
+                        title = "Custom Screen Rules",
+                        description = "Block a specific screen inside an app. Each rule becomes a Defense toggle.",
+                        onClick = onOpenCustomRules,
                     )
                 }
             }

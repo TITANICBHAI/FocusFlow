@@ -33,6 +33,11 @@ object Routes {
     const val TERMS_OF_SERVICE = "terms_of_service"
     const val USER_PROFILE = "user_profile"
     const val VPN_BLOCK_LIST = "vpn_block_list"
+    const val CUSTOM_RULES = "custom_rules"
+    const val CUSTOM_RULE_EDIT = "custom_rule_edit"
+    const val CUSTOM_RULE_CAPTURE = "custom_rule_capture"
+    const val CUSTOM_RULE_PICK = "custom_rule_pick"
+    const val CUSTOM_RULES_TRANSFER = "custom_rules_transfer"
     const val NOT_FOUND = "not_found"
 
     val tabRoutes: Set<String> = setOf(HOME, FOCUS, STATS, SETTINGS, DEFENSE)
@@ -63,6 +68,11 @@ object Routes {
         TERMS_OF_SERVICE,
         USER_PROFILE,
         VPN_BLOCK_LIST,
+        CUSTOM_RULES,
+        CUSTOM_RULE_EDIT,
+        CUSTOM_RULE_CAPTURE,
+        CUSTOM_RULE_PICK,
+        CUSTOM_RULES_TRANSFER,
     )
 
     /**

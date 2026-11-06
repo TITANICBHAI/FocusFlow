@@ -64,6 +64,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tbtechs.focusflow.data.model.AppSettings
 import com.tbtechs.focusflow.data.repository.VpnRepository
 import com.tbtechs.focusflow.domain.PinReuseTracker
+import com.tbtechs.focusflow.enforcement.customrules.CustomScreenRule
 import com.tbtechs.focusflow.ui.SettingsViewModel
 import com.tbtechs.focusflow.ui.alwayson.VpnConsentModal
 import com.tbtechs.focusflow.ui.alwayson.rememberVpnConsentRequester
@@ -106,6 +107,9 @@ fun DefenseScreen(
     onOpenPermissions: () -> Unit = {},
     onOpenLauncher: () -> Unit = {},
     onOpenActiveBlocks: () -> Unit = {},
+    customRules: List<CustomScreenRule> = emptyList(),
+    onSetCustomRuleEnabled: (String, Boolean) -> Unit = { _, _ -> },
+    onOpenCustomRules: () -> Unit = {},
 ) {
     val dimensions = LocalFocusFlowDimensions.current
     val settings by settingsViewModel.settings.collectAsState()
@@ -349,6 +353,38 @@ fun DefenseScreen(
                             }
                         },
                     )
+                }
+
+                // Section: CUSTOM SCREEN RULES (created in Settings → Custom Screen Rules)
+                DefenseSection("CUSTOM SCREEN RULES") {
+                    if (customRules.isEmpty()) {
+                        SettingButton(
+                            label = "No custom rules yet",
+                            description = "Create one in Settings → Custom Screen Rules",
+                            onClick = onOpenCustomRules,
+                        )
+                    } else {
+                        customRules.forEachIndexed { index, rule ->
+                            if (index > 0) HorizontalDivider(color = DarkBorder)
+                            SettingSwitch(
+                                label = rule.name,
+                                description = rule.packageName,
+                                checked = rule.enabled,
+                                onChange = { enabled ->
+                                    if (enabled) onSetCustomRuleEnabled(rule.id, true)
+                                    else protectedToggle(rule.name, false) {
+                                        onSetCustomRuleEnabled(rule.id, false)
+                                    }
+                                },
+                            )
+                        }
+                        HorizontalDivider(color = DarkBorder)
+                        SettingButton(
+                            label = "Manage custom rules",
+                            description = "Add, edit, import or export rules",
+                            onClick = onOpenCustomRules,
+                        )
+                    }
                 }
 
                 // Section: AVERSION DETERRENTS

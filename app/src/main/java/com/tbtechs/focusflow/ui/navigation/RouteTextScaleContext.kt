@@ -41,6 +41,11 @@ internal object RouteTextScaleContext {
         Routes.KEYWORD_BLOCKER to Routes.DEFENSE,
         Routes.PASSWORD_PROTECTION to Routes.DEFENSE,
         Routes.VPN_BLOCK_LIST to Routes.DEFENSE,
+        Routes.CUSTOM_RULES to Routes.SETTINGS,
+        Routes.CUSTOM_RULE_EDIT to Routes.SETTINGS,
+        Routes.CUSTOM_RULE_CAPTURE to Routes.SETTINGS,
+        Routes.CUSTOM_RULE_PICK to Routes.SETTINGS,
+        Routes.CUSTOM_RULES_TRANSFER to Routes.SETTINGS,
     )
 
     private val sourceContextRoutes = sharedRoutes + ownerTabByRoute.keys

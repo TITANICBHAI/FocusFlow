@@ -61,6 +61,12 @@ import com.tbtechs.focusflow.ui.TaskViewModel
 import com.tbtechs.focusflow.ui.backup.BackupViewModel
 import com.tbtechs.focusflow.ui.backup.ImportConfirmScreen
 import com.tbtechs.focusflow.ui.active.ActiveScreen
+import com.tbtechs.focusflow.ui.customrules.CustomRuleCaptureScreen
+import com.tbtechs.focusflow.ui.customrules.CustomRuleEditScreen
+import com.tbtechs.focusflow.ui.customrules.CustomRulePickNodeScreen
+import com.tbtechs.focusflow.ui.customrules.CustomRulesScreen
+import com.tbtechs.focusflow.ui.customrules.CustomRulesTransferScreen
+import com.tbtechs.focusflow.ui.customrules.CustomRulesViewModel
 import com.tbtechs.focusflow.ui.alwayson.AlwaysOnScreen
 import com.tbtechs.focusflow.ui.common.ErrorBoundary
 import com.tbtechs.focusflow.ui.common.SideMenu
@@ -130,6 +136,9 @@ fun FocusFlowNavGraph(
     val settings by settingsViewModel.settings.collectAsState()
     val backupViewModel: BackupViewModel = viewModel(
         factory = BackupViewModel.factory(settingsViewModel),
+    )
+    val customRulesViewModel: CustomRulesViewModel = viewModel(
+        factory = CustomRulesViewModel.Factory,
     )
 
     fun navigate(route: String) {
@@ -300,6 +309,7 @@ fun FocusFlowNavGraph(
                                 onOpenImportConfirmation = {
                                     navigate(Routes.IMPORT_CONFIRM)
                                 },
+                                onOpenCustomRules = { navigate(Routes.CUSTOM_RULES) },
                             )
                         }
                     }
@@ -389,6 +399,9 @@ fun FocusFlowNavGraph(
                                 onOpenPermissions = { navigate(Routes.PERMISSIONS) },
                                 onOpenLauncher = { navigate(Routes.HOME_LAUNCHER_SETUP) },
                                 onOpenActiveBlocks = { navigate(Routes.ACTIVE) },
+                                customRules = customRulesViewModel.rules.collectAsState().value,
+                                onSetCustomRuleEnabled = customRulesViewModel::setEnabled,
+                                onOpenCustomRules = { navigate(Routes.CUSTOM_RULES) },
                             )
                         }
                     }
@@ -550,6 +563,114 @@ fun FocusFlowNavGraph(
                     ScreenBoundary(Routes.KEYWORD_BLOCKER) {
                         KeywordBlockerScreen(
                             settingsViewModel = settingsViewModel,
+                            onBack = ::back,
+                        )
+                    }
+                }
+            }
+            composable(
+                route = RouteTextScaleContext.routePattern(Routes.CUSTOM_RULES),
+                arguments = listOf(sourceTabArgument()),
+            ) { backStackEntry ->
+                RouteTextScaleProvider(
+                    route = Routes.CUSTOM_RULES,
+                    sourceTab = backStackEntry.arguments
+                        ?.getString(RouteTextScaleContext.SOURCE_TAB_ARGUMENT),
+                    settings = settings,
+                ) {
+                    ScreenBoundary(Routes.CUSTOM_RULES) {
+                        CustomRulesScreen(
+                            viewModel = customRulesViewModel,
+                            settingsViewModel = settingsViewModel,
+                            isFocusActive = focusSessionViewModel.focusSession.value?.isActive == true,
+                            onBack = ::back,
+                            onOpenCapture = { navigate(Routes.CUSTOM_RULE_CAPTURE) },
+                            onOpenEdit = { navigate(Routes.CUSTOM_RULE_EDIT) },
+                            onOpenTransfer = { navigate(Routes.CUSTOM_RULES_TRANSFER) },
+                        )
+                    }
+                }
+            }
+            composable(
+                route = RouteTextScaleContext.routePattern(Routes.CUSTOM_RULE_EDIT),
+                arguments = listOf(sourceTabArgument()),
+            ) { backStackEntry ->
+                RouteTextScaleProvider(
+                    route = Routes.CUSTOM_RULE_EDIT,
+                    sourceTab = backStackEntry.arguments
+                        ?.getString(RouteTextScaleContext.SOURCE_TAB_ARGUMENT),
+                    settings = settings,
+                ) {
+                    ScreenBoundary(Routes.CUSTOM_RULE_EDIT) {
+                        CustomRuleEditScreen(
+                            viewModel = customRulesViewModel,
+                            settingsViewModel = settingsViewModel,
+                            isFocusActive = focusSessionViewModel.focusSession.value?.isActive == true,
+                            onBack = ::back,
+                            // After save or delete, return to the list and drop the capture
+                            // and pick screens that may sit between it and this editor.
+                            onFinished = {
+                                val listPattern = RouteTextScaleContext.routePattern(Routes.CUSTOM_RULES)
+                                if (!navController.popBackStack(listPattern, false)) {
+                                    navigate(Routes.CUSTOM_RULES)
+                                }
+                            },
+                        )
+                    }
+                }
+            }
+            composable(
+                route = RouteTextScaleContext.routePattern(Routes.CUSTOM_RULE_CAPTURE),
+                arguments = listOf(sourceTabArgument()),
+            ) { backStackEntry ->
+                RouteTextScaleProvider(
+                    route = Routes.CUSTOM_RULE_CAPTURE,
+                    sourceTab = backStackEntry.arguments
+                        ?.getString(RouteTextScaleContext.SOURCE_TAB_ARGUMENT),
+                    settings = settings,
+                ) {
+                    ScreenBoundary(Routes.CUSTOM_RULE_CAPTURE) {
+                        CustomRuleCaptureScreen(
+                            viewModel = customRulesViewModel,
+                            onBack = ::back,
+                            onOpenPermissions = { navigate(Routes.PERMISSIONS) },
+                            onOpenPick = { navigate(Routes.CUSTOM_RULE_PICK) },
+                        )
+                    }
+                }
+            }
+            composable(
+                route = RouteTextScaleContext.routePattern(Routes.CUSTOM_RULE_PICK),
+                arguments = listOf(sourceTabArgument()),
+            ) { backStackEntry ->
+                RouteTextScaleProvider(
+                    route = Routes.CUSTOM_RULE_PICK,
+                    sourceTab = backStackEntry.arguments
+                        ?.getString(RouteTextScaleContext.SOURCE_TAB_ARGUMENT),
+                    settings = settings,
+                ) {
+                    ScreenBoundary(Routes.CUSTOM_RULE_PICK) {
+                        CustomRulePickNodeScreen(
+                            viewModel = customRulesViewModel,
+                            onBack = ::back,
+                            onDone = { navigate(Routes.CUSTOM_RULE_EDIT) },
+                        )
+                    }
+                }
+            }
+            composable(
+                route = RouteTextScaleContext.routePattern(Routes.CUSTOM_RULES_TRANSFER),
+                arguments = listOf(sourceTabArgument()),
+            ) { backStackEntry ->
+                RouteTextScaleProvider(
+                    route = Routes.CUSTOM_RULES_TRANSFER,
+                    sourceTab = backStackEntry.arguments
+                        ?.getString(RouteTextScaleContext.SOURCE_TAB_ARGUMENT),
+                    settings = settings,
+                ) {
+                    ScreenBoundary(Routes.CUSTOM_RULES_TRANSFER) {
+                        CustomRulesTransferScreen(
+                            viewModel = customRulesViewModel,
                             onBack = ::back,
                         )
                     }

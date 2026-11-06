@@ -53,4 +53,21 @@ class RoutesTest {
         assertEquals(Routes.HOME, Routes.fromLink("focusflow", "app", "/"))
         assertEquals(Routes.NOT_FOUND, Routes.fromLink("focusflow", "app", "/nope"))
     }
+
+    @Test
+    fun customScreenRuleRoutesAreInternalOnly() {
+        val routes = listOf(
+            Routes.CUSTOM_RULES,
+            Routes.CUSTOM_RULE_EDIT,
+            Routes.CUSTOM_RULE_CAPTURE,
+            Routes.CUSTOM_RULE_PICK,
+            Routes.CUSTOM_RULES_TRANSFER,
+        )
+        routes.forEach { route ->
+            assertTrue(route, route in Routes.architectureRoutes)
+            assertFalse(route, route in Routes.externalLinkableRoutes)
+            assertEquals(route, Routes.NOT_FOUND, Routes.fromPath(route))
+        }
+        assertEquals(Routes.NOT_FOUND, Routes.fromPath("custom_rules"))
+    }
 }
