@@ -74,7 +74,7 @@ If Room reports an auto-migration error, use Appendix A (`MIGRATION_10_11`, regi
 FOCUSFLOW_SKIP_APK_BUILD=1 bash scripts/build-apk-with-java.sh :app:compileProductionDebugAndroidTestKotlin
 FOCUSFLOW_SKIP_APK_BUILD=1 bash scripts/build-apk-with-java.sh :app:testProductionDebugUnitTest --tests "com.tbtechs.focusflow.analytics.phone.*"
 ```
-Expected in the XML (Phase 1+2 only): 11 classes, 142 tests, 0 failures. After Phase 3 the same command should show **17 classes, 269 tests, 0 failures**. Then run the full unit suite once (should equal your baseline + 269 and nothing else changed), and the instrumentation test `FocusFlowDatabaseMigrationTest` on a device/emulator.
+Expected in the XML (Phase 1+2 only): 11 classes, 142 tests, 0 failures. After Phase 3 it shows 17 classes, 269 tests; after Phase 4 (T13) **22 classes, 380 tests, 0 failures**. Then run the full unit suite once (should equal your baseline + 380 and nothing else changed), and the instrumentation test `FocusFlowDatabaseMigrationTest` on a device/emulator.
 
 ## Phase 3 — T9–T12 (Gate A): DONE in code (harness-verified; Gradle / AppModule compile pending)
 
@@ -92,7 +92,19 @@ Totals: harness runs 17 test classes, **269 tests, 0 failures**. Mutation checks
 FOCUSFLOW_SKIP_APK_BUILD=1 bash scripts/build-apk-with-java.sh :app:compileProductionDebugKotlin
 FOCUSFLOW_SKIP_APK_BUILD=1 bash scripts/build-apk-with-java.sh :app:testProductionDebugUnitTest --tests "com.tbtechs.focusflow.analytics.phone.*"
 ```
-Expected: compiles (this is the first compile of `AppModule`/worker wiring and of the Room store), 17 classes, 269 tests, 0 failures. Then the full unit suite (baseline + 269) and the commit of `11.json` from Phase 2.
+Expected: compiles (this is the first compile of `AppModule`/worker wiring and of the Room store), 17 classes, 269 tests, 0 failures. Then the full unit suite (baseline + 380) and the commit of `11.json` from Phase 2.
+
+## Phase 4 — T13 insight engine: DONE in code (harness-verified; Gradle pending)
+
+| Task | Files (new) | Result in harness |
+|---|---|---|
+| T13 | `analytics/phone/insights/{InsightStats,InsightContext,SummaryInsights,ChangeInsights,PatternInsights,RecordInsights,PhoneInsightEngine}.kt`; constants filled into `InsightThresholds.kt` (every number is a named constant; ratios are num/den pairs so "exactly 1.4×" is exact) | `InsightStatsTest` 9, `SummaryInsightsTest` 23, `ChangeInsightsTest` 30, `PatternInsightsTest` 25, `RecordAndAssemblyTest` 24 — all pass. Harness total **380 tests, 0 failures**. |
+
+All 13 modules, the Appendix C wording, evidence lines, the 12-insight cap plus up to 2 notes, and the priority/id sort are implemented. The plan's `PhoneInsightEngineTest.kt` is split into four files by module group (same cases, easier to read).
+Mutation check: ~75 deliberate breakages of thresholds, comparison operators, window clipping, ordering and caps. All caught after adding tests, except two equivalent ones: the plan's late-night "tiny prior" alternative (it is implied by the 1.5× rule, kept as written) and the `?: return` on a zero previous attempt rate (a 0% change is below the 20% bar anyway).
+
+### To run on your machine (not run by me)
+Same two commands as Gate A. Expected: 22 classes, 380 tests, 0 failures.
 
 ## Rulings
 
@@ -113,9 +125,18 @@ Expected: compiles (this is the first compile of `AppModule`/worker wiring and o
 15. **Coverage "since" dates** — `phoneDataSince` / `appDataSince` are the earliest loaded phone-day / app-day dates inside the requested range, not the earliest ever stored. Cost if wrong: the "data since" caption is later than the true first date on short windows.
 16. **Ties** — peak hour/day picks the earliest index; highest/lowest day ties go to the later date (as the plan's T9 text says). Cost if wrong: which of two equal days is named.
 17. **Persist failures are swallowed** — if writing past days or syncing blocked attempts fails (other than cancellation or lost usage access), the report is still built from what is stored. Lost usage access gives `PermissionNeeded`. Cost if wrong: a stale report instead of an error.
+18. **Confidence** — "HIGH when the sample is ≥ 2× the minimum" needs a definition of sample. Used: total complete days across all windows a module reads (or the module's own unit: unlocks, sessions, minutes of focus), against the largest single minimum it states. Cost if wrong: the HIGH/MEDIUM label (shown in evidence only) is more or less generous; a few modules (e.g. consistency without a previous period) can never be HIGH.
+19. **Monthly summary gaps** — the plan gives no minimum for the unlocks line or a direction rule. Used: ≥ 4 days with unlock signal in each month (same as weekly) and the same ±5% direction rule. Cost if wrong: the unlocks line appears/hides a little earlier or later.
+20. **No percent when the previous value is 0** — the percent part of a line is left out (e.g. "Screen time: 2h/day."); direction is FLAT. Cost if wrong: none for real data.
+21. **UNUSUAL_DAY needs a usual day above 0** — a baseline median of 0 gives no insight (a percent above 0 is undefined). Cost if wrong: none realistic.
+22. **CONSISTENCY wording** — Appendix C has no text for "first unlock varies a lot"; used " Your first unlock time varies a lot from day to day." "Usually around" is the median minute of the day. The ±0.1 trend rule has a 1e-9 tolerance so exactly 0.1 counts. Cost if wrong: wording only.
+23. **Records** — `isNew` = date within today−7 … today; `most_used_app` sums every given app day (including live today) and "n days" is the number of distinct dates with app rows; busiest hour and most-used app have no date, so never "new"; ties go to the later date. Cost if wrong: a card is "New" a day early/late.
+24. **FOCUS_TREND** — a still-running session is counted to the end of the window (no clock); the ±20% bar is on the rounded percent; no insight when the previous rate is 0; the held-rate gap is compared on the rounded percents. Cost if wrong: an edge case flips at exactly the boundary.
+25. **TIME_OF_DAY_HABIT** — uses complete days only; ties between periods go to the earlier period; the period name is lower-cased in the text ("a late night app"). Cost if wrong: wording only.
+26. **DATA_NOTE unlocks** — evaluated on complete days of the last 14 (needs at least one) with average wakes ≥ 5/day. Cost if wrong: note appears on 1–2 days of data.
 
 ## Open items
 - `app/schemas/.../11.json` can only be generated by a real Room build (T5). It must be kept and committed after your first compile.
 - The Gradle compile, the Phase 1+2 unit tests under Gradle, and the v10 → v11 instrumentation test have not been run by me.
 - T8 and T12 wiring (`AppModule`, worker) have never been compiled.
-- Phase 4 onwards (T13–T23: insight engine, Stats / Extra UI, docs, device checks) not started. UI tasks cannot be compiled in my environment; each gate will say so.
+- Phase 5 onwards (T14–T23: ViewModel + chart parts, Stats destinations and cards, Extra tabs, Insights screen, hardening, docs, device checks) not started. UI tasks cannot be compiled in my environment; each gate will say so.
