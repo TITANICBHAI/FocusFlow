@@ -32,6 +32,20 @@ class UsageMaintenanceWorker(
         val operations = object : UsageMaintenanceOperations {
             override suspend fun writeRecentRollups(nowMs: Long): MaintenanceRollupResult {
                 val pass = AppModule.usageRollupWriter.writeRecentPastDays(nowMs)
+                try {
+                    AppModule.phoneBehaviourRollupWriter.writeMissingPastDays(nowMs)
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.w(TAG, "Phone behaviour rollup failed", e)
+                }
+                try {
+                    AppModule.blockedAttemptSync.sync()
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.w(TAG, "Blocked attempt sync failed", e)
+                }
                 return when (pass) {
                     is UsageRollupPass.Written -> MaintenanceRollupResult.Written
                     is UsageRollupPass.Unknown -> MaintenanceRollupResult.Unknown(pass.reason)

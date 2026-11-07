@@ -37,6 +37,13 @@ import com.tbtechs.focusflow.analytics.RoomUsageHistoryStore
 import com.tbtechs.focusflow.analytics.DeviceUsageSource
 import com.tbtechs.focusflow.analytics.DeviceUsageAppMetadata
 import com.tbtechs.focusflow.analytics.UsageAppMetadata
+import com.tbtechs.focusflow.analytics.ForegroundSpanTracker
+import com.tbtechs.focusflow.analytics.phone.AppCategoryResolver
+import com.tbtechs.focusflow.analytics.phone.BlockedAttemptSync
+import com.tbtechs.focusflow.analytics.phone.PhoneBehaviourRepository
+import com.tbtechs.focusflow.analytics.phone.PhoneBehaviourRollupWriter
+import com.tbtechs.focusflow.analytics.phone.PhoneBehaviourStore
+import com.tbtechs.focusflow.analytics.phone.RoomPhoneBehaviourStore
 import com.tbtechs.focusflow.analytics.detection.FindingDetectionRunner
 import com.tbtechs.focusflow.domain.PinManager
 import com.tbtechs.focusflow.domain.SchedulerEngine
@@ -173,6 +180,26 @@ object AppModule {
         private set
 
     lateinit var usageHistoryRepository: UsageHistoryRepository
+        private set
+
+    /** Package → coarse usage category (Stats / Extra / Insights). Caches PackageManager lookups per process. */
+    lateinit var appCategoryResolver: AppCategoryResolver
+        private set
+
+    /** Storage seam for the derived phone-behaviour tables; everything above it is unit-testable. */
+    lateinit var phoneBehaviourStore: PhoneBehaviourStore
+        private set
+
+    /** Backfills one phone-behaviour row per past day from OS usage events (run by the usage maintenance worker). */
+    lateinit var phoneBehaviourRollupWriter: PhoneBehaviourRollupWriter
+        private set
+
+    /** Copies the capped temptation log into durable per-day blocked-attempt counts. */
+    lateinit var blockedAttemptSync: BlockedAttemptSync
+        private set
+
+    /** Read side of the phone-analytics screens: stored past days + a live "today", behind `PhoneReportSource`. */
+    lateinit var phoneBehaviourRepository: PhoneBehaviourRepository
         private set
 
     fun createAppUsageAndSessionTracker(context: Context): AppUsageAndSessionTracker =
@@ -327,6 +354,35 @@ object AppModule {
             applicationScope = applicationScope,
             writer = usageRollupWriter,
         ).also { it.registerCalendarChangeReceiver() }
+        appCategoryResolver = AppCategoryResolver(app)
+        phoneBehaviourStore = RoomPhoneBehaviourStore(database)
+        phoneBehaviourRollupWriter = PhoneBehaviourRollupWriter(
+            store = phoneBehaviourStore,
+            eventSource = usageStatsRepository,
+            excludedPackages = ForegroundSpanTracker.DEFAULT_EXCLUDED_PACKAGES + app.packageName,
+            appNameResolver = { pkg -> UsageAppMetadata.resolveAppName(app, pkg) },
+            appRollupHook = { startDate, endDate, sessions, earliest, nowMs ->
+                usageRollupWriter.writeDaysFromEvents(startDate, endDate, sessions, earliest, nowMs)
+                Unit
+            },
+            clock = Clock.systemDefaultZone(),
+            zoneId = ZoneId.systemDefault(),
+        )
+        blockedAttemptSync = BlockedAttemptSync(
+            temptationLogProvider = { greyoutRepository.getTemptationLog() },
+            store = phoneBehaviourStore,
+            zoneId = ZoneId.systemDefault(),
+        )
+        phoneBehaviourRepository = PhoneBehaviourRepository(
+            store = phoneBehaviourStore,
+            eventSource = usageStatsRepository,
+            writer = phoneBehaviourRollupWriter,
+            blockedSync = blockedAttemptSync,
+            hasPermission = { usageStatsRepository.hasPermission() },
+            categoryOf = { pkg -> appCategoryResolver.resolve(pkg) },
+            appNameResolver = { pkg -> UsageAppMetadata.resolveAppName(app, pkg) },
+            excludedPackages = ForegroundSpanTracker.DEFAULT_EXCLUDED_PACKAGES + app.packageName,
+        )
         analyticsProcessor = AnalyticsProcessor(
             taskRepository = taskRepository,
             focusSessionRepository = focusSessionRepository,

@@ -3,6 +3,7 @@ package com.tbtechs.focusflow.data.local
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.util.Log
+import androidx.room.AutoMigration
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
@@ -22,6 +23,7 @@ import com.tbtechs.focusflow.data.local.dao.FindingAcknowledgementDao
 import com.tbtechs.focusflow.data.local.dao.BehaviouralHypothesisDao
 import com.tbtechs.focusflow.data.local.dao.ClarifyingQuestionDao
 import com.tbtechs.focusflow.data.local.dao.UsageRollupDao
+import com.tbtechs.focusflow.data.local.dao.PhoneBehaviourDao
 import com.tbtechs.focusflow.data.local.entity.DailyCompletionEntity
 import com.tbtechs.focusflow.data.local.entity.AchievementEntity
 import com.tbtechs.focusflow.data.local.entity.FocusOverrideEntity
@@ -40,6 +42,9 @@ import com.tbtechs.focusflow.data.local.entity.UsagePipelineStateEntity
 import com.tbtechs.focusflow.data.local.entity.UsageRollupAppDayEntity
 import com.tbtechs.focusflow.data.local.entity.UsageRollupDayEntity
 import com.tbtechs.focusflow.data.local.entity.UsageRollupSessionEntity
+import com.tbtechs.focusflow.data.local.entity.PhoneDayRollupEntity
+import com.tbtechs.focusflow.data.local.entity.PhoneFirstAppDayEntity
+import com.tbtechs.focusflow.data.local.entity.BlockedAttemptDayEntity
 import com.tbtechs.focusflow.data.backup.LegacySettingsMigration
 import com.tbtechs.focusflow.data.backup.LegacyPreferenceValue
 import com.tbtechs.focusflow.enforcement.AppBlockerAccessibilityService
@@ -79,6 +84,7 @@ import com.tbtechs.focusflow.enforcement.AppBlockerAccessibilityService
  * | 8 | Data-free bridge version; it must not create an upgrade-day cutover. |
  * | 9 | Stale cutover dates are cleared and missing pipeline state is seeded. |
  * | 10 | Adds JSON-encoded subtasks to tasks. |
+ * | 11 | Adds derived phone-behaviour tables (`phone_day_rollup`, `phone_first_app_day`, `blocked_attempt_day`) via AutoMigration. |
  *
  * ### Hybrid-app database bootstrap — IMPORTANT
  * The hybrid app used expo-sqlite and **never set SQLite `user_version`**, so
@@ -141,9 +147,13 @@ import com.tbtechs.focusflow.enforcement.AppBlockerAccessibilityService
         UsageRollupDayEntity::class,
         UsageRollupAppDayEntity::class,
         UsageRollupSessionEntity::class,
+        PhoneDayRollupEntity::class,
+        PhoneFirstAppDayEntity::class,
+        BlockedAttemptDayEntity::class,
     ],
-    version = 10,
+    version = 11,
     exportSchema = true,
+    autoMigrations = [AutoMigration(from = 10, to = 11)],
 )
 abstract class FocusFlowDatabase : RoomDatabase() {
 
@@ -162,6 +172,7 @@ abstract class FocusFlowDatabase : RoomDatabase() {
     abstract fun behaviouralHypothesisDao(): BehaviouralHypothesisDao
     abstract fun clarifyingQuestionDao(): ClarifyingQuestionDao
     abstract fun usageRollupDao(): UsageRollupDao
+    abstract fun phoneBehaviourDao(): PhoneBehaviourDao
 
     companion object {
 

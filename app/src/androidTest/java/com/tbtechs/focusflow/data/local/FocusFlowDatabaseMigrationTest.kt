@@ -74,6 +74,22 @@ class FocusFlowDatabaseMigrationTest {
     }
 
     @Test
+    fun migrateV10To11AddsPhoneTablesAndKeepsExistingRows() {
+        helper.createDatabase(PHONE_MIGRATION_DB_NAME, 10).apply {
+            execSQL("INSERT INTO report_notes (ref_date, type, note, updated_at) VALUES ('2026-11-01', 'day', 'kept', '2026-11-01T00:00:00Z')")
+            close()
+        }
+        val migrated = helper.runMigrationsAndValidate(PHONE_MIGRATION_DB_NAME, 11, true)
+        migrated.query("SELECT note FROM report_notes WHERE ref_date = '2026-11-01' AND type = 'day'").use {
+            assertTrue(it.moveToFirst()); assertEquals("kept", it.getString(0))
+        }
+        listOf("phone_day_rollup", "phone_first_app_day", "blocked_attempt_day").forEach { table ->
+            migrated.query("SELECT COUNT(*) FROM $table").use { assertTrue(it.moveToFirst()); assertEquals(0, it.getInt(0)) }
+        }
+        migrated.close()
+    }
+
+    @Test
     fun migrateV4PreservesReportNotesAndReconcilesActiveSessions() {
         helper.createDatabase(DB_NAME, 4).apply {
             FocusFlowDatabase.MIGRATION_0_1.migrate(this)
@@ -483,7 +499,7 @@ class FocusFlowDatabaseMigrationTest {
                 .build()
             try {
                 val migrated = database.openHelper.writableDatabase
-                assertEquals(10, migrated.version)
+                assertEquals(11, migrated.version)
                 migrated.query(
                     "SELECT cutover_date, pipeline_version, shadow_started_on " +
                         "FROM usage_pipeline_state WHERE id = 1",
@@ -510,6 +526,7 @@ class FocusFlowDatabaseMigrationTest {
     companion object {
         private const val DB_NAME = "focusflow-migration-test.db"
         private const val SUBTASK_MIGRATION_DB_NAME = "focusflow-migration-v9-to-v10.db"
+        private const val PHONE_MIGRATION_DB_NAME = "phone-migration-test"
         private const val USAGE_DB_NAME = "focusflow-usage-migration-test.db"
         private const val FRESH_DB_NAME = "focusflow-usage-zero-migration-test.db"
         private const val V7_DB_NAME = "focusflow-migration-v7-to-v9.db"
