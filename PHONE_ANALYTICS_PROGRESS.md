@@ -106,6 +106,34 @@ Mutation check: ~75 deliberate breakages of thresholds, comparison operators, wi
 ### To run on your machine (not run by me)
 Same two commands as Gate A. Expected: 22 classes, 380 tests, 0 failures.
 
+## Phase 5 — T14–T16 (Gate B): DONE in code (pure logic harness-verified; **Compose UI and screen edits are NOT compiled**)
+
+| Task | Files | Verified |
+|---|---|---|
+| T14 | `ui/stats/phone/{PhoneChartMath,PhoneStatsStateHolder,PhoneStatsViewModel,PhoneCharts,PhoneUiParts}.kt` | `PhoneChartMathTest` 21, `PhoneStatsStateHolderTest` 20 pass in the harness. `PhoneCharts.kt`, `PhoneUiParts.kt` (Compose) and `PhoneStatsViewModel.kt` are uncompiled. `PhoneStatsViewModelTest` (2 tests) is owner-run only. |
+| T15 | `ui/stats/phone/{StatsDestination,StatsPhoneSection,ExtraPhoneContent,PhoneInsightsScreen}.kt`; **E4** `ui/stats/StatsScreen.kt` (`StatsScreen` replaced: destination / extra-tab state, loadReport / loadInsights effects, ON_RESUME refresh); **E5a** `ArchivedStatsScreen.kt` (`phoneSection` slot after the device-usage card) | Not compiled. `ExtraPhoneContent` and `PhoneInsightsScreen` are stubs with final signatures (filled in T17–T20). |
+| T16 | `ui/stats/phone/StatsPhoneText.kt` (pure), `StatsPhoneSection.kt` body (six cards); **E5b** `ArchivedStatsScreen.kt` (`DeviceUsageCard` now takes `blockedAttempts`, replacing the hard-coded "0") | `StatsPhoneTextTest` 39 pass; mutation pass: all behavioural mutants killed except one unreachable clamp. Compose body not compiled. |
+
+Harness total: **460 tests, 0 failures** (Phase 4 was 380). The harness covers only the pure Kotlin; nothing under `@Composable`, the ViewModel wrapper, `StatsScreen`, or `ArchivedStatsScreen` has been compiled or run.
+
+### To run on your machine (not run by me)
+`./gradlew :app:compileDebugKotlin` first (this is the first compile of every Compose file above and of E4/E5a/E5b), then `./gradlew :app:testDebugUnitTest --tests "com.tbtechs.focusflow.ui.stats.phone.*" --tests "com.tbtechs.focusflow.analytics.phone.*"`.
+Expected: 26 classes in the phone test XML (+ `PhoneStatsViewModelTest`), 460 harness tests + 2 ViewModel tests, 0 failures. Compile errors, if any, are most likely import or modifier mismatches in the Compose files; tell me and I will fix them.
+
+## Phase 6 — T17–T19 (Gate C): DONE in code (pure logic harness-verified; **Compose UI NOT compiled**)
+
+| Task | Files | Verified |
+|---|---|---|
+| T17 | `ui/stats/phone/ExtraAppsModels.kt` (pure), `ExtraAppsTab.kt` | `ExtraAppsModelsTest` 18 pass |
+| T18 | `PhoneTabModels.kt` (pure), `ExtraPhoneTab.kt`, `ExtraDistractionTab.kt` | `PhoneTabModelsTest` 18 pass |
+| T19 | `FocusTabModels.kt` (pure), `ExtraFocusTab.kt` | `FocusTabModelsTest` 9 pass |
+| shared | `ExtraTabParts.kt` (`ExtraTabList`, `ExtraCard`, `PhoneHeroText`, `PhoneListRow`); `ExtraPhoneContent.kt` is now the real router (no placeholder text) | — |
+
+Harness total: **504 tests, 0 failures** (Gate B was 460). Mutation pass on the three model files: 14 of 14 behavioural mutants killed. Nothing under `@Composable` was compiled or run.
+
+### To run on your machine (not run by me)
+Same two commands as Gate B. Expected: 29 harness test classes in the phone XML (+ `PhoneStatsViewModelTest`), 504 tests + 2 ViewModel tests, 0 failures.
+
 ## Rulings
 
 1. **Progress log location** — this file stands in for §13 (the plan file itself is left untouched). Cost if wrong: move the content.
@@ -135,8 +163,24 @@ Same two commands as Gate A. Expected: 22 classes, 380 tests, 0 failures.
 25. **TIME_OF_DAY_HABIT** — uses complete days only; ties between periods go to the earlier period; the period name is lower-cased in the text ("a late night app"). Cost if wrong: wording only.
 26. **DATA_NOTE unlocks** — evaluated on complete days of the last 14 (needs at least one) with average wakes ≥ 5/day. Cost if wrong: note appears on 1–2 days of data.
 
+27. **State holder extracted** — the ViewModel's logic lives in `PhoneStatsStateHolder` (pure, takes a `CoroutineScope`) so it can be tested without androidx; `PhoneStatsViewModel` is a thin wrapper and the UI-state types are in the holder's file. Cost if wrong: none.
+28. **ViewModel test is thin** — `PhoneStatsViewModelTest` (2 tests, owner-run) checks wiring only; logic is covered by `PhoneStatsStateHolderTest` and `PhoneChartMathTest`. Cost if wrong: wiring bugs surface at your first run.
+29. **Hour-axis labels** use four equal quarter weights (12a/6a/12p/6p) instead of SpaceBetween so they line up with bars. Cost if wrong: cosmetic.
+30. **Extra pure helpers** — `shareBarFraction`, `PhoneReportFixtures`, and the text helpers `inAppsText`, `weekdayWeekendNote`, `wakeUpsStat`, `gapStat`, `quickChecksStat`, `byDayCaption`, `busiestCaption`, `appsFootnote` were added so wording is testable. Cost if wrong: none.
+31. **Source failures** — the state holder catches non-cancellation exceptions from the source into `Failed`; a cancelled load never writes state. Cost if wrong: an error message instead of a crash.
+32. **"Other apps" row** includes `othersMs` (time beyond the 30 listed apps) as well as listed apps past the 6 shown; shown when ≥ 0.5%. Cost if wrong: the row's share differs by the tail's share.
+33. **By-day caption** is "Last N days" (N = min(days, 30)) when more than 7 days, rather than the literal "Last 30 days". Cost if wrong: wording only.
+34. **PermissionNeeded shows nothing** in the Stats phone section; the existing usage-access card already explains it. Cost if wrong: none.
+
+35. **Window picker lives in the router** — the plan has each tab render `PhoneWindowTabs` itself; here `ExtraPhoneContent` renders it above the tab, so it stays visible while a new window loads (the tab content is replaced by the loading message). Tab composables therefore take only the report. Cost if wrong: sort / expanded-app state resets when the window changes.
+36. **Held rate** is rounded to the nearest percent (2 held, 1 interrupted → 67%). Cost if wrong: ±1%.
+37. **Phone-tab edge wording** — "—" when a per-day average is missing; "1 quick check" / "1 session" / "1 open a day" use the singular; the busiest hour is the earliest on a tie. Cost if wrong: wording only.
+38. **Focus week bars** are padded with empty dimmed bars when fewer than 8 weeks exist, so there are always 8. The FLAT trend sentence has no "over the last two weeks" (exactly as the plan's text). Cost if wrong: cosmetic.
+39. **Apps tab detail** — "Time of day" bars show whole minutes (rounded); "Last days" bars use the last ≤ 14 days and dim partial/missing days; "Show more" reveals up to 30; the by-category and by-period cards are hidden when empty. Cost if wrong: cosmetic.
+40. **Distraction empty hero** — when distraction time is 0 the card shows a muted "No distraction time recorded for this period." instead of "0s". Cost if wrong: wording only.
+
 ## Open items
 - `app/schemas/.../11.json` can only be generated by a real Room build (T5). It must be kept and committed after your first compile.
 - The Gradle compile, the Phase 1+2 unit tests under Gradle, and the v10 → v11 instrumentation test have not been run by me.
 - T8 and T12 wiring (`AppModule`, worker) have never been compiled.
-- Phase 5 onwards (T14–T23: ViewModel + chart parts, Stats destinations and cards, Extra tabs, Insights screen, hardening, docs, device checks) not started. UI tasks cannot be compiled in my environment; each gate will say so.
+- T20–T23 (Insights screen, hardening, docs, device checks) not started. `PhoneInsightsScreen` is still a stub. The whole Compose layer from T14 onward is uncompiled; compile Gates A–C before continuing.

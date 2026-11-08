@@ -103,6 +103,7 @@ fun ArchivedStatsScreen(
     onOpenActiveBlocks: () -> Unit = {},
     onOpenQuickBlock: (String?) -> Unit = {},
     onOpenExtra: () -> Unit = {},
+    phoneSection: @Composable () -> Unit = {},
 ) {
     val snapshot by statsViewModel.analyticsSnapshot.collectAsState()
     val lifetime by statsViewModel.lifetimeStats.collectAsState()
@@ -186,9 +187,11 @@ fun ArchivedStatsScreen(
                                         focusMinutesByDayOfWeek = loaded.sessions.focusMinutesByDayOfWeek,
                                         onOpenQuickBlock = onOpenQuickBlock,
                                         onSelectWeekMode = statsViewModel::setWeekViewMode,
+                                        blockedAttempts = loaded.blocking.totalAttempts,
                                     )
                                 }
                         }
+                        item { phoneSection() }
                         item {
                             when (window) {
                                 ANALYTICS_YESTERDAY -> YesterdayReport(loaded)
@@ -591,6 +594,7 @@ private fun DeviceUsageCard(
     focusMinutesByDayOfWeek: Map<Int, Double>,
     onOpenQuickBlock: (String?) -> Unit,
     onSelectWeekMode: (String) -> Unit,
+    blockedAttempts: Int,
 ) {
     ArchivedCard {
         val totalMinutes = if (usage.totalMinutes > 0) {
@@ -688,7 +692,7 @@ private fun DeviceUsageCard(
             }
             UsageMetric(if (totalMinutes > 0) "$ratio%" else "0%", "Focus / observed", if (ratio > 0) Color(0xFF55C98A) else DarkTextMuted)
             Box(Modifier.width(1.dp).height(44.dp).background(DarkBorder))
-            UsageMetric("0", "Blocked attempts", Color(0xFF55C98A))
+            UsageMetric(blockedAttempts.toString(), "Blocked attempts", Color(0xFF55C98A))
         }
         Box(
             modifier = Modifier
