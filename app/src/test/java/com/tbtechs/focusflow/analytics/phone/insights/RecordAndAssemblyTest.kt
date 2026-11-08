@@ -5,7 +5,6 @@ import com.tbtechs.focusflow.analytics.phone.PhoneDay
 import com.tbtechs.focusflow.analytics.phone.PhoneDayStatus
 import com.tbtechs.focusflow.analytics.phone.PhoneTestFixtures
 import com.tbtechs.focusflow.analytics.phone.PhoneText
-import com.tbtechs.focusflow.analytics.phone.insights.InsightFixtures.HOUR
 import com.tbtechs.focusflow.analytics.phone.insights.InsightFixtures.MIN
 import com.tbtechs.focusflow.analytics.phone.insights.InsightFixtures.ago
 import com.tbtechs.focusflow.analytics.phone.insights.InsightFixtures.appSpan

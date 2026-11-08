@@ -24,3 +24,4 @@
 - [Patch application failures](patch-application-failures.md) — a failed multi-hunk patch may have applied earlier hunks; inspect the file before retrying.
 - [Force-stop alarm recovery](force-stop-alarm-recovery.md) — verify task-end alarms are re-armed after force-stop and app relaunch; JVM tests cannot validate Android alarm restoration.
 - [Fixes tracker ownership](fixes-tracker-ownership.md) — use `fixes/TRACKER.md` as the sole progress record; `allowance/TRACKER.md` is reference-only.
+- [Phone usage analytics](phone-usage-analytics.md) — package map, key definitions, how to add a statistic, and known limits of the Stats/Extra/Insights phone analytics.

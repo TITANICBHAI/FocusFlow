@@ -21,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -151,10 +152,13 @@ internal fun BucketBars(
     height: Dp = 72.dp,
 ) {
     val fractions = remember(counts) { barFractions(counts) }
-    val barArea = (height - 14.dp).coerceAtLeast(8.dp) // room for the count text above the tallest bar
+    val barArea = (height - 14.dp).coerceAtLeast(8.dp)
+    // Room for the count text above the tallest bar. In sp so it grows with the user's font size
+    // instead of clipping; at the default scale this is the same 14 dp as before.
+    val countRoom = with(LocalDensity.current) { 14.sp.toDp() }
     Column(modifier.fillMaxWidth().semantics { this.contentDescription = contentDescription }) {
         Row(
-            Modifier.fillMaxWidth().height(height),
+            Modifier.fillMaxWidth().height(barArea + countRoom),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.Bottom,
         ) {
@@ -185,7 +189,6 @@ internal fun BucketBars(
                     fontSize = 10.sp,
                     color = DarkTextMuted,
                     textAlign = TextAlign.Center,
-                    maxLines = 1,
                     modifier = Modifier.weight(1f),
                 )
             }

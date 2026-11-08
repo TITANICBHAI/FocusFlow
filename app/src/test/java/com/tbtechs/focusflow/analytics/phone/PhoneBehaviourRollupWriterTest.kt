@@ -1,6 +1,5 @@
 package com.tbtechs.focusflow.analytics.phone
 
-import com.tbtechs.focusflow.analytics.ForegroundEventType
 import com.tbtechs.focusflow.analytics.ForegroundEventType.ACTIVITY_PAUSED
 import com.tbtechs.focusflow.analytics.ForegroundEventType.ACTIVITY_RESUMED
 import com.tbtechs.focusflow.analytics.ForegroundEventType.KEYGUARD_HIDDEN

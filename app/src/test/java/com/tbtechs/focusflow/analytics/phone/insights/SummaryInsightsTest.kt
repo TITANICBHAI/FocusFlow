@@ -3,11 +3,9 @@ package com.tbtechs.focusflow.analytics.phone.insights
 import com.tbtechs.focusflow.analytics.phone.PhoneDayStatus
 import com.tbtechs.focusflow.analytics.phone.PhoneTestFixtures
 import com.tbtechs.focusflow.analytics.phone.TrendDirection
-import com.tbtechs.focusflow.analytics.phone.insights.InsightFixtures.MIN
 import com.tbtechs.focusflow.analytics.phone.insights.InsightFixtures.ago
 import com.tbtechs.focusflow.analytics.phone.insights.InsightFixtures.appSpan
 import com.tbtechs.focusflow.analytics.phone.insights.InsightFixtures.complete
-import com.tbtechs.focusflow.analytics.phone.insights.InsightFixtures.completeSpan
 import com.tbtechs.focusflow.analytics.phone.insights.InsightFixtures.focusSession
 import com.tbtechs.focusflow.analytics.phone.insights.InsightFixtures.gen
 import com.tbtechs.focusflow.analytics.phone.insights.InsightFixtures.hourly
