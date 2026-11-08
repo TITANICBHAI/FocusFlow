@@ -1,5 +1,9 @@
 package com.tbtechs.focusflow.ui.stats.phone
 
+import android.app.Activity
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -7,10 +11,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -131,6 +137,25 @@ private fun PhoneStatsCards(
             }
         }
 
+        // 3b · SCREEN TIME BY WEEKDAY (needs about two of each weekday)
+        if (showWeekdayChart(screen.days)) {
+            val weekdays = weekdayAverages(screen.days)
+            StatsCard {
+                Column(
+                    Modifier.padding(16.dp).semantics { contentDescription = "Average screen time for each day of the week" },
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    PhoneSectionTitle("Screen time by weekday")
+                    DayBars(
+                        points = weekdayBarPoints(weekdays),
+                        contentDescription = "Bar chart of average screen time for each weekday, Monday to Sunday",
+                    )
+                    weekdayCaption(weekdays)?.let { PhoneMutedNote(it) }
+                    PhoneMutedNote("Complete days only. Faded bars have fewer than $WEEKDAY_MIN_SAMPLES days behind them.")
+                }
+            }
+        }
+
         // 4 · WHEN YOUR SCREEN IS ON
         StatsCard {
             Column(
@@ -144,6 +169,20 @@ private fun PhoneStatsCards(
                     highlightIndex = screen.peakHour,
                 )
                 busiestCaption(screen.peakHour, window)?.let { PhoneMutedNote(it) }
+            }
+        }
+
+        // 4b · PARTS OF THE DAY
+        val partRows = partOfDayRows(screen.screenOnByHourAvgMs, window)
+        if (partRows.isNotEmpty()) {
+            StatsCard {
+                Column(
+                    Modifier.padding(16.dp).semantics { contentDescription = "Screen time by part of the day" },
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    PhoneSectionTitle("Parts of the day")
+                    partRows.forEach { ShareRow(it.title, it.subtitle, it.fraction, it.trailing) }
+                }
             }
         }
 
@@ -170,6 +209,10 @@ private fun PhoneStatsCards(
             OutlinedButton(onClick = onOpenExtra, modifier = Modifier.weight(1f)) { Text("More detail") }
             OutlinedButton(onClick = onOpenInsights, modifier = Modifier.weight(1f)) { Text("Patterns & records") }
         }
+        val context = LocalContext.current
+        TextButton(onClick = { shareText(context, shareSummaryText(report, window)) }, modifier = Modifier.fillMaxWidth()) {
+            Text("Share summary")
+        }
     }
 }
 
@@ -178,5 +221,20 @@ private fun PhoneHero(hero: HeroText) {
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(hero.value, fontSize = 32.sp, fontWeight = FontWeight.Bold)
         Text(hero.caption, fontSize = 13.sp, color = DarkTextMuted)
+    }
+}
+
+/** Opens the system share sheet with a plain-text summary. Nothing is sent until the person picks an app. */
+private fun shareText(context: Context, text: String) {
+    val send = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_TEXT, text)
+    }
+    val chooser = Intent.createChooser(send, "Share summary")
+    if (context !is Activity) chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    try {
+        context.startActivity(chooser)
+    } catch (_: ActivityNotFoundException) {
+        // No app can take plain text; nothing to do.
     }
 }
