@@ -62,6 +62,7 @@ import com.tbtechs.focusflow.ui.backup.BackupViewModel
 import com.tbtechs.focusflow.ui.backup.ImportConfirmScreen
 import com.tbtechs.focusflow.ui.active.ActiveScreen
 import com.tbtechs.focusflow.ui.customrules.CustomRuleCaptureScreen
+import com.tbtechs.focusflow.ui.customrules.CustomRulesGuideScreen
 import com.tbtechs.focusflow.ui.customrules.CustomRuleEditScreen
 import com.tbtechs.focusflow.ui.customrules.CustomRulePickNodeScreen
 import com.tbtechs.focusflow.ui.customrules.CustomRulesScreen
@@ -604,6 +605,7 @@ fun FocusFlowNavGraph(
                             onOpenCapture = { navigate(Routes.CUSTOM_RULE_CAPTURE) },
                             onOpenEdit = { navigate(Routes.CUSTOM_RULE_EDIT) },
                             onOpenTransfer = { navigate(Routes.CUSTOM_RULES_TRANSFER) },
+                            onOpenGuide = { navigate(Routes.CUSTOM_RULES_GUIDE) },
                         )
                     }
                 }
@@ -652,6 +654,7 @@ fun FocusFlowNavGraph(
                             onBack = ::back,
                             onOpenPermissions = { navigate(Routes.PERMISSIONS) },
                             onOpenPick = { navigate(Routes.CUSTOM_RULE_PICK) },
+                            onOpenGuide = { navigate(Routes.CUSTOM_RULES_GUIDE) },
                         )
                     }
                 }
@@ -671,6 +674,7 @@ fun FocusFlowNavGraph(
                             viewModel = customRulesViewModel,
                             onBack = ::back,
                             onDone = { navigate(Routes.CUSTOM_RULE_EDIT) },
+                            onOpenGuide = { navigate(Routes.CUSTOM_RULES_GUIDE) },
                         )
                     }
                 }
@@ -690,6 +694,21 @@ fun FocusFlowNavGraph(
                             viewModel = customRulesViewModel,
                             onBack = ::back,
                         )
+                    }
+                }
+            }
+            composable(
+                route = RouteTextScaleContext.routePattern(Routes.CUSTOM_RULES_GUIDE),
+                arguments = listOf(sourceTabArgument()),
+            ) { backStackEntry ->
+                RouteTextScaleProvider(
+                    route = Routes.CUSTOM_RULES_GUIDE,
+                    sourceTab = backStackEntry.arguments
+                        ?.getString(RouteTextScaleContext.SOURCE_TAB_ARGUMENT),
+                    settings = settings,
+                ) {
+                    ScreenBoundary(Routes.CUSTOM_RULES_GUIDE) {
+                        CustomRulesGuideScreen(onBack = ::back)
                     }
                 }
             }

@@ -1,11 +1,13 @@
 package com.tbtechs.focusflow.ui.customrules
 
+import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,6 +17,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -23,6 +26,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -31,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.tbtechs.focusflow.enforcement.customrules.CaptureMap
+import com.tbtechs.focusflow.enforcement.customrules.toExportText
 import com.tbtechs.focusflow.enforcement.customrules.CustomScreenRule
 import com.tbtechs.focusflow.enforcement.customrules.CustomScreenRules
 import com.tbtechs.focusflow.enforcement.customrules.NodeSnapshot
@@ -54,6 +59,7 @@ fun CustomRulePickNodeScreen(
     viewModel: CustomRulesViewModel,
     onBack: () -> Unit,
     onDone: () -> Unit,
+    onOpenGuide: () -> Unit = {},
 ) {
     val nodes by viewModel.snapshot.collectAsState()
     val capture by viewModel.capture.collectAsState()
@@ -62,6 +68,17 @@ fun CustomRulePickNodeScreen(
     var mode by rememberSaveable { mutableStateOf(0) } // 0 = screen map (beta), 1 = list
     var selected by rememberSaveable { mutableStateOf<Int?>(null) }
     val screenBox = remember(nodes) { CaptureMap.screenBox(nodes) }
+    val context = LocalContext.current
+
+    fun exportScan() {
+        val result = capture ?: return
+        val send = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_SUBJECT, "FocusFlow screen scan")
+            putExtra(Intent.EXTRA_TEXT, result.toExportText())
+        }
+        runCatching { context.startActivity(Intent.createChooser(send, "Export scan")) }
+    }
     var note by remember { mutableStateOf<String?>(null) }
 
     val filtered = remember(nodes, search) {
@@ -106,6 +123,9 @@ fun CustomRulePickNodeScreen(
                 title = "Choose element",
                 subtitle = listOfNotNull("Beta", capture?.packageName?.takeIf { it.isNotBlank() }).joinToString(" · "),
                 onBack = onBack,
+                trailing = {
+                    TextButton(onClick = ::exportScan, enabled = nodes.isNotEmpty()) { Text("Export") }
+                },
             )
         },
         bottomBar = {
@@ -136,10 +156,14 @@ fun CustomRulePickNodeScreen(
         ) {
             Spacer(modifier = Modifier.height(2.dp))
             RuleSegments(
-                labels = listOf("Screen map", "List"),
+                labels = listOf("Screen view", "Text list"),
                 selectedIndex = mode,
                 onSelect = { mode = it },
             )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = onBack) { Text("Capture again") }
+                TextButton(onClick = onOpenGuide) { Text("Guide · AI assistant") }
+            }
             if (nodes.isEmpty()) {
                 RuleCard {
                     Text(
@@ -159,7 +183,7 @@ fun CustomRulePickNodeScreen(
                     }
                 } else {
                     Text(
-                        text = "Beta · drawn from the element scan, not a screenshot. Tap an element to select it.",
+                        text = "Beta · rebuilt from the element scan (not a screenshot). Tap anything to select it.",
                         fontSize = 12.scaledSp,
                         color = DarkTextMuted,
                     )

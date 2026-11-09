@@ -53,6 +53,7 @@ fun CustomRulesScreen(
     onOpenCapture: () -> Unit,
     onOpenEdit: () -> Unit,
     onOpenTransfer: () -> Unit,
+    onOpenGuide: () -> Unit = {},
 ) {
     val rules by viewModel.rules.collectAsState()
     val guard = rememberDisableGuard(settingsViewModel, isFocusActive)
@@ -151,6 +152,11 @@ fun CustomRulesScreen(
                             text = "Import / export",
                             filled = false,
                             onClick = onOpenTransfer,
+                        )
+                        RuleButton(
+                            text = "Guide (beta) · make rules yourself or with an AI assistant",
+                            filled = false,
+                            onClick = onOpenGuide,
                         )
                         if (atLimit) {
                             Text(

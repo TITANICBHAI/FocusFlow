@@ -52,6 +52,7 @@ fun CustomRuleCaptureScreen(
     onBack: () -> Unit,
     onOpenPermissions: () -> Unit,
     onOpenPick: () -> Unit,
+    onOpenGuide: () -> Unit = {},
 ) {
     val capture by viewModel.capture.collectAsState()
     val context = LocalContext.current
@@ -222,6 +223,12 @@ fun CustomRuleCaptureScreen(
                     }
                 }
             }
+
+            RuleButton(
+                text = "Guide: use an AI assistant (beta)",
+                filled = false,
+                onClick = onOpenGuide,
+            )
 
             Text(
                 text = "Passwords and typed text are never captured.",

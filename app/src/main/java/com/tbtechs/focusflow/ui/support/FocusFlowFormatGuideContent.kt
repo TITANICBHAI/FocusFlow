@@ -231,7 +231,7 @@ private fun GuideBadge(text: String) {
 }
 
 @Composable
-private fun GuideArticleSection(
+internal fun GuideArticleSection(
     title: String,
     content: @Composable ColumnScope.() -> Unit,
 ) {
@@ -247,7 +247,7 @@ private fun GuideArticleSection(
 }
 
 @Composable
-private fun GuideFacts(items: List<FocusFlowGuideItem>) {
+internal fun GuideFacts(items: List<FocusFlowGuideItem>) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -304,7 +304,7 @@ private fun GuideMiniCard(
 }
 
 @Composable
-private fun GuideCallout(
+internal fun GuideCallout(
     title: String,
     body: String,
     highlighted: Boolean = false,
@@ -325,7 +325,7 @@ private fun GuideCallout(
 }
 
 @Composable
-private fun GuideCodeBlock(code: String) {
+internal fun GuideCodeBlock(code: String) {
     Text(
         text = code.trimIndent(),
         modifier = Modifier

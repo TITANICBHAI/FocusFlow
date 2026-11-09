@@ -86,6 +86,7 @@ fun CaptureResult.toExportText(maxChars: Int = CAPTURE_EXPORT_MAX_CHARS): String
         appendLine("Captured: ${Instant.ofEpochMilli(atMs)}")
         appendLine("Elements: ${nodes.size}")
         appendLine("Contains text that was visible on that screen. Review before sharing.")
+        appendLine("To turn this into a rule: give it to an assistant with the prompt from Custom Screen Rules → Guide.")
         appendLine("---")
     }
     val out = StringBuilder(header)
