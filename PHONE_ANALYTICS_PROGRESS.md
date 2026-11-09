@@ -251,3 +251,8 @@ Ruling 52: Nudges now also come from phone-habit insights (surge, time-of-day ha
 Ruling 53: Achievements removed from Overview and All-Time stats. `AchievementRow.kt` and `StatsViewModel.achievementState` are now dead code.
 Ruling 54: `StatsReadinessSection` keeps permission prompts only. Stats has no 3-month tab, so leaving Extra on 3 Months falls back to Week.
 Not compiled here: all Compose changes, nav route, Settings row.
+
+## Phase 11 — Report audit + capture-screen beta
+Ruling 55: The report button opens a user-reviewed email draft (mailto). Fixed: long logs dropped the NEWEST lines (now the oldest are dropped); the user's own message had its e-mail/links redacted (now only secrets are); error details are separate from the log cap. Added "Share full log as .txt" (FileProvider, cache/shared, files older than 1 day deleted).
+Ruling 56: Custom-rule capture is a node scan, not a screenshot (no canTakeScreenshot capability, no new permission). Added Export scan (text share) and a Beta "Screen map" (wireframe from element bounds, tap to select) with a Map | List switch styled like the Privacy / Terms switch.
+Not compiled here: manifest provider, modal button, map Canvas, pick/capture screens. Harness: 586 tests green.

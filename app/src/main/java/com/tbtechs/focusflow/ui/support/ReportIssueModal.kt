@@ -102,6 +102,15 @@ fun ReportIssueModal(
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
+    fun currentReport() = DiagnosticsReport(
+        description = description,
+        logs = if (includeLogs) formatDiagnosticLogs(logs) else "",
+        type = reportType,
+        errorDetails = error?.let {
+            "Error message: ${it.message}\nStack trace:\n${it.stackTraceToString()}"
+        }.orEmpty(),
+    )
+
     ModalBottomSheet(
         onDismissRequest = { if (!busy) onClose() },
         sheetState = sheetState,
@@ -178,7 +187,7 @@ fun ReportIssueModal(
                         modifier = Modifier.size(18.dp),
                     )
                     Text(
-                        "This opens your email app with a pre-filled draft addressed to tbtechsdev@gmail.com. Review everything and tap Send yourself — nothing is transmitted automatically.",
+                        "This opens your email app with a pre-filled draft addressed to tbtechsdev@gmail.com (newest log lines included). Or share the full log as a .txt file. Review everything and tap Send yourself — nothing is transmitted automatically.",
                         fontSize = 12.5.sp,
                         lineHeight = 17.sp,
                         color = DarkTextSecondary,
@@ -357,14 +366,7 @@ fun ReportIssueModal(
             Button(
                 onClick = {
                     busy = true
-                    val errorDetails = error?.let {
-                        "Error message: ${it.message}\nStack trace:\n${it.stackTraceToString()}\n\n"
-                    }.orEmpty()
-                    val report = DiagnosticsReport(
-                        description = description,
-                        logs = if (includeLogs) errorDetails + formatDiagnosticLogs(logs) else "",
-                        type = reportType,
-                    )
+                    val report = currentReport()
                     val opened = onOpenDraft?.invoke(report)
                         ?: openDiagnosticsEmailDraft(context, report)
                     busy = false
@@ -396,6 +398,29 @@ fun ReportIssueModal(
                             fontWeight = FontWeight.Bold,
                         )
                     }
+                }
+            }
+
+            if (includeLogs && onOpenDraft == null) {
+                OutlinedButton(
+                    onClick = {
+                        val opened = shareDiagnosticsFile(context, currentReport())
+                        statusSuccess = opened
+                        statusMessage = if (opened) {
+                            "Pick your email app. The full log is attached as a .txt file."
+                        } else {
+                            "Could not prepare the log file. Use Open Email Draft instead."
+                        }
+                    },
+                    enabled = !busy,
+                    shape = RoundedCornerShape(14.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, BrandPrimary),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = BrandPrimary),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .defaultMinSize(minHeight = 44.dp),
+                ) {
+                    Text("Share full log as .txt", fontSize = 14.sp)
                 }
             }
 

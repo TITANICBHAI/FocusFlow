@@ -30,6 +30,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.tbtechs.focusflow.enforcement.customrules.CaptureMap
 import com.tbtechs.focusflow.enforcement.customrules.CustomScreenRule
 import com.tbtechs.focusflow.enforcement.customrules.CustomScreenRules
 import com.tbtechs.focusflow.enforcement.customrules.NodeSnapshot
@@ -58,6 +59,9 @@ fun CustomRulePickNodeScreen(
     val capture by viewModel.capture.collectAsState()
     var search by rememberSaveable { mutableStateOf("") }
     var picked by rememberSaveable { mutableStateOf(0) }
+    var mode by rememberSaveable { mutableStateOf(0) } // 0 = screen map (beta), 1 = list
+    var selected by rememberSaveable { mutableStateOf<Int?>(null) }
+    val screenBox = remember(nodes) { CaptureMap.screenBox(nodes) }
     var note by remember { mutableStateOf<String?>(null) }
 
     val filtered = remember(nodes, search) {
@@ -100,7 +104,7 @@ fun CustomRulePickNodeScreen(
         topBar = {
             FocusFlowInternalHeader(
                 title = "Choose element",
-                subtitle = capture?.packageName?.takeIf { it.isNotBlank() },
+                subtitle = listOfNotNull("Beta", capture?.packageName?.takeIf { it.isNotBlank() }).joinToString(" · "),
                 onBack = onBack,
             )
         },
@@ -131,10 +135,10 @@ fun CustomRulePickNodeScreen(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Spacer(modifier = Modifier.height(2.dp))
-            RuleTextField(
-                value = search,
-                label = "Search id, text, description or class",
-                onValueChange = { search = it },
+            RuleSegments(
+                labels = listOf("Screen map", "List"),
+                selectedIndex = mode,
+                onSelect = { mode = it },
             )
             if (nodes.isEmpty()) {
                 RuleCard {
@@ -144,13 +148,57 @@ fun CustomRulePickNodeScreen(
                         color = DarkTextSecondary,
                     )
                 }
-            }
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                items(items = filtered) { node ->
-                    NodeRow(node = node, onClick = { pick(node) })
+            } else if (mode == 0) {
+                if (screenBox == null) {
+                    RuleCard {
+                        Text(
+                            text = "This scan has no usable positions, so it can't be drawn. Use the list instead.",
+                            fontSize = 13.scaledSp,
+                            color = DarkTextSecondary,
+                        )
+                    }
+                } else {
+                    Text(
+                        text = "Beta · drawn from the element scan, not a screenshot. Tap an element to select it.",
+                        fontSize = 12.scaledSp,
+                        color = DarkTextMuted,
+                    )
+                    Box(
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CaptureScreenMap(
+                            nodes = nodes,
+                            screen = screenBox,
+                            selectedIndex = selected,
+                            onSelect = { selected = it },
+                        )
+                    }
+                    val node = selected?.let { nodes.getOrNull(it) }
+                    if (node != null) {
+                        NodeRow(node = node, onClick = { pick(node) })
+                        RuleButton(text = "Add this element", onClick = { pick(node) })
+                    } else {
+                        Text(
+                            text = "Nothing selected. Elements drawn faintly have no stable id or text.",
+                            fontSize = 12.scaledSp,
+                            color = DarkTextMuted,
+                        )
+                    }
+                }
+            } else {
+                RuleTextField(
+                    value = search,
+                    label = "Search id, text, description or class",
+                    onValueChange = { search = it },
+                )
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    items(items = filtered) { node ->
+                        NodeRow(node = node, onClick = { pick(node) })
+                    }
                 }
             }
         }

@@ -767,7 +767,7 @@ fun SettingsScreen(
     )
     ReportIssueModal(
         visible = reportIssueVisible,
-        logs = StartupLogger.recent(200).map { entry ->
+        logs = StartupLogger.recent(500).map { entry ->
             com.tbtechs.focusflow.ui.support.DiagnosticLogEntry(
                 timestamp = entry.timestamp,
                 level = com.tbtechs.focusflow.ui.support.DiagnosticLogLevel.valueOf(entry.level.name),

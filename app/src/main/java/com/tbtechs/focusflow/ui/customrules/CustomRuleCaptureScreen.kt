@@ -1,5 +1,6 @@
 package com.tbtechs.focusflow.ui.customrules
 
+import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -23,12 +24,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.tbtechs.focusflow.enforcement.AppBlockerAccessibilityService
+import com.tbtechs.focusflow.enforcement.customrules.toExportText
 import com.tbtechs.focusflow.ui.home.FocusFlowInternalHeader
 import com.tbtechs.focusflow.ui.theme.DarkBackground
 import com.tbtechs.focusflow.ui.theme.DarkTextMuted
@@ -51,6 +54,7 @@ fun CustomRuleCaptureScreen(
     onOpenPick: () -> Unit,
 ) {
     val capture by viewModel.capture.collectAsState()
+    val context = LocalContext.current
     var delaySeconds by rememberSaveable { mutableStateOf(8) }
     var serviceMissing by remember {
         mutableStateOf(AppBlockerAccessibilityService.instance == null)
@@ -86,6 +90,7 @@ fun CustomRuleCaptureScreen(
         topBar = {
             FocusFlowInternalHeader(
                 title = "Capture a screen",
+                subtitle = "Beta",
                 onBack = onBack,
             )
         },
@@ -191,6 +196,28 @@ fun CustomRuleCaptureScreen(
                         RuleButton(
                             text = "Choose element",
                             onClick = onOpenPick,
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        RuleButton(
+                            text = "Export scan (beta)",
+                            filled = false,
+                            onClick = {
+                                val send = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_SUBJECT, "FocusFlow screen scan")
+                                    putExtra(Intent.EXTRA_TEXT, result.toExportText())
+                                }
+                                runCatching {
+                                    context.startActivity(Intent.createChooser(send, "Export scan"))
+                                }
+                            },
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "The export lists every element and any text that was visible on that screen. Check it before sharing.",
+                            fontSize = 11.scaledSp,
+                            lineHeight = 15.scaledSp,
+                            color = DarkTextMuted,
                         )
                     }
                 }

@@ -1,119 +1,85 @@
 package com.tbtechs.focusflow.ui.support
 
 import android.app.Activity
+import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import androidx.core.content.FileProvider
+import java.io.File
 
-data class DiagnosticLogEntry(
-    val timestamp: String,
-    val level: DiagnosticLogLevel,
-    val tag: String,
-    val message: String,
-)
+private const val SHARED_DIR = "shared"
+private const val FILE_MAX_AGE_MS = 24L * 60 * 60 * 1000
 
-enum class DiagnosticLogLevel {
-    DEBUG,
-    INFO,
-    WARN,
-    ERROR,
-}
-
-enum class DiagnosticsReportType(
-    val label: String,
-    val subject: String,
-    val intro: String,
-) {
-    BUG("Bug report", "FocusFlow issue report", "I am reporting an issue with FocusFlow."),
-    FEEDBACK("Feedback / opinion", "FocusFlow feedback", "I would like to share feedback about FocusFlow."),
-    REVIEW("App review", "FocusFlow app review", "I would like to share a review of FocusFlow."),
-}
-
-data class DiagnosticsReport(
-    val description: String,
-    val logs: String,
-    val type: DiagnosticsReportType,
-)
-
-private const val SUPPORT_EMAIL = "tbtechsdev@gmail.com"
-private const val MAX_DESCRIPTION_LENGTH = 2_000
-private const val MAX_LOG_LENGTH = 18_000
-
-fun formatDiagnosticLogs(logs: List<DiagnosticLogEntry>): String =
-    logs.joinToString("\n") { entry ->
-        "${entry.timestamp} [${entry.level}] [${entry.tag}] ${entry.message}"
-    }
-
-fun formatDiagnosticTime(timestamp: String): String =
-    timestamp.substringAfter('T', timestamp).take(12)
-
-fun sanitizeDiagnosticText(value: String, maxLength: Int): String =
-    value
-        .replace(Regex("""\bhttps?://\S+""", RegexOption.IGNORE_CASE), "[redacted-url]")
-        .replace(Regex("""\bwww\.\S+""", RegexOption.IGNORE_CASE), "[redacted-url]")
-        .replace(
-            Regex("""\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b""", RegexOption.IGNORE_CASE),
-            "[redacted-email]",
-        )
-        .replace(
-            Regex("""\b(password|passwd|token|secret|api[_-]?key)\s*[:=]\s*\S+""", RegexOption.IGNORE_CASE),
-            "$1=[redacted]",
-        )
-        .take(maxLength)
-
-fun nowDiagnosticTimestamp(): String =
-    SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).format(Date())
+private fun appVersionName(context: Context): String =
+    runCatching {
+        context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "unknown"
+    }.getOrDefault("unknown")
 
 /**
  * Opens a user-reviewed email draft. Nothing is sent automatically.
  *
- * Android's standard email intents do not guarantee support for attachments
- * across email clients, so sanitized diagnostic details are included in the
- * draft body instead of silently failing to attach them.
+ * Standard `mailto:` drafts cannot carry attachments, so the newest sanitized log lines go in the
+ * body (older ones are dropped, never the newest). Use [shareDiagnosticsFile] for the whole log.
  */
 fun openDiagnosticsEmailDraft(context: Context, report: DiagnosticsReport): Boolean {
-    val description = sanitizeDiagnosticText(
-        report.description.trim(),
-        MAX_DESCRIPTION_LENGTH,
-    ).ifBlank { "(no description provided)" }
-    val logs = sanitizeDiagnosticText(report.logs, MAX_LOG_LENGTH)
-    val version = runCatching {
-        context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "unknown"
-    }.getOrDefault("unknown")
-    val body = buildString {
-        appendLine("Hello FocusFlow team,")
-        appendLine()
-        appendLine(report.type.intro)
-        appendLine()
-        appendLine("App version: $version")
-        appendLine("Android version: ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
-        appendLine()
-        appendLine("User message:")
-        appendLine(description)
-        if (logs.isNotBlank()) {
-            appendLine()
-            appendLine("Sanitized diagnostic details:")
-            appendLine(logs)
-        }
-        appendLine()
-        appendLine("Please review this draft and tap Send when you are ready.")
-    }
-
+    val body = buildDiagnosticsEmailBody(
+        report = report,
+        appVersion = appVersionName(context),
+        androidRelease = Build.VERSION.RELEASE,
+        sdkInt = Build.VERSION.SDK_INT,
+    )
     val intent = Intent(Intent.ACTION_SENDTO).apply {
         data = Uri.parse("mailto:$SUPPORT_EMAIL")
         putExtra(Intent.EXTRA_SUBJECT, report.type.subject)
         putExtra(Intent.EXTRA_TEXT, body)
     }
+    return startSafely(context, intent)
+}
 
+/**
+ * Writes the whole sanitized log to a .txt in the app's cache and opens the share sheet with it
+ * attached and the support address pre-filled. Nothing is sent until the person picks an app and
+ * taps Send. Files older than a day are deleted first.
+ */
+fun shareDiagnosticsFile(context: Context, report: DiagnosticsReport): Boolean {
+    val version = appVersionName(context)
     return try {
+        val dir = File(context.cacheDir, SHARED_DIR).apply { mkdirs() }
+        val now = System.currentTimeMillis()
+        dir.listFiles()?.forEach { if (now - it.lastModified() > FILE_MAX_AGE_MS) it.delete() }
+        val file = File(dir, "focusflow-diagnostics-$now.txt")
+        file.writeText(buildDiagnosticsFileText(report, version, Build.VERSION.RELEASE, Build.VERSION.SDK_INT))
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        val body = buildDiagnosticsEmailBody(
+            report = report,
+            appVersion = version,
+            androidRelease = Build.VERSION.RELEASE,
+            sdkInt = Build.VERSION.SDK_INT,
+            includeLogs = false,
+            attachmentNote = "The full diagnostic log is attached as a .txt file.",
+        )
+        val send = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_EMAIL, arrayOf(SUPPORT_EMAIL))
+            putExtra(Intent.EXTRA_SUBJECT, report.type.subject)
+            putExtra(Intent.EXTRA_TEXT, body)
+            putExtra(Intent.EXTRA_STREAM, uri)
+            clipData = ClipData.newRawUri("diagnostic log", uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        startSafely(context, Intent.createChooser(send, "Send diagnostic log"))
+    } catch (_: Exception) {
+        false
+    }
+}
+
+private fun startSafely(context: Context, intent: Intent): Boolean =
+    try {
         if (context !is Activity) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         context.startActivity(intent)
         true
     } catch (_: Exception) {
         false
     }
-}
