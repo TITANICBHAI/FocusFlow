@@ -1,6 +1,7 @@
 package com.tbtechs.focusflow.ui.stats
 
 import androidx.compose.foundation.background
+import com.tbtechs.focusflow.ui.theme.scaledSp
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -67,7 +68,7 @@ fun FocusTimeHero(snapshot: AnalyticsSnapshot) {
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp,
+                        letterSpacing = 1.scaledSp,
                     )
                     Text(
                         formatMinutes(minutes),
@@ -381,8 +382,8 @@ private fun StatValue(
             .padding(horizontal = 3.dp, vertical = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(value, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = valueColor)
-        Text(label, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, fontSize = 16.scaledSp, fontWeight = FontWeight.Bold, color = valueColor)
+        Text(label, fontSize = 10.scaledSp, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

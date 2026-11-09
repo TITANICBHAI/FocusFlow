@@ -1,6 +1,7 @@
 package com.tbtechs.focusflow.ui.stats.phone
 
 import androidx.compose.foundation.clickable
+import com.tbtechs.focusflow.ui.theme.scaledSp
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
@@ -108,10 +109,10 @@ private fun AppCard(app: AppUsageRow, isExpanded: Boolean, report: PhoneReport, 
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Text(app.appName, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-            Text(app.category.label, fontSize = 12.sp, color = DarkTextMuted)
-            Text(appRowSummary(app), fontSize = 13.sp)
-            trendText(app)?.let { Text(it, fontSize = 12.sp, color = DarkTextMuted) }
+            Text(app.appName, fontSize = 16.scaledSp, fontWeight = FontWeight.SemiBold)
+            Text(app.category.label, fontSize = 12.scaledSp, color = DarkTextMuted)
+            Text(appRowSummary(app), fontSize = 13.scaledSp)
+            trendText(app)?.let { Text(it, fontSize = 12.scaledSp, color = DarkTextMuted) }
 
             if (isExpanded) {
                 PhoneSectionTitle("Session length", Modifier.padding(top = 8.dp))

@@ -1,6 +1,7 @@
 package com.tbtechs.focusflow.ui.stats.phone
 
 import androidx.compose.foundation.background
+import com.tbtechs.focusflow.ui.theme.scaledSp
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -23,7 +24,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tbtechs.focusflow.analytics.ANALYTICS_ALL_TIME
-import com.tbtechs.focusflow.analytics.ANALYTICS_THREE_MONTHS
 import com.tbtechs.focusflow.analytics.ANALYTICS_TODAY
 import com.tbtechs.focusflow.analytics.ANALYTICS_WEEK
 import com.tbtechs.focusflow.analytics.ANALYTICS_YESTERDAY
@@ -35,8 +35,7 @@ internal val PHONE_WINDOW_OPTIONS: List<Pair<String, String>> = listOf(
     ANALYTICS_TODAY to "Today",
     ANALYTICS_YESTERDAY to "Yesterday",
     ANALYTICS_WEEK to "Week",
-    ANALYTICS_THREE_MONTHS to "3 Months",
-    ANALYTICS_ALL_TIME to "All",
+    ANALYTICS_ALL_TIME to "All time",
 )
 
 /** Small upper-case heading, like the ones in `PhoneTimeCard`. */
@@ -47,15 +46,15 @@ internal fun PhoneSectionTitle(text: String, modifier: Modifier = Modifier) {
 
 @Composable
 internal fun PhoneMutedNote(text: String, modifier: Modifier = Modifier) {
-    Text(text, fontSize = 12.sp, color = DarkTextMuted, modifier = modifier)
+    Text(text, fontSize = 12.scaledSp, color = DarkTextMuted, modifier = modifier)
 }
 
 /** A big number with a small label under it. */
 @Composable
 internal fun PhoneStatTile(value: String, label: String, modifier: Modifier = Modifier) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(value, fontSize = 20.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-        Text(label, fontSize = 12.sp, color = DarkTextMuted)
+        Text(value, fontSize = 20.scaledSp, fontWeight = FontWeight.Bold, maxLines = 1)
+        Text(label, fontSize = 12.scaledSp, color = DarkTextMuted)
     }
 }
 
@@ -69,8 +68,8 @@ internal fun PhoneHabitTile(value: String, label: String, accent: Color, modifie
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        Text(value, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = accent, maxLines = 1)
-        Text(label, fontSize = 11.sp, color = DarkTextMuted, maxLines = 2)
+        Text(value, fontSize = 20.scaledSp, fontWeight = FontWeight.ExtraBold, color = accent, maxLines = 1)
+        Text(label, fontSize = 11.scaledSp, color = DarkTextMuted, maxLines = 2)
     }
 }
 
@@ -88,18 +87,18 @@ internal fun PhoneStateMessage(
         ) {
             CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
             Spacer(Modifier.width(10.dp))
-            Text("Loading phone habits…", fontSize = 13.sp, color = DarkTextMuted)
+            Text("Loading phone habits…", fontSize = 13.scaledSp, color = DarkTextMuted)
         }
         PhoneReportUiState.PermissionNeeded -> StatsCard(modifier) {
             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Usage access is needed to analyse phone habits.", fontSize = 14.sp)
+                Text("Usage access is needed to analyse phone habits.", fontSize = 14.scaledSp)
                 Button(onClick = onOpenUsageAccessSettings) { Text("Open settings") }
             }
         }
         PhoneReportUiState.NoData -> StatsCard(modifier) {
             Text(
                 "No phone activity recorded yet. FocusFlow builds this history from now on.",
-                fontSize = 14.sp,
+                fontSize = 14.scaledSp,
                 color = DarkTextMuted,
                 modifier = Modifier.padding(12.dp),
             )
@@ -107,7 +106,7 @@ internal fun PhoneStateMessage(
         is PhoneReportUiState.Failed -> StatsCard(modifier) {
             Text(
                 "Couldn't load phone habits right now.",
-                fontSize = 14.sp,
+                fontSize = 14.scaledSp,
                 color = DarkTextMuted,
                 modifier = Modifier.padding(12.dp),
             )

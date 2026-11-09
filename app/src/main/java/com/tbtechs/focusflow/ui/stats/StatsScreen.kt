@@ -22,7 +22,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tbtechs.focusflow.analytics.ANALYTICS_THREE_MONTHS
 import com.tbtechs.focusflow.analytics.ANALYTICS_TODAY
-import com.tbtechs.focusflow.analytics.ANALYTICS_WEEK
+import com.tbtechs.focusflow.analytics.ANALYTICS_ALL_TIME
 import com.tbtechs.focusflow.data.repository.SettingsRepository
 import com.tbtechs.focusflow.di.AppModule
 import com.tbtechs.focusflow.ui.stats.phone.ExtraHeader
@@ -67,8 +67,8 @@ fun StatsScreen(
             pendingRatingFocusNonce = 0
             onDayRatingRequestHandled(requestNonce)
         }
-        // Stats has no 3-month tab; fall back to Week so one is always selected.
-        if (window == ANALYTICS_THREE_MONTHS) statsViewModel.setWindow(ANALYTICS_WEEK)
+        // 3 months and All time are the same data here; Stats only has All Time.
+        if (window == ANALYTICS_THREE_MONTHS) statsViewModel.setWindow(ANALYTICS_ALL_TIME)
         showExtra = false
     }
 

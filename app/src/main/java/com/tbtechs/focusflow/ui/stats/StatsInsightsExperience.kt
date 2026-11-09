@@ -1,6 +1,7 @@
 package com.tbtechs.focusflow.ui.stats
 
 import androidx.compose.foundation.background
+import com.tbtechs.focusflow.ui.theme.scaledSp
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.font.FontWeight
@@ -25,6 +27,7 @@ import com.tbtechs.focusflow.ui.focus.ActiveStatusIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -99,6 +102,7 @@ fun StatsInsightsExperience(
                 modifier = androidx.compose.ui.Modifier
                     .fillMaxWidth()
                     .background(DarkBackground)
+                    .statusBarsPadding()
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
             ) {
@@ -114,13 +118,13 @@ fun StatsInsightsExperience(
                 Column(modifier = androidx.compose.ui.Modifier.weight(1f)) {
                     Text(
                         "YOUR ACTIVITY",
-                        fontSize = 10.sp,
+                        fontSize = 10.scaledSp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary,
-                        letterSpacing = 1.2.sp,
+                        letterSpacing = 1.2.scaledSp,
                     )
-                    Text(screenTitle, fontSize = 28.sp, fontWeight = FontWeight.Bold, color = DarkTextPrimary)
-                    Text(windowSubtitle(window), fontSize = 13.sp, color = DarkTextSecondary)
+                    Text(screenTitle, fontSize = 28.scaledSp, fontWeight = FontWeight.Bold, color = DarkTextPrimary)
+                    Text(windowSubtitle(window), fontSize = 13.scaledSp, color = DarkTextSecondary)
                 }
                 ActiveStatusIndicator(
                     onOpenActiveBlocks = onOpenActiveBlocks,
@@ -128,24 +132,8 @@ fun StatsInsightsExperience(
             }
             AnalyticsWindowTabs(
                 activeWindow = window,
-                includeThreeMonths = onOpenArchived == null,
+                includeThreeMonths = false,
                 onSelect = statsViewModel::setWindow,
-            )
-        }
-        if (
-            reflectionPromptsEnabled &&
-            (window == ANALYTICS_TODAY || window == ANALYTICS_YESTERDAY)
-        ) {
-            DayRatingBar(
-                selectedDate = selectedDate,
-                currentRating = currentRating,
-                ratableDates = ratableDates,
-                suggestedChips = suggestedChips,
-                onSelectDate = statsViewModel::selectRatingDate,
-                onLoadChips = statsViewModel::loadChipsForDate,
-                requestFocusNonce = dayRatingFocusRequestNonce,
-                onFocusRequestHandled = onDayRatingFocusHandled,
-                onSubmit = statsViewModel::submitRating,
             )
         }
         if (window == ANALYTICS_THREE_MONTHS && !localNoticeDismissed) {
@@ -171,6 +159,20 @@ fun StatsInsightsExperience(
                             modifier = androidx.compose.ui.Modifier.fillMaxWidth(),
                             verticalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
+                            if (
+                                reflectionPromptsEnabled &&
+                                (window == ANALYTICS_TODAY || window == ANALYTICS_YESTERDAY)
+                            ) {
+                                RatingBarOnce(
+                                    selectedDate = selectedDate,
+                                    currentRating = currentRating,
+                                    ratableDates = ratableDates,
+                                    suggestedChips = suggestedChips,
+                                    statsViewModel = statsViewModel,
+                                    focusRequestNonce = dayRatingFocusRequestNonce,
+                                    onFocusRequestHandled = onDayRatingFocusHandled,
+                                )
+                            }
                             if (window == ANALYTICS_WEEK) {
                                 weeklyStandout?.let { InsightCardView(it) }
                             }
@@ -299,4 +301,46 @@ private fun windowSubtitle(window: AnalyticsWindow): String = when (window) {
     ANALYTICS_ALL_TIME -> "The record you are building"
     ANALYTICS_THREE_MONTHS -> "What your device use has held over time"
     else -> "The pattern forming this week"
+}
+
+
+/**
+ * The "how was it?" card. It scrolls with the page and goes away once the day has a rating (after a
+ * short moment so the save is visible). A pending notification focus request is always handed back.
+ */
+@Composable
+private fun RatingBarOnce(
+    selectedDate: String,
+    currentRating: com.tbtechs.focusflow.data.local.entity.DayRatingEntity?,
+    ratableDates: List<com.tbtechs.focusflow.data.repository.DayRatingRepository.RatableDateEntry>,
+    suggestedChips: List<SuggestedChip>,
+    statsViewModel: StatsViewModel,
+    focusRequestNonce: Int,
+    onFocusRequestHandled: (Int) -> Unit,
+) {
+    var sawUnrated by remember(selectedDate) { mutableStateOf(false) }
+    var done by remember(selectedDate) { mutableStateOf(false) }
+    LaunchedEffect(currentRating, selectedDate) {
+        if (currentRating == null) {
+            sawUnrated = true
+        } else {
+            if (sawUnrated) kotlinx.coroutines.delay(1_200)
+            done = true
+        }
+    }
+    LaunchedEffect(done, focusRequestNonce) {
+        if (done && focusRequestNonce > 0) onFocusRequestHandled(focusRequestNonce)
+    }
+    if (done) return
+    DayRatingBar(
+        selectedDate = selectedDate,
+        currentRating = currentRating,
+        ratableDates = ratableDates,
+        suggestedChips = suggestedChips,
+        onSelectDate = statsViewModel::selectRatingDate,
+        onLoadChips = statsViewModel::loadChipsForDate,
+        requestFocusNonce = focusRequestNonce,
+        onFocusRequestHandled = onFocusRequestHandled,
+        onSubmit = statsViewModel::submitRating,
+    )
 }

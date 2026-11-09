@@ -1,10 +1,12 @@
 package com.tbtechs.focusflow.ui.stats.phone
 
 import androidx.compose.foundation.background
+import com.tbtechs.focusflow.ui.theme.scaledSp
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
@@ -42,7 +44,7 @@ internal fun ExtraHeader(
     onSelectTab: (ExtraTab) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    androidx.compose.foundation.layout.Column(modifier.fillMaxWidth().background(DarkCard)) {
+    androidx.compose.foundation.layout.Column(modifier.fillMaxWidth().background(DarkCard).statusBarsPadding()) {
         Row(
             Modifier.fillMaxWidth().padding(start = 4.dp, end = 8.dp, top = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -53,7 +55,7 @@ internal fun ExtraHeader(
             Text(
                 "Extra",
                 modifier = Modifier.weight(1f),
-                fontSize = 22.sp,
+                fontSize = 22.scaledSp,
                 fontWeight = FontWeight.Bold,
                 color = DarkTextPrimary,
             )

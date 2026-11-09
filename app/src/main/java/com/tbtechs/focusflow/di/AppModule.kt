@@ -458,7 +458,8 @@ object AppModule {
                 .onFailure {
                     AppErrorEvents.report(
                         tag = "Task alarms",
-                        message = "Task-end alarms could not be fully reconciled.",
+                        message = "Task-end alarms could not be fully reconciled " +
+                            "(reason=$reason): ${it.javaClass.simpleName}: ${it.message}",
                         throwable = it,
                     )
                 }

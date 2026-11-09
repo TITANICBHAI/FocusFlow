@@ -1,6 +1,7 @@
 package com.tbtechs.focusflow.ui.stats.phone
 
 import androidx.compose.foundation.clickable
+import com.tbtechs.focusflow.ui.theme.scaledSp
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -104,10 +105,10 @@ private fun InsightLine(insight: PhoneInsight, expanded: Boolean, onToggle: () -
             .padding(vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text(directionGlyph(insight.direction).ifEmpty { "●" }, color = accent, fontSize = 14.sp)
+        Text(directionGlyph(insight.direction).ifEmpty { "●" }, color = accent, fontSize = 14.scaledSp)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(insight.title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-            if (expanded) Text(insight.message, fontSize = 13.sp, color = DarkTextMuted)
+            Text(insight.title, fontSize = 15.scaledSp, fontWeight = FontWeight.SemiBold)
+            if (expanded) Text(insight.message, fontSize = 13.scaledSp, color = DarkTextMuted)
         }
     }
 }

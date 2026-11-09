@@ -1,6 +1,7 @@
 package com.tbtechs.focusflow.ui.stats.phone
 
 import androidx.compose.foundation.layout.Arrangement
+import com.tbtechs.focusflow.ui.theme.scaledSp
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
@@ -46,14 +47,14 @@ internal fun ExtraCard(
 /** A large one-line figure, used as a card's hero. */
 @Composable
 internal fun PhoneHeroText(text: String, modifier: Modifier = Modifier) {
-    Text(text, fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = modifier)
+    Text(text, fontSize = 22.scaledSp, fontWeight = FontWeight.Bold, modifier = modifier)
 }
 
 /** Title with a muted second line, for lists that have no bar. */
 @Composable
 internal fun PhoneListRow(title: String, subtitle: String?, modifier: Modifier = Modifier) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(title, fontSize = 15.sp, fontWeight = FontWeight.Medium)
-        if (!subtitle.isNullOrEmpty()) Text(subtitle, fontSize = 12.sp, color = DarkTextMuted)
+        Text(title, fontSize = 15.scaledSp, fontWeight = FontWeight.Medium)
+        if (!subtitle.isNullOrEmpty()) Text(subtitle, fontSize = 12.scaledSp, color = DarkTextMuted)
     }
 }

@@ -1,6 +1,7 @@
 package com.tbtechs.focusflow.ui.stats.phone
 
 import android.content.Context
+import com.tbtechs.focusflow.ui.theme.scaledSp
 import android.content.Intent
 import android.provider.Settings
 import androidx.compose.foundation.layout.Arrangement
@@ -88,8 +89,8 @@ internal fun NudgeCard(modifier: Modifier = Modifier, promoOnly: Boolean = false
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Icon(Icons.Outlined.NotificationsActive, null, tint = StatsBlue, modifier = Modifier.size(24.dp))
                 Column(Modifier.weight(1f)) {
-                    Text("Nudges", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold)
-                    Text("A heads-up before the hours you slip", fontSize = 12.sp, color = DarkTextMuted)
+                    Text("Nudges", fontSize = 16.scaledSp, fontWeight = FontWeight.ExtraBold)
+                    Text("A heads-up before the hours you slip", fontSize = 12.scaledSp, color = DarkTextMuted)
                 }
                 Switch(checked = enabled, onCheckedChange = toggle)
             }
@@ -99,7 +100,7 @@ internal fun NudgeCard(modifier: Modifier = Modifier, promoOnly: Boolean = false
                     items == null -> Unit
                     items.isEmpty() -> Text(
                         "Nothing to nudge about yet. Nudges appear once a clear habit shows up.",
-                        fontSize = 13.sp,
+                        fontSize = 13.scaledSp,
                         color = DarkTextMuted,
                     )
                     else -> items.forEach { nudge ->
@@ -107,11 +108,11 @@ internal fun NudgeCard(modifier: Modifier = Modifier, promoOnly: Boolean = false
                             Text(
                                 PhoneText.clock(nudge.minuteOfDay),
                                 modifier = Modifier.width(78.dp),
-                                fontSize = 13.sp,
+                                fontSize = 13.scaledSp,
                                 fontWeight = FontWeight.Bold,
                                 color = StatsBlue,
                             )
-                            Text(nudge.title, fontSize = 13.sp, modifier = Modifier.weight(1f), maxLines = 2)
+                            Text(nudge.title, fontSize = 13.scaledSp, modifier = Modifier.weight(1f), maxLines = 2)
                         }
                     }
                 }

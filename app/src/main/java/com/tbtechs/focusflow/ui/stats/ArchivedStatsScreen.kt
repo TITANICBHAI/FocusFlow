@@ -1,6 +1,7 @@
 package com.tbtechs.focusflow.ui.stats
 
 import androidx.compose.foundation.background
+import com.tbtechs.focusflow.ui.theme.scaledSp
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -247,14 +249,15 @@ private fun StatsHeader(
         modifier = Modifier
             .fillMaxWidth()
             .background(DarkCard)
-            .padding(horizontal = 20.dp, vertical = 16.dp),
+            .statusBarsPadding()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text("Stats", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = DarkTextPrimary)
+            Text("Stats", fontSize = 28.scaledSp, fontWeight = FontWeight.Bold, color = DarkTextPrimary)
             Text(
                 statsSubtitle(window, weekViewMode, weekStartDay),
-                fontSize = 13.sp,
+                fontSize = 13.scaledSp,
                 color = DarkTextSecondary,
             )
         }
@@ -359,7 +362,7 @@ private fun TodayReport(snapshot: AnalyticsSnapshot) {
         Icon(Icons.Outlined.Timer, null, tint = BrandPrimary, modifier = Modifier.size(28.dp))
         Text(
             formatStatsMinutes(focusMinutes),
-            fontSize = 32.sp,
+            fontSize = 32.scaledSp,
             fontWeight = FontWeight.Bold,
             color = BrandPrimary,
         )
@@ -379,7 +382,7 @@ private fun TodayReport(snapshot: AnalyticsSnapshot) {
 private fun YesterdayReport(snapshot: AnalyticsSnapshot) {
     ArchivedCard {
         Icon(Icons.Outlined.CalendarMonth, null, tint = BrandPrimary, modifier = Modifier.size(26.dp))
-        Text("Yesterday's report", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = DarkTextPrimary)
+        Text("Yesterday's report", fontSize = 20.scaledSp, fontWeight = FontWeight.Bold, color = DarkTextPrimary)
         Text(
             "${snapshot.tasks.completed} of ${snapshot.tasks.total} tasks completed",
             color = DarkTextSecondary,
@@ -406,7 +409,7 @@ private fun YesterdayReport(snapshot: AnalyticsSnapshot) {
                     color = DarkTextPrimary,
                     maxLines = 1,
                 )
-                Text(statusLabel(row.status), fontSize = 11.sp, color = DarkTextSecondary)
+                Text(statusLabel(row.status), fontSize = 11.scaledSp, color = DarkTextSecondary)
             }
         }
     }
@@ -425,7 +428,7 @@ private fun WeekReport(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     if (weekViewMode == WEEK_MODE_DYNAMIC) "Last 7 days" else "${weekRangeLabel(weekStartDay)} report",
-                    fontSize = 20.sp,
+                    fontSize = 20.scaledSp,
                     fontWeight = FontWeight.Bold,
                     color = DarkTextPrimary,
                 )
@@ -459,7 +462,7 @@ private fun AllTimeReport(snapshot: AnalyticsSnapshot, lifetime: LifetimeStats?)
         Icon(Icons.Outlined.HourglassEmpty, null, tint = BrandPrimary, modifier = Modifier.size(27.dp))
         Text(
             formatStatsMinutes((lifetime?.totalFocusMinutes ?: snapshot.sessions.totalFocusMinutes).roundToInt()),
-            fontSize = 32.sp,
+            fontSize = 32.scaledSp,
             fontWeight = FontWeight.Bold,
             color = BrandPrimary,
         )
@@ -475,7 +478,7 @@ private fun AllTimeReport(snapshot: AnalyticsSnapshot, lifetime: LifetimeStats?)
 
 @Composable
 private fun TaskBreakdown(snapshot: AnalyticsSnapshot) {
-    Text("Task breakdown", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = DarkTextPrimary)
+    Text("Task breakdown", fontSize = 13.scaledSp, fontWeight = FontWeight.SemiBold, color = DarkTextPrimary)
     BreakdownRow("Completed", snapshot.tasks.completed, Color(0xFF55C98A), snapshot.tasks.total)
     BreakdownRow("Remaining", (snapshot.tasks.total - snapshot.tasks.completed - snapshot.tasks.skipped - snapshot.tasks.missed).coerceAtLeast(0), BrandPrimary, snapshot.tasks.total)
     BreakdownRow("Skipped", snapshot.tasks.skipped, DarkTextMuted, snapshot.tasks.total)
@@ -490,7 +493,7 @@ private fun BreakdownRow(label: String, value: Int, color: Color, total: Int) {
             .padding(top = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(label, modifier = Modifier.width(74.dp), fontSize = 11.sp, color = DarkTextSecondary)
+        Text(label, modifier = Modifier.width(74.dp), fontSize = 11.scaledSp, color = DarkTextSecondary)
         Box(
             modifier = Modifier
                 .weight(1f)
@@ -505,7 +508,7 @@ private fun BreakdownRow(label: String, value: Int, color: Color, total: Int) {
                     .background(color),
             )
         }
-        Text(value.toString(), modifier = Modifier.width(28.dp), fontSize = 11.sp, color = color)
+        Text(value.toString(), modifier = Modifier.width(28.dp), fontSize = 11.scaledSp, color = color)
     }
 }
 
@@ -538,7 +541,7 @@ private fun WeekCompletionBars(snapshot: AnalyticsSnapshot, rangeStartISO: Strin
                 Spacer(Modifier.height(5.dp))
                 Text(
                     date.format(DateTimeFormatter.ofPattern("M/d", Locale.getDefault())),
-                    fontSize = 10.sp,
+                    fontSize = 10.scaledSp,
                     color = DarkTextSecondary,
                 )
             }
@@ -559,8 +562,8 @@ private fun UsageAccessCard(
                 Text("Connect device usage", fontWeight = FontWeight.SemiBold, color = DarkTextPrimary)
                 Text(
                     "Allow Usage Access to see phone time and habits. Focus stats work without it.",
-                    fontSize = 12.sp,
-                    lineHeight = 17.sp,
+                    fontSize = 12.scaledSp,
+                    lineHeight = 17.scaledSp,
                     color = DarkTextSecondary,
                 )
             }
@@ -569,7 +572,7 @@ private fun UsageAccessCard(
                 contentPadding = PaddingValues(horizontal = 10.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = BrandPrimary),
             ) {
-                Text("Open", fontSize = 12.sp)
+                Text("Open", fontSize = 12.scaledSp)
             }
         }
     }
@@ -609,7 +612,7 @@ private fun DeviceUsageCard(
             Text(
                 "Observed Device Time",
                 modifier = Modifier.padding(start = 8.dp),
-                fontSize = 16.sp,
+                fontSize = 16.scaledSp,
                 fontWeight = FontWeight.ExtraBold,
                 color = DarkTextPrimary,
             )
@@ -648,7 +651,7 @@ private fun DeviceUsageCard(
                     } else {
                         "On device"
                     },
-                    fontSize = 11.sp,
+                    fontSize = 11.scaledSp,
                     fontWeight = FontWeight.Bold,
                     color = if (window == ANALYTICS_WEEK) BrandPrimary else Color(0xFF55C98A),
                 )
@@ -657,13 +660,13 @@ private fun DeviceUsageCard(
         Text(
             formatStatsMinutes(shownMinutes),
             modifier = Modifier.padding(top = 12.dp),
-            fontSize = 44.sp,
+            fontSize = 44.scaledSp,
             fontWeight = FontWeight.ExtraBold,
             color = Color(0xFF63A7FF),
         )
         Text(
             "Time spent in apps · FocusFlow home screen not counted",
-            fontSize = 12.sp,
+            fontSize = 12.scaledSp,
             color = DarkTextSecondary,
         )
 
@@ -716,12 +719,12 @@ private fun DeviceUsageCard(
             ) {
                 Text(
                     "Top apps by observed time",
-                    fontSize = 15.sp,
+                    fontSize = 15.scaledSp,
                     fontWeight = FontWeight.ExtraBold,
                     color = DarkTextPrimary,
                     modifier = Modifier.weight(1f),
                 )
-                Text("minutes · launches", fontSize = 12.sp, color = DarkTextMuted)
+                Text("minutes · launches", fontSize = 12.scaledSp, color = DarkTextMuted)
             }
             val maxMinutes = usage.apps.firstOrNull()?.minutes?.coerceAtLeast(1.0) ?: 1.0
             usage.apps.take(5).forEachIndexed { index, app ->
@@ -751,11 +754,11 @@ private fun UsageMetric(value: String, label: String, color: Color) {
     ) {
         Text(
             value,
-            fontSize = 18.sp,
+            fontSize = 18.scaledSp,
             fontWeight = FontWeight.ExtraBold,
             color = color,
         )
-        Text(label, fontSize = 11.sp, color = DarkTextMuted)
+        Text(label, fontSize = 11.scaledSp, color = DarkTextMuted)
     }
 }
 
@@ -785,7 +788,7 @@ private fun UsageAppRow(
         ) {
             Text(
                 "#$rank",
-                fontSize = 11.sp,
+                fontSize = 11.scaledSp,
                 fontWeight = FontWeight.Bold,
                 color = if (rank == 1) Color(0xFF63A7FF) else DarkTextMuted,
             )
@@ -794,7 +797,7 @@ private fun UsageAppRow(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 app.appName,
-                fontSize = 15.sp,
+                fontSize = 15.scaledSp,
                 fontWeight = FontWeight.SemiBold,
                 color = DarkTextPrimary,
                 maxLines = 1,
@@ -819,7 +822,7 @@ private fun UsageAppRow(
         Spacer(Modifier.width(8.dp))
         Text(
             "${app.minutes.roundToInt()}m · ${app.launchCount}",
-            fontSize = 12.sp,
+            fontSize = 12.scaledSp,
             fontWeight = FontWeight.Bold,
             color = DarkTextPrimary,
         )
@@ -854,9 +857,9 @@ private fun WeeklyObservationChart(
     ) {
         Text(
             "WEEKLY OBSERVATION",
-            fontSize = 12.sp,
+            fontSize = 12.scaledSp,
             fontWeight = FontWeight.Bold,
-            letterSpacing = 1.sp,
+            letterSpacing = 1.scaledSp,
             color = DarkTextMuted,
         )
         Row(
@@ -891,7 +894,7 @@ private fun WeeklyObservationChart(
                     }
                     Text(
                         date.format(DateTimeFormatter.ofPattern("M/d", Locale.getDefault())),
-                        fontSize = 10.sp,
+                        fontSize = 10.scaledSp,
                         color = DarkTextMuted,
                     )
                 }
@@ -940,7 +943,7 @@ private fun UsageLegend(color: Color, label: String) {
                 .clip(RoundedCornerShape(50))
                 .background(color),
         )
-        Text(label, fontSize = 11.sp, color = DarkTextMuted)
+        Text(label, fontSize = 11.scaledSp, color = DarkTextMuted)
     }
 }
 
@@ -979,7 +982,7 @@ private fun BlockingReport(
                         .padding(vertical = 4.dp),
                 ) {
                     Text(app.appName, color = DarkTextPrimary, fontWeight = FontWeight.Medium)
-                    Text("${app.count} attempts", fontSize = 11.sp, color = DarkTextSecondary)
+                    Text("${app.count} attempts", fontSize = 11.scaledSp, color = DarkTextSecondary)
                 }
             }
         }
@@ -1013,8 +1016,8 @@ private fun ArchivedCard(accent: Color? = null, content: @Composable ColumnScope
 @Composable
 private fun StatTile(value: String, label: String, color: Color) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = color)
-        Text(label, fontSize = 11.sp, color = DarkTextSecondary)
+        Text(value, fontSize = 18.scaledSp, fontWeight = FontWeight.Bold, color = color)
+        Text(label, fontSize = 11.scaledSp, color = DarkTextSecondary)
     }
 }
 
@@ -1037,7 +1040,7 @@ private fun StatsErrorState(onRetry: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Icon(Icons.Outlined.Analytics, null, tint = DarkTextMuted, modifier = Modifier.size(42.dp))
-            Text("Stats unavailable", fontSize = 20.sp, color = DarkTextPrimary)
+            Text("Stats unavailable", fontSize = 20.scaledSp, color = DarkTextPrimary)
             Text(
                 "FocusFlow could not read this period. Try again without leaving the tab.",
                 color = DarkTextSecondary,
@@ -1054,7 +1057,7 @@ private fun StatsPermissionState(onOpenUsageAccessSettings: () -> Unit) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         ArchivedCard {
             Icon(Icons.Outlined.Settings, null, tint = BrandPrimary, modifier = Modifier.size(28.dp))
-            Text("Connect device usage", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = DarkTextPrimary)
+            Text("Connect device usage", fontSize = 20.scaledSp, fontWeight = FontWeight.Bold, color = DarkTextPrimary)
             Text(
                 "This report needs Android Usage Access to read phone behaviour. Nothing leaves the device.",
                 color = DarkTextSecondary,
@@ -1073,7 +1076,7 @@ private fun StatsEmptyState(window: String) {
             Icon(Icons.Outlined.Analytics, null, tint = DarkTextMuted, modifier = Modifier.size(38.dp))
             Text(
                 if (window == ANALYTICS_YESTERDAY) "Nothing recorded yesterday" else "No activity recorded yet",
-                fontSize = 20.sp,
+                fontSize = 20.scaledSp,
                 fontWeight = FontWeight.Bold,
                 color = DarkTextPrimary,
             )

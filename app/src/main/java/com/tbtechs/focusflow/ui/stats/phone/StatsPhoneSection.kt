@@ -1,6 +1,7 @@
 package com.tbtechs.focusflow.ui.stats.phone
 
 import android.app.Activity
+import com.tbtechs.focusflow.ui.theme.scaledSp
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
@@ -65,7 +66,7 @@ private fun PhoneHabitsCard(report: PhoneReport, window: String, onOpenHabits: (
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Phone habits", modifier = Modifier.weight(1f), fontSize = 16.sp, fontWeight = FontWeight.ExtraBold)
+                Text("Phone habits", modifier = Modifier.weight(1f), fontSize = 16.scaledSp, fontWeight = FontWeight.ExtraBold)
                 TextButton(onClick = { shareText(context, shareSummaryText(report, window)) }) { Text("Share") }
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {

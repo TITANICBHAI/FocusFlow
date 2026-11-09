@@ -1,6 +1,7 @@
 package com.tbtechs.focusflow.ui.stats
 
 import androidx.compose.animation.AnimatedVisibility
+import com.tbtechs.focusflow.ui.theme.scaledSp
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
@@ -211,7 +212,7 @@ fun DayRatingBar(
                     TextButton(onClick = { dateMenuOpen = true }, enabled = !isSaving) {
                         Text(
                             "${friendlyDate(selectedDate)} ▾",
-                            fontSize = 14.sp,
+                            fontSize = 14.scaledSp,
                             fontWeight = FontWeight.SemiBold,
                             color = BrandPrimary,
                         )
@@ -222,7 +223,7 @@ fun DayRatingBar(
                     ) {
                         if (ratableDates.isEmpty()) {
                             DropdownMenuItem(
-                                text = { Text("No other days yet", fontSize = 13.sp) },
+                                text = { Text("No other days yet", fontSize = 13.scaledSp) },
                                 onClick = { dateMenuOpen = false },
                             )
                         } else {
@@ -232,7 +233,7 @@ fun DayRatingBar(
                                         Text(
                                             friendlyDate(entry.date) +
                                                 if (entry.hasRating) "  ●" else "",
-                                            fontSize = 13.sp,
+                                            fontSize = 13.scaledSp,
                                             color = if (entry.hasRating) BrandPrimary
                                             else DarkTextPrimary,
                                         )
@@ -252,7 +253,7 @@ fun DayRatingBar(
                 }
                 Text(
                     text = tappedRating?.let { "$it/10" } ?: "How was it?",
-                    fontSize = 13.sp,
+                    fontSize = 13.scaledSp,
                     color = DarkTextSecondary,
                 )
             }
@@ -266,7 +267,7 @@ fun DayRatingBar(
                 ) {
                     Text(
                         saveMessage.ifBlank { "Saved on this device" },
-                        fontSize = 12.sp,
+                        fontSize = 12.scaledSp,
                         color = DarkTextSecondary,
                     )
                     TextButton(onClick = { isEditing = true }) {
@@ -298,7 +299,7 @@ fun DayRatingBar(
                         ) {
                             Text(
                                 "$number",
-                                fontSize = 13.sp,
+                                fontSize = 13.scaledSp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = if (selected) Color.White else DarkTextSecondary,
                             )
@@ -313,7 +314,7 @@ fun DayRatingBar(
                 ) {
                     Column {
                         Spacer(Modifier.height(10.dp))
-                        Text("Any context? (optional)", fontSize = 12.sp, color = DarkTextSecondary)
+                        Text("Any context? (optional)", fontSize = 12.scaledSp, color = DarkTextSecondary)
                         Spacer(Modifier.height(4.dp))
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             listOf(
@@ -336,7 +337,7 @@ fun DayRatingBar(
                                 ) {
                                     Text(
                                         label,
-                                        fontSize = 12.sp,
+                                        fontSize = 12.scaledSp,
                                         color = if (selected) Color.White else DarkTextSecondary,
                                     )
                                 }
@@ -378,7 +379,7 @@ fun DayRatingBar(
                                     ) {
                                         Text(
                                             chip.label,
-                                            fontSize = 12.sp,
+                                            fontSize = 12.scaledSp,
                                             color = if (selected) Color.White else DarkTextSecondary,
                                         )
                                     }
@@ -398,7 +399,7 @@ fun DayRatingBar(
                             placeholder = {
                                 Text(
                                     "Anything else? (optional)",
-                                    fontSize = 13.sp,
+                                    fontSize = 13.scaledSp,
                                     color = DarkTextSecondary,
                                 )
                             },
@@ -438,7 +439,7 @@ fun DayRatingBar(
                         if (saveMessage.isNotBlank()) {
                             Text(
                                 saveMessage,
-                                fontSize = 12.sp,
+                                fontSize = 12.scaledSp,
                                 color = if (saveFailed) MaterialTheme.colorScheme.error
                                 else DarkTextSecondary,
                             )

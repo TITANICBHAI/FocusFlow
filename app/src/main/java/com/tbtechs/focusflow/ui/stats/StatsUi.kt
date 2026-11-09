@@ -1,6 +1,7 @@
 package com.tbtechs.focusflow.ui.stats
 
 import androidx.compose.foundation.background
+import com.tbtechs.focusflow.ui.theme.scaledSp
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -97,7 +98,7 @@ internal fun StatsPeriodPill(
         Text(
             text = label,
             color = if (selected) Color.White else DarkTextPrimary,
-            fontSize = 13.sp,
+            fontSize = 13.scaledSp,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
         )
@@ -129,7 +130,7 @@ internal fun StatsFlatTabs(
                     Text(
                         text = label,
                         color = if (selected) BrandPrimary else DarkTextMuted,
-                        fontSize = 14.sp,
+                        fontSize = 14.scaledSp,
                         fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                         maxLines = 1,
                     )

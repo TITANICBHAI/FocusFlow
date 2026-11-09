@@ -1,6 +1,7 @@
 package com.tbtechs.focusflow.ui.stats
 
 import androidx.compose.foundation.layout.Arrangement
+import com.tbtechs.focusflow.ui.theme.scaledSp
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -127,13 +128,13 @@ internal fun StatsReadinessSection() {
             Text("TURN THESE ON", style = MaterialTheme.typography.labelLarge)
             items.forEach { item ->
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(item.title, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                    Text(item.why, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(item.title, fontSize = 14.scaledSp, fontWeight = FontWeight.Bold)
+                    Text(item.why, fontSize = 12.scaledSp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Button(
                         onClick = { scope.launch { openPermissionSettings(context, item.id) } },
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Text(item.actionLabel, fontSize = 13.sp)
+                        Text(item.actionLabel, fontSize = 13.scaledSp)
                     }
                 }
             }
