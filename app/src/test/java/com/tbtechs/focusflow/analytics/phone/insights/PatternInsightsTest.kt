@@ -130,6 +130,14 @@ class PatternInsightsTest {
     }
 
     @Test
+    fun timeOfDayHabitCarriesTheAppAndItsBusiestHourForNudges() {
+        val insight = tod(hourRow(ago(1), "a", 21 to 60, 22 to 30)).single()
+        assertEquals("a", insight.subject)
+        assertEquals("App A", insight.subjectName)
+        assertEquals(21, insight.peakHour)
+    }
+
+    @Test
     fun timeOfDayHabitNamesEachPeriodAndItsHours() {
         fun msg(hour: Int) = tod(hourRow(ago(1), "a", hour to 90)).single().message
         assertEquals("100% of your App A time is in the morning (5 AM–noon).", msg(8))

@@ -117,6 +117,7 @@ internal object PatternInsights {
                 direction = null,
                 confidence = confidence((total / T.MINUTE).toInt(), (T.TOD_MIN_APP_MS / T.MINUTE).toInt()),
                 priority = T.TOD_PRIORITY,
+                subject = pkg, subjectName = name, peakHour = c.peakHour(pkg, dates),
             )
             if (out.size >= T.TOD_MAX) break
         }

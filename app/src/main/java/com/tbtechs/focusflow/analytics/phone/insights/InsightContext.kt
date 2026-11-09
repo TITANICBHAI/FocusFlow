@@ -62,6 +62,17 @@ internal class InsightContext(val input: PhoneInsightInput) {
     /** Foreground ms of one package on one date (0 when there is no row). */
     fun appMsOn(pkg: String, date: LocalDate): Long = appRowsByDate[date].orEmpty().filter { it.packageName == pkg }.sumOf { it.foregroundMs }
 
+    /** The hour of day (0–23) in which [pkg] has the most foreground time over [dates]; `null` when it has none. */
+    fun peakHour(pkg: String, dates: List<LocalDate>): Int? {
+        val perHour = LongArray(24)
+        for (date in dates) for (row in appRowsByDate[date].orEmpty()) {
+            if (row.packageName != pkg) continue
+            for (hour in 0 until 24) perHour[hour] += row.hourlyMs.getOrElse(hour) { 0L }
+        }
+        val best = perHour.indices.maxByOrNull { perHour[it] } ?: return null // first maximum wins
+        return best.takeIf { perHour[it] > 0L }
+    }
+
     fun appRows(date: LocalDate): List<AppDayRow> = appRowsByDate[date].orEmpty()
     val appRowDates: Set<LocalDate> get() = appRowsByDate.keys
 

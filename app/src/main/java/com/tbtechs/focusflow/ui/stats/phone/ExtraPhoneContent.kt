@@ -8,36 +8,26 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.tbtechs.focusflow.ui.stats.StatsViewModel
 
-/**
- * Content of the Extra tabs other than Overview (which the caller renders itself).
- * The window picker stays visible in every state so changing the window never removes it.
- */
+/** Content of the Apps and Habits tabs (Overview is rendered by StatsScreen itself). */
 @Composable
 internal fun ExtraPhoneContent(
     tab: ExtraTab,
     phoneViewModel: PhoneStatsViewModel,
-    statsViewModel: StatsViewModel,
+    window: String,
     onOpenUsageAccessSettings: () -> Unit,
+    onBlockApp: (String?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by phoneViewModel.report.collectAsState()
-    val window by statsViewModel.activeWindow.collectAsState()
+    val insights by phoneViewModel.insights.collectAsState()
 
     Column(modifier.fillMaxSize()) {
-        PhoneWindowTabs(
-            window = window,
-            onSelect = statsViewModel::setWindow,
-            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp),
-        )
         when (val s = state) {
             is PhoneReportUiState.Ready -> when (tab) {
                 ExtraTab.OVERVIEW -> Unit // rendered by StatsScreen itself
-                ExtraTab.APPS -> ExtraAppsTab(s.report)
-                ExtraTab.PHONE -> ExtraPhoneTab(s.report)
-                ExtraTab.DISTRACTION -> ExtraDistractionTab(s.report)
-                ExtraTab.FOCUS -> ExtraFocusTab(s.report)
+                ExtraTab.APPS -> ExtraAppsTab(s.report, onBlockApp)
+                ExtraTab.HABITS -> ExtraHabitsTab(s.report, window, insights, onBlockApp)
             }
             else -> PhoneStateMessage(s, onOpenUsageAccessSettings, Modifier.padding(16.dp))
         }

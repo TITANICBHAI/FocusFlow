@@ -28,6 +28,7 @@ internal object RouteTextScaleContext {
     private val ownerTabByRoute = mapOf(
         Routes.TEXT_SIZE_SETTINGS to Routes.SETTINGS,
         Routes.SETTINGS_HOW_TO_USE to Routes.SETTINGS,
+        Routes.SETTINGS_USAGE_DATA to Routes.SETTINGS,
         Routes.FOCUSFLOW_FILE_GUIDE to Routes.SETTINGS,
         Routes.USER_PROFILE to Routes.SETTINGS,
         Routes.CHANGELOG to Routes.SETTINGS,

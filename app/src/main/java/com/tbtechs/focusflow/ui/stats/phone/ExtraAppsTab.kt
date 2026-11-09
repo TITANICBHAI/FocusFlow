@@ -1,14 +1,10 @@
 package com.tbtechs.focusflow.ui.stats.phone
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -29,12 +25,11 @@ import com.tbtechs.focusflow.analytics.phone.PhoneBuckets
 import com.tbtechs.focusflow.analytics.phone.PhoneReport
 import com.tbtechs.focusflow.analytics.phone.PhoneText
 import com.tbtechs.focusflow.ui.stats.StatsCard
-import com.tbtechs.focusflow.ui.stats.StatsPeriodPill
 import com.tbtechs.focusflow.ui.theme.DarkTextMuted
 
 /** Extra · Apps: sortable app list with a one-at-a-time drill-down, categories and time-of-day habits. */
 @Composable
-internal fun ExtraAppsTab(report: PhoneReport, modifier: Modifier = Modifier) {
+internal fun ExtraAppsTab(report: PhoneReport, onBlockApp: (String?) -> Unit, modifier: Modifier = Modifier) {
     var sort by rememberSaveable { mutableStateOf(AppSort.TIME) }
     var showAll by rememberSaveable { mutableStateOf(false) }
     var expanded by remember { mutableStateOf<String?>(null) }
@@ -45,10 +40,8 @@ internal fun ExtraAppsTab(report: PhoneReport, modifier: Modifier = Modifier) {
 
     ExtraTabList(modifier) {
         item {
-            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                AppSort.entries.forEach { option ->
-                    StatsPeriodPill(label = option.label, selected = sort == option, onClick = { sort = option })
-                }
+            TextButton(onClick = { sort = AppSort.entries[(sort.ordinal + 1) % AppSort.entries.size] }) {
+                Text("Sort: ${sort.label}")
             }
         }
 
@@ -61,6 +54,7 @@ internal fun ExtraAppsTab(report: PhoneReport, modifier: Modifier = Modifier) {
                     app = app,
                     isExpanded = expanded == app.packageName,
                     report = report,
+                    onBlockApp = onBlockApp,
                     onToggle = { expanded = if (expanded == app.packageName) null else app.packageName },
                 )
             }
@@ -90,21 +84,22 @@ internal fun ExtraAppsTab(report: PhoneReport, modifier: Modifier = Modifier) {
                 item {
                     ExtraCard("Time of day") {
                         periods.forEach { p ->
-                            PhoneListRow(
-                                title = p.period.label + " · " + PhoneText.percent(Math.round(p.sharePercent).toInt()) + " of app time",
-                                subtitle = p.topApps.joinToString(" · ") { it.appName + " " + PhoneText.duration(it.totalMs) },
+                            ShareRow(
+                                title = p.period.label,
+                                subtitle = p.topApps.firstOrNull()?.appName,
+                                fraction = (p.sharePercent / 100.0).toFloat().coerceIn(0f, 1f),
+                                trailing = PhoneText.percent(Math.round(p.sharePercent).toInt()),
                             )
                         }
                     }
                 }
             }
-            item { PhoneMutedNote(appsCoverageNote(section)) }
         }
     }
 }
 
 @Composable
-private fun AppCard(app: AppUsageRow, isExpanded: Boolean, report: PhoneReport, onToggle: () -> Unit) {
+private fun AppCard(app: AppUsageRow, isExpanded: Boolean, report: PhoneReport, onBlockApp: (String?) -> Unit, onToggle: () -> Unit) {
     StatsCard {
         Column(
             Modifier
@@ -136,7 +131,7 @@ private fun AppCard(app: AppUsageRow, isExpanded: Boolean, report: PhoneReport, 
                     PhoneSectionTitle("Last days", Modifier.padding(top = 8.dp))
                     DayBars(points = daily, contentDescription = "Daily time in ${app.appName} over the last ${daily.size} days")
                 }
-                appDetailLines(app, report.apps.appDataDays).forEach { PhoneMutedNote(it) }
+                TextButton(onClick = { onBlockApp(app.packageName) }) { Text("Block this app") }
             }
         }
     }

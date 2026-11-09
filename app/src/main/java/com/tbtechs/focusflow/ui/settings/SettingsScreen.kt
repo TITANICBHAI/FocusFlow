@@ -33,6 +33,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AccountCircle
+import androidx.compose.material.icons.outlined.Analytics
 import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.BugReport
 import androidx.compose.material.icons.outlined.Check
@@ -135,6 +136,7 @@ fun SettingsScreen(
     onOpenActiveBlocks: () -> Unit = {},
     onOpenTextSize: () -> Unit = {},
     onOpenHowToUse: () -> Unit = {},
+    onOpenUsageDataGuide: () -> Unit = {},
     onOpenFileGuide: () -> Unit = {},
     onOpenProfile: () -> Unit = {},
     onOpenPermissions: () -> Unit = {},
@@ -694,6 +696,13 @@ fun SettingsScreen(
                         title = "How to Use",
                         description = "Learn the modes, protections, and settings",
                         onClick = onOpenHowToUse,
+                    )
+                    HorizontalDivider(color = DarkBorder, thickness = 1.dp)
+                    SettingsActionRow(
+                        icon = Icons.Outlined.Analytics,
+                        title = "How usage data is calculated",
+                        description = "Where the numbers on Stats and Extra come from",
+                        onClick = onOpenUsageDataGuide,
                     )
                     HorizontalDivider(color = DarkBorder, thickness = 1.dp)
                     SettingsActionRow(

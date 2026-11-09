@@ -2,12 +2,10 @@ package com.tbtechs.focusflow.ui.stats
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -17,7 +15,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -26,7 +23,6 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.tbtechs.focusflow.di.AppModule
 import com.tbtechs.focusflow.notifications.HabitNudgeScheduler
 import com.tbtechs.focusflow.ui.permissions.PermissionId
 import com.tbtechs.focusflow.ui.permissions.PermissionStatus
@@ -91,8 +87,8 @@ internal fun readinessItems(missing: Set<PermissionId>, nudgesOn: Boolean): List
     }
 
 /**
- * Shows what is missing for the habit tools to work, with a button to fix each one, and the
- * opt-in switch for heads-up notifications. It re-checks every time the screen is resumed, so the
+ * Shows what is missing for the habit tools to work, with a button to fix each one, and
+ * nothing else (the heads-up switch lives in Extra · Habits). It re-checks every time the screen is resumed, so the
  * item disappears as soon as the person comes back from the system settings page.
  */
 @Composable
@@ -112,6 +108,7 @@ internal fun StatsReadinessSection() {
         onDispose { owner.lifecycle.removeObserver(observer) }
     }
     LaunchedEffect(resumes) {
+        nudgesOn = HabitNudgeScheduler.isEnabled(context)
         missing = listOf(
             PermissionId.USAGE,
             PermissionId.ACCESSIBILITY,
@@ -121,51 +118,24 @@ internal fun StatsReadinessSection() {
     }
 
     val items = readinessItems(missing, nudgesOn)
+    if (items.isEmpty()) return
     StatsCard {
         Column(
             modifier = Modifier.padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            if (items.isNotEmpty()) {
-                Text("TURN THESE ON", style = MaterialTheme.typography.labelLarge)
-                items.forEach { item ->
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(item.title, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                        Text(item.why, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Button(
-                            onClick = { scope.launch { openPermissionSettings(context, item.id) } },
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Text(item.actionLabel, fontSize = 13.sp)
-                        }
+            Text("TURN THESE ON", style = MaterialTheme.typography.labelLarge)
+            items.forEach { item ->
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(item.title, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Text(item.why, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Button(
+                        onClick = { scope.launch { openPermissionSettings(context, item.id) } },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(item.actionLabel, fontSize = 13.sp)
                     }
                 }
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Heads-up before risky times", fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                    Text(
-                        "A notification shortly before the time your own data says you slip. " +
-                            "Only for findings you have not dismissed. Off by default.",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Switch(
-                    checked = nudgesOn,
-                    onCheckedChange = { enabled ->
-                        scope.launch {
-                            AppModule.settingsRepository.putBoolean(HabitNudgeScheduler.ENABLED_KEY, enabled)
-                            nudgesOn = enabled
-                            HabitNudgeScheduler.rescheduleAsync(context)
-                            resumes += 1
-                        }
-                    },
-                )
             }
         }
     }

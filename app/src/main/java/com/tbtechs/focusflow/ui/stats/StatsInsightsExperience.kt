@@ -54,11 +54,11 @@ fun StatsInsightsExperience(
     onDayRatingFocusHandled: (Int) -> Unit = {},
     screenTitle: String = "Stats",
     onOpenArchived: (() -> Unit)? = null,
+    embedded: Boolean = false,
 ) {
     val snapshot by statsViewModel.analyticsSnapshot.collectAsState()
     val insights by statsViewModel.insightCards.collectAsState()
     val weeklyStandout by statsViewModel.weeklyStandout.collectAsState()
-    val achievements by statsViewModel.achievementState.collectAsState()
     val lifetime by statsViewModel.lifetimeStats.collectAsState()
     val state by statsViewModel.loadState.collectAsState()
     val window by statsViewModel.activeWindow.collectAsState()
@@ -94,42 +94,44 @@ fun StatsInsightsExperience(
     }
 
     Column(modifier = androidx.compose.ui.Modifier.fillMaxSize()) {
-        Row(
-            modifier = androidx.compose.ui.Modifier
-                .fillMaxWidth()
-                .background(DarkBackground)
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-        ) {
-            onOpenArchived?.let { onReport ->
-                IconButton(onClick = onReport) {
-                    Icon(
-                        imageVector = Icons.Outlined.ArrowBack,
-                        contentDescription = "Back to Report",
-                        tint = DarkTextPrimary,
-                    )
+        if (!embedded) {
+            Row(
+                modifier = androidx.compose.ui.Modifier
+                    .fillMaxWidth()
+                    .background(DarkBackground)
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            ) {
+                onOpenArchived?.let { onReport ->
+                    IconButton(onClick = onReport) {
+                        Icon(
+                            imageVector = Icons.Outlined.ArrowBack,
+                            contentDescription = "Back to Report",
+                            tint = DarkTextPrimary,
+                        )
+                    }
                 }
-            }
-            Column(modifier = androidx.compose.ui.Modifier.weight(1f)) {
-                Text(
-                    "YOUR ACTIVITY",
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
-                    letterSpacing = 1.2.sp,
+                Column(modifier = androidx.compose.ui.Modifier.weight(1f)) {
+                    Text(
+                        "YOUR ACTIVITY",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        letterSpacing = 1.2.sp,
+                    )
+                    Text(screenTitle, fontSize = 28.sp, fontWeight = FontWeight.Bold, color = DarkTextPrimary)
+                    Text(windowSubtitle(window), fontSize = 13.sp, color = DarkTextSecondary)
+                }
+                ActiveStatusIndicator(
+                    onOpenActiveBlocks = onOpenActiveBlocks,
                 )
-                Text(screenTitle, fontSize = 28.sp, fontWeight = FontWeight.Bold, color = DarkTextPrimary)
-                Text(windowSubtitle(window), fontSize = 13.sp, color = DarkTextSecondary)
             }
-            ActiveStatusIndicator(
-                onOpenActiveBlocks = onOpenActiveBlocks,
+            AnalyticsWindowTabs(
+                activeWindow = window,
+                includeThreeMonths = onOpenArchived == null,
+                onSelect = statsViewModel::setWindow,
             )
         }
-        AnalyticsWindowTabs(
-            activeWindow = window,
-            includeThreeMonths = onOpenArchived == null,
-            onSelect = statsViewModel::setWindow,
-        )
         if (
             reflectionPromptsEnabled &&
             (window == ANALYTICS_TODAY || window == ANALYTICS_YESTERDAY)
@@ -146,7 +148,7 @@ fun StatsInsightsExperience(
                 onSubmit = statsViewModel::submitRating,
             )
         }
-        if (onOpenArchived == null && window == ANALYTICS_THREE_MONTHS && !localNoticeDismissed) {
+        if (window == ANALYTICS_THREE_MONTHS && !localNoticeDismissed) {
             LocalOnlyNotice(onDismiss = {
                 scope.launch {
                     settingsRepository.putString("local_analytics_notice_dismissed", "true")
@@ -186,7 +188,7 @@ fun StatsInsightsExperience(
                                 if (loaded.tasks.total > 0 || loaded.sessions.total > 0) {
                                     FocusTimeHero(loaded)
                                 }
-                                PhoneTimeCard(loaded, onOpenQuickBlock)
+                                if (!embedded) PhoneTimeCard(loaded, onOpenQuickBlock)
                                 insights
                                     .filter {
                                         it.id != weeklyStandout?.id &&
@@ -206,7 +208,6 @@ fun StatsInsightsExperience(
                                         AllTimeStats(
                                             snapshot = loaded,
                                             lifetime = lifetime,
-                                            earnedAchievementCount = achievements?.earnedIds?.size ?: 0,
                                         )
                                         ProductivityHeatmap(loaded)
                                         TrendChart(loaded)
@@ -251,9 +252,6 @@ fun StatsInsightsExperience(
                                     ).show()
                                 },
                             )
-                            if (window != ANALYTICS_THREE_MONTHS) {
-                                achievements?.let { AchievementRow(it, loaded, lifetime) }
-                            }
                         }
                     }
                 }
@@ -275,21 +273,11 @@ private fun AnalyticsWindowTabs(
         (ANALYTICS_THREE_MONTHS to "3 Months").takeIf { includeThreeMonths },
         ANALYTICS_ALL_TIME to "All Time",
     )
-    Row(
-        modifier = androidx.compose.ui.Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-            .padding(start = 16.dp, end = 20.dp, top = 8.dp, bottom = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        windows.forEach { (window, label) ->
-            StatsPeriodPill(
-                label = label,
-                selected = activeWindow == window,
-                onClick = { onSelect(window) },
-            )
-        }
-    }
+    StatsFlatTabs(
+        labels = windows.map { it.second },
+        selectedIndex = windows.indexOfFirst { it.first == activeWindow }.coerceAtLeast(0),
+        onSelect = { onSelect(windows[it].first) },
+    )
 }
 
 @Composable

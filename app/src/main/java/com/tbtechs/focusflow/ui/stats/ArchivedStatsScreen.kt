@@ -40,6 +40,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -55,6 +56,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -174,6 +176,12 @@ fun ArchivedStatsScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         item {
+                            UsageAccessCard(
+                                permission = usagePermission,
+                                onOpenUsageAccessSettings = onOpenUsageAccessSettings,
+                            )
+                        }
+                        item {
                             loaded.phoneUsage
                                 ?.takeUnless { window == ANALYTICS_ALL_TIME }
                                 ?.let { phoneUsage ->
@@ -210,12 +218,6 @@ fun ArchivedStatsScreen(
                             if (window != ANALYTICS_ALL_TIME) {
                                 DataHealthNotice(loaded)
                             }
-                        }
-                        item {
-                            UsageAccessCard(
-                                permission = usagePermission,
-                                onOpenUsageAccessSettings = onOpenUsageAccessSettings,
-                            )
                         }
                         item {
                             BlockingReport(
@@ -271,7 +273,7 @@ private fun ExtraButton(onClick: () -> Unit) {
     ) {
         Icon(Icons.Outlined.Analytics, contentDescription = null)
         Spacer(Modifier.width(8.dp))
-        Text("Extra")
+        Text("Extra · apps, habits & nudges")
     }
 }
 
@@ -291,21 +293,11 @@ private fun StatsFilterRow(
             .fillMaxWidth()
             .background(DarkCard),
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
-                .padding(start = 16.dp, end = 20.dp, top = 10.dp, bottom = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            filters.forEach { (filter, label) ->
-                StatsPeriodPill(
-                    label = label,
-                    selected = activeWindow == filter,
-                    onClick = { onSelect(filter) },
-                )
-            }
-        }
+        StatsFlatTabs(
+            labels = filters.map { it.second },
+            selectedIndex = filters.indexOfFirst { it.first == activeWindow }.coerceAtLeast(0),
+            onSelect = { onSelect(filters[it].first) },
+        )
     }
 }
 
@@ -564,9 +556,9 @@ private fun UsageAccessCard(
         Row(verticalAlignment = Alignment.Top) {
             Icon(Icons.Outlined.Settings, null, tint = BrandPrimary, modifier = Modifier.size(21.dp))
             Column(modifier = Modifier.weight(1f).padding(start = 10.dp)) {
-                Text("Device usage is not connected", fontWeight = FontWeight.SemiBold, color = DarkTextPrimary)
+                Text("Connect device usage", fontWeight = FontWeight.SemiBold, color = DarkTextPrimary)
                 Text(
-                    "Grant Usage Access when you want FocusFlow to explain phone-use patterns. Your focus stats above continue to work without it.",
+                    "Allow Usage Access to see phone time and habits. Focus stats work without it.",
                     fontSize = 12.sp,
                     lineHeight = 17.sp,
                     color = DarkTextSecondary,
@@ -596,12 +588,13 @@ private fun DeviceUsageCard(
     onSelectWeekMode: (String) -> Unit,
     blockedAttempts: Int,
 ) {
-    ArchivedCard {
+    ArchivedCard(accent = StatsBlue) {
         val totalMinutes = if (usage.totalMinutes > 0) {
             usage.totalMinutes
         } else {
             usage.byHour.values.sum().roundToInt()
         }
+        val shownMinutes = rememberCountUp(totalMinutes)
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -628,7 +621,7 @@ private fun DeviceUsageCard(
                     onSelect = onSelectWeekMode,
                 )
             }
-            Box(
+            Row(
                 modifier = Modifier
                     .clip(RoundedCornerShape(50))
                     .background(
@@ -639,7 +632,10 @@ private fun DeviceUsageCard(
                         },
                     )
                     .padding(horizontal = 10.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
+                if (window == ANALYTICS_TODAY) LiveDot(StatsGreen)
                 Text(
                     if (window == ANALYTICS_WEEK) {
                         if (weekViewMode == WEEK_MODE_DYNAMIC) {
@@ -647,6 +643,8 @@ private fun DeviceUsageCard(
                         } else {
                             weekRangeLabel(weekStartDay)
                         }
+                    } else if (window == ANALYTICS_TODAY) {
+                        "Live"
                     } else {
                         "On device"
                     },
@@ -657,14 +655,14 @@ private fun DeviceUsageCard(
             }
         }
         Text(
-            formatStatsMinutes(totalMinutes),
+            formatStatsMinutes(shownMinutes),
             modifier = Modifier.padding(top = 12.dp),
-            fontSize = 38.sp,
+            fontSize = 44.sp,
             fontWeight = FontWeight.ExtraBold,
             color = Color(0xFF63A7FF),
         )
         Text(
-            "Android app foreground time — FocusFlow home-screen time excluded",
+            "Time spent in apps · FocusFlow home screen not counted",
             fontSize = 12.sp,
             color = DarkTextSecondary,
         )
@@ -811,7 +809,7 @@ private fun UsageAppRow(
             ) {
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth((app.minutes / maxMinutes).toFloat().coerceIn(0f, 1f))
+                        .fillMaxWidth(rememberGrowIn((app.minutes / maxMinutes).toFloat().coerceIn(0f, 1f)))
                         .height(6.dp)
                         .clip(RoundedCornerShape(3.dp))
                         .background(Color(0xFF63A7FF)),
@@ -923,7 +921,7 @@ private fun WeeklyUsageBar(value: Double, maxMinutes: Double, color: Color) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight((value / maxMinutes).toFloat().coerceIn(0f, 1f))
+                .fillMaxHeight(rememberGrowIn((value / maxMinutes).toFloat().coerceIn(0f, 1f)))
                 .clip(RoundedCornerShape(5.dp))
                 .background(color),
         )
@@ -985,10 +983,9 @@ private fun BlockingReport(
                 }
             }
         }
-        Button(
+        OutlinedButton(
             onClick = onOpenActiveBlocks,
             modifier = Modifier.padding(top = 10.dp),
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = BrandPrimary),
         ) {
             Text("Open active blocks")
         }
@@ -996,12 +993,18 @@ private fun BlockingReport(
 }
 
 @Composable
-private fun ArchivedCard(content: @Composable ColumnScope.() -> Unit) {
+private fun ArchivedCard(accent: Color? = null, content: @Composable ColumnScope.() -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
-            .background(DarkCard)
+            .then(
+                if (accent != null) {
+                    Modifier.background(Brush.verticalGradient(listOf(accent.copy(alpha = 0.16f), DarkCard)))
+                } else {
+                    Modifier.background(DarkCard)
+                },
+            )
             .padding(16.dp),
         content = content,
     )

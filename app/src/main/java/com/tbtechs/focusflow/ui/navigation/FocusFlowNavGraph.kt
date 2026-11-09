@@ -86,6 +86,7 @@ import com.tbtechs.focusflow.ui.permissions.PermissionsScreen
 import com.tbtechs.focusflow.ui.profile.PasswordProtectionScreen
 import com.tbtechs.focusflow.ui.profile.UserProfileScreen
 import com.tbtechs.focusflow.ui.settings.SettingsHowToUseScreen
+import com.tbtechs.focusflow.ui.settings.UsageDataGuideScreen
 import com.tbtechs.focusflow.ui.settings.SettingsScreen
 import com.tbtechs.focusflow.ui.settings.TextSizeSettingsScreen
 import com.tbtechs.focusflow.ui.stats.ReportScreen
@@ -299,6 +300,7 @@ fun FocusFlowNavGraph(
                                 onOpenActiveBlocks = { navigate(Routes.ACTIVE) },
                                 onOpenTextSize = { navigate(Routes.TEXT_SIZE_SETTINGS) },
                                 onOpenHowToUse = { navigate(Routes.SETTINGS_HOW_TO_USE) },
+                                onOpenUsageDataGuide = { navigate(Routes.SETTINGS_USAGE_DATA) },
                                 onOpenFileGuide = { navigate(Routes.FOCUSFLOW_FILE_GUIDE) },
                                 onOpenProfile = { navigate(Routes.USER_PROFILE) },
                                 onOpenPermissions = { navigate(Routes.PERMISSIONS) },
@@ -363,6 +365,21 @@ fun FocusFlowNavGraph(
                             onBack = ::back,
                             onOpenRoute = ::navigate,
                         )
+                    }
+                }
+            }
+            composable(
+                route = RouteTextScaleContext.routePattern(Routes.SETTINGS_USAGE_DATA),
+                arguments = listOf(sourceTabArgument()),
+            ) { backStackEntry ->
+                RouteTextScaleProvider(
+                    route = Routes.SETTINGS_USAGE_DATA,
+                    sourceTab = backStackEntry.arguments
+                        ?.getString(RouteTextScaleContext.SOURCE_TAB_ARGUMENT),
+                    settings = settings,
+                ) {
+                    ScreenBoundary(Routes.SETTINGS_USAGE_DATA) {
+                        UsageDataGuideScreen(onBack = ::back)
                     }
                 }
             }

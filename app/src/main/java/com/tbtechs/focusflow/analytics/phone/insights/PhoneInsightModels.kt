@@ -22,6 +22,10 @@ data class PhoneInsight(
     val confidence: InsightConfidence,
     val priority: Int,
     val isNew: Boolean = false,
+    /** The app this insight is about (package, display name) and the hour it is used most; set only where it is known. */
+    val subject: String? = null,
+    val subjectName: String? = null,
+    val peakHour: Int? = null,
 )
 
 data class PhoneInsightInput(

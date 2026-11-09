@@ -6,6 +6,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.util.Log
+import com.tbtechs.focusflow.analytics.phone.insights.PhoneInsightEngine
+import com.tbtechs.focusflow.analytics.phone.insights.PhoneInsightInputResult
 import com.tbtechs.focusflow.di.AppModule
 import com.tbtechs.focusflow.enforcement.AppBlockerAccessibilityService
 import com.tbtechs.focusflow.notifications.receivers.HabitNudgeReceiver
@@ -13,6 +15,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.time.LocalDate
 import java.time.LocalTime
@@ -30,7 +33,7 @@ object HabitNudgeScheduler {
     const val ENABLED_KEY = "habit_nudges_enabled"
     private const val TAG = "HabitNudgeScheduler"
     private const val REQUEST_BASE = 9100
-    private const val SLOTS = 2
+    private const val SLOTS = NudgeSchedule.MAX_NUDGES
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     fun isEnabled(context: Context): Boolean =
@@ -49,9 +52,7 @@ object HabitNudgeScheduler {
         cancelAll(app)
         if (!isEnabled(app)) return
 
-        val findings = runCatching { AppModule.findingRepository.getActiveFindings() }
-            .getOrDefault(emptyList())
-        val nudges = HabitNudgePlanner.plan(findings, bedTimeMinutes(preferences(app)))
+        val nudges = plan(app)
         val alarms = app.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
         nudges.take(SLOTS).forEachIndexed { slot, nudge ->
             runCatching {
@@ -62,6 +63,28 @@ object HabitNudgeScheduler {
                 )
             }.onFailure { Log.w(TAG, "Could not schedule nudge $slot", it) }
         }
+    }
+
+    /**
+     * The heads-ups the person would get right now. Blocked-attempt findings come first (the person can
+     * dismiss those), then the phone-habit analysis. Also used by the Extra screen to show a preview.
+     */
+    suspend fun plan(context: Context): List<HabitNudge> {
+        val app = context.applicationContext
+        val bedTime = bedTimeMinutes(preferences(app))
+        val findings = runCatching { AppModule.findingRepository.getActiveFindings() }
+            .getOrDefault(emptyList())
+        val fromFindings = HabitNudgePlanner.plan(findings, bedTime)
+        val fromPhone = runCatching { phoneHabitNudges(bedTime) }.getOrDefault(emptyList())
+        return NudgeSchedule.merge(fromFindings, fromPhone)
+    }
+
+    private suspend fun phoneHabitNudges(bedTime: Int?): List<HabitNudge> {
+        val ready = AppModule.phoneBehaviourRepository.loadInsightInput() as? PhoneInsightInputResult.Ready
+            ?: return emptyList()
+        val input = ready.input
+        val insights = withContext(Dispatchers.Default) { PhoneInsightEngine().generate(input) }
+        return PhoneNudgePlanner.plan(insights, { pkg -> input.categoryOf(pkg).isDistraction }, bedTime)
     }
 
     private fun cancelAll(context: Context) {

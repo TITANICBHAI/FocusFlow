@@ -240,3 +240,14 @@ Harness total: **543 tests in 32 classes, 0 failures** (before the extras: 524 /
 - The Gradle compile, the Phase 1+2 unit tests under Gradle, and the v10 → v11 instrumentation test have not been run by me.
 - T8 and T12 wiring (`AppModule`, worker) have never been compiled.
 - T22 is done (see Phase 8). T23 (owner device checks S1–S16) remains. Gates A–C are confirmed to compile; the Gate D Compose files (`PhoneInsightsScreen.kt`, the `PhoneCharts.kt` edit) are not yet compiled.
+
+## Phase 10 — UI rework (Stats / Extra / nudges / "How it's calculated")
+
+Ruling 48: Stats returns to its original layout (period tabs, Observed Device Time, one compact "Phone habits" card, focus/blocking, one button into Extra). The 3-destination pill system is removed.
+Ruling 49: Extra has three flat tabs (Overview, Apps, Habits) and one period dropdown. Distraction/Focus/Phone/Insights tabs are folded into Habits as visual cards (big numbers, bars, one-liners).
+Ruling 50: Pills are replaced by flat underlined tabs (`StatsFlatTabs`) on Stats, Extra and Overview; the app sort pills became one cycling "Sort" button.
+Ruling 51: All "how this is calculated" text leaves the cards and lives on one Settings page (About → "How usage data is calculated"), separate from How to Use. Content is constant-driven and tested (`UsageDataGuideTest`).
+Ruling 52: Nudges now also come from phone-habit insights (surge, time-of-day habit, late night), merged with existing habit nudges under a cap of 3, opt-in. The switch + preview live in Extra · Habits; Stats shows a one-line invitation while off.
+Ruling 53: Achievements removed from Overview and All-Time stats. `AchievementRow.kt` and `StatsViewModel.achievementState` are now dead code.
+Ruling 54: `StatsReadinessSection` keeps permission prompts only. Stats has no 3-month tab, so leaving Extra on 3 Months falls back to Week.
+Not compiled here: all Compose changes, nav route, Settings row.

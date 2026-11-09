@@ -5,6 +5,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -24,6 +26,7 @@ import com.tbtechs.focusflow.ui.theme.DarkCard
 import com.tbtechs.focusflow.ui.theme.DarkSurfaceVariant
 import com.tbtechs.focusflow.ui.theme.DarkTextPrimary
 import com.tbtechs.focusflow.ui.theme.BrandPrimary
+import com.tbtechs.focusflow.ui.theme.DarkTextMuted
 
 @Composable
 internal fun StatsCard(
@@ -98,5 +101,51 @@ internal fun StatsPeriodPill(
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
         )
+    }
+}
+
+/**
+ * Flat text tabs with an underline under the selected one. Used instead of rows of pill buttons: it reads as
+ * navigation, not as a set of buttons, and its width is shared equally so it never needs to scroll.
+ */
+@Composable
+internal fun StatsFlatTabs(
+    labels: List<String>,
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth()) {
+            labels.forEachIndexed { index, label ->
+                val selected = index == selectedIndex
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 44.dp)
+                        .selectable(selected = selected, role = Role.Tab, onClick = { onSelect(index) }),
+                    contentAlignment = androidx.compose.ui.Alignment.Center,
+                ) {
+                    Text(
+                        text = label,
+                        color = if (selected) BrandPrimary else DarkTextMuted,
+                        fontSize = 14.sp,
+                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                        maxLines = 1,
+                    )
+                    if (selected) {
+                        Box(
+                            Modifier
+                                .align(androidx.compose.ui.Alignment.BottomCenter)
+                                .fillMaxWidth(0.5f)
+                                .height(3.dp)
+                                .clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
+                                .background(BrandPrimary),
+                        )
+                    }
+                }
+            }
+        }
+        Box(Modifier.fillMaxWidth().height(1.dp).background(DarkBorder))
     }
 }

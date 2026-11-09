@@ -16,7 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Block
 import androidx.compose.material.icons.outlined.CalendarMonth
-import androidx.compose.material.icons.outlined.EmojiEvents
+import androidx.compose.material.icons.outlined.Timeline
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
@@ -306,7 +306,6 @@ fun TemptationStats(
 fun AllTimeStats(
     snapshot: AnalyticsSnapshot,
     lifetime: LifetimeStats?,
-    earnedAchievementCount: Int,
 ) {
     StatsCard {
         Column(
@@ -324,7 +323,7 @@ fun AllTimeStats(
                         .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(Icons.Outlined.EmojiEvents, null, tint = MaterialTheme.colorScheme.primary)
+                    Icon(Icons.Outlined.Timeline, null, tint = MaterialTheme.colorScheme.primary)
                 }
                 Column {
                     Text("ALL-TIME PROGRESS", style = MaterialTheme.typography.labelLarge)
@@ -364,16 +363,6 @@ fun AllTimeStats(
                     MaterialTheme.colorScheme.primary,
                 )
             }
-            Text(
-                "$earnedAchievementCount achievements earned",
-                modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
-                    .padding(horizontal = 11.dp, vertical = 8.dp),
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.primary,
-            )
         }
     }
 }

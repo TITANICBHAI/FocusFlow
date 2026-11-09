@@ -71,6 +71,7 @@ internal object ChangeInsights {
                     "${dur(row.recent)}/day over the last 7 days, up from ${dur(row.prior)}/day (${PhoneText.signedPercent(pct ?: 0)})."
                 },
                 evidence = evidenceLines, direction = TrendDirection.UP, confidence = conf, priority = T.SURGE_PRIORITY,
+                subject = row.pkg, subjectName = name, peakHour = c.peakHour(row.pkg, recentDates),
             )
         }
         for (row in drops) {

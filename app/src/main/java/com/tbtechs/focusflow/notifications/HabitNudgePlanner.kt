@@ -3,13 +3,6 @@ package com.tbtechs.focusflow.notifications
 import com.tbtechs.focusflow.data.local.entity.FindingEntity
 import kotlin.math.abs
 
-/** One heads-up to show every day at [minuteOfDay] (minutes after local midnight). */
-data class HabitNudge(
-    val minuteOfDay: Int,
-    val title: String,
-    val text: String,
-)
-
 /**
  * Turns the findings the person has not dismissed into at most two daily heads-ups, each placed
  * shortly before the moment the finding says things go wrong. Pure logic, no Android types.
@@ -23,7 +16,6 @@ data class HabitNudge(
 object HabitNudgePlanner {
     private const val MAX_NUDGES = 2
     private const val MIN_GAP_MINUTES = 30
-    private const val DEFAULT_LATE_NIGHT_MINUTE = 22 * 60 + 30
     private val LIVE_STATES = setOf("detected", "seen", "aware")
     private val PEAK_HOUR = Regex("\"peak_hour\":(\\d+)")
     private val SUGGESTED_MINUTES = Regex("\"suggested_min\":(\\d+)")
@@ -102,15 +94,7 @@ object HabitNudgePlanner {
         return chosen.sortedBy { it.minuteOfDay }
     }
 
-    /** Half an hour before bedtime, but always before the 23:00 start of the late-night window. */
-    internal fun lateNightMinute(bedTimeMinutes: Int?): Int {
-        if (bedTimeMinutes == null) return DEFAULT_LATE_NIGHT_MINUTE
-        val target = ((bedTimeMinutes - 30) % 1440 + 1440) % 1440
-        return if (target in (12 * 60)..DEFAULT_LATE_NIGHT_MINUTE) target else DEFAULT_LATE_NIGHT_MINUTE
-    }
+    internal fun lateNightMinute(bedTimeMinutes: Int?): Int = NudgeSchedule.lateNightMinute(bedTimeMinutes)
 
-    internal fun hourText(hour: Int): String {
-        val twelve = if (hour % 12 == 0) 12 else hour % 12
-        return "$twelve ${if (hour < 12) "am" else "pm"}"
-    }
+    internal fun hourText(hour: Int): String = NudgeSchedule.hourText(hour)
 }

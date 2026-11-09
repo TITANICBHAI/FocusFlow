@@ -13,6 +13,8 @@ class RoutesTest {
         assertEquals(Routes.NOT_FOUND, Routes.fromPath("guarded_adjustments"))
         assertFalse(Routes.TEXT_SIZE_SETTINGS in Routes.externalLinkableRoutes)
         assertFalse(Routes.SETTINGS_HOW_TO_USE in Routes.externalLinkableRoutes)
+        assertTrue(Routes.SETTINGS_USAGE_DATA in Routes.architectureRoutes)
+        assertFalse(Routes.SETTINGS_USAGE_DATA in Routes.externalLinkableRoutes)
         assertTrue(Routes.FOCUSFLOW_FILE_GUIDE in Routes.architectureRoutes)
         assertFalse(Routes.FOCUSFLOW_FILE_GUIDE in Routes.externalLinkableRoutes)
     }

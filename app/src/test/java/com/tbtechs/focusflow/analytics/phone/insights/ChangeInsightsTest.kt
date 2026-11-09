@@ -42,6 +42,29 @@ class ChangeInsightsTest {
     }
 
     @Test
+    fun surgeCarriesTheAppAndItsBusiestHourForNudges() {
+        val insight = surge(60, 30).single(InsightKind.APP_SURGE)
+        assertEquals("x", insight.subject)
+        assertEquals("X", insight.subjectName)
+        assertEquals(12, insight.peakHour) // appSpan puts every minute at noon
+    }
+
+    @Test
+    fun surgePeakHourUsesOnlyTheRecentWeek() {
+        val recent = appSpan(7, 1, "x", 60, "X", hour = 20)
+        val prior = appSpan(28, 8, "x", 30, "X", hour = 9)
+        val insight = gen(input(allDays, recent + prior, names = names)).single(InsightKind.APP_SURGE)
+        assertEquals(20, insight.peakHour)
+    }
+
+    @Test
+    fun dropsCarryNoNudgeHints() {
+        val insight = surge(10, 60).single(InsightKind.APP_DROP)
+        assertEquals(null, insight.subject)
+        assertEquals(null, insight.peakHour)
+    }
+
+    @Test
     fun surgeBoundaryIsExactlyOnePointFiveTimesAndFifteenMinutes() {
         assertEquals(1, surge(60, 40).ofKind(InsightKind.APP_SURGE).size)  // exactly 1.5×, +20 min
         assertEquals(0, surge(59, 40).ofKind(InsightKind.APP_SURGE).size)  // 1.475×
