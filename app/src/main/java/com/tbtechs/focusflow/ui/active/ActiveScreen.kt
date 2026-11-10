@@ -28,6 +28,7 @@ import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Key
+import androidx.compose.material.icons.outlined.Rule
 import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Shield
@@ -103,7 +104,7 @@ import java.time.format.DateTimeFormatter
 
 /**
  * Aggregated Active status screen (Screens 5a and 5b).
- * Provides a live overview of all 7 protection layers.
+ * Provides a live overview of all 8 protection layers.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -118,6 +119,7 @@ fun ActiveScreen(
     onOpenDefense: () -> Unit = {},
     onOpenKeywordBlocker: () -> Unit = {},
     onOpenVpnBlockList: () -> Unit = {},
+    onOpenCustomRules: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val installedAppsRepository = remember { InstalledAppsRepository(context) }
@@ -206,6 +208,7 @@ fun ActiveScreen(
         )
 
     val activeSchedules = settings.recurringBlockSchedules.filter { it.isActiveNow() }
+    val screenBlocks = screenBlocksOf(settings, rememberEnabledCustomRuleNames())
 
     val nothingActive = session?.isActive != true &&
         !standaloneActive &&
@@ -213,7 +216,8 @@ fun ActiveScreen(
         allowancePackages.isEmpty() &&
         settings.blockedWords.isEmpty() &&
         !vpnRunning &&
-        activeSchedules.isEmpty()
+        activeSchedules.isEmpty() &&
+        !screenBlocks.isActive
 
     Scaffold(
         containerColor = DarkBackground,
@@ -454,7 +458,66 @@ fun ActiveScreen(
                 }
             }
 
-            // 6. VPN Blocking Card
+            // 6. Screen Blocks Card: custom screen rules, Shorts, Reels, install protection
+            item {
+                ActiveSectionCard(
+                    title = "Screen Blocks",
+                    status = screenBlocks.status,
+                    statusColor = if (screenBlocks.isActive) Color(0xFF10B981) else DarkTextMuted,
+                    icon = Icons.Outlined.Rule,
+                    expandable = screenBlocks.isActive,
+                    expanded = expanded == "screen",
+                    onToggle = { expanded = if (expanded == "screen") "" else "screen" },
+                ) {
+                    KeyValueRow(
+                        label = "Custom rules",
+                        value = if (screenBlocks.customRuleNames.isEmpty()) "None on"
+                        else "${screenBlocks.customRuleNames.size} on",
+                    )
+                    KeyValueRow(
+                        label = "Shorts · Reels · Installs",
+                        value = listOf(
+                            "Shorts" to screenBlocks.youtubeShorts,
+                            "Reels" to screenBlocks.instagramReels,
+                            "Installs" to screenBlocks.installActions,
+                        ).filter { it.second }.joinToString(" · ") { it.first }.ifEmpty { "None on" },
+                    )
+                    if (expanded == "screen" && screenBlocks.isActive) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(DarkSurfaceVariant)
+                                .padding(10.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            screenBlocks.lines.forEach { line ->
+                                Text(line, fontSize = 13.scaledSp, color = DarkTextPrimary)
+                            }
+                        }
+                    } else if (!screenBlocks.isActive) {
+                        Text(
+                            "No custom rule, Shorts, Reels or install block is on. These close an app only when a " +
+                                "certain screen is showing.",
+                            fontSize = 13.scaledSp,
+                            color = DarkTextSecondary,
+                        )
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    ManageButton(
+                        icon = Icons.Outlined.Settings,
+                        label = "Manage custom rules",
+                        onClick = onOpenCustomRules,
+                    )
+                    ManageButton(
+                        icon = Icons.Outlined.Settings,
+                        label = "Manage Shorts, Reels and installs",
+                        onClick = onOpenDefense,
+                    )
+                }
+            }
+
+            // 7. VPN Blocking Card
             item {
                 ActiveSectionCard(
                     title = "VPN Blocking",
@@ -507,7 +570,7 @@ fun ActiveScreen(
                 }
             }
 
-            // 7. Scheduled Blocks Card
+            // 8. Scheduled Blocks Card
             item {
                 ActiveSectionCard(
                     title = "Scheduled Blocks",
@@ -553,7 +616,7 @@ fun ActiveScreen(
                 }
             }
 
-            // 8. TODAY Summary Section (Screenshot 5b footer)
+            // 9. TODAY Summary Section (Screenshot 5b footer)
             item {
                 ActiveTodayFooter(
                     tasks = tasks,
