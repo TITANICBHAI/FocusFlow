@@ -47,17 +47,26 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="focusflow" />
             </intent-filter>
+            <!--
+                .focusflow files only. Android ignores a path pattern unless a scheme AND host
+                are declared, so the old filters (octet-stream with no path, and a bare
+                pathPattern) matched every file and never narrowed to .focusflow. Several
+                patterns are listed because Android's simple glob does not backtrack over dots.
+                Limit: a file manager that hands over an opaque content URI (no file name in
+                the path) cannot be matched by extension; Settings -> Import still works there.
+            -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:mimeType="application/octet-stream" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:host="*" />
                 <data android:mimeType="*/*" />
                 <data android:pathPattern=".*\\.focusflow" />
+                <data android:pathPattern=".*\\..*\\.focusflow" />
+                <data android:pathPattern=".*\\..*\\..*\\.focusflow" />
+                <data android:pathPattern=".*\\..*\\..*\\..*\\.focusflow" />
+                <data android:pathPattern=".*\\.FOCUSFLOW" />
             </intent-filter>
         </activity>
 

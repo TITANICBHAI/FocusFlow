@@ -429,6 +429,15 @@ class AppBlockerAccessibilityService : AccessibilityService() {
 
         /** Throttle for TYPE_WINDOW_CONTENT_CHANGED per package — very noisy event. */
         private const val CONTENT_SCAN_THROTTLE_MS = 2_000L
+        /** Minimum gap between two custom-rule scans of one app. Short, so a tab tap is caught fast. */
+        private const val RULE_SCAN_THROTTLE_MS = 500L
+        /**
+         * Re-scans after a tap or selection. The tapped tab only reports itself selected a moment
+         * after the click event, so the first look is early and the second catches slow apps.
+         */
+        private val RULE_CLICK_SCAN_DELAYS_MS = longArrayOf(120L, 450L)
+        /** Re-scans after an app opens: its tabs are often not drawn yet when the window event fires. */
+        private val RULE_OPEN_SCAN_DELAYS_MS = longArrayOf(350L, 900L)
         /** Extra time a rule stays exempt after its test countdown, in case the scan runs late. */
         private const val RULE_TEST_GRACE_MS = 4_000L
 
@@ -548,6 +557,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     private var customRulesRaw: String? = null
     private var customRulesCache: List<CustomScreenRule> = emptyList()
     private val lastRuleScanMs = mutableMapOf<String, Long>()
+    private val queuedRuleScans = mutableMapOf<String, MutableList<Runnable>>()
     private fun customRules(): List<CustomScreenRule> {
         val raw = prefs.getString(CustomRuleStore.PREF_KEY, "[]") ?: "[]"
         if (raw != customRulesRaw) {
@@ -984,6 +994,10 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             }
             AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> {
                 handleContentChanged(ev)
+                return
+            }
+            AccessibilityEvent.TYPE_VIEW_CLICKED, AccessibilityEvent.TYPE_VIEW_SELECTED -> {
+                handleRuleInteraction(ev)
                 return
             }
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> { /* handled below */ }
@@ -1478,6 +1492,8 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             } finally {
                 ruleRoot?.recycle()
             }
+            // Nothing matched yet: the tabs may not be drawn at this instant, so look again shortly.
+            queueRuleScans(pkg, RULE_OPEN_SCAN_DELAYS_MS, replace = true)
         }
 
         // ── Word blocking ─────────────────────────────────────────────────────
@@ -1622,6 +1638,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
 
     override fun onDestroy() {
         instance = null
+        queuedRuleScans.keys.toList().forEach { cancelQueuedRuleScans(it) }
         allowanceUsageCoordinator?.onServiceStopping()
         allowanceScope?.cancel()
         allowanceScope = null
@@ -3820,7 +3837,11 @@ class AppBlockerAccessibilityService : AccessibilityService() {
 
         // ── Custom screen rules — checked before the keyword guard so they work with
         // no keywords configured. Cheap package check first: most apps have no rule.
-        if (hasEnabledCustomRule(pkg) && customRuleScanDue(pkg)) {
+        if (hasEnabledCustomRule(pkg) && !customRuleScanDue(pkg)) {
+            // Too soon after the last scan. Run one trailing scan when the gap is over instead of
+            // dropping this event, otherwise a change that happens right after a scan is never seen.
+            queueRuleScans(pkg, longArrayOf(customRuleScanWaitMs(pkg) + 30L), replace = false)
+        } else if (hasEnabledCustomRule(pkg)) {
             // A content event's own source is only the part of the screen that changed, so
             // prefer the whole active window when it belongs to this app.
             val activeRoot = rootInActiveWindow
@@ -4350,14 +4371,68 @@ class AppBlockerAccessibilityService : AccessibilityService() {
 
     /** True when a content-change scan of [pkg] is not suppressed by the per-package throttle. */
     private fun customRuleScanDue(pkg: String): Boolean =
-        System.currentTimeMillis() - (lastRuleScanMs[pkg] ?: 0L) >= CONTENT_SCAN_THROTTLE_MS
+        customRuleScanWaitMs(pkg) <= 0L
+
+    /** Milliseconds until [pkg] may be scanned again (0 or less when it may be scanned now). */
+    private fun customRuleScanWaitMs(pkg: String): Long =
+        RULE_SCAN_THROTTLE_MS - (System.currentTimeMillis() - (lastRuleScanMs[pkg] ?: 0L))
+
+    /** A tap or tab selection inside an app that has a rule: look at the screen right after it. */
+    private fun handleRuleInteraction(event: AccessibilityEvent) {
+        val pkg = event.packageName?.toString() ?: return
+        if (pkg == packageName || !hasEnabledCustomRule(pkg)) return
+        queueRuleScans(pkg, RULE_CLICK_SCAN_DELAYS_MS, replace = true)
+    }
+
+    /**
+     * Schedules scans of [pkg] after each delay. [replace] drops scans already waiting for this
+     * app (a newer tap supersedes an older one); without it, nothing is added while one is waiting.
+     */
+    private fun queueRuleScans(pkg: String, delaysMs: LongArray, replace: Boolean) {
+        val waiting = queuedRuleScans[pkg]
+        if (!waiting.isNullOrEmpty()) {
+            if (!replace) return
+            waiting.forEach { handler.removeCallbacks(it) }
+            waiting.clear()
+        }
+        val list = queuedRuleScans.getOrPut(pkg) { mutableListOf() }
+        for (delay in delaysMs) {
+            lateinit var task: Runnable
+            task = Runnable {
+                queuedRuleScans[pkg]?.remove(task)
+                runQueuedRuleScan(pkg)
+            }
+            list += task
+            handler.postDelayed(task, delay)
+        }
+    }
+
+    private fun cancelQueuedRuleScans(pkg: String) {
+        queuedRuleScans.remove(pkg)?.forEach { handler.removeCallbacks(it) }
+    }
+
+    /** One delayed scan: only when this app is still the one on screen. */
+    private fun runQueuedRuleScan(pkg: String) {
+        if (!hasEnabledCustomRule(pkg)) return
+        val root = try { rootInActiveWindow } catch (_: Exception) { null } ?: return
+        try {
+            if (!root.packageName?.toString().equals(pkg, ignoreCase = true)) return
+            val hit = matchingCustomRule(pkg, root, throttle = false)
+            if (hit != null) {
+                cancelQueuedRuleScans(pkg)
+                handleBlockedApp(pkg, "Custom rule: ${hit.name}")
+            }
+        } finally {
+            root.recycle()
+        }
+    }
 
     /**
      * Returns the first enabled custom rule of [pkg] whose matchers are satisfied by the
      * tree under [root], or null. The caller owns [root] and recycles it; every child
      * obtained here is recycled here.
      *
-     * [throttle] limits the scan to once per [CONTENT_SCAN_THROTTLE_MS] per package. The
+     * [throttle] limits the scan to once per [RULE_SCAN_THROTTLE_MS] per package. The
      * window-state path passes false: it fires once per screen change, and a throttled
      * miss there would not be retried until the next content event.
      */
@@ -4378,7 +4453,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
 
         if (throttle) {
             val last = lastRuleScanMs[pkg] ?: 0L
-            if (now - last < CONTENT_SCAN_THROTTLE_MS) return null
+            if (now - last < RULE_SCAN_THROTTLE_MS) return null
         }
         lastRuleScanMs[pkg] = now
 
