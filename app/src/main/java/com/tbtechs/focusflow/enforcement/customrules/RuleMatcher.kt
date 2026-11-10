@@ -7,6 +7,12 @@ interface NodeView {
     val text: String?
     val desc: String?
     val children: List<NodeView>
+
+    /** False for an element that is off screen or hidden. Defaults to true for simple test nodes. */
+    val visible: Boolean get() = true
+
+    /** True for an element in its selected state (the highlighted tab). */
+    val selected: Boolean get() = false
 }
 
 /**
@@ -18,6 +24,8 @@ data class NodeFields(
     val className: String?,
     val text: String?,
     val desc: String?,
+    val visible: Boolean = true,
+    val selected: Boolean = false,
 )
 
 /**
@@ -47,8 +55,25 @@ object RuleMatcher {
     const val MAX_NODES = 3_000
     const val MAX_DEPTH = 40
 
-    /** Every non-blank field of [m] must match. A matcher with no fields never matches. */
+    /**
+     * Every non-blank field of [m] must match. A matcher with no fields never matches.
+     * An element that is not visible to the user never matches: apps keep other pages and hidden
+     * views in the tree, and a rule must only react to what is actually on screen. A matcher with
+     * [NodeMatcher.selectedOnly] also needs the element to be in its selected state.
+     */
     fun fieldsMatch(f: NodeFields, m: NodeMatcher): Boolean {
+        if (!attributesMatch(f, m)) return false
+        if (!f.visible) return false
+        if (m.selectedOnly && !f.selected) return false
+        return true
+    }
+
+    /**
+     * Only the id, class, text and description part of a match: ignores whether the element is
+     * visible or selected. [fieldsMatch] builds on it, and the rule test uses it to tell "not on
+     * this screen" from "on this screen but hidden or not selected".
+     */
+    fun attributesMatch(f: NodeFields, m: NodeMatcher): Boolean {
         if (m.isEmpty()) return false
         if (!m.viewIdSuffix.isNullOrBlank()) {
             val id = f.viewId ?: return false
@@ -70,7 +95,7 @@ object RuleMatcher {
     }
 
     fun nodeMatches(node: NodeView, m: NodeMatcher): Boolean =
-        fieldsMatch(NodeFields(node.viewId, node.className, node.text, node.desc), m)
+        fieldsMatch(NodeFields(node.viewId, node.className, node.text, node.desc, node.visible, node.selected), m)
 
     /** True when the rule's matchers are satisfied by the tree under [root]. */
     fun ruleMatches(root: NodeView, rule: CustomScreenRule): Boolean {
@@ -85,7 +110,7 @@ object RuleMatcher {
             if (depth > MAX_DEPTH) continue
             if (visited >= MAX_NODES) break
             visited++
-            evaluator.accept(NodeFields(node.viewId, node.className, node.text, node.desc))
+            evaluator.accept(NodeFields(node.viewId, node.className, node.text, node.desc, node.visible, node.selected))
             if (evaluator.isSatisfied) return true
             val kids = node.children
             for (i in kids.indices.reversed()) stack.addLast(kids[i] to depth + 1)

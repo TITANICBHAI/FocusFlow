@@ -65,6 +65,7 @@ import com.tbtechs.focusflow.ui.customrules.CustomRuleCaptureScreen
 import com.tbtechs.focusflow.ui.customrules.CustomRulesGuideScreen
 import com.tbtechs.focusflow.ui.customrules.CustomRuleEditScreen
 import com.tbtechs.focusflow.ui.customrules.CustomRulePickNodeScreen
+import com.tbtechs.focusflow.ui.customrules.CustomRulesListScreen
 import com.tbtechs.focusflow.ui.customrules.CustomRulesScreen
 import com.tbtechs.focusflow.ui.customrules.CustomRulesTransferScreen
 import com.tbtechs.focusflow.ui.customrules.CustomRulesViewModel
@@ -599,13 +600,33 @@ fun FocusFlowNavGraph(
                     ScreenBoundary(Routes.CUSTOM_RULES) {
                         CustomRulesScreen(
                             viewModel = customRulesViewModel,
-                            settingsViewModel = settingsViewModel,
-                            isFocusActive = focusSessionViewModel.focusSession.value?.isActive == true,
                             onBack = ::back,
+                            onOpenRules = { navigate(Routes.CUSTOM_RULES_LIST) },
                             onOpenCapture = { navigate(Routes.CUSTOM_RULE_CAPTURE) },
                             onOpenEdit = { navigate(Routes.CUSTOM_RULE_EDIT) },
                             onOpenTransfer = { navigate(Routes.CUSTOM_RULES_TRANSFER) },
                             onOpenGuide = { navigate(Routes.CUSTOM_RULES_GUIDE) },
+                        )
+                    }
+                }
+            }
+            composable(
+                route = RouteTextScaleContext.routePattern(Routes.CUSTOM_RULES_LIST),
+                arguments = listOf(sourceTabArgument()),
+            ) { backStackEntry ->
+                RouteTextScaleProvider(
+                    route = Routes.CUSTOM_RULES_LIST,
+                    sourceTab = backStackEntry.arguments
+                        ?.getString(RouteTextScaleContext.SOURCE_TAB_ARGUMENT),
+                    settings = settings,
+                ) {
+                    ScreenBoundary(Routes.CUSTOM_RULES_LIST) {
+                        CustomRulesListScreen(
+                            viewModel = customRulesViewModel,
+                            settingsViewModel = settingsViewModel,
+                            isFocusActive = focusSessionViewModel.focusSession.value?.isActive == true,
+                            onBack = ::back,
+                            onOpenEdit = { navigate(Routes.CUSTOM_RULE_EDIT) },
                         )
                     }
                 }
@@ -626,11 +647,16 @@ fun FocusFlowNavGraph(
                             settingsViewModel = settingsViewModel,
                             isFocusActive = focusSessionViewModel.focusSession.value?.isActive == true,
                             onBack = ::back,
-                            // After save or delete, return to the list and drop the capture
-                            // and pick screens that may sit between it and this editor.
+                            // After save or delete, go back to where the editor was opened from:
+                            // the My rules screen when it is on the back stack (it only is when the
+                            // rule was opened from there), otherwise the Custom Screen Rules screen,
+                            // dropping the capture and pick screens that may sit in between.
                             onFinished = {
-                                val listPattern = RouteTextScaleContext.routePattern(Routes.CUSTOM_RULES)
-                                if (!navController.popBackStack(listPattern, false)) {
+                                val myRulesPattern = RouteTextScaleContext.routePattern(Routes.CUSTOM_RULES_LIST)
+                                val hubPattern = RouteTextScaleContext.routePattern(Routes.CUSTOM_RULES)
+                                if (!navController.popBackStack(myRulesPattern, false) &&
+                                    !navController.popBackStack(hubPattern, false)
+                                ) {
                                     navigate(Routes.CUSTOM_RULES)
                                 }
                             },

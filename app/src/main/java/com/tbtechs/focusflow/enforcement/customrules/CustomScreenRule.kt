@@ -10,6 +10,9 @@ data class NodeMatcher(
     val className: String? = null, // exact, case-insensitive, e.g. "android.widget.ImageView"
     val textContains: String? = null, // case-insensitive substring of node text
     val descContains: String? = null, // case-insensitive substring of contentDescription
+    // True: the element must also be in its "selected" state (the highlighted tab, the chosen
+    // page). This is what tells "the Reels tab is the one you are on" from "a Reels button exists".
+    val selectedOnly: Boolean = false,
 ) {
     fun isEmpty(): Boolean =
         viewIdSuffix.isNullOrBlank() && className.isNullOrBlank() &&
@@ -90,6 +93,7 @@ object CustomScreenRules {
         if (!m.className.isNullOrBlank()) o.put("className", m.className)
         if (!m.textContains.isNullOrBlank()) o.put("textContains", m.textContains)
         if (!m.descContains.isNullOrBlank()) o.put("descContains", m.descContains)
+        if (m.selectedOnly) o.put("selectedOnly", true)
         return o
     }
 
@@ -123,6 +127,7 @@ object CustomScreenRules {
         className = o.stringOrNull("className")?.trim(),
         textContains = o.stringOrNull("textContains"),
         descContains = o.stringOrNull("descContains"),
+        selectedOnly = o.optBoolean("selectedOnly", false),
     )
 
     /** Parses one rule object. The id may be blank here; callers decide what that means. */

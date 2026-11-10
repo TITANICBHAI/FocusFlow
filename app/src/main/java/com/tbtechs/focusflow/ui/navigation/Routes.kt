@@ -40,6 +40,7 @@ object Routes {
     const val CUSTOM_RULE_PICK = "custom_rule_pick"
     const val CUSTOM_RULES_TRANSFER = "custom_rules_transfer"
     const val CUSTOM_RULES_GUIDE = "custom_rules_guide"
+    const val CUSTOM_RULES_LIST = "custom_rules_list"
     const val NOT_FOUND = "not_found"
 
     val tabRoutes: Set<String> = setOf(HOME, FOCUS, STATS, SETTINGS, DEFENSE)
@@ -77,6 +78,7 @@ object Routes {
         CUSTOM_RULE_PICK,
         CUSTOM_RULES_TRANSFER,
         CUSTOM_RULES_GUIDE,
+        CUSTOM_RULES_LIST,
     )
 
     /**

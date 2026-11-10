@@ -65,6 +65,7 @@ class RoutesTest {
             Routes.CUSTOM_RULE_PICK,
             Routes.CUSTOM_RULES_TRANSFER,
             Routes.CUSTOM_RULES_GUIDE,
+            Routes.CUSTOM_RULES_LIST,
         )
         routes.forEach { route ->
             assertTrue(route, route in Routes.architectureRoutes)

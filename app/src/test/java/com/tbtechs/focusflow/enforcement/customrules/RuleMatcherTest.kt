@@ -11,6 +11,8 @@ class RuleMatcherTest {
         override val text: String? = null,
         override val desc: String? = null,
         override val children: List<NodeView> = emptyList(),
+        override val visible: Boolean = true,
+        override val selected: Boolean = false,
     ) : NodeView
 
     private fun rule(
@@ -126,5 +128,46 @@ class RuleMatcherTest {
         val none = RuleEvaluator(rule(emptyList(), MatchMode.ALL))
         none.accept(NodeFields(viewId = null, className = null, text = "a", desc = null))
         assertFalse(none.isSatisfied)
+    }
+
+    // ----- visible-only and selected-only (rules must react like the Shorts / Reels toggles) -----
+
+    @Test
+    fun anElementThatIsNotVisibleNeverMatches() {
+        val tree = FakeNode(children = listOf(FakeNode(desc = "Reels", visible = false)))
+        assertFalse(RuleMatcher.ruleMatches(tree, rule(listOf(NodeMatcher(descContains = "Reels")))))
+        val shown = FakeNode(children = listOf(FakeNode(desc = "Reels", visible = true)))
+        assertTrue(RuleMatcher.ruleMatches(shown, rule(listOf(NodeMatcher(descContains = "Reels")))))
+    }
+
+    @Test
+    fun selectedOnlyNeedsTheElementToBeSelected() {
+        val notSelected = FakeNode(children = listOf(FakeNode(desc = "Reels", selected = false)))
+        val selected = FakeNode(children = listOf(FakeNode(desc = "Reels", selected = true)))
+        val onlySelected = rule(listOf(NodeMatcher(descContains = "Reels", selectedOnly = true)))
+        assertFalse(RuleMatcher.ruleMatches(notSelected, onlySelected))
+        assertTrue(RuleMatcher.ruleMatches(selected, onlySelected))
+        // Without selectedOnly the tab button alone is enough, which is the old behaviour.
+        assertTrue(RuleMatcher.ruleMatches(notSelected, rule(listOf(NodeMatcher(descContains = "Reels")))))
+    }
+
+    @Test
+    fun selectedOnlyAloneIsStillAnEmptyMatcher() {
+        val tree = FakeNode(children = listOf(FakeNode(selected = true)))
+        assertFalse(RuleMatcher.ruleMatches(tree, rule(listOf(NodeMatcher(selectedOnly = true)))))
+        assertTrue(NodeMatcher(selectedOnly = true).isEmpty())
+    }
+
+    @Test
+    fun hiddenPagesInTheTreeDoNotTriggerAllModeRules() {
+        // A pager keeps the Reels page in the tree while the Home page is showing.
+        val tree = FakeNode(
+            children = listOf(
+                FakeNode(viewId = "a:id/clips_viewer", visible = false),
+                FakeNode(desc = "Reels tab", selected = false),
+            ),
+        )
+        val r = rule(listOf(NodeMatcher(viewIdSuffix = "clips_viewer"), NodeMatcher(descContains = "Reels tab", selectedOnly = true)))
+        assertFalse(RuleMatcher.ruleMatches(tree, r))
     }
 }

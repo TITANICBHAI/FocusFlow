@@ -111,7 +111,6 @@ fun VpnBlockListScreen(
             "com.android.dialer",
             "com.google.android.dialer",
             "com.samsung.android.incallui",
-            "com.whatsapp",
         )
     }
     val installedAppsState = rememberInstalledApps(installedAppsRepository)

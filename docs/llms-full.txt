@@ -38,7 +38,7 @@ Each task in FocusFlow can have focus mode enabled. When a task becomes active:
 - A persistent foreground notification appears showing the task name and a countdown timer.
 - The accessibility service starts blocking all apps not on the task's allowed list.
 - If the task has no explicit allowed list, all apps are blocked except phone/dialer (which is
-  unconditionally always allowed) and WhatsApp.
+  unconditionally always allowed).
 - The focus session ends automatically when the task's scheduled end time passes.
 - "Keep focus active until task end" setting: optionally, even if the user marks a task done early,
   the session stays active until the original end time.
@@ -298,10 +298,10 @@ These packages are exempt from ALL blocking — no user setting can override the
 - `com.android.dialer` (AOSP dialer)
 - `com.google.android.dialer`
 - `com.samsung.android.dialer`
-- `com.whatsapp`
 
-Emergency calling must always work, and WhatsApp is included because in many regions it is the
-primary emergency communication method.
+Emergency calling must always work. (WhatsApp used to be on this list. It is now a sensitive app in
+the BLOCKABLE_AFTER_WARNING group: the app picker warns first, and after the user confirms, the
+block applies.)
 
 ## BLOCKABLE_AFTER_WARNING packages (bypassed by default, opt-in)
 Launchers, Settings, SystemUI, and other system packages are in this category. They are passed
@@ -341,7 +341,7 @@ of these packages to a block list (after a confirmation warning dialog), the cho
 ## Enforcement priority order (accessibility service)
 
 For any foreground package, checks fire in this order:
-1. NEVER_BLOCK bypass (phone dialers, WhatsApp) → always allow
+1. NEVER_BLOCK bypass (phone dialers, launchers) → always allow
 2. Own package (com.tbtechs.focusflow) → always allow
 3. BLOCKABLE_AFTER_WARNING check → bypass unless user opted in
 4. System guard checks (power menu, accessibility settings, clear data, date/time, etc.)

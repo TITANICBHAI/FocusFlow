@@ -182,4 +182,24 @@ class CustomScreenRuleTest {
         assertTrue(result.rejected[0].startsWith("Sneaky: "))
         assertTrue(result.rejected[1].startsWith("Broad: "))
     }
+
+    @Test
+    fun selectedOnlySurvivesJsonAndExportImport() {
+        val rules = listOf(
+            rule(matchers = listOf(NodeMatcher(descContains = "Reels", selectedOnly = true))),
+        )
+        assertEquals(rules, CustomScreenRules.fromJson(CustomScreenRules.toJson(rules)))
+
+        val imported = CustomScreenRules.parseImport(CustomScreenRules.exportEnvelope(rules), own)
+        assertTrue(imported.rejected.isEmpty())
+        assertTrue(imported.accepted.single().matchers.single().selectedOnly)
+    }
+
+    @Test
+    fun selectedOnlyIsOffWhenMissingAndNotWrittenWhenOff() {
+        val old = """[{"id":"a","name":"n","packageName":"p","matchers":[{"viewIdSuffix":"x"}]}]"""
+        assertFalse(CustomScreenRules.fromJson(old).single().matchers.single().selectedOnly)
+        val written = CustomScreenRules.toJson(listOf(rule()))
+        assertFalse(written.contains("selectedOnly"))
+    }
 }

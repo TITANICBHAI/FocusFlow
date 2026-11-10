@@ -117,4 +117,17 @@ class CaptureExportTest {
     fun blankPackageIsLabelled() {
         assertTrue(CaptureResult("", emptyList(), 0L).toExportText().contains("Package: (unknown)"))
     }
+
+    @Test
+    fun exportMarksSelectedElementsAndExplainsIt() {
+        val nodes = listOf(
+            NodeSnapshot(0, null, "android.widget.FrameLayout", null, null, "0,0,100,100"),
+            NodeSnapshot(1, "a:id/tab_reels", "android.widget.ImageView", null, "Reels", "0,90,50,100", selected = true),
+        )
+        val text = CaptureResult("com.example", nodes, 0L).toExportText()
+        assertTrue(text.contains("selected=true"))
+        assertTrue(text.lines().count { it.contains("selected=true") } >= 2) // header explanation + the tab
+        assertTrue(text.lines().first { it.trim().startsWith("[1]") }.contains("selected=true"))
+        assertFalse(text.lines().first { it.trim().startsWith("[0]") }.contains("selected=true"))
+    }
 }

@@ -12,15 +12,23 @@ class ChangelogDataTest {
 
         val changelog = parseChangelog(source)
 
-        assertEquals("1.1.5", changelog.first().version)
-        assertEquals("October 2026", changelog.first().date)
+        assertEquals("1.1.6", changelog.first().version)
+        assertEquals("November 2026", changelog.first().date)
         assertTrue(changelog.first().sections.isNotEmpty())
-        assertEquals("Subtasks and rich imports", changelog.first().sections.first().heading)
+        assertEquals("Custom Screen Rules (beta)", changelog.first().sections.first().heading)
         val releaseNotes = changelog.first().sections.flatMap { it.items }.joinToString(" ")
-        assertTrue(releaseNotes.contains("ZIP bundles"))
-        assertTrue(releaseNotes.contains("version 2"))
-        assertTrue(releaseNotes.contains("rep ranges"))
-        assertTrue(releaseNotes.contains("repsMax"))
+        assertTrue(releaseNotes.contains("My rules"))
+        assertTrue(releaseNotes.contains("Test this rule"))
+        assertTrue(releaseNotes.contains("WhatsApp"))
+        assertTrue(releaseNotes.contains("select its tab before you capture"))
+
+        val previous = changelog.first { it.version == "1.1.5" }
+        assertEquals("Subtasks and rich imports", previous.sections.first().heading)
+        val previousNotes = previous.sections.flatMap { it.items }.joinToString(" ")
+        assertTrue(previousNotes.contains("ZIP bundles"))
+        assertTrue(previousNotes.contains("version 2"))
+        assertTrue(previousNotes.contains("rep ranges"))
+        assertTrue(previousNotes.contains("repsMax"))
     }
 
     @Test

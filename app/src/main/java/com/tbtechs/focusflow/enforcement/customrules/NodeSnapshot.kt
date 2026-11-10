@@ -10,6 +10,7 @@ data class NodeSnapshot(
     val text: String?,
     val desc: String?,
     val bounds: String, // "l,t,r,b"
+    val selected: Boolean = false, // the element is in its selected state (highlighted tab, chosen page)
 )
 
 /**
@@ -35,16 +36,17 @@ fun NodeSnapshot.hasStableHandle(): Boolean =
 
 /**
  * The matcher tapping this node adds to a rule: its view id if it has one, else its text, else
- * its description, else only its class. A class-only matcher is too broad to save, so the
- * editor's validation makes the user add more.
+ * its description, else only its class. An element captured in its selected state (the tab you
+ * were on) gets [NodeMatcher.selectedOnly], so the rule fires only while that tab is the chosen one.
+ * A class-only matcher is too broad to save, so the editor's validation makes the user add more.
  */
 fun NodeSnapshot.toMatcher(): NodeMatcher {
     val suffix = idSuffix()
     return when {
-        suffix != null -> NodeMatcher(viewIdSuffix = suffix)
-        !text.isNullOrBlank() -> NodeMatcher(textContains = text)
-        !desc.isNullOrBlank() -> NodeMatcher(descContains = desc)
-        else -> NodeMatcher(className = className?.takeIf { it.isNotBlank() })
+        suffix != null -> NodeMatcher(viewIdSuffix = suffix, selectedOnly = selected)
+        !text.isNullOrBlank() -> NodeMatcher(textContains = text, selectedOnly = selected)
+        !desc.isNullOrBlank() -> NodeMatcher(descContains = desc, selectedOnly = selected)
+        else -> NodeMatcher(className = className?.takeIf { it.isNotBlank() }, selectedOnly = selected)
     }
 }
 

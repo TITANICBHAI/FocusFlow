@@ -50,6 +50,7 @@ fun CustomRulesTransferScreen(
 
     Scaffold(
         containerColor = DarkBackground,
+        contentWindowInsets = RuleScreenInsets,
         topBar = {
             FocusFlowInternalHeader(
                 title = "Import / export rules",
@@ -60,7 +61,7 @@ fun CustomRulesTransferScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
+                .ruleScreenBody(padding)
                 .padding(horizontal = 16.dp)
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp),

@@ -13,9 +13,10 @@ class ChangelogV114Test {
     @Test
     fun version114SitsBetween115And113() {
         val versions = changelog.map { it.version }
-        assertEquals("1.1.5", versions[0])
-        assertEquals("1.1.4", versions[1])
-        assertEquals("1.1.3", versions[2])
+        assertEquals("1.1.6", versions[0])
+        assertEquals("1.1.5", versions[1])
+        assertEquals("1.1.4", versions[2])
+        assertEquals("1.1.3", versions[3])
     }
 
     @Test

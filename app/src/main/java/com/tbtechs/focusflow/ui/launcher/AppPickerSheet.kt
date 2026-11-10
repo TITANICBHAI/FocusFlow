@@ -96,6 +96,8 @@ private val sensitiveApps = mapOf(
     "com.google.android.apps.messaging" to SensitiveApp("SMS / 2FA verification", "Communication"),
     "com.samsung.android.messaging" to SensitiveApp("SMS / 2FA verification", "Communication"),
     "com.android.mms" to SensitiveApp("SMS / 2FA verification", "Communication"),
+    "com.whatsapp" to SensitiveApp("Messaging & calls", "Communication"),
+    "com.whatsapp.w4b" to SensitiveApp("Messaging & calls (Business)", "Communication"),
     "com.android.settings" to SensitiveApp("System Settings", "System"),
     "com.google.android.calculator" to SensitiveApp("Calculator utility", "Utility"),
     "com.google.android.calendar" to SensitiveApp("Calendar schedule", "Productivity"),
@@ -515,7 +517,7 @@ fun AppPickerSheet(
                                     modifier = Modifier.size(14.dp),
                                 )
                                 Text(
-                                    "Checked apps are allowed during Focus. Sensitive apps warn before blocking. Phone, launcher, and WhatsApp protections stay usable.",
+                                    "Checked apps are allowed during Focus. Sensitive apps warn before blocking. Phone and launcher protections stay usable.",
                                     modifier = Modifier.weight(1f),
                                     fontSize = 10.scaledSp,
                                     lineHeight = 14.scaledSp,

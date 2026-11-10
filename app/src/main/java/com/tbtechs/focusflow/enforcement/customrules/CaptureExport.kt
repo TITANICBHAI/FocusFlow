@@ -85,6 +85,7 @@ fun CaptureResult.toExportText(maxChars: Int = CAPTURE_EXPORT_MAX_CHARS): String
         appendLine("Package: ${packageName.ifBlank { "(unknown)" }}")
         appendLine("Captured: ${Instant.ofEpochMilli(atMs)}")
         appendLine("Elements: ${nodes.size}")
+        appendLine("Only elements visible on screen are listed. selected=true marks the highlighted tab or chosen item.")
         appendLine("Contains text that was visible on that screen. Review before sharing.")
         appendLine("To turn this into a rule: give it to an assistant with the prompt from Custom Screen Rules → Guide.")
         appendLine("---")
@@ -99,6 +100,7 @@ fun CaptureResult.toExportText(maxChars: Int = CAPTURE_EXPORT_MAX_CHARS): String
             node.idSuffix()?.let { append(" id=").append(it) }
             node.text?.takeIf { it.isNotBlank() }?.let { append(" text=\"").append(oneLine(it)).append('"') }
             node.desc?.takeIf { it.isNotBlank() }?.let { append(" desc=\"").append(oneLine(it)).append('"') }
+            if (node.selected) append(" selected=true")
             append(" bounds=").append(node.bounds)
             append('\n')
         }

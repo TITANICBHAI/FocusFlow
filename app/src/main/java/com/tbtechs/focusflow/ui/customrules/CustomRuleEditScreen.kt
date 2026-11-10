@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -104,6 +105,7 @@ fun CustomRuleEditScreen(
 
     Scaffold(
         containerColor = DarkBackground,
+        contentWindowInsets = RuleScreenInsets,
         topBar = {
             FocusFlowInternalHeader(
                 title = if (isExisting) "Edit rule" else "New rule",
@@ -111,7 +113,7 @@ fun CustomRuleEditScreen(
             )
         },
     ) { padding ->
-        Box(modifier = Modifier.fillMaxSize()) {
+        Box(modifier = Modifier.fillMaxSize().navigationBarsPadding()) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -226,6 +228,17 @@ fun CustomRuleEditScreen(
                             label = "Description contains",
                             onValueChange = { v -> updateMatcher(index) { it.copy(descContains = v.ifEmpty { null }) } },
                         )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        FilterChip(
+                            selected = matcher.selectedOnly,
+                            onClick = { updateMatcher(index) { it.copy(selectedOnly = !it.selectedOnly) } },
+                            label = { Text("Only when selected") },
+                        )
+                        Text(
+                            text = "Turn on for a tab or button: it then counts only while it is the highlighted one.",
+                            fontSize = 11.scaledSp,
+                            color = DarkTextMuted,
+                        )
                     }
                 }
 
@@ -243,6 +256,8 @@ fun CustomRuleEditScreen(
                     fontSize = 11.scaledSp,
                     color = DarkTextMuted,
                 )
+
+                CustomRuleTestCard(rule = rule)
 
                 RuleButton(
                     text = "Save",

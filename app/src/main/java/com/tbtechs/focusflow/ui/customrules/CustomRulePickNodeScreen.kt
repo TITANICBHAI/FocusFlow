@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -133,6 +134,9 @@ fun CustomRulePickNodeScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(DarkBackground)
+                    // The bottom bar sits outside the Scaffold's inset handling, so it clears the
+                    // system navigation buttons itself (3-button and gesture navigation alike).
+                    .navigationBarsPadding()
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
@@ -258,6 +262,13 @@ private fun NodeRow(node: NodeSnapshot, onClick: () -> Unit) {
                 Text(text = label.take(60), fontSize = 12.scaledSp, color = DarkTextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             Text(text = node.bounds, fontSize = 11.scaledSp, color = DarkTextMuted)
+            if (node.selected) {
+                Text(
+                    text = "selected when scanned: the rule will only match while it stays selected",
+                    fontSize = 11.scaledSp,
+                    color = DarkTextSecondary,
+                )
+            }
             if (!stable) {
                 Text(
                     text = "no stable id — may break after app updates",

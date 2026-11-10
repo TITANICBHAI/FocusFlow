@@ -16,6 +16,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.tbtechs.focusflow.enforcement.customrules.CustomScreenRules
 import com.tbtechs.focusflow.ui.home.FocusFlowInternalHeader
@@ -24,6 +25,7 @@ import com.tbtechs.focusflow.ui.support.GuideCallout
 import com.tbtechs.focusflow.ui.support.GuideCodeBlock
 import com.tbtechs.focusflow.ui.support.GuideFacts
 import com.tbtechs.focusflow.ui.theme.DarkBackground
+import com.tbtechs.focusflow.ui.theme.DarkTextPrimary
 import com.tbtechs.focusflow.ui.theme.DarkTextSecondary
 import com.tbtechs.focusflow.ui.theme.scaledSp
 
@@ -49,6 +51,7 @@ fun CustomRulesGuideScreen(onBack: () -> Unit) {
 
     Scaffold(
         containerColor = DarkBackground,
+        contentWindowInsets = RuleScreenInsets,
         topBar = {
             FocusFlowInternalHeader(
                 title = "Screen rules guide",
@@ -60,12 +63,36 @@ fun CustomRulesGuideScreen(onBack: () -> Unit) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
+                .ruleScreenBody(padding)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp),
         ) {
             GuideCallout("Beta", RULES_GUIDE_BETA_NOTE, highlighted = true)
+
+            RuleCard {
+                Text(
+                    text = "AI screen-rule prompt",
+                    fontSize = 15.scaledSp,
+                    color = DarkTextPrimary,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = "Copy this and paste it into an AI assistant, then give it your exported scan. Steps are in section 2.",
+                    fontSize = 12.scaledSp,
+                    lineHeight = 18.scaledSp,
+                    color = DarkTextSecondary,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+                RuleButton(
+                    text = if (copied) "Prompt copied" else "Copy screen-rule prompt",
+                    modifier = Modifier.padding(top = 8.dp),
+                    onClick = {
+                        clipboard.setText(AnnotatedString(prompt))
+                        copied = true
+                    },
+                )
+            }
 
             GuideArticleSection("1. Make a rule yourself") {
                 GuideFacts(RULES_GUIDE_STEPS_YOU)
@@ -86,22 +113,6 @@ fun CustomRulesGuideScreen(onBack: () -> Unit) {
                     lineHeight = 21.scaledSp,
                 )
                 GuideFacts(RULES_GUIDE_STEPS_AGENT)
-                RuleCard {
-                    Text(
-                        text = "AI screen-rule prompt",
-                        fontSize = 15.scaledSp,
-                        color = com.tbtechs.focusflow.ui.theme.DarkTextPrimary,
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
-                    )
-                    RuleButton(
-                        text = if (copied) "Prompt copied" else "Copy screen-rule prompt",
-                        modifier = Modifier.padding(top = 8.dp),
-                        onClick = {
-                            clipboard.setText(AnnotatedString(prompt))
-                            copied = true
-                        },
-                    )
-                }
                 GuideCallout("Optional", RULES_GUIDE_AGENT_NOTE)
                 Text(
                     "The file the assistant should return looks like this:",

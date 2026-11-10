@@ -62,4 +62,28 @@ class RulesGuideDataTest {
         RULES_GUIDE_STEPS_AGENT.forEachIndexed { i, s -> assertTrue(s.title.startsWith("${i + 1}.")) }
         assertTrue(RULES_GUIDE_BETA_NOTE.contains("Beta"))
     }
+
+    @Test
+    fun promptAndGuideExplainSelectingTheScreenBeforeCapturing() {
+        assertTrue(prompt.contains("`selectedOnly`"))
+        assertTrue(prompt.contains("selected=true"))
+        assertTrue(prompt.contains("WITH the target screen or tab selected"))
+        assertTrue(RULES_AGENT_EXAMPLE.contains("\"selectedOnly\": true"))
+        assertTrue(RULES_GUIDE_STEPS_YOU.first().body.contains("tap it first"))
+        assertTrue(RULES_GUIDE_GOOD_ELEMENTS.any { it.title == RULES_GUIDE_SELECT_FIRST_TITLE })
+        assertTrue(RULES_GUIDE_SELECT_FIRST_BODY.contains("Block YouTube Shorts"))
+    }
+
+    @Test
+    fun guideAndPromptExplainTheRuleTest() {
+        assertTrue(RULES_GUIDE_STEPS_YOU.any { it.body.contains("Test this rule") })
+        assertTrue(RULES_GUIDE_STEPS_AGENT.any { it.body.contains("Test this rule") })
+        assertTrue(RULES_GUIDE_GOOD_ELEMENTS.any { it.title == "Test it" && it.body.contains("Test this rule") })
+        assertTrue(prompt.contains("\"Test this rule\""))
+        assertTrue(prompt.contains("## If my test fails"))
+        assertTrue(prompt.contains("found, but not selected"))
+        assertTrue(prompt.contains("found, but hidden"))
+        assertFalse(prompt.contains("Defense tab"))
+        assertFalse(RULES_GUIDE_STEPS_YOU.any { it.body.contains("Defense tab") })
+    }
 }

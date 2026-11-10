@@ -48,6 +48,7 @@ internal object RouteTextScaleContext {
         Routes.CUSTOM_RULE_PICK to Routes.SETTINGS,
         Routes.CUSTOM_RULES_TRANSFER to Routes.SETTINGS,
         Routes.CUSTOM_RULES_GUIDE to Routes.SETTINGS,
+        Routes.CUSTOM_RULES_LIST to Routes.SETTINGS,
     )
 
     private val sourceContextRoutes = sharedRoutes + ownerTabByRoute.keys

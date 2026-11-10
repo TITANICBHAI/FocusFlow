@@ -88,6 +88,7 @@ fun CustomRuleCaptureScreen(
 
     Scaffold(
         containerColor = DarkBackground,
+        contentWindowInsets = RuleScreenInsets,
         topBar = {
             FocusFlowInternalHeader(
                 title = "Capture a screen",
@@ -99,7 +100,7 @@ fun CustomRuleCaptureScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
+                .ruleScreenBody(padding)
                 .padding(horizontal = 16.dp)
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp),

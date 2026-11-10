@@ -59,8 +59,9 @@ class ReleaseNotesTest(unittest.TestCase):
 
         self.assertIn(f"# 🎯 FocusFlow v{self.version_name}", notes)
         self.assertIn("## ✨ What's New", notes)
-        self.assertIn("Improved app-list loading", notes)
-        self.assertIn("| 🛡️ | **Protection controls**", notes)
+        first_section = self.latest["sections"][0]
+        self.assertIn(first_section["heading"], notes)
+        self.assertIn(first_section["items"][0][:40], notes)
         self.assertIn(f"/releases/download/{tag}/{apk_arm64}", notes)
         self.assertIn(f"/releases/download/{tag}/{apk_arm32}", notes)
         self.assertIn(f"/releases/download/{tag}/{apk_universal}", notes)

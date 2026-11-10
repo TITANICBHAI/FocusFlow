@@ -4,6 +4,10 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -26,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.tbtechs.focusflow.enforcement.customrules.DisableDecision
 import com.tbtechs.focusflow.enforcement.customrules.RuleGuard
@@ -41,6 +46,18 @@ import com.tbtechs.focusflow.ui.theme.DarkCard
 import com.tbtechs.focusflow.ui.theme.DarkSurfaceVariant
 import com.tbtechs.focusflow.ui.theme.DarkTextPrimary
 import com.tbtechs.focusflow.ui.theme.scaledSp
+
+/**
+ * Window insets for the screen rule screens. The header already clears the status bar, so the
+ * Scaffold adds none; [ruleScreenBody] then clears the navigation bar explicitly. This keeps
+ * buttons and the last rows above the system buttons with 3-button navigation, and costs
+ * almost nothing with gesture navigation.
+ */
+internal val RuleScreenInsets: WindowInsets = WindowInsets(0.dp)
+
+/** Body modifier for a screen whose Scaffold uses [RuleScreenInsets] and has no bottom bar. */
+internal fun Modifier.ruleScreenBody(padding: PaddingValues): Modifier =
+    this.padding(padding).navigationBarsPadding()
 
 /** What the user is trying to do to an enabled rule. Each one needs the same permission. */
 internal enum class GuardedChange(val title: String, val past: String) {
@@ -154,7 +171,7 @@ internal fun RuleButton(
             enabled = enabled,
             modifier = modifier
                 .fillMaxWidth()
-                .height(46.dp),
+                .heightIn(min = 46.dp),
             shape = RoundedCornerShape(16.dp),
             colors = ButtonDefaults.buttonColors(containerColor = BrandPrimary),
         ) {
@@ -163,6 +180,7 @@ internal fun RuleButton(
                 fontSize = 15.scaledSp,
                 fontWeight = FontWeight.SemiBold,
                 color = Color.White,
+                textAlign = TextAlign.Center,
             )
         }
     } else {
@@ -171,7 +189,7 @@ internal fun RuleButton(
             enabled = enabled,
             modifier = modifier
                 .fillMaxWidth()
-                .height(46.dp),
+                .heightIn(min = 46.dp),
             shape = RoundedCornerShape(16.dp),
             border = BorderStroke(1.dp, DarkBorder),
             colors = ButtonDefaults.outlinedButtonColors(contentColor = DarkTextPrimary),
@@ -181,6 +199,7 @@ internal fun RuleButton(
                 fontSize = 15.scaledSp,
                 fontWeight = FontWeight.SemiBold,
                 color = DarkTextPrimary,
+                textAlign = TextAlign.Center,
             )
         }
     }

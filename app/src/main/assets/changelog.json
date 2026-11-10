@@ -1,5 +1,48 @@
 [
   {
+    "version": "1.1.6",
+    "date": "November 2026",
+    "sections": [
+      {
+        "heading": "Custom Screen Rules (beta)",
+        "items": [
+          "Rules now react like the Block YouTube Shorts and Block Instagram Reels switches: they only fire while their screen is actually showing. Hidden or off-screen elements are ignored, and a tab captured while it was highlighted only counts while it is highlighted.",
+          "Open the screen you want blocked and select its tab before you capture, so FocusFlow can tell the difference. The guide and the AI prompt both explain this.",
+          "New Test this rule button in the rule editor, just above Save. Switch to the app, open a screen, and it tells you whether the rule would block it and what each element found (found, not selected, hidden, or not on this screen). Nothing is blocked during a test, and you can test before saving.",
+          "Choose element has a Screen view (rebuilt from element positions and text, no screenshot is taken) and a Text list, side by side like Privacy and Terms. You can Export the scan and Capture again from there.",
+          "New Guide (Beta) - How to use page: steps for making a rule yourself, plus a copyable prompt for an AI assistant that turns an exported scan into rules you can import.",
+          "A new My rules screen holds your rules and their switches. Custom Screen Rules is now a simple home with My rules, Add rule from screen, Add rule manually, Import / export and the guide.",
+          "Custom rule screens now stay clear of the system navigation bar, with both 3-button and gesture navigation."
+        ]
+      },
+      {
+        "heading": "Phone usage analytics",
+        "items": [
+          "Stats is back to its original layout with a compact Phone habits card and one button into Extra. Extra has Overview, Apps and Habits tabs and one period menu: Today, Yesterday, Week and All time.",
+          "Habit nudges can now also come from your phone habits (a surge, a time-of-day habit, late-night use). They are opt-in and limited to three, with the switch in Extra - Habits.",
+          "How usage data is calculated now lives on one page in Settings - About, instead of on each card.",
+          "Stats and Extra headers now follow your screen and text size like the other tabs, instead of a fixed height.",
+          "The How was today / yesterday prompt scrolls with the page and goes away once you answer it.",
+          "Achievements were removed from Overview and All-time stats."
+        ]
+      },
+      {
+        "heading": "Reporting a problem",
+        "items": [
+          "Long logs now drop the oldest lines instead of the newest ones, and your own message is no longer scrubbed of e-mail addresses or links (secrets are still removed).",
+          "You can share the full log as a .txt file from the report screen.",
+          "Task-end alarm problems now record their cause in the log so they can be diagnosed."
+        ]
+      },
+      {
+        "heading": "Blocking",
+        "items": [
+          "WhatsApp (and WhatsApp Business) is no longer a hard-protected app that silently ignored blocks. It now works like the SMS apps: the app picker warns first, and once you confirm, the block really applies."
+        ]
+      }
+    ]
+  },
+  {
     "version": "1.1.5",
     "date": "October 2026",
     "sections": [

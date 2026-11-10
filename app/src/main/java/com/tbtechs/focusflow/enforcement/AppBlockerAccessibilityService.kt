@@ -54,6 +54,10 @@ import kotlinx.coroutines.cancel
 import org.json.JSONArray
 import android.graphics.Rect
 import com.tbtechs.focusflow.enforcement.customrules.CaptureHolder
+import com.tbtechs.focusflow.enforcement.customrules.RuleTestHolder
+import com.tbtechs.focusflow.enforcement.customrules.RuleTestText
+import com.tbtechs.focusflow.enforcement.customrules.RuleTestWindow
+import com.tbtechs.focusflow.enforcement.customrules.RuleTester
 import com.tbtechs.focusflow.enforcement.customrules.CaptureResult
 import com.tbtechs.focusflow.enforcement.customrules.CustomRuleStore
 import com.tbtechs.focusflow.enforcement.customrules.CustomScreenRule
@@ -239,13 +243,19 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             // Must be in BLOCKABLE_AFTER_WARNING so the system-guard power-menu
             // interception code runs when this package fires events.
             "com.samsung.android.globalactions",
+            // Messaging / calls. WhatsApp used to be hard-locked in NEVER_BLOCK, which made a
+            // block silently do nothing. It is now a sensitive app like the SMS apps: the
+            // picker warns first, and once the user confirms the block really applies.
+            "com.whatsapp",
+            "com.whatsapp.w4b",                        // WhatsApp Business
         )
 
         /**
          * Packages that can NEVER be blocked, regardless of any user setting.
-         * These are safety-critical (emergency calls) or communication essentials
-         * (WhatsApp). Users cannot add these to any blocked list — they are always
-         * passed through unconditionally before any other check.
+         * These are safety-critical (emergency calls), launchers, or caller-ID essentials.
+         * Users cannot add these to any blocked list — they are always passed through
+         * unconditionally before any other check. (WhatsApp is not here any more: it is in
+         * BLOCKABLE_AFTER_WARNING above.)
          */
         val NEVER_BLOCK: Set<String> = setOf(
             // ── Home launchers ─────────────────────────────────────────────────
@@ -322,9 +332,6 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             "com.htc.phone",
             // ZTE / Blade
             "com.android.contacts",                    // default contacts (dialer link)
-            // ── WhatsApp (messaging / calls) ─────────────────────────────────
-            "com.whatsapp",
-            "com.whatsapp.w4b",                        // WhatsApp Business
             // ── Caller ID / spam-call protection ─────────────────────────────
             "com.truecaller",                          // Truecaller — caller ID + spam block
             "com.truecaller.pro",                      // Truecaller Premium variant
@@ -422,6 +429,8 @@ class AppBlockerAccessibilityService : AccessibilityService() {
 
         /** Throttle for TYPE_WINDOW_CONTENT_CHANGED per package — very noisy event. */
         private const val CONTENT_SCAN_THROTTLE_MS = 2_000L
+        /** Extra time a rule stays exempt after its test countdown, in case the scan runs late. */
+        private const val RULE_TEST_GRACE_MS = 4_000L
 
         /**
          * View ID substrings that identify URL bars and search input fields.
@@ -1119,7 +1128,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         if (isNonLaunchableSystemPackage(pkg)) return
 
         // ── NEVER_BLOCK packages ──────────────────────────────────────────────
-        // Phone dialers (all OEM variants) and WhatsApp are unconditionally
+        // Phone dialers (all OEM variants) and launchers are unconditionally
         // allowed. No user setting, standalone block, or focus session can
         // override this. This check runs before BLOCKABLE_AFTER_WARNING so
         // that even if a user somehow adds one of these packages to a block
@@ -4358,12 +4367,15 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         throttle: Boolean,
     ): CustomScreenRule? {
         if (root == null || isNeverBlockedPackage(pkg)) return null
+        val now = System.currentTimeMillis()
+        // A rule that is being tested from the editor is left alone until its test ends, so it
+        // cannot close the app the user is switching to.
         val candidates = customRules().filter {
-            it.enabled && it.packageName.equals(pkg, ignoreCase = true)
+            it.enabled && it.packageName.equals(pkg, ignoreCase = true) &&
+                !RuleTestWindow.suppresses(it.id, now)
         }
         if (candidates.isEmpty()) return null
 
-        val now = System.currentTimeMillis()
         if (throttle) {
             val last = lastRuleScanMs[pkg] ?: 0L
             if (now - last < CONTENT_SCAN_THROTTLE_MS) return null
@@ -4381,6 +4393,8 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                 className = node.className?.toString(),
                 text = node.text?.toString(),
                 desc = node.contentDescription?.toString(),
+                visible = node.isVisibleToUser,
+                selected = node.isSelected,
             )
             for (evaluator in evaluators) {
                 evaluator.accept(fields)
@@ -4431,14 +4445,19 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             node.getBoundsInScreen(rect)
             // What the user typed (password and other editable fields) is never captured.
             val text = if (node.isPassword || node.isEditable) null else node.text?.toString()
-            nodes += NodeSnapshot(
-                depth = depth,
-                viewId = node.viewIdResourceName,
-                className = node.className?.toString(),
-                text = text?.take(CustomScreenRules.MAX_FIELD_LEN),
-                desc = node.contentDescription?.toString()?.take(CustomScreenRules.MAX_FIELD_LEN),
-                bounds = "${rect.left},${rect.top},${rect.right},${rect.bottom}",
-            )
+            // Hidden and off-screen elements are left out (their children are still visited): a
+            // rule only ever matches what is visible, so they could never be used anyway.
+            if (depth == 0 || node.isVisibleToUser) {
+                nodes += NodeSnapshot(
+                    depth = depth,
+                    viewId = node.viewIdResourceName,
+                    className = node.className?.toString(),
+                    text = text?.take(CustomScreenRules.MAX_FIELD_LEN),
+                    desc = node.contentDescription?.toString()?.take(CustomScreenRules.MAX_FIELD_LEN),
+                    bounds = "${rect.left},${rect.top},${rect.right},${rect.bottom}",
+                    selected = node.isSelected,
+                )
+            }
             for (i in 0 until node.childCount) {
                 if (nodes.size >= RuleMatcher.MAX_NODES) break
                 val child = node.getChild(i) ?: continue
@@ -4460,6 +4479,67 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             "FocusFlow captured ${nodes.size} elements — open FocusFlow to continue",
             android.widget.Toast.LENGTH_LONG,
         ).show()
+    }
+
+    /**
+     * "Test this rule": after [delayMs], reads the screen of whatever app is in front and checks
+     * [rule] (the editor's current draft, saved or not) against it, without blocking anything.
+     * The result goes to [RuleTestHolder]. The rule is not enforced until the test is over.
+     */
+    fun testRuleAfter(rule: CustomScreenRule, delayMs: Long) {
+        RuleTestWindow.start(rule.id, System.currentTimeMillis() + delayMs + RULE_TEST_GRACE_MS)
+        handler.postDelayed({
+            try {
+                publishRuleTest(rule)
+            } finally {
+                RuleTestWindow.end()
+            }
+        }, delayMs)
+    }
+
+    private fun publishRuleTest(rule: CustomScreenRule) {
+        val now = System.currentTimeMillis()
+        val root = try {
+            rootInActiveWindow
+        } catch (_: Exception) {
+            null
+        }
+        val rootPkg = root?.packageName?.toString()
+        val result = if (root == null || rootPkg.isNullOrBlank() || rootPkg == packageName) {
+            root?.recycle()
+            RuleTester.nothingReadable(rule, now)
+        } else {
+            // Hidden elements are kept (visible = false) so the test can say "found, but hidden".
+            val fields = ArrayList<NodeFields>()
+            fun walk(node: AccessibilityNodeInfo, depth: Int) {
+                if (fields.size >= RuleMatcher.MAX_NODES || depth > RuleMatcher.MAX_DEPTH) return
+                fields += NodeFields(
+                    viewId = node.viewIdResourceName,
+                    className = node.className?.toString(),
+                    text = node.text?.toString(),
+                    desc = node.contentDescription?.toString(),
+                    visible = node.isVisibleToUser,
+                    selected = node.isSelected,
+                )
+                for (i in 0 until node.childCount) {
+                    if (fields.size >= RuleMatcher.MAX_NODES) break
+                    val child = node.getChild(i) ?: continue
+                    try {
+                        walk(child, depth + 1)
+                    } finally {
+                        child.recycle()
+                    }
+                }
+            }
+            try {
+                walk(root, 0)
+            } finally {
+                root.recycle()
+            }
+            RuleTester.evaluate(rule, rootPkg, fields, now)
+        }
+        RuleTestHolder.result.value = result
+        android.widget.Toast.makeText(this, RuleTestText.toast(result), android.widget.Toast.LENGTH_LONG).show()
     }
 
     private fun collectNodeText(root: AccessibilityNodeInfo): String {

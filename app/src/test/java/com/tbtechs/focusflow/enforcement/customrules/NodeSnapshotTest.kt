@@ -47,4 +47,13 @@ class NodeSnapshotTest {
         assertTrue(node(desc = "x").hasStableHandle())
         assertTrue(node(viewId = "a:id/b").hasStableHandle())
     }
+
+    @Test
+    fun aSelectedElementBecomesASelectedOnlyMatcher() {
+        val tab = NodeSnapshot(0, null, "android.widget.ImageView", null, "Reels", "0,0,1,1", selected = true)
+        assertEquals(NodeMatcher(descContains = "Reels", selectedOnly = true), tab.toMatcher())
+        val withId = NodeSnapshot(0, "a:id/tab_reels", null, null, null, "0,0,1,1", selected = true)
+        assertEquals(NodeMatcher(viewIdSuffix = "tab_reels", selectedOnly = true), withId.toMatcher())
+        assertFalse(node(desc = "Reels").toMatcher().selectedOnly)
+    }
 }

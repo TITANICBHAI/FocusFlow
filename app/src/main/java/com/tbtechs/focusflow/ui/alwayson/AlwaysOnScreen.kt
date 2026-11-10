@@ -117,7 +117,6 @@ private val systemNeverBlock = setOf(
     "com.samsung.android.incallui",
     "com.google.android.dialer",
     "com.google.android.apps.googledialer",
-    "com.whatsapp",
     "com.google.android.gms",
     "com.android.packageinstaller",
     "com.google.android.packageinstaller",
