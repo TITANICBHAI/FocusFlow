@@ -64,4 +64,35 @@ class ExternalBackupIntentPolicyTest {
             ),
         )
     }
+
+    @Test
+    fun theRealFileNameDecidesWhenTheProviderGivesOne() {
+        assertTrue(
+            ExternalBackupIntentPolicy.shouldStage(
+                action = "android.intent.action.VIEW",
+                uriScheme = "content",
+                mimeType = "application/octet-stream",
+                lastPathSegment = "document/8721",
+                displayName = "My Backup.FocusFlow",
+            ),
+        )
+        assertFalse(
+            ExternalBackupIntentPolicy.shouldStage(
+                action = "android.intent.action.VIEW",
+                uriScheme = "content",
+                mimeType = "application/octet-stream",
+                lastPathSegment = "document/8721",
+                displayName = "notes.bin",
+            ),
+        )
+        assertFalse(
+            ExternalBackupIntentPolicy.shouldStage(
+                action = "android.intent.action.VIEW",
+                uriScheme = "file",
+                mimeType = null,
+                lastPathSegment = "backup.focusflow",
+                displayName = "photo.jpg",
+            ),
+        )
+    }
 }

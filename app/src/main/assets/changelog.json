@@ -13,8 +13,9 @@
           "New Guide (Beta) - How to use page: steps for making a rule yourself, plus a copyable prompt for an AI assistant that turns an exported scan into rules you can import.",
           "A new My rules screen holds your rules and their switches. Custom Screen Rules is now a simple home with My rules, Add rule from screen, Add rule manually, Import / export and the guide.",
           "Custom rule screens now stay clear of the system navigation bar, with both 3-button and gesture navigation.",
+    "Only when selected is now a clear highlighted switch on every element, and it starts on for new elements so a tab rule only fires while that tab is the one you are on.",
     "Rules now react the moment you tap a tab, instead of needing a second tap. FocusFlow looks at the screen right after each tap and again shortly after an app opens, and no longer skips a change that lands just after a check.",
-    "FocusFlow now only offers to open .focusflow files. Before, it showed up for every kind of file. If your file manager hides the file name from other apps, use Settings - Import instead."
+    "FocusFlow now only offers to open .focusflow files, and ignores any other file it is handed. Before, it showed up for every kind of file. If your file manager hides the file name from other apps, use Settings - Import instead."
         ]
       },
       {

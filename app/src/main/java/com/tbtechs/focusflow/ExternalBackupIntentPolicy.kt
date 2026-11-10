@@ -9,6 +9,7 @@ internal object ExternalBackupIntentPolicy {
         uriScheme: String?,
         mimeType: String?,
         lastPathSegment: String?,
+        displayName: String? = null,
     ): Boolean {
         if (
             action != ACTION_VIEW ||
@@ -16,6 +17,12 @@ internal object ExternalBackupIntentPolicy {
                 uriScheme.equals("file", ignoreCase = true))
         ) {
             return false
+        }
+
+        // The real file name, when the provider gives one, settles it: a .focusflow file is
+        // accepted and anything else is not, whatever the MIME type or the URI path look like.
+        if (!displayName.isNullOrBlank()) {
+            return displayName.trim().endsWith(".focusflow", ignoreCase = true)
         }
 
         val normalizedMimeType = mimeType?.substringBefore(';')?.trim()

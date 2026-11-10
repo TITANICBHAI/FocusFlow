@@ -3,7 +3,14 @@ package com.tbtechs.focusflow.ui.customrules
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.ui.Alignment
+import com.tbtechs.focusflow.ui.theme.DarkTextMuted
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.heightIn
@@ -234,4 +241,55 @@ internal fun RuleTextField(
             unfocusedTextColor = DarkTextPrimary,
         ),
     )
+}
+
+/**
+ * The "Only when selected" switch of a matcher. It is the setting that makes a tab rule fire only
+ * while that tab is the chosen one, so it is a tinted, bordered row with a real switch (not a
+ * small chip) and says plainly what each position does.
+ */
+@Composable
+internal fun SelectedOnlyToggle(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val shape = RoundedCornerShape(12.dp)
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(BrandPrimary.copy(alpha = if (checked) 0.14f else 0.06f))
+            .border(1.dp, BrandPrimary.copy(alpha = if (checked) 0.75f else 0.3f), shape)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                text = "Only when selected",
+                fontSize = 14.scaledSp,
+                fontWeight = FontWeight.Bold,
+                color = DarkTextPrimary,
+                modifier = Modifier.weight(1f),
+            )
+            Switch(
+                checked = checked,
+                onCheckedChange = onCheckedChange,
+                colors = SwitchDefaults.colors(checkedTrackColor = BrandPrimary),
+            )
+        }
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+            text = if (checked) {
+                "On: blocks only while this element is the highlighted one (the tab you are on). Best for tabs."
+            } else {
+                "Off: blocks whenever this element is on screen, even if it is not the highlighted one."
+            },
+            fontSize = 12.scaledSp,
+            color = DarkTextMuted,
+        )
+    }
 }

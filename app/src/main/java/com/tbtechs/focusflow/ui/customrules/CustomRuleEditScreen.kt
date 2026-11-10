@@ -229,15 +229,9 @@ fun CustomRuleEditScreen(
                             onValueChange = { v -> updateMatcher(index) { it.copy(descContains = v.ifEmpty { null }) } },
                         )
                         Spacer(modifier = Modifier.height(8.dp))
-                        FilterChip(
-                            selected = matcher.selectedOnly,
-                            onClick = { updateMatcher(index) { it.copy(selectedOnly = !it.selectedOnly) } },
-                            label = { Text("Only when selected") },
-                        )
-                        Text(
-                            text = "Turn on for a tab or button: it then counts only while it is the highlighted one.",
-                            fontSize = 11.scaledSp,
-                            color = DarkTextMuted,
+                        SelectedOnlyToggle(
+                            checked = matcher.selectedOnly,
+                            onCheckedChange = { on -> updateMatcher(index) { it.copy(selectedOnly = on) } },
                         )
                     }
                 }
@@ -248,7 +242,7 @@ fun CustomRuleEditScreen(
                     enabled = rule.matchers.size < CustomScreenRules.MAX_MATCHERS,
                     onClick = {
                         saveError = null
-                        viewModel.updateDraft { it.copy(matchers = it.matchers + NodeMatcher()) }
+                        viewModel.updateDraft { it.copy(matchers = it.matchers + NodeMatcher(selectedOnly = true)) }
                     },
                 )
                 Text(

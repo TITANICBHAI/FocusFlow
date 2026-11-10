@@ -47,14 +47,24 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="focusflow" />
             </intent-filter>
-            <!--
-                .focusflow files only. Android ignores a path pattern unless a scheme AND host
-                are declared, so the old filters (octet-stream with no path, and a bare
-                pathPattern) matched every file and never narrowed to .focusflow. Several
-                patterns are listed because Android's simple glob does not backtrack over dots.
-                Limit: a file manager that hands over an opaque content URI (no file name in
-                the path) cannot be matched by extension; Settings -> Import still works there.
-            -->
+        </activity>
+
+        <!--
+            Opening a .focusflow file from another app. Two aliases of MainActivity, one switched
+            on per Android version (res/values/bools.xml and res/values-v31/bools.xml). Android only
+            honours a path filter when the filter also names a scheme and a host, and its glob
+            pattern is easy to get wrong, so:
+              - Android 12+ (API 31): android:pathSuffix, an exact "name ends with .focusflow" test.
+              - Android 10-11 (API 29-30): pathPattern, the only path test those versions have.
+            Limit: a file manager that gives other apps an opaque content URI (no file name in the
+            path) cannot be matched by extension at all; Settings -> Import works there. MainActivity
+            also re-checks the real file name before importing anything.
+        -->
+        <activity-alias
+            android:name=".OpenFocusflowFileLegacy"
+            android:enabled="@bool/focusflow_file_filter_legacy"
+            android:exported="true"
+            android:targetActivity=".MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -66,9 +76,25 @@
                 <data android:pathPattern=".*\\..*\\.focusflow" />
                 <data android:pathPattern=".*\\..*\\..*\\.focusflow" />
                 <data android:pathPattern=".*\\..*\\..*\\..*\\.focusflow" />
-                <data android:pathPattern=".*\\.FOCUSFLOW" />
             </intent-filter>
-        </activity>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".OpenFocusflowFileModern"
+            android:enabled="@bool/focusflow_file_filter_modern"
+            android:exported="true"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:host="*" />
+                <data android:mimeType="*/*" />
+                <data android:pathSuffix=".focusflow" />
+                <data android:pathSuffix=".FOCUSFLOW" />
+            </intent-filter>
+        </activity-alias>
 
         <activity
             android:name=".enforcement.BlockOverlayActivity"
