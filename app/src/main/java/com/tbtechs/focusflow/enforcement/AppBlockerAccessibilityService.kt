@@ -440,6 +440,8 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         private val RULE_OPEN_SCAN_DELAYS_MS = longArrayOf(350L, 900L)
         /** Extra time a rule stays exempt after its test countdown, in case the scan runs late. */
         private const val RULE_TEST_GRACE_MS = 4_000L
+        /** After a test result the rule stays quiet this long, so a pass can be read before the real block fires. */
+        private const val RULE_TEST_RESULT_HOLD_MS = 6_000L
 
         /**
          * View ID substrings that identify URL bars and search input fields.
@@ -4567,7 +4569,11 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             try {
                 publishRuleTest(rule)
             } finally {
-                RuleTestWindow.end()
+                // Do not end the window yet. A passing test means the rule matches this very screen,
+                // so the real block would fire at once and cover the result. Hold it for a few seconds.
+                val holdUntil = System.currentTimeMillis() + RULE_TEST_RESULT_HOLD_MS
+                RuleTestWindow.start(rule.id, holdUntil)
+                handler.postDelayed({ RuleTestWindow.endIf(rule.id, holdUntil) }, RULE_TEST_RESULT_HOLD_MS + 50L)
             }
         }, delayMs)
     }

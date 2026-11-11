@@ -26,6 +26,13 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.foundation.layout.size
+import com.tbtechs.focusflow.ui.theme.DarkTextSecondary
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -244,52 +251,44 @@ internal fun RuleTextField(
 }
 
 /**
- * The "Only when selected" switch of a matcher. It is the setting that makes a tab rule fire only
- * while that tab is the chosen one, so it is a tinted, bordered row with a real switch (not a
- * small chip) and says plainly what each position does.
+ * The "Only when selected" chip of a matcher. It is the setting that makes a tab rule fire only
+ * while that tab is the chosen one. A tinted chip with a border (and a tick when on) so it is easy
+ * to spot without competing with the rest of the screen, and one line saying what it does.
  */
 @Composable
-internal fun SelectedOnlyToggle(
+internal fun SelectedOnlyChip(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val shape = RoundedCornerShape(12.dp)
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .background(BrandPrimary.copy(alpha = if (checked) 0.14f else 0.06f))
-            .border(1.dp, BrandPrimary.copy(alpha = if (checked) 0.75f else 0.3f), shape)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Text(
-                text = "Only when selected",
-                fontSize = 14.scaledSp,
-                fontWeight = FontWeight.Bold,
-                color = DarkTextPrimary,
-                modifier = Modifier.weight(1f),
-            )
-            Switch(
-                checked = checked,
-                onCheckedChange = onCheckedChange,
-                colors = SwitchDefaults.colors(checkedTrackColor = BrandPrimary),
-            )
-        }
-        Spacer(modifier = Modifier.height(2.dp))
+    Column(modifier = modifier.fillMaxWidth()) {
+        FilterChip(
+            selected = checked,
+            onClick = { onCheckedChange(!checked) },
+            label = { Text("Only when selected", fontWeight = FontWeight.SemiBold) },
+            leadingIcon = if (checked) {
+                { Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(FilterChipDefaults.IconSize)) }
+            } else {
+                null
+            },
+            colors = FilterChipDefaults.filterChipColors(
+                containerColor = BrandPrimary.copy(alpha = 0.08f),
+                labelColor = BrandPrimary,
+                selectedContainerColor = BrandPrimary.copy(alpha = 0.22f),
+                selectedLabelColor = BrandPrimary,
+                selectedLeadingIconColor = BrandPrimary,
+            ),
+            border = BorderStroke(1.dp, BrandPrimary.copy(alpha = if (checked) 0.8f else 0.45f)),
+        )
+        Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = if (checked) {
-                "On: blocks only while this element is the highlighted one (the tab you are on). Best for tabs."
+                "Blocks only while this element is the highlighted one, like the tab you are on."
             } else {
-                "Off: blocks whenever this element is on screen, even if it is not the highlighted one."
+                "Blocks whenever this element is on screen, even if it is not highlighted."
             },
             fontSize = 12.scaledSp,
-            color = DarkTextMuted,
+            color = DarkTextSecondary,
         )
     }
 }

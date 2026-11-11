@@ -229,7 +229,7 @@ fun CustomRuleEditScreen(
                             onValueChange = { v -> updateMatcher(index) { it.copy(descContains = v.ifEmpty { null }) } },
                         )
                         Spacer(modifier = Modifier.height(8.dp))
-                        SelectedOnlyToggle(
+                        SelectedOnlyChip(
                             checked = matcher.selectedOnly,
                             onCheckedChange = { on -> updateMatcher(index) { it.copy(selectedOnly = on) } },
                         )

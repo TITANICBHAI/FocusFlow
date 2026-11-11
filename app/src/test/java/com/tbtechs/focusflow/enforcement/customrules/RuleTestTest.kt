@@ -148,4 +148,13 @@ class RuleTestTest {
         RuleTestWindow.end()
         assertFalse(RuleTestWindow.suppresses("r1", 500L))
     }
+
+    @Test
+    fun aNewerTestWindowIsNotEndedByAnOlderOnesTimer() {
+        RuleTestWindow.start("r1", 5_000L)
+        RuleTestWindow.endIf("r1", 4_000L)
+        assertTrue(RuleTestWindow.suppresses("r1", 100L))
+        RuleTestWindow.endIf("r1", 5_000L)
+        assertFalse(RuleTestWindow.suppresses("r1", 100L))
+    }
 }

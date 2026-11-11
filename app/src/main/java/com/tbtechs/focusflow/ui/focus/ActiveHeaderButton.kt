@@ -1,11 +1,5 @@
 package com.tbtechs.focusflow.ui.focus
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -13,9 +7,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -24,7 +16,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.PathMeasure
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -244,24 +235,6 @@ private fun EcgHeartPulseMonitor(
         activeCount > 0 -> Color(0xFF2BAE66)
         else -> Color(0xFFCBD5E1)
     }
-    // A green light travels along the line only while protection is running. The icon itself
-    // (its path, stroke width and size) is exactly the same either way.
-    val alive = level != ActiveStatusLevel.WARNING && activeCount > 0
-    val progressState: State<Float> = if (alive) {
-        rememberInfiniteTransition(label = "ecgLight").animateFloat(
-            initialValue = 0f,
-            targetValue = 1f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 2_400, easing = LinearEasing),
-                repeatMode = RepeatMode.Restart,
-            ),
-            label = "ecgLightProgress",
-        )
-    } else {
-        remember { mutableFloatStateOf(0f) }
-    }
-    val measure = remember { PathMeasure() }
-
     Canvas(
         modifier = modifier.size(
              width = 21.dp,
@@ -302,49 +275,6 @@ private fun EcgHeartPulseMonitor(
                  width = stroke,
             ),
         )
-
-        if (alive) {
-            measure.setPath(path, false)
-            val length = measure.length
-            val light = length * 0.34f
-            // The head runs from before the start to past the end, so the light slides in and out.
-            val head = progressState.value * (length + light)
-            val from = (head - light).coerceAtLeast(0f)
-            val to = head.coerceAtMost(length)
-            val bright = Color(0xFFB9F8D3)
-            if (to > from) {
-                val piece = Path()
-                if (measure.getSegment(from, to, piece, true)) {
-                    // Soft halo under the light, then the light itself on top of the line.
-                    drawPath(
-                        path = piece,
-                        color = Color(0xFF2BAE66).copy(alpha = 0.35f),
-                        style = Stroke(width = stroke * 2.6f, cap = StrokeCap.Round, join = StrokeJoin.Round),
-                    )
-                    drawPath(
-                        path = piece,
-                        color = bright,
-                        style = Stroke(width = stroke, cap = StrokeCap.Round, join = StrokeJoin.Round),
-                    )
-                }
-            }
-            // When the light leaves the line it lights the ring at the end.
-            val past = head - length
-            if (past > 0f && past < light) {
-                val fade = 1f - past / light
-                drawCircle(
-                    color = Color(0xFF2BAE66).copy(alpha = 0.3f * fade),
-                    radius = circleRadius + stroke * 1.2f,
-                    center = circleCenter,
-                )
-                drawCircle(
-                    color = bright.copy(alpha = fade),
-                    radius = circleRadius,
-                    center = circleCenter,
-                    style = Stroke(width = stroke),
-                )
-            }
-        }
     }
 }
 

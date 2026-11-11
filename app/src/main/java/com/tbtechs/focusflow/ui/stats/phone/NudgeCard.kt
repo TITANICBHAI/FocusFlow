@@ -15,6 +15,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -92,7 +94,17 @@ internal fun NudgeCard(modifier: Modifier = Modifier, promoOnly: Boolean = false
                     Text("Nudges", fontSize = 16.scaledSp, fontWeight = FontWeight.ExtraBold)
                     Text("A heads-up before the hours you slip", fontSize = 12.scaledSp, color = DarkTextMuted)
                 }
-                Switch(checked = enabled, onCheckedChange = toggle)
+                Switch(
+                    checked = enabled,
+                    onCheckedChange = toggle,
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Color.White,
+                        checkedTrackColor = StatsBlue,
+                        uncheckedThumbColor = Color(0xFFE2E8F0),
+                        uncheckedTrackColor = Color(0xFF475569),
+                        uncheckedBorderColor = Color(0xFF94A3B8),
+                    ),
+                )
             }
             if (!promoOnly) {
                 val items = preview
