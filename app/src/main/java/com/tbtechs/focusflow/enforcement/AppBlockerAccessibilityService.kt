@@ -4416,7 +4416,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     /** One delayed scan: only when this app is still the one on screen. */
     private fun runQueuedRuleScan(pkg: String) {
         if (!hasEnabledCustomRule(pkg)) return
-        val root = try { rootInActiveWindow } catch (_: Exception) { null } ?: return
+        val root = (try { rootInActiveWindow } catch (_: Exception) { null }) ?: return
         try {
             if (!root.packageName?.toString().equals(pkg, ignoreCase = true)) return
             val hit = matchingCustomRule(pkg, root, throttle = false)
