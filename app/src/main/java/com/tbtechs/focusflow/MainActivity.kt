@@ -1,7 +1,6 @@
 package com.tbtechs.focusflow
 
 import android.content.Intent
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.OpenableColumns
@@ -154,47 +153,34 @@ class MainActivity : ComponentActivity() {
         AppModule.requestTaskAlarmReconciliation("activity_resume")
     }
 
+    /** The file's real name: the provider's display name for content URIs, the last path segment otherwise. */
+    private fun displayNameOf(uri: android.net.Uri): String? {
+        if (uri.scheme.equals("file", ignoreCase = true)) return uri.lastPathSegment
+        val fromProvider = runCatching {
+            contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) cursor.getString(0) else null
+            }
+        }.getOrNull()
+        return fromProvider ?: uri.lastPathSegment
+    }
+
     private fun routeFromIntent(intent: Intent?): String {
         if (intent?.action == LauncherActivity.ACTION_OPEN_DAY_RATING) {
             return Routes.STATS
         }
 
         val uri = intent?.data
-        if (intent != null && uri != null && isFileViewIntent(intent)) {
-            if (
-                ExternalBackupIntentPolicy.shouldStage(
-                    action = intent.action,
-                    uriScheme = uri.scheme,
-                    mimeType = intent.type,
-                    lastPathSegment = uri.lastPathSegment,
-                    displayName = displayNameOf(uri),
-                )
-            ) {
+        if (uri != null && ExternalBackupIntentPolicy.isFileView(intent?.action, uri.scheme)) {
+            // The manifest filter is only a first cut, so check the file's real name before staging it.
+            if (ExternalBackupIntentPolicy.shouldStage(intent?.action, uri.scheme, displayNameOf(uri))) {
                 BackupImportIntentRelay.stage(uri)
                 externalBackupImportNonce++
                 return Routes.SETTINGS
             }
-            // Some other kind of file was sent here. Say so, and do not try to import it.
-            Toast.makeText(this, "That is not a .focusflow file.", Toast.LENGTH_SHORT).show()
-            return Routes.HOME
+            Toast.makeText(this, "That is not a .focusflow file.", Toast.LENGTH_LONG).show()
         }
 
         return Routes.fromLink(uri?.scheme, uri?.host, uri?.path)
-    }
-
-    private fun isFileViewIntent(intent: Intent): Boolean =
-        intent.action == Intent.ACTION_VIEW &&
-            (intent.data?.scheme.equals("content", ignoreCase = true) ||
-                intent.data?.scheme.equals("file", ignoreCase = true))
-
-    /** The file's own name from its provider, or null when it cannot be read. */
-    private fun displayNameOf(uri: Uri): String? {
-        if (uri.scheme.equals("file", ignoreCase = true)) return uri.lastPathSegment
-        return runCatching {
-            contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
-                if (cursor.moveToFirst()) cursor.getString(0) else null
-            }
-        }.getOrNull()
     }
 }
 

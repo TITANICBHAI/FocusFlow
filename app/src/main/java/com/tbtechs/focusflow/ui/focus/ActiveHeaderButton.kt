@@ -30,8 +30,6 @@ import com.tbtechs.focusflow.data.model.FocusSession
 import com.tbtechs.focusflow.data.repository.NetworkBlockStatus
 import com.tbtechs.focusflow.data.repository.UsageStatsRepository
 import com.tbtechs.focusflow.data.repository.VpnRepository
-import com.tbtechs.focusflow.ui.active.rememberEnabledCustomRuleNames
-import com.tbtechs.focusflow.ui.active.screenBlocksOf
 import kotlinx.coroutines.delay
 import org.json.JSONArray
 
@@ -55,9 +53,8 @@ data class ActiveStatusSummary(
  * 4. Daily Allowance
  * 5. Keyword Blocker
  * 6. VPN Blocking
- * 7. Scheduled Blocks
- * 8. Screen blocks: custom screen rules, Block YouTube Shorts, Block Instagram Reels, install protection
- *    (all of them together count as one layer)
+ * 7. Screen rules (custom rules, Shorts, Reels, install protection)
+ * 8. Scheduled Blocks
  */
 fun evaluateActiveProtection(
     settings: AppSettings,
@@ -65,7 +62,7 @@ fun evaluateActiveProtection(
     vpnStatus: NetworkBlockStatus?,
     hasAccessibility: Boolean = true,
     hasUsageStats: Boolean = true,
-    screenBlocksActive: Boolean = false,
+    customRules: List<com.tbtechs.focusflow.enforcement.customrules.CustomScreenRule> = emptyList(),
 ): ActiveStatusSummary {
     val now = System.currentTimeMillis()
     val isFocusActive = focusSession?.isActive == true
@@ -81,6 +78,7 @@ fun evaluateActiveProtection(
     val hasDailyAllowance = allowancePackages.isNotEmpty()
     val hasKeywords = settings.blockedWords.isNotEmpty()
     val isVpnRunning = vpnStatus?.running == true
+    val hasScreenRules = com.tbtechs.focusflow.ui.active.ScreenRuleLayers.from(settings, customRules).isActive
     val activeSchedules = settings.recurringBlockSchedules.filter { it.isActiveNow() }
     val hasActiveSchedule = activeSchedules.isNotEmpty()
 
@@ -102,8 +100,8 @@ fun evaluateActiveProtection(
         hasDailyAllowance,
         hasKeywords,
         isVpnRunning,
+        hasScreenRules,
         hasActiveSchedule,
-        screenBlocksActive,
     ).count { it }
 
     return when {
@@ -183,17 +181,27 @@ fun ActiveStatusIndicator(
         }
     }
 
-    val enabledRuleNames = rememberEnabledCustomRuleNames()
-    val screenBlocksActive = screenBlocksOf(resolvedSettings, enabledRuleNames).isActive
+    // Custom screen rules live in the accessibility prefs file, not in AppSettings, so read them here.
+    val customRules by produceState(initialValue = emptyList<com.tbtechs.focusflow.enforcement.customrules.CustomScreenRule>()) {
+        val prefs = context.getSharedPreferences(
+            com.tbtechs.focusflow.enforcement.AppBlockerAccessibilityService.PREFS_NAME,
+            android.content.Context.MODE_PRIVATE,
+        )
+        while (true) {
+            value = runCatching { com.tbtechs.focusflow.enforcement.customrules.CustomRuleStore.read(prefs) }
+                .getOrDefault(emptyList())
+            delay(3_000)
+        }
+    }
 
-    val summary = remember(resolvedSettings, resolvedSession, resolvedVpnStatus, permissions, screenBlocksActive) {
+    val summary = remember(resolvedSettings, resolvedSession, resolvedVpnStatus, permissions, customRules) {
         evaluateActiveProtection(
             settings = resolvedSettings,
             focusSession = resolvedSession,
             vpnStatus = resolvedVpnStatus,
             hasAccessibility = permissions.first,
             hasUsageStats = permissions.second,
-            screenBlocksActive = screenBlocksActive,
+            customRules = customRules,
         )
     }
 
@@ -235,6 +243,7 @@ private fun EcgHeartPulseMonitor(
         activeCount > 0 -> Color(0xFF2BAE66)
         else -> Color(0xFFCBD5E1)
     }
+
     Canvas(
         modifier = modifier.size(
              width = 21.dp,
@@ -253,15 +262,12 @@ private fun EcgHeartPulseMonitor(
             lineTo(w * 0.61f, h * 0.58f)
             lineTo(w * 0.78f, h * 0.58f)
         }
-        val stroke = 1.6.dp.toPx()
-        val circleCenter = Offset(x = w * 0.88f, y = h * 0.58f)
-        val circleRadius = h * 0.14f
 
         drawPath(
             path = path,
             color = iconColor,
             style = Stroke(
-                width = stroke,
+                 width = 1.6.dp.toPx(),
                 cap = StrokeCap.Round,
                 join = StrokeJoin.Round,
             ),
@@ -269,10 +275,13 @@ private fun EcgHeartPulseMonitor(
 
         drawCircle(
             color = iconColor,
-            radius = circleRadius,
-            center = circleCenter,
+            radius = h * 0.14f,
+            center = Offset(
+                x = w * 0.88f,
+                y = h * 0.58f,
+            ),
             style = Stroke(
-                 width = stroke,
+                 width = 1.6.dp.toPx(),
             ),
         )
     }

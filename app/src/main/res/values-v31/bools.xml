@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Android 12+ has android:pathSuffix, an exact "ends with" test, so use it instead of a glob. -->
-    <bool name="focusflow_file_filter_legacy">false</bool>
-    <bool name="focusflow_file_filter_modern">true</bool>
+    <!-- Android 12+ (API 31+): android:pathSuffix is an exact "ends with" test, so use that alias. -->
+    <bool name="focusflow_filter_pattern">false</bool>
+    <bool name="focusflow_filter_suffix">true</bool>
 </resources>

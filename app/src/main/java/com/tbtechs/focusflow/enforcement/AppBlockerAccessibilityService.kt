@@ -440,8 +440,6 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         private val RULE_OPEN_SCAN_DELAYS_MS = longArrayOf(350L, 900L)
         /** Extra time a rule stays exempt after its test countdown, in case the scan runs late. */
         private const val RULE_TEST_GRACE_MS = 4_000L
-        /** After a test result the rule stays quiet this long, so a pass can be read before the real block fires. */
-        private const val RULE_TEST_RESULT_HOLD_MS = 6_000L
 
         /**
          * View ID substrings that identify URL bars and search input fields.
@@ -4416,7 +4414,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     /** One delayed scan: only when this app is still the one on screen. */
     private fun runQueuedRuleScan(pkg: String) {
         if (!hasEnabledCustomRule(pkg)) return
-        val root = (try { rootInActiveWindow } catch (_: Exception) { null }) ?: return
+        val root = try { rootInActiveWindow } catch (_: Exception) { null } ?: return
         try {
             if (!root.packageName?.toString().equals(pkg, ignoreCase = true)) return
             val hit = matchingCustomRule(pkg, root, throttle = false)
@@ -4568,12 +4566,12 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         handler.postDelayed({
             try {
                 publishRuleTest(rule)
-            } finally {
-                // Do not end the window yet. A passing test means the rule matches this very screen,
-                // so the real block would fire at once and cover the result. Hold it for a few seconds.
-                val holdUntil = System.currentTimeMillis() + RULE_TEST_RESULT_HOLD_MS
-                RuleTestWindow.start(rule.id, holdUntil)
-                handler.postDelayed({ RuleTestWindow.endIf(rule.id, holdUntil) }, RULE_TEST_RESULT_HOLD_MS + 50L)
+                // Do not end the window here: it expires on its own RULE_TEST_GRACE_MS after the
+                // result. Ending it at once let a passing rule block the screen immediately,
+                // which buried the "would block" toast (capture and fail toasts were fine).
+            } catch (t: Throwable) {
+                RuleTestWindow.end()
+                throw t
             }
         }, delayMs)
     }

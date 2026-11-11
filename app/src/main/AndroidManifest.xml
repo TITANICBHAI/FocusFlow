@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
@@ -50,21 +51,20 @@
         </activity>
 
         <!--
-            Opening a .focusflow file from another app. Two aliases of MainActivity, one switched
-            on per Android version (res/values/bools.xml and res/values-v31/bools.xml). Android only
-            honours a path filter when the filter also names a scheme and a host, and its glob
-            pattern is easy to get wrong, so:
-              - Android 12+ (API 31): android:pathSuffix, an exact "name ends with .focusflow" test.
-              - Android 10-11 (API 29-30): pathPattern, the only path test those versions have.
-            Limit: a file manager that gives other apps an opaque content URI (no file name in the
-            path) cannot be matched by extension at all; Settings -> Import works there. MainActivity
-            also re-checks the real file name before importing anything.
+            .focusflow files, opened from a file manager or share sheet. The filter lives on two aliases
+            of MainActivity because Android has no single way to say "ends with .focusflow" on every
+            version: API 31+ has an exact android:pathSuffix, API 29-30 only have the pattern matcher.
+            res/values/bools.xml and res/values-v31/bools.xml switch on the right alias; the other one
+            stays disabled. A path match needs a scheme AND a host, hence the host="*" lines.
+            MainActivity then re-checks the file's real name and ignores anything that does not end in
+            .focusflow ("That is not a .focusflow file."), so a file manager that hands over an opaque
+            content URI is still safe. Settings -> Import always works.
         -->
         <activity-alias
-            android:name=".OpenFocusflowFileLegacy"
-            android:enabled="@bool/focusflow_file_filter_legacy"
-            android:exported="true"
-            android:targetActivity=".MainActivity">
+            android:name=".FocusflowFilePatternAlias"
+            android:targetActivity=".MainActivity"
+            android:enabled="@bool/focusflow_filter_pattern"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -76,14 +76,15 @@
                 <data android:pathPattern=".*\\..*\\.focusflow" />
                 <data android:pathPattern=".*\\..*\\..*\\.focusflow" />
                 <data android:pathPattern=".*\\..*\\..*\\..*\\.focusflow" />
+                <data android:pathPattern=".*\\.FOCUSFLOW" />
             </intent-filter>
         </activity-alias>
 
         <activity-alias
-            android:name=".OpenFocusflowFileModern"
-            android:enabled="@bool/focusflow_file_filter_modern"
-            android:exported="true"
-            android:targetActivity=".MainActivity">
+            android:name=".FocusflowFileSuffixAlias"
+            android:targetActivity=".MainActivity"
+            android:enabled="@bool/focusflow_filter_suffix"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -91,8 +92,8 @@
                 <data android:scheme="file" />
                 <data android:host="*" />
                 <data android:mimeType="*/*" />
-                <data android:pathSuffix=".focusflow" />
-                <data android:pathSuffix=".FOCUSFLOW" />
+                <data android:pathSuffix=".focusflow" tools:targetApi="31" />
+                <data android:pathSuffix=".FOCUSFLOW" tools:targetApi="31" />
             </intent-filter>
         </activity-alias>
 

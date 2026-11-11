@@ -5,94 +5,34 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ExternalBackupIntentPolicyTest {
+    private val view = "android.intent.action.VIEW"
+
     @Test
-    fun acceptsOctetStreamContentUrisWithoutVisibleFilename() {
-        assertTrue(
-            ExternalBackupIntentPolicy.shouldStage(
-                action = "android.intent.action.VIEW",
-                uriScheme = "content",
-                mimeType = "application/octet-stream",
-                lastPathSegment = "document/8721",
-            ),
-        )
+    fun acceptsFocusFlowExtensionInAnyCase() {
+        assertTrue(ExternalBackupIntentPolicy.shouldStage(view, "content", "FocusFlow.FOCUSFLOW"))
+        assertTrue(ExternalBackupIntentPolicy.shouldStage(view, "file", "backup.focusflow"))
+        assertTrue(ExternalBackupIntentPolicy.shouldStage(view, "content", "my.backup.2026.focusflow"))
     }
 
     @Test
-    fun acceptsFocusFlowExtensionWithOtherOrMissingMimeType() {
-        assertTrue(
-            ExternalBackupIntentPolicy.shouldStage(
-                action = "android.intent.action.VIEW",
-                uriScheme = "content",
-                mimeType = "application/json",
-                lastPathSegment = "FocusFlow.FOCUSFLOW",
-            ),
-        )
-        assertTrue(
-            ExternalBackupIntentPolicy.shouldStage(
-                action = "android.intent.action.VIEW",
-                uriScheme = "file",
-                mimeType = null,
-                lastPathSegment = "backup.focusflow",
-            ),
-        )
+    fun rejectsOtherFilesAndOpaqueNames() {
+        assertFalse(ExternalBackupIntentPolicy.shouldStage(view, "content", "document.pdf"))
+        assertFalse(ExternalBackupIntentPolicy.shouldStage(view, "content", "document/8721"))
+        assertFalse(ExternalBackupIntentPolicy.shouldStage(view, "content", "backup.focusflow.txt"))
+        assertFalse(ExternalBackupIntentPolicy.shouldStage(view, "content", null))
     }
 
     @Test
-    fun rejectsUnrelatedFilesAndWebViews() {
-        assertFalse(
-            ExternalBackupIntentPolicy.shouldStage(
-                action = "android.intent.action.VIEW",
-                uriScheme = "content",
-                mimeType = "application/pdf",
-                lastPathSegment = "document.pdf",
-            ),
-        )
-        assertFalse(
-            ExternalBackupIntentPolicy.shouldStage(
-                action = "android.intent.action.VIEW",
-                uriScheme = "https",
-                mimeType = "application/octet-stream",
-                lastPathSegment = "backup.focusflow",
-            ),
-        )
-        assertFalse(
-            ExternalBackupIntentPolicy.shouldStage(
-                action = "android.intent.action.SEND",
-                uriScheme = "content",
-                mimeType = "application/octet-stream",
-                lastPathSegment = "backup.focusflow",
-            ),
-        )
+    fun rejectsWebLinksAndOtherActions() {
+        assertFalse(ExternalBackupIntentPolicy.shouldStage(view, "https", "backup.focusflow"))
+        assertFalse(ExternalBackupIntentPolicy.shouldStage("android.intent.action.SEND", "content", "backup.focusflow"))
     }
 
     @Test
-    fun theRealFileNameDecidesWhenTheProviderGivesOne() {
-        assertTrue(
-            ExternalBackupIntentPolicy.shouldStage(
-                action = "android.intent.action.VIEW",
-                uriScheme = "content",
-                mimeType = "application/octet-stream",
-                lastPathSegment = "document/8721",
-                displayName = "My Backup.FocusFlow",
-            ),
-        )
-        assertFalse(
-            ExternalBackupIntentPolicy.shouldStage(
-                action = "android.intent.action.VIEW",
-                uriScheme = "content",
-                mimeType = "application/octet-stream",
-                lastPathSegment = "document/8721",
-                displayName = "notes.bin",
-            ),
-        )
-        assertFalse(
-            ExternalBackupIntentPolicy.shouldStage(
-                action = "android.intent.action.VIEW",
-                uriScheme = "file",
-                mimeType = null,
-                lastPathSegment = "backup.focusflow",
-                displayName = "photo.jpg",
-            ),
-        )
+    fun fileViewIsOnlyContentOrFileUrisWithView() {
+        assertTrue(ExternalBackupIntentPolicy.isFileView(view, "content"))
+        assertTrue(ExternalBackupIntentPolicy.isFileView(view, "FILE"))
+        assertFalse(ExternalBackupIntentPolicy.isFileView(view, "focusflow"))
+        assertFalse(ExternalBackupIntentPolicy.isFileView(null, "content"))
     }
 }

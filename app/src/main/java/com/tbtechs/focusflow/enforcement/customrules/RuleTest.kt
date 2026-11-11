@@ -71,12 +71,6 @@ object RuleTestWindow {
         untilMs = 0L
     }
 
-    /** Ends the window only if it is still the one that ends at [until] (a newer test keeps its own). */
-    @Synchronized
-    fun endIf(id: String, until: Long) {
-        if (ruleId == id && untilMs == until) end()
-    }
-
     fun suppresses(id: String, nowMs: Long): Boolean = ruleId == id && nowMs < untilMs
 }
 
@@ -126,7 +120,7 @@ object RuleTester {
 /** Plain-language text for a [RuleTestResult], shared by the editor card and the toast. */
 object RuleTestText {
     fun headline(result: RuleTestResult): String = when (result.verdict) {
-        RuleTestVerdict.WOULD_BLOCK -> "Test passed: this rule would block this screen."
+        RuleTestVerdict.WOULD_BLOCK -> "This rule would block this screen."
         RuleTestVerdict.WOULD_NOT_BLOCK -> "This rule would not block this screen."
         RuleTestVerdict.WRONG_APP ->
             "A different app was in front (${result.packageSeen}), not ${result.testedRule.packageName}. " +
@@ -136,7 +130,7 @@ object RuleTestText {
     }
 
     fun toast(result: RuleTestResult): String = when (result.verdict) {
-        RuleTestVerdict.WOULD_BLOCK -> "FocusFlow test passed: this rule would block this screen. Nothing is blocked during a test"
+        RuleTestVerdict.WOULD_BLOCK -> "FocusFlow test passed: this rule would block this screen. Open FocusFlow to continue"
         RuleTestVerdict.WOULD_NOT_BLOCK -> "FocusFlow test: this rule would not block this screen. Open FocusFlow to see why"
         RuleTestVerdict.WRONG_APP -> "FocusFlow test: a different app was in front. Open FocusFlow for details"
         RuleTestVerdict.NOTHING_READABLE -> "FocusFlow test: nothing readable was on screen"

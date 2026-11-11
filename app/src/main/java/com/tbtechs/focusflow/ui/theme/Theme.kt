@@ -307,3 +307,18 @@ fun FocusFlowTheme(
         }
     }
 }
+
+/**
+ * Switch colours whose OFF state stays readable on a card in both light and dark mode.
+ * The Material default off track is almost the same colour as the card, so the switch looked missing.
+ */
+@Composable
+fun focusSwitchColors(accent: Color = MaterialTheme.colorScheme.primary): androidx.compose.material3.SwitchColors =
+    androidx.compose.material3.SwitchDefaults.colors(
+        checkedThumbColor = Color.White,
+        checkedTrackColor = accent,
+        checkedBorderColor = accent,
+        uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        uncheckedTrackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.14f),
+        uncheckedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+    )

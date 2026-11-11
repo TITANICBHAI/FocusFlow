@@ -3,14 +3,7 @@ package com.tbtechs.focusflow.ui.customrules
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
-import androidx.compose.ui.Alignment
-import com.tbtechs.focusflow.ui.theme.DarkTextMuted
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.heightIn
@@ -26,13 +19,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.foundation.layout.size
-import com.tbtechs.focusflow.ui.theme.DarkTextSecondary
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -248,47 +234,4 @@ internal fun RuleTextField(
             unfocusedTextColor = DarkTextPrimary,
         ),
     )
-}
-
-/**
- * The "Only when selected" chip of a matcher. It is the setting that makes a tab rule fire only
- * while that tab is the chosen one. A tinted chip with a border (and a tick when on) so it is easy
- * to spot without competing with the rest of the screen, and one line saying what it does.
- */
-@Composable
-internal fun SelectedOnlyChip(
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Column(modifier = modifier.fillMaxWidth()) {
-        FilterChip(
-            selected = checked,
-            onClick = { onCheckedChange(!checked) },
-            label = { Text("Only when selected", fontWeight = FontWeight.SemiBold) },
-            leadingIcon = if (checked) {
-                { Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(FilterChipDefaults.IconSize)) }
-            } else {
-                null
-            },
-            colors = FilterChipDefaults.filterChipColors(
-                containerColor = BrandPrimary.copy(alpha = 0.08f),
-                labelColor = BrandPrimary,
-                selectedContainerColor = BrandPrimary.copy(alpha = 0.22f),
-                selectedLabelColor = BrandPrimary,
-                selectedLeadingIconColor = BrandPrimary,
-            ),
-            border = BorderStroke(1.dp, BrandPrimary.copy(alpha = if (checked) 0.8f else 0.45f)),
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = if (checked) {
-                "Blocks only while this element is the highlighted one, like the tab you are on."
-            } else {
-                "Blocks whenever this element is on screen, even if it is not highlighted."
-            },
-            fontSize = 12.scaledSp,
-            color = DarkTextSecondary,
-        )
-    }
 }

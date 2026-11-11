@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Which .focusflow file-open filter is active (see AndroidManifest.xml). Android 10-11 use the pattern one. -->
-    <bool name="focusflow_file_filter_legacy">true</bool>
-    <bool name="focusflow_file_filter_modern">false</bool>
+    <!-- Android 10-11 (API 29-30): no "ends with" test, so use the pattern-matcher alias. -->
+    <bool name="focusflow_filter_pattern">true</bool>
+    <bool name="focusflow_filter_suffix">false</bool>
 </resources>

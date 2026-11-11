@@ -62,12 +62,6 @@ internal val RULES_GUIDE_GOOD_ELEMENTS = listOf(
         "Match all means every element must be present, which is stricter. Match any means one is enough, which is broader.",
     ),
     FocusFlowGuideItem(
-        "Only when selected",
-        "Each element has a highlighted Only when selected switch, and it starts on for new elements. On, the element counts " +
-            "only while it is the highlighted one (the tab you are on), which is what you want for a tab. Switch it off for " +
-            "text or a button that is simply on the screen you want blocked and is never highlighted.",
-    ),
-    FocusFlowGuideItem(
         "Test it",
         "Use Test this rule on the target screen: it should say the rule would block it. Then test one of the app's " +
             "other screens (home, search, profile): it should say the rule would not block it. If it would, the rule " +

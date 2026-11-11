@@ -448,7 +448,8 @@ fun FocusFlowNavGraph(
                             onOpenDefense = { navigate(Routes.DEFENSE) },
                             onOpenKeywordBlocker = { navigate(Routes.KEYWORD_BLOCKER) },
                             onOpenVpnBlockList = { navigate(Routes.VPN_BLOCK_LIST) },
-                            onOpenCustomRules = { navigate(Routes.CUSTOM_RULES_LIST) },
+                            customRules = customRulesViewModel.rules.collectAsState().value,
+                            onOpenScreenRules = { navigate(Routes.CUSTOM_RULES) },
                         )
                     }
                 }
