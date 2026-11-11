@@ -182,6 +182,9 @@ class SettingsRepository(
         private const val KEY_LAUNCHER_HIDDEN_PACKAGES = "launcher_hidden_packages"
         private const val KEY_DRAWER_HIDDEN_PACKAGES = "drawer_hidden_packages"
         private const val KEY_LAUNCHER_THEME = "launcher_theme"
+
+        /** Shared with LauncherActivity so the writer and the launcher can never drift apart. */
+        const val PREF_LAUNCHER_WALLPAPER_URI = "launcher_wallpaper_uri"
         private const val KEY_FOCUS_TOOL_PACKAGES = "focus_tool_packages"
         private const val KEY_LAUNCHER_LOCK_DURING_STANDALONE =
             "launcher_lock_during_standalone"
@@ -1076,7 +1079,10 @@ class SettingsRepository(
             ),
             standaloneBlockUntilMs = prefs.getLong(KEY_STANDALONE_UNTIL_MS, 0L),
             launcherTheme = prefs.getString(KEY_LAUNCHER_THEME, "glassy") ?: "glassy",
-            launcherWallpaperUri = prefs.getString("launcher_wallpaper_uri", null),
+            // A value that is not a readable file in app-private storage (for example a stale
+            // content:// URI saved by an older version) is treated as "no wallpaper".
+            launcherWallpaperUri = prefs.getString(PREF_LAUNCHER_WALLPAPER_URI, null)
+                ?.takeIf { WallpaperPathPolicy.resolve(appContext.filesDir, it) != null },
             focusToolPackages = parseStringArray(
                 prefs.getString(KEY_FOCUS_TOOL_PACKAGES, "[]"),
             ),
@@ -1271,8 +1277,8 @@ class SettingsRepository(
             return
         }
         val editor = prefs.edit()
-        if (uri.isNullOrBlank()) editor.remove("launcher_wallpaper_uri")
-        else editor.putString("launcher_wallpaper_uri", uri)
+        if (uri.isNullOrBlank()) editor.remove(PREF_LAUNCHER_WALLPAPER_URI)
+        else editor.putString(PREF_LAUNCHER_WALLPAPER_URI, uri)
         editor.apply()
     }
 

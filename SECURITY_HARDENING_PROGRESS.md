@@ -25,11 +25,15 @@ Device checks: Android 14+ service connects and an allowance-config change re-ev
   outside `filesDir`.
 - Tests added: `WallpaperPathPolicyTest`, `WallpaperStoreTest`, `WallpaperBackupPolicyTest`.
 
-### Open question found during P2 (not changed)
-`LauncherActivity` reads the pref key `launcher_wallpaper`, but `LauncherSetupScreen` / `SettingsRepository`
-write `launcher_wallpaper_uri`, and nothing writes `launcher_wallpaper`. So a wallpaper picked in Launcher setup
-is stored but the launcher itself does not appear to display it. This predates the hardening work; I left the
-behaviour exactly as it was. Decide whether the launcher should read `launcher_wallpaper_uri`.
+### Launcher wallpaper wiring: FIXED
+`LauncherActivity` read the pref key `launcher_wallpaper` while Launcher setup and `SettingsRepository` write
+`launcher_wallpaper_uri`, and nothing ever wrote `launcher_wallpaper` — so a picked wallpaper was saved but never shown
+(the neighbouring `launcher_theme` key matched on both sides, which is how this was confirmed as a typo-style bug).
+Now one shared constant, `SettingsRepository.PREF_LAUNCHER_WALLPAPER_URI`, is used by the writer, the reader and the
+launcher, so they cannot drift again. `readAppSettings` also treats a value that is not a readable file in app-private
+storage (for example a stale `content://` URI saved by an older build) as "no wallpaper". The wallpaper shows in the
+Glassy launcher style only (that is where the existing code draws it).
+Manual test steps: `SECURITY_TESTING_GUIDE.md` (test files are in `FocusFlow-test-files.zip`, shared separately).
 
 ## P4 — Small items: DONE (needs build check)
 1. `PackageInstallReceiver` is now `exported="false"` (system PACKAGE_* broadcasts are still delivered).
@@ -47,7 +51,7 @@ behaviour exactly as it was. Decide whether the launcher should read `launcher_w
 ## P5 — Downloader polish
 - **P5.2 DONE (needs build check):** the "Download pictures?" dialog now lists *every* distinct host (lower-cased,
   in a scrollable list, never truncated). It previously showed at most three names plus "and N more websites".
-- **P5.1 NOT DONE — needs a decision.** The plan assumes OkHttp, but this project has no OkHttp: `UrlConnectionFetch`
+- **P5.1 DECIDED: leave as is (option c).** The plan assumes OkHttp, but this project has no OkHttp: `UrlConnectionFetch`
   uses `HttpsURLConnection`, which cannot be told to connect to an already-validated address. Options:
   (a) add `com.squareup.okhttp3:okhttp` and implement the plan's custom `Dns` (new dependency, ~0.8 MB, R8 rules);
   (b) hand-write a pinned-socket HTTPS client (connect to the validated IP, TLS with the real host name for SNI and
@@ -55,4 +59,20 @@ behaviour exactly as it was. Decide whether the launcher should read `launcher_w
   untested; (c) leave as is: the code already documents it as a known limit and TLS certificate validation makes it
   hard to exploit. Severity is Low either way.
 
-## P3 — not started
+## P3 — Isolated image decoding: DONE (needs on-device verification)
+- New `ImageDecodeService` (`android:isolatedProcess="true"`, not exported) and `IsolatedImageCodec`, an `ImageCodec`
+  that sends bytes through pipes and gets bounds / orientation / re-encoded WebP back. A `Messenger` is used instead of
+  AIDL, so no Gradle change is needed. Protocol constants live in `ImageDecodeProtocol`.
+- `AppModule` now gives `SubtaskImageStore` and `WallpaperStore` the isolated codec. All existing magic-byte, size and
+  dimension checks stay in the main process. One private constant, `ISOLATE_IMAGE_DECODING`, switches back to the
+  in-process codec if you ever need to rule isolation out while debugging.
+- Fails closed: a process that cannot start, crashes or takes more than 10 s makes the call return null, so the image is
+  rejected; the next call starts a fresh process. The isolated process is released after 20 s idle.
+- `FocusFlowApp.onCreate` now returns immediately when `Process.isIsolated()`. Without this the isolated process would
+  run the full app startup (database, workers) and die. This is the line to check first if decoding ever fails.
+- Not covered by this item: `WallpaperLoader` still decodes stored wallpaper files in-process. Files from the picker are
+  re-encoded by the isolated codec first; overlay wallpapers copied by `OverlayAppearanceModal` are not.
+- New `androidTest` `IsolatedImageCodecTest` (bounds, re-encode, garbage input then recovery, back-to-back calls).
+- Device checks: pick / download / restore pictures and a launcher wallpaper; `adb shell ps | grep focusflow` shows a
+  `:ImageDecodeService`-style isolated process while importing and it disappears after ~20 s; a corrupt image is rejected
+  and the next import works.

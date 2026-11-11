@@ -39,6 +39,10 @@ class FocusFlowApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // The isolated image-decode process (ImageDecodeService) also instantiates the
+        // Application. It has no access to app data, so none of the startup work below
+        // (logging, database, workers, notifications) may run there.
+        if (android.os.Process.isIsolated()) return
         StartupLogger.initialize(this)
         StartupLogger.info("FocusFlowApp", "Application startup began")
 

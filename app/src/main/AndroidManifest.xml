@@ -269,5 +269,11 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
         </provider>
+        <!-- Decodes untrusted images in a sandboxed process with no permissions or app data. -->
+        <service
+            android:name=".data.images.ImageDecodeService"
+            android:exported="false"
+            android:isolatedProcess="true" />
+
     </application>
 </manifest>

@@ -12,6 +12,8 @@ import com.tbtechs.focusflow.notifications.SharedPreferencesReminderLedgerStore
 import com.tbtechs.focusflow.data.local.FocusFlowDatabase
 import com.tbtechs.focusflow.data.backup.BackupSource
 import com.tbtechs.focusflow.data.images.AndroidBitmapImageCodec
+import com.tbtechs.focusflow.data.images.ImageCodec
+import com.tbtechs.focusflow.data.images.IsolatedImageCodec
 import com.tbtechs.focusflow.data.images.WallpaperStore
 import com.tbtechs.focusflow.data.images.PhotoDownloader
 import com.tbtechs.focusflow.data.images.SubtaskImageStore
@@ -89,6 +91,8 @@ import java.time.ZoneId
  * any reader can access them, so no synchronisation is needed.
  */
 object AppModule {
+
+    private const val ISOLATE_IMAGE_DECODING = true
 
     lateinit var applicationContext: Context
         private set
@@ -277,13 +281,17 @@ object AppModule {
             .addCallback(FocusFlowDatabase.DATABASE_CALLBACK)
             .build()
 
+        // Untrusted images are decoded in an isolated process (see ImageDecodeService).
+        // Set ISOLATE_IMAGE_DECODING to false only to rule it out while debugging.
+        val imageCodec: ImageCodec =
+            if (ISOLATE_IMAGE_DECODING) IsolatedImageCodec(app) else AndroidBitmapImageCodec()
         subtaskImageStore = SubtaskImageStore(
             directory = java.io.File(app.filesDir, "task_images"),
-            codec = AndroidBitmapImageCodec(),
+            codec = imageCodec,
         )
         wallpaperStore = WallpaperStore(
             directory = java.io.File(app.filesDir, "launcher_wallpaper"),
-            codec = AndroidBitmapImageCodec(),
+            codec = imageCodec,
         )
 
         // Repositories — order within this block does not matter.

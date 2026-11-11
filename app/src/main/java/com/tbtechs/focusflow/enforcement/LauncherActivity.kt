@@ -1,5 +1,6 @@
 package com.tbtechs.focusflow.enforcement
 
+import com.tbtechs.focusflow.data.repository.SettingsRepository
 import com.tbtechs.focusflow.data.images.WallpaperLoader
 import android.app.Activity
 import android.app.AlertDialog
@@ -76,7 +77,8 @@ class LauncherActivity : Activity() {
         private const val PREF_LAUNCHER_HIDDEN = "launcher_hidden_packages"
         private const val PREF_LAUNCHER_PINNED = "launcher_pinned_packages"
         private const val PREF_LAUNCHER_DOCK = "launcher_dock_packages"
-        private const val PREF_LAUNCHER_WALLPAPER = "launcher_wallpaper"
+        // Same key SettingsRepository writes when a wallpaper is picked in Launcher setup.
+        private const val PREF_LAUNCHER_WALLPAPER = SettingsRepository.PREF_LAUNCHER_WALLPAPER_URI
         private const val PREF_LAUNCHER_THEME = "launcher_theme"
         private const val PREF_FOCUS_TOOLS = "focus_tool_packages"
         private const val PREF_DRAWER_HIDDEN = "drawer_hidden_packages"
