@@ -3,10 +3,8 @@ package com.tbtechs.focusflow.enforcement
 import android.app.Activity
 import android.app.WallpaperManager
 import android.content.SharedPreferences
-import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -20,6 +18,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
+import com.tbtechs.focusflow.data.images.WallpaperLoader
 import com.tbtechs.focusflow.MainActivity
 import org.json.JSONArray
 
@@ -339,24 +338,18 @@ class BlockOverlayActivity : Activity() {
         if (wallpaperPath.isNotEmpty()) {
             // User has set a custom overlay image — use it at 82 % opacity so the
             // dark scrim below still keeps text readable.
-            try {
-                val bmp = if (wallpaperPath.startsWith("content://")) {
-                    contentResolver.openInputStream(Uri.parse(wallpaperPath))?.use { BitmapFactory.decodeStream(it) }
-                } else {
-                    BitmapFactory.decodeFile(wallpaperPath.removePrefix("file://"))
-                }
-                if (bmp != null) {
-                    root.addView(ImageView(this).apply {
-                        layoutParams = FrameLayout.LayoutParams(
-                            FrameLayout.LayoutParams.MATCH_PARENT,
-                            FrameLayout.LayoutParams.MATCH_PARENT
-                        )
-                        setImageBitmap(bmp)
-                        scaleType = ImageView.ScaleType.CENTER_CROP
-                        alpha = 0.82f
-                    })
-                }
-            } catch (_: Exception) { }
+            // Decoded off the main thread through the shared, size-bounded and
+            // path-confined loader. The view starts empty (the gradient shows) and
+            // is filled in when the decode finishes; a failed decode leaves it empty.
+            root.addView(ImageView(this).apply {
+                layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT
+                )
+                scaleType = ImageView.ScaleType.CENTER_CROP
+                alpha = 0.82f
+                WallpaperLoader.loadInto(this, wallpaperPath)
+            })
         } else {
             // No custom image — try to show the system (home screen) wallpaper so
             // the overlay still looks contextual.

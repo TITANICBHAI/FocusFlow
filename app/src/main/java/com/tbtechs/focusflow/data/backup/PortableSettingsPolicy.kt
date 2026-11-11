@@ -42,6 +42,9 @@ object PortableSettingsPolicy {
         "vpnSelfHealEnabled",
         "pinProtectionEnabled",
         "autoCopyToAlwaysOn",
+        // Points at a file in this device's private storage, so it is meaningless
+        // on another device and must never be accepted from a backup file.
+        "launcherWallpaperUri",
     )
 
     fun toPortableJson(settings: AppSettings): JsonObject {

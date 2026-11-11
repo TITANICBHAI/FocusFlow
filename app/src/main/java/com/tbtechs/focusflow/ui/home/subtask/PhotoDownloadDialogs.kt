@@ -3,6 +3,9 @@ package com.tbtechs.focusflow.ui.home.subtask
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
@@ -27,11 +30,32 @@ internal fun PhotoDownloadDialogs(controller: PhotoDownloadController) {
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Text(
-                        text = "FocusFlow will connect to ${hostsSummary(state.hosts)} to download " +
-                            "${state.linkCount} ${if (state.linkCount == 1) "picture" else "pictures"}.",
-                        fontSize = 14.scaledSp,
-                    )
+                    val pictures = "${state.linkCount} ${if (state.linkCount == 1) "picture" else "pictures"}"
+                    if (state.hosts.isEmpty()) {
+                        Text(
+                            text = "FocusFlow will connect to the websites in the file to download $pictures.",
+                            fontSize = 14.scaledSp,
+                        )
+                    } else {
+                        Text(
+                            text = "FocusFlow will connect to " +
+                                (if (state.hosts.size == 1) "this website" else "these ${state.hosts.size} websites") +
+                                " to download $pictures:",
+                            fontSize = 14.scaledSp,
+                        )
+                        // Every distinct host is listed (never truncated), so the person can see
+                        // exactly where their network address will be sent.
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 132.dp)
+                                .verticalScroll(rememberScrollState()),
+                        ) {
+                            state.hosts.forEach { host ->
+                                Text(text = "• $host", fontSize = 13.scaledSp, fontWeight = FontWeight.Medium)
+                            }
+                        }
+                    }
                     Text(
                         text = "Links are never opened in a browser. Each download must be a JPEG, PNG or " +
                             "WebP picture of at most 6 MiB. FocusFlow stores its own copy privately on " +
@@ -101,10 +125,4 @@ internal fun PhotoDownloadDialogs(controller: PhotoDownloadController) {
             },
         )
     }
-}
-
-private fun hostsSummary(hosts: List<String>): String = when {
-    hosts.isEmpty() -> "the websites in the file"
-    hosts.size <= 3 -> hosts.joinToString(", ")
-    else -> hosts.take(3).joinToString(", ") + " and ${hosts.size - 3} more websites"
 }

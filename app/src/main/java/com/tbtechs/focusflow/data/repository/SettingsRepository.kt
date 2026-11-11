@@ -14,6 +14,7 @@ import com.tbtechs.focusflow.enforcement.NetworkBlockerVpnService
 import com.tbtechs.focusflow.enforcement.VpnPolicyCoordinator
 import com.tbtechs.focusflow.enforcement.receivers.VpnWatchdogReceiver
 import com.tbtechs.focusflow.widget.FocusFlowWidget
+import com.tbtechs.focusflow.data.images.WallpaperPathPolicy
 import com.tbtechs.focusflow.data.model.AllowedAppPreset
 import com.tbtechs.focusflow.data.model.AppSettings
 import com.tbtechs.focusflow.data.model.BlockPreset
@@ -1261,6 +1262,14 @@ class SettingsRepository(
     }
 
     suspend fun setLauncherWallpaperUri(uri: String?) {
+        if (!uri.isNullOrBlank() &&
+            !WallpaperPathPolicy.isStorable(appContext.filesDir, uri)
+        ) {
+            // Only canonical paths inside app-private storage are accepted;
+            // content:// URIs, file:// URIs and foreign paths are ignored.
+            Log.w(TAG, "Ignored launcher wallpaper outside app-private storage.")
+            return
+        }
         val editor = prefs.edit()
         if (uri.isNullOrBlank()) editor.remove("launcher_wallpaper_uri")
         else editor.putString("launcher_wallpaper_uri", uri)

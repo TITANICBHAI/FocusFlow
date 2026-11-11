@@ -5,8 +5,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.SharedPreferences
-import android.os.Build
 import androidx.lifecycle.ViewModel
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
@@ -192,16 +192,12 @@ class FocusSessionViewModel(
             null,
         )
         val taskEndedFilter = IntentFilter(ForegroundTaskService.ACTION_TASK_ENDED)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            appContext.registerReceiver(
-                taskEndedReceiver,
-                taskEndedFilter,
-                Context.RECEIVER_NOT_EXPORTED,
-            )
-        } else {
-            @Suppress("UnspecifiedRegisterReceiverFlag")
-            appContext.registerReceiver(taskEndedReceiver, taskEndedFilter)
-        }
+        ContextCompat.registerReceiver(
+            appContext,
+            taskEndedReceiver,
+            taskEndedFilter,
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
         taskEndedReceiverRegistered = true
         viewModelScope.launch {
             focusSessionRepository.observeActiveFocusSession().collect { session ->

@@ -32,6 +32,7 @@ import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.core.content.ContextCompat
 
 /**
  * TaskAlarmActivity
@@ -116,12 +117,14 @@ class TaskAlarmActivity : Activity() {
         }
 
         val filter = IntentFilter(ACTION_DISMISS_ALARM)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(dismissReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            @Suppress("UnspecifiedRegisterReceiverFlag")
-            registerReceiver(dismissReceiver, filter)
-        }
+        // Not exported on every API level (androidx backports this for API < 33),
+        // so other apps cannot spoof the dismiss broadcast.
+        ContextCompat.registerReceiver(
+            this,
+            dismissReceiver,
+            filter,
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
     }
 
     override fun onNewIntent(intent: Intent?) {

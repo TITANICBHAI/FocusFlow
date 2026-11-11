@@ -1,6 +1,7 @@
 package com.tbtechs.focusflow.ui.launcher
 
 import android.content.Intent
+import android.widget.Toast
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -61,6 +62,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.tbtechs.focusflow.data.repository.InstalledAppInfo
+import com.tbtechs.focusflow.di.AppModule
 import com.tbtechs.focusflow.data.repository.InstalledAppsRepository
 import com.tbtechs.focusflow.data.repository.LauncherController
 import com.tbtechs.focusflow.data.repository.SettingsRepository
@@ -76,7 +78,9 @@ import com.tbtechs.focusflow.ui.theme.DarkSurfaceVariant
 import com.tbtechs.focusflow.ui.theme.DarkTextMuted
 import com.tbtechs.focusflow.ui.theme.DarkTextPrimary
 import com.tbtechs.focusflow.ui.theme.DarkTextSecondary
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Home Launcher configuration screen.
@@ -140,7 +144,29 @@ fun LauncherSetupScreen(
     val wallpaperPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent(),
     ) { uri ->
-        uri?.let { settingsViewModel.updateSettings(settings.copy(launcherWallpaperUri = it.toString())) }
+        if (uri != null) {
+            scope.launch {
+                // Validate and re-encode the picked image into app-private storage so
+                // the stored reference is a clean local file that survives restarts
+                // (the picker's own URI grant is temporary).
+                val storedPath = withContext(Dispatchers.IO) {
+                    runCatching {
+                        context.contentResolver.openInputStream(uri)?.use { input ->
+                            AppModule.wallpaperStore.ingest(input).getOrThrow()
+                        }
+                    }.getOrNull()
+                }
+                if (storedPath != null) {
+                    settingsViewModel.updateSettings(settings.copy(launcherWallpaperUri = storedPath))
+                } else {
+                    Toast.makeText(
+                        context,
+                        "That image could not be used as a wallpaper.",
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                }
+            }
+        }
     }
     val filteredApps = remember(installedApps, search) {
         val query = search.trim().lowercase()
@@ -330,7 +356,10 @@ fun LauncherSetupScreen(
                                 }
                                 if (settings.launcherWallpaperUri != null) {
                                     TextButton(
-                                        onClick = { settingsViewModel.updateSettings(settings.copy(launcherWallpaperUri = null)) },
+                                        onClick = {
+                                            settingsViewModel.updateSettings(settings.copy(launcherWallpaperUri = null))
+                                            scope.launch(Dispatchers.IO) { AppModule.wallpaperStore.clear() }
+                                        },
                                     ) {
                                         Text("Clear wallpaper", color = Color(0xFFEF4444), fontSize = 12.sp)
                                     }

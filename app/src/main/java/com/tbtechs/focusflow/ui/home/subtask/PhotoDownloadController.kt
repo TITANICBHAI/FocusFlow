@@ -74,6 +74,7 @@ internal class PhotoDownloadController(
         if (slots.isEmpty()) return
         val hosts = slots
             .mapNotNull { (PhotoLinkPolicy.check(it.slot.url) as? PhotoLinkCheck.Accepted)?.uri?.host }
+            .map { it.lowercase() }
             .distinct()
         state = PhotoDownloadUiState.Confirm(
             taskId = task.id,

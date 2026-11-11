@@ -1,5 +1,6 @@
 package com.tbtechs.focusflow.enforcement
 
+import com.tbtechs.focusflow.data.images.WallpaperLoader
 import android.app.Activity
 import android.app.AlertDialog
 import android.app.WallpaperManager
@@ -7,7 +8,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -1815,18 +1815,12 @@ class LauncherActivity : Activity() {
         val path = prefs.getString(PREF_LAUNCHER_WALLPAPER, "")?.trim().orEmpty()
         if (path.isEmpty()) {
             view.setImageDrawable(null)
+            WallpaperLoader.loadInto(view, null) // supersede any decode still in flight
             return
         }
-        val bitmap = try {
-            if (path.startsWith("content://")) {
-                contentResolver.openInputStream(Uri.parse(path))?.use(BitmapFactory::decodeStream)
-            } else {
-                BitmapFactory.decodeFile(path.removePrefix("file://"))
-            }
-        } catch (_: Exception) {
-            null
-        }
-        view.setImageBitmap(bitmap)
+        // Shared loader: path-confined to app-private storage, size-bounded and
+        // decoded off the main thread (it applies the bitmap on the main thread).
+        WallpaperLoader.loadInto(view, path)
     }
 
     private fun applyWallpaperTint() {

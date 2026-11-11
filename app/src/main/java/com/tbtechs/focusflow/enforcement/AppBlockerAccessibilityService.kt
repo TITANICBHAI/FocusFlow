@@ -1,5 +1,6 @@
 package com.tbtechs.focusflow.enforcement
 
+import com.tbtechs.focusflow.data.images.WallpaperLoader
 import com.tbtechs.focusflow.enforcement.receivers.FocusDayDeviceAdminReceiver
 import com.tbtechs.focusflow.enforcement.receivers.NotificationActionReceiver
 import com.tbtechs.focusflow.enforcement.receivers.PackageInstallReceiver
@@ -21,11 +22,9 @@ import android.app.WallpaperManager
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.SharedPreferences
-import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
-import android.net.Uri
 import android.net.VpnService
 import android.os.Build
 import android.os.Handler
@@ -37,6 +36,7 @@ import android.view.Gravity
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import androidx.core.content.ContextCompat
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -968,11 +968,20 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                 }
             }
         }.also {
-            registerReceiver(it, IntentFilter().apply {
-                addAction(Intent.ACTION_SCREEN_OFF)
-                addAction(Intent.ACTION_USER_PRESENT)
-                addAction(ACTION_ALLOWANCE_CONFIG_CHANGED)
-            })
+            // Must be explicitly NOT_EXPORTED: ACTION_ALLOWANCE_CONFIG_CHANGED is a
+            // custom action (spoofable on API 29-32 without the flag, and a
+            // SecurityException on Android 14+). System broadcasts such as
+            // SCREEN_OFF / USER_PRESENT are still delivered.
+            ContextCompat.registerReceiver(
+                this,
+                it,
+                IntentFilter().apply {
+                    addAction(Intent.ACTION_SCREEN_OFF)
+                    addAction(Intent.ACTION_USER_PRESENT)
+                    addAction(ACTION_ALLOWANCE_CONFIG_CHANGED)
+                },
+                ContextCompat.RECEIVER_NOT_EXPORTED,
+            )
         }
     }
 
@@ -2885,19 +2894,15 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         // ── Wallpaper / system wallpaper background ───────────────────────────
         val wallpaperPath = prefs.getString("block_overlay_wallpaper", "") ?: ""
         if (wallpaperPath.isNotEmpty()) {
-            try {
-                val bmp = if (wallpaperPath.startsWith("content://")) {
-                    contentResolver.openInputStream(Uri.parse(wallpaperPath))?.use { BitmapFactory.decodeStream(it) }
-                } else {
-                    BitmapFactory.decodeFile(wallpaperPath.removePrefix("file://"))
-                }
-                if (bmp != null) root.addView(ImageView(this).apply {
-                    layoutParams = FrameLayout.LayoutParams(
-                        FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT
-                    )
-                    setImageBitmap(bmp); scaleType = ImageView.ScaleType.CENTER_CROP; alpha = 0.82f
-                })
-            } catch (_: Exception) { }
+            // Never decode inside the Accessibility service's main thread: the shared
+            // loader is path-confined, size-bounded and applies the bitmap asynchronously.
+            root.addView(ImageView(this).apply {
+                layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT
+                )
+                scaleType = ImageView.ScaleType.CENTER_CROP; alpha = 0.82f
+                WallpaperLoader.loadInto(this, wallpaperPath)
+            })
         } else {
             try {
                 val drawable = WallpaperManager.getInstance(this).drawable

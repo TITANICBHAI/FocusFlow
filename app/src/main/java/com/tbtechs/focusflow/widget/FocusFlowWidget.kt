@@ -28,6 +28,7 @@ import java.time.Instant
 import java.time.ZoneId
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Home screen widget: a live clock and date, plus the task that matters right now.
@@ -47,7 +48,13 @@ class FocusFlowWidget : AppWidgetProvider() {
 
     override fun onReceive(context: Context, intent: Intent) {
         when (intent.action) {
-            ACTION_REFRESH,
+            ACTION_REFRESH -> {
+                // This receiver is exported (widget hosts need that), so another app can
+                // send this action. Ignore bursts; the app's own alarm tick is >= 15 s apart.
+                if (!acceptRefreshBroadcast(SystemClock.elapsedRealtime())) return
+                val pending = goAsync()
+                refreshAsync(context.applicationContext) { pending.finish() }
+            }
             Intent.ACTION_TIME_CHANGED,
             Intent.ACTION_TIMEZONE_CHANGED,
             -> {
@@ -88,6 +95,25 @@ class FocusFlowWidget : AppWidgetProvider() {
         private const val MAX_COUNTDOWN_MS = 12L * 60 * 60 * 1000
 
         private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+        private const val NO_REFRESH_YET = Long.MIN_VALUE
+        private const val MIN_REFRESH_BROADCAST_INTERVAL_MS = 2_000L
+        private val lastRefreshBroadcastAtMs = AtomicLong(NO_REFRESH_YET)
+
+        /** Pure rate-limit rule, separated so it can be unit tested. */
+        internal fun shouldHandleRefresh(
+            lastHandledAtMs: Long,
+            nowMs: Long,
+            minIntervalMs: Long = MIN_REFRESH_BROADCAST_INTERVAL_MS,
+        ): Boolean = lastHandledAtMs == NO_REFRESH_YET || nowMs - lastHandledAtMs >= minIntervalMs
+
+        private fun acceptRefreshBroadcast(nowMs: Long): Boolean {
+            while (true) {
+                val last = lastRefreshBroadcastAtMs.get()
+                if (!shouldHandleRefresh(last, nowMs)) return false
+                if (lastRefreshBroadcastAtMs.compareAndSet(last, nowMs)) return true
+            }
+        }
 
         /** Kept for existing callers (focus service, settings). Never blocks the caller. */
         fun pushWidgetUpdate(context: Context) {

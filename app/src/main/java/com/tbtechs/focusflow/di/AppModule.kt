@@ -12,6 +12,7 @@ import com.tbtechs.focusflow.notifications.SharedPreferencesReminderLedgerStore
 import com.tbtechs.focusflow.data.local.FocusFlowDatabase
 import com.tbtechs.focusflow.data.backup.BackupSource
 import com.tbtechs.focusflow.data.images.AndroidBitmapImageCodec
+import com.tbtechs.focusflow.data.images.WallpaperStore
 import com.tbtechs.focusflow.data.images.PhotoDownloader
 import com.tbtechs.focusflow.data.images.SubtaskImageStore
 import com.tbtechs.focusflow.data.images.SystemHostResolver
@@ -103,6 +104,7 @@ object AppModule {
         private set
 
     lateinit var subtaskImageStore: SubtaskImageStore
+    lateinit var wallpaperStore: WallpaperStore
         private set
 
     /** Downloads photo links, only after the person agreed. It keeps no state. */
@@ -277,6 +279,10 @@ object AppModule {
 
         subtaskImageStore = SubtaskImageStore(
             directory = java.io.File(app.filesDir, "task_images"),
+            codec = AndroidBitmapImageCodec(),
+        )
+        wallpaperStore = WallpaperStore(
+            directory = java.io.File(app.filesDir, "launcher_wallpaper"),
             codec = AndroidBitmapImageCodec(),
         )
 

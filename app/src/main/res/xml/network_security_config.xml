@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FocusFlow talks to the network over HTTPS only (image downloads enforce this in code too).
+     This makes the platform refuse any cleartext HTTP, including from future library code. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

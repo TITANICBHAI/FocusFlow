@@ -2,6 +2,7 @@ package com.tbtechs.focusflow.data.repository
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.tbtechs.focusflow.data.images.WallpaperPathPolicy
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -78,6 +79,12 @@ class BlockOverlayController(private val context: Context) {
         if (!file.exists() || !file.canRead()) {
             throw IllegalArgumentException(
                 "File does not exist or is not readable: $absolutePath",
+            )
+        }
+        // Wallpapers are only ever read back from app-private storage.
+        if (WallpaperPathPolicy.resolve(context.filesDir, absolutePath) == null) {
+            throw IllegalArgumentException(
+                "Wallpaper must be stored inside the app's private storage.",
             )
         }
         prefs.edit().putString("block_overlay_wallpaper", absolutePath).apply()

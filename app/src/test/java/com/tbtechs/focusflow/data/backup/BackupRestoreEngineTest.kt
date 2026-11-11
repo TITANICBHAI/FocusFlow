@@ -595,7 +595,6 @@ class BackupRestoreEngineTest {
                 "home_text_scale" to BackupPreferenceValue.Remove,
                 "screen_text_scales" to BackupPreferenceValue.StringValue("""{"focus.home":0.9}"""),
                 "morning_digest_enabled" to BackupPreferenceValue.BooleanValue(false),
-                "launcher_wallpaper_uri" to BackupPreferenceValue.Remove,
                 "last_shown_debrief_session_id" to BackupPreferenceValue.Remove,
                 "bed_time" to BackupPreferenceValue.StringValue("23:15"),
                 "task_reminders_enabled" to BackupPreferenceValue.BooleanValue(false),

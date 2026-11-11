@@ -123,7 +123,8 @@ internal object BackupSettingsAdapter {
             writes[preferenceKey] = BackupPreferenceValue.StringValue(JsonObject(normalized).toString())
         }
 
-        nullableString("launcherWallpaperUri", "launcher_wallpaper_uri")
+        // launcherWallpaperUri is device-local (see PortableSettingsPolicy) and is
+        // intentionally not restored from backups.
         float("generalTextScale", "general_text_scale")
         floatObject("screenTextScales", "screen_text_scales")
         nullableFloat("homeTextScale", "home_text_scale")
