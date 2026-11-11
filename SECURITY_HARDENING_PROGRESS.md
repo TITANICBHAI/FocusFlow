@@ -1,8 +1,10 @@
 # Security hardening — progress
 
 Source plan: `SECURITY_HARDENING_PLAN.md`. Status of each item in this snapshot.
-**Nothing here has been compiled or run** (no Android SDK in the authoring environment) — run
-`./gradlew testDebugUnitTest assembleDebug` and the device checks below before merging.
+First CI run (tbtechsdev debug): all main and test code compiled and 1,173 of 1,174 unit tests passed; the one failure was a wrong
+expected value in my own `WallpaperPathPolicyTest.sampleSizeKeepsBothDimensionsAtOrAboveTheScreen` (the code was right, the
+test said 4 where 2 is correct for 12000x9000). Fixed in the test only. The APK assemble step and the device checks below
+have not run yet.
 
 ## P1 — Not-exported dynamic receivers: DONE (needs device check)
 `TaskAlarmActivity`, `FocusSessionViewModel`, `AppBlockerAccessibilityService` now use

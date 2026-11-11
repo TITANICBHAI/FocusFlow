@@ -84,7 +84,9 @@ class WallpaperPathPolicyTest {
         assertEquals(1, WallpaperLoader.sampleSizeFor(1080, 2400, 1080, 2400))
         assertEquals(1, WallpaperLoader.sampleSizeFor(1500, 3000, 1080, 2400))
         assertEquals(2, WallpaperLoader.sampleSizeFor(4096, 4096, 1080, 2000))
-        assertEquals(4, WallpaperLoader.sampleSizeFor(12000, 9000, 1080, 2400))
+        // 12000x9000: at 1/4 the height would be 2250 px, below the 2400 px screen height, so only 1/2 is allowed.
+        assertEquals(2, WallpaperLoader.sampleSizeFor(12000, 9000, 1080, 2400))
+        assertEquals(4, WallpaperLoader.sampleSizeFor(12000, 12000, 1080, 2400))
         assertEquals(1, WallpaperLoader.sampleSizeFor(0, 100, 1080, 2400))
         assertEquals(1, WallpaperLoader.sampleSizeFor(4096, 4096, 0, 0))
     }
