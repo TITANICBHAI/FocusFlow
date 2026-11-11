@@ -418,9 +418,6 @@ fun FocusFlowNavGraph(
                                 onOpenPermissions = { navigate(Routes.PERMISSIONS) },
                                 onOpenLauncher = { navigate(Routes.HOME_LAUNCHER_SETUP) },
                                 onOpenActiveBlocks = { navigate(Routes.ACTIVE) },
-                                customRules = customRulesViewModel.rules.collectAsState().value,
-                                onSetCustomRuleEnabled = customRulesViewModel::setEnabled,
-                                onOpenCustomRules = { navigate(Routes.CUSTOM_RULES) },
                             )
                         }
                     }

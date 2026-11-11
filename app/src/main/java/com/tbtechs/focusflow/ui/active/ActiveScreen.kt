@@ -511,7 +511,7 @@ fun ActiveScreen(
                 }
             }
 
-            // 7. Screen rules Card (custom rules + Shorts / Reels / install protection)
+            // 7. Screen rules Card (custom rules + Shorts / Reels / install / system controls)
             item {
                 ActiveSectionCard(
                     title = "Screen rules",
@@ -530,6 +530,7 @@ fun ActiveScreen(
                     KeyValueRow(label = "YouTube Shorts", value = if (screenRules.shorts) "Blocked" else "Off")
                     KeyValueRow(label = "Instagram Reels", value = if (screenRules.reels) "Blocked" else "Off")
                     KeyValueRow(label = "Install protection", value = if (screenRules.installProtection) "On" else "Off")
+                    KeyValueRow(label = "Protect system controls", value = if (screenRules.systemControls) "On" else "Off")
                     if (expanded == "screenRules") {
                         customRules.filter { it.enabled }.forEach { rule ->
                             Text(

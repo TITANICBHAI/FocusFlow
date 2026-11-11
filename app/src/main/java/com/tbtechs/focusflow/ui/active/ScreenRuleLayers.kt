@@ -5,7 +5,7 @@ import com.tbtechs.focusflow.enforcement.customrules.CustomScreenRule
 
 /**
  * What the "Screen rules" layer on the Active tab is made of: the person's custom screen rules plus the
- * built-in Shorts, Reels and install protections. One count so the card and the header pulse agree.
+ * built-in Shorts, Reels, install and system-controls protections. One count so the card and the header pulse agree.
  */
 data class ScreenRuleLayers(
     val customEnabled: Int,
@@ -13,10 +13,11 @@ data class ScreenRuleLayers(
     val shorts: Boolean,
     val reels: Boolean,
     val installProtection: Boolean,
+    val systemControls: Boolean,
 ) {
     /** Number of individual things switched on. */
     val activeCount: Int
-        get() = customEnabled + listOf(shorts, reels, installProtection).count { it }
+        get() = customEnabled + listOf(shorts, reels, installProtection, systemControls).count { it }
 
     /** True when at least one of them is on: the whole layer counts as one active layer. */
     val isActive: Boolean get() = activeCount > 0
@@ -29,6 +30,7 @@ data class ScreenRuleLayers(
                 shorts = settings.blockYoutubeShortsEnabled,
                 reels = settings.blockInstagramReelsEnabled,
                 installProtection = settings.blockInstallActionsEnabled,
+                systemControls = settings.systemGuardEnabled,
             )
     }
 }

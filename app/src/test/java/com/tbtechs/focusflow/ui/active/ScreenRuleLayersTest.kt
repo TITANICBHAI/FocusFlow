@@ -31,11 +31,19 @@ class ScreenRuleLayersTest {
             blockYoutubeShortsEnabled = true,
             blockInstagramReelsEnabled = true,
             blockInstallActionsEnabled = true,
+            systemGuardEnabled = true,
         )
         val layers = ScreenRuleLayers.from(settings, listOf(rule("a", true), rule("b", false), rule("c", true)))
         assertTrue(layers.isActive)
-        assertEquals(5, layers.activeCount)
+        assertEquals(6, layers.activeCount)
         assertEquals(2, layers.customEnabled)
+    }
+
+    @Test
+    fun protectSystemControlsAloneActivatesTheLayer() {
+        val layers = ScreenRuleLayers.from(AppSettings(systemGuardEnabled = true), emptyList())
+        assertTrue(layers.isActive)
+        assertEquals(1, layers.activeCount)
     }
 
     @Test

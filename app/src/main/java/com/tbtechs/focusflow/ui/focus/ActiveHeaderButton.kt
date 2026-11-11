@@ -53,7 +53,7 @@ data class ActiveStatusSummary(
  * 4. Daily Allowance
  * 5. Keyword Blocker
  * 6. VPN Blocking
- * 7. Screen rules (custom rules, Shorts, Reels, install protection)
+ * 7. Screen rules (custom rules, Shorts, Reels, install protection, system controls)
  * 8. Scheduled Blocks
  */
 fun evaluateActiveProtection(
