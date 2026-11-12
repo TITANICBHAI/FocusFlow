@@ -69,7 +69,10 @@ class IsolatedImageCodec(
     private val requestIds = AtomicLong(0)
     @Volatile private var link: Link? = null
     @Volatile private var pending: Pending? = null
+    @Volatile private var failure: String? = null
     private var idleTask: ScheduledFuture<*>? = null
+
+    override fun lastFailure(): String? = failure
 
     override fun bounds(bytes: ByteArray): ImageBounds? {
         val reply = call(ImageDecodeProtocol.OP_BOUNDS, bytes, Bundle(), wantOutput = false) ?: return null
@@ -115,6 +118,7 @@ class IsolatedImageCodec(
         @Volatile var ok = false
         @Volatile var a1 = 0
         @Volatile var a2 = 0
+        @Volatile var reason: String? = null
 
         fun fail() {
             ok = false
@@ -146,20 +150,24 @@ class IsolatedImageCodec(
     }
 
     private fun call(op: Int, bytes: ByteArray, extras: Bundle, wantOutput: Boolean): Exchange? {
+        failure = null
         val future = executor.submit(Callable { exchange(op, bytes, extras, wantOutput) })
         return try {
             // Lock wait (<= timeoutMillis) plus the request itself (<= timeoutMillis).
             future.get(timeoutMillis * 2 + 1_000L, TimeUnit.MILLISECONDS)
         } catch (_: TimeoutException) {
+            failure = "it took too long"
             forceReset()
             future.cancel(true)
             null
         } catch (_: InterruptedException) {
             Thread.currentThread().interrupt()
+            failure = "it was interrupted"
             forceReset()
             future.cancel(true)
             null
         } catch (_: ExecutionException) {
+            failure = failure ?: "the image service failed"
             null
         } catch (_: CancellationException) {
             null
@@ -167,12 +175,21 @@ class IsolatedImageCodec(
     }
 
     private fun exchange(op: Int, bytes: ByteArray, extras: Bundle, wantOutput: Boolean): Exchange? {
-        if (!requestLock.tryLock(timeoutMillis, TimeUnit.MILLISECONDS)) return null
+        if (!requestLock.tryLock(timeoutMillis, TimeUnit.MILLISECONDS)) {
+            failure = "another picture was still being processed"
+            return null
+        }
         try {
             idleTask?.cancel(false)
             val deadline = SystemClock.elapsedRealtime() + timeoutMillis
-            val activeLink = ensureLink(deadline) ?: return null
-            val service = activeLink.messenger ?: return null
+            val activeLink = ensureLink(deadline) ?: run {
+                failure = "the image service could not start"
+                return null
+            }
+            val service = activeLink.messenger ?: run {
+                failure = "the image service could not start"
+                return null
+            }
 
             val inPipe = ParcelFileDescriptor.createPipe()
             val outPipe = if (wantOutput) ParcelFileDescriptor.createPipe() else null
@@ -194,6 +211,7 @@ class IsolatedImageCodec(
                     closeQuietly(inPipe[1])
                     outPipe?.let { closeQuietly(it[0]) }
                     dropLink()
+                    failure = "the image service stopped"
                     return null
                 } finally {
                     // Our copies of the service's ends must be closed or it never sees EOF.
@@ -225,10 +243,17 @@ class IsolatedImageCodec(
                 if (!answered || (activeLink.dead && !request.ok)) {
                     // Timed out or the process died: start from a fresh process next time.
                     dropLink()
+                    failure = if (answered) "the image service stopped" else "it took too long"
                     return null
                 }
-                if (!request.ok) return null
-                if (wantOutput && (output == null || output.size != request.a1)) return null
+                if (!request.ok) {
+                    failure = request.reason ?: "the image could not be processed"
+                    return null
+                }
+                if (wantOutput && (output == null || output.size != request.a1)) {
+                    failure = "the converted image did not arrive completely"
+                    return null
+                }
                 return Exchange(request.a1, request.a2, output)
             } finally {
                 pending = null
@@ -303,6 +328,7 @@ class IsolatedImageCodec(
         request.ok = message.what == ImageDecodeProtocol.REPLY_OK
         request.a1 = data.getInt(ImageDecodeProtocol.KEY_A1)
         request.a2 = data.getInt(ImageDecodeProtocol.KEY_A2)
+        request.reason = data.getString(ImageDecodeProtocol.KEY_REASON)
         request.latch.countDown()
     }
 

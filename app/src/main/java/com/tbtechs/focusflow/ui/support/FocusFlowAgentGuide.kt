@@ -201,11 +201,26 @@ The link above is a made-up placeholder. Never reuse it.
 
 Where to put `photo`:
 
-- Put one `photo` on each subtask where a picture helps, such as an exercise or
-  a set-up. Skip subtasks where a picture adds nothing.
-- Put a `photo` on a step only when that step looks clearly different from the
-  others, such as the start and the end position. Use at most 3 step photos per
-  subtask.
+- A subtask with steps (an exercise, a recipe, a set-up) needs a DIFFERENT picture
+  for each step that looks different, in order, so I can follow along: the start,
+  the middle of the movement, the finish. Put a `photo` on every step whose
+  position, view or stage differs from the step before it. Give each one its own
+  `brief` that describes that exact moment, and its own `url` when you found one.
+  You may add up to 8 step photos per subtask.
+- Never paste the same `url` into several steps just to fill them. One picture
+  repeated for five different steps teaches nothing. Reuse a link on more than one
+  step only when that one picture really shows what each of those steps says (for
+  example two steps that are the same position), and mention it in your report.
+- If you cannot find a different picture for a step, leave `url` out of that step
+  and keep its `brief`. An empty slot is better than a wrong or repeated picture.
+  Never copy a neighbouring step's link to avoid an empty slot.
+- Find the pictures one step at a time. Search for each step's moment separately
+  (for example "push-up bottom position side view"), then open the result to
+  confirm it shows that moment. Pictures of one exercise from the same source and
+  angle read best.
+- The subtask's own `photo` is one overview picture (the finished position or the
+  whole set-up). Add it only when it is a different picture from every step
+  picture, or when the subtask has no step photos.
 - `photo` goes only on subtasks and steps. Never put it on a task.
 - If the same item appears in many tasks, repeat the same `brief` and the same
   `url` every time. FocusFlow downloads each different link only once.
@@ -229,6 +244,11 @@ out is always fine:
 5. Plain `https://` only: no `http://`, no user name or password, no `#` part, no
    port number, no IP address, no `localhost`, no spaces, at most 2,048 characters.
 
+Large original files are refused, so when a page offers a ready-made smaller size
+of the same picture (Wikimedia Commons lists "Other resolutions"; around 1280
+pixels wide is ideal), use that link instead of the full-size original. Use only a
+link the page itself shows; never build one yourself.
+
 FocusFlow downloads a link only after I tap Download. It then checks that the
 file is really a JPEG, PNG or WebP picture of at most 6 MiB, stores its own
 copy privately on my phone, and shows only that copy. It never opens a link in
@@ -238,6 +258,11 @@ Before you deliver, check that:
 
 - every `photo` has a `brief` of at most 300 characters;
 - every `url` starts with `https://`, has no spaces, and is a link you opened;
+- inside each subtask, count the distinct `url` values of its step photos. Steps
+  that show different moments must have different links; any steps that share a
+  link really show the same picture;
+- every step photo has its own `brief` for that step's moment, not a copy of the
+  subtask's `brief`;
 - there is no `photo` on a task, and no `image` or `assets` unless I gave you
   image files;
 - the file is valid JSON and `version` is 2.
@@ -270,7 +295,8 @@ keep any explanation outside the JSON.
 
 After the file, briefly report the task count, covered dates, interpreted time
 zone, how many picture slots you added and how many of them have a `url` (and
-which links you opened yourself), and any assumptions or limitations. FocusFlow
+which links you opened yourself), plus, for each subtask with step photos, how
+many steps got their own link and which steps share one or have no link, and any assumptions or limitations. FocusFlow
 shows an import review
 before applying anything. Do not claim that the file was imported or tested in
 FocusFlow unless that actually happened.

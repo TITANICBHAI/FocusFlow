@@ -73,7 +73,6 @@ import com.tbtechs.focusflow.data.model.Subtask
 import com.tbtechs.focusflow.data.model.SubtaskPhotoSlots
 import com.tbtechs.focusflow.data.model.Task
 import com.tbtechs.focusflow.ui.home.subtask.PhotoDownloadDialogs
-import com.tbtechs.focusflow.ui.home.subtask.PhotoPromptDialog
 import com.tbtechs.focusflow.ui.home.subtask.PhotoSlotsBanner
 import com.tbtechs.focusflow.ui.home.subtask.rememberBatchPhotoPicker
 import com.tbtechs.focusflow.ui.home.subtask.rememberPhotoDownloadController
@@ -112,7 +111,6 @@ fun TaskDetailModal(
 ) {
     var selectedSubtaskId by remember(task.id) { mutableStateOf<String?>(null) }
     var authoringOpen by remember(task.id) { mutableStateOf(false) }
-    var photoPromptOpen by remember(task.id) { mutableStateOf(false) }
     val photoSlots = remember(task.subtasks) { SubtaskPhotoSlots.collect(task.subtasks) }
     val photoSummary = remember(task.subtasks) { SubtaskPhotoSlots.summarize(task.subtasks) }
     val photoDownloads = rememberPhotoDownloadController(
@@ -122,7 +120,7 @@ fun TaskDetailModal(
         onAttach = onAttachDownloadedPhotos,
     )
     val pickPhotosInOrder = rememberBatchPhotoPicker(
-        slotCount = photoSlots.size,
+        slots = photoSlots,
         imageStore = imageStore,
         onPicked = { assetIds -> onAttachPhotosInOrder(task.id, assetIds) },
     )
@@ -272,9 +270,6 @@ fun TaskDetailModal(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 PhotoDownloadDialogs(controller = photoDownloads)
-                if (photoPromptOpen) {
-                    PhotoPromptDialog(task = task, onDismiss = { photoPromptOpen = false })
-                }
                 if (photoSlots.isNotEmpty()) {
                     PhotoSlotsBanner(
                         taskId = task.id,
@@ -284,7 +279,6 @@ fun TaskDetailModal(
                         canAddInOrder = imageStore != null,
                         onDownload = { photoDownloads.requestDownload(task) },
                         onAddInOrder = pickPhotosInOrder,
-                        onCopyPrompts = { photoPromptOpen = true },
                         onStopAsking = {
                             val cleaned = SubtaskPhotoSlots.clearUnresolved(task.subtasks).first
                             onReplaceSubtasks(task.id, cleaned)

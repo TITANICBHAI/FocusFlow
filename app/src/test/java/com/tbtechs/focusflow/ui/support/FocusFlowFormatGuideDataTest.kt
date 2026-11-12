@@ -75,4 +75,19 @@ class FocusFlowFormatGuideDataTest {
         assertTrue(subtasks.all { it.image == null })
         assertTrue(parsed.warnings.isEmpty())
     }
+
+    @Test
+    fun promptAsksForADifferentPicturePerStepAndTheExampleShowsIt() {
+        val prompt = FOCUSFLOW_TASK_BACKUP_PROMPT
+        assertTrue(prompt.contains("DIFFERENT picture"))
+        assertTrue(prompt.contains("Never paste the same `url` into several steps"))
+        assertTrue(prompt.contains("leave `url` out of that step"))
+
+        val parsed = BackupSerializer.parseAndValidate(FOCUSFLOW_SUBTASK_EXAMPLE) as BackupParseResult.Success
+        val steps = parsed.envelope.tasks.single().subtasks[0].steps
+        assertTrue(steps.all { it.photo?.brief?.isNotBlank() == true })
+        val urls = steps.mapNotNull { it.photo?.url }
+        assertEquals(urls.size, urls.toSet().size)
+        assertTrue(urls.size >= 2)
+    }
 }

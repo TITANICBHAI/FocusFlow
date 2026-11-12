@@ -46,7 +46,6 @@ internal fun PhotoSlotsBanner(
     canAddInOrder: Boolean,
     onDownload: () -> Unit,
     onAddInOrder: () -> Unit,
-    onCopyPrompts: () -> Unit,
     onStopAsking: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -118,11 +117,8 @@ internal fun PhotoSlotsBanner(
                 }
                 if (summary.total >= 2 && canAddInOrder) {
                     OutlinedButton(onClick = onAddInOrder, modifier = Modifier.fillMaxWidth()) {
-                        Text("Add several pictures in order", fontSize = 13.scaledSp)
+                        Text("Add pictures from gallery", fontSize = 13.scaledSp)
                     }
-                }
-                OutlinedButton(onClick = onCopyPrompts, modifier = Modifier.fillMaxWidth()) {
-                    Text("Copy picture prompts", fontSize = 13.scaledSp)
                 }
                 TextButton(onClick = { confirmStop = true }, modifier = Modifier.fillMaxWidth()) {
                     Text("Stop asking for these pictures", fontSize = 13.scaledSp)

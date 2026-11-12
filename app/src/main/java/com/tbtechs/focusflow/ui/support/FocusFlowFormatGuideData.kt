@@ -304,11 +304,26 @@ internal const val FOCUSFLOW_SUBTASK_EXAMPLE = """
         "goal": { "kind": "sets", "sets": 3, "reps": 12, "repsMax": 15, "restSeconds": 60 },
         "layout": "steps",
         "steps": [
-          { "title": "Start position", "text": "Hands just wider than shoulders; brace your core." },
           {
-            "title": "Lower and press",
-            "text": "Lower with control, then press back to the start.",
-            "photo": { "brief": "Bottom of a push-up with the elbows at about 45 degrees." }
+            "title": "Start position",
+            "text": "Hands just wider than shoulders; brace your core.",
+            "photo": {
+              "brief": "Top of a push-up (high plank) with the hands just wider than the shoulders.",
+              "url": "https://images.example.com/pushup-start.jpg"
+            }
+          },
+          {
+            "title": "Lower with control",
+            "text": "Lower your chest until it is just above the floor.",
+            "photo": {
+              "brief": "Bottom of a push-up with the elbows at about 45 degrees.",
+              "url": "https://images.example.com/pushup-bottom.jpg"
+            }
+          },
+          {
+            "title": "Press back up",
+            "text": "Press the floor away until your arms are straight again.",
+            "photo": { "brief": "Push-up halfway up, elbows extending, body still in a straight line." }
           }
         ],
         "tips": ["Keep a straight line from head to heels"],

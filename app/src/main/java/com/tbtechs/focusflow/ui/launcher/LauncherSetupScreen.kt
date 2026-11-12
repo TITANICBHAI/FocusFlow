@@ -18,7 +18,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -39,6 +41,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -56,9 +60,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.tbtechs.focusflow.data.repository.InstalledAppInfo
@@ -109,12 +116,23 @@ fun LauncherSetupScreen(
     val installedApps = installedAppsState.apps
     val appsLoading = installedAppsState.loading
     var defaultLauncher by remember { mutableStateOf<Boolean?>(null) }
-    var search by remember { mutableStateOf("") }
-    var hideWarning by remember { mutableStateOf<String?>(null) }
-    val blockedPackages = settings.alwaysBlockPackages.toSet() + settings.standaloneBlockPackages
+    var showFocusToolsPicker by remember { mutableStateOf(false) }
+    var showHiddenPicker by remember { mutableStateOf(false) }
+    var showPinGate by remember { mutableStateOf(false) }
+    var pinText by remember { mutableStateOf("") }
+    var pinError by remember { mutableStateOf(false) }
+    var defaultRowUnlocked by remember { mutableStateOf(false) }
+    var glassDraft by remember(settings.launcherGlassLevel) {
+        mutableStateOf(settings.launcherGlassLevel.toFloat())
+    }
     val locked = settings.standaloneBlockActive &&
         settings.standaloneBlockPackages.isNotEmpty() &&
         settings.standaloneBlockUntilMs > System.currentTimeMillis()
+    // While a block is running and "Lock launcher during block" is on, the launcher stays
+    // fully configurable, but the shortcut to Android's default-home settings is hidden
+    // (or put behind the password) so it can't be used to switch launchers.
+    val lockActive = locked && settings.launcherLockDuringStandalone
+    val hideDefaultRow = lockActive && !defaultRowUnlocked
 
     fun refreshDefaultLauncher() {
         scope.launch {
@@ -133,6 +151,8 @@ fun LauncherSetupScreen(
                         appCatalogRefreshToken += 1
                     }
                     refreshDefaultLauncher()
+                    // The launcher itself can hide apps and change Focus tools; pick that up.
+                    settingsViewModel.refreshFromStore()
                 }
                 else -> Unit
             }
@@ -168,13 +188,6 @@ fun LauncherSetupScreen(
             }
         }
     }
-    val filteredApps = remember(installedApps, search) {
-        val query = search.trim().lowercase()
-        if (query.isBlank()) installedApps else installedApps.filter {
-            it.appName.lowercase().contains(query) || it.packageName.lowercase().contains(query)
-        }
-    }
-
     Scaffold(
         containerColor = DarkBackground,
         topBar = {
@@ -193,7 +206,7 @@ fun LauncherSetupScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             // Default home app card
-            item {
+            if (!hideDefaultRow) item {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -258,7 +271,7 @@ fun LauncherSetupScreen(
                 }
             }
 
-            if (locked) {
+            if (hideDefaultRow) {
                 item {
                     Box(
                         modifier = Modifier
@@ -274,253 +287,322 @@ fun LauncherSetupScreen(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
                                 Icon(Icons.Outlined.Lock, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(18.dp))
-                                Text("Launcher Locked", fontWeight = FontWeight.Bold, color = Color(0xFFFBBF24))
+                                Text("Default home app is locked", fontWeight = FontWeight.Bold, color = Color(0xFFFBBF24))
                             }
                             Text(
-                                "Launcher settings cannot be modified during an active Standalone Block.",
+                                "A block is running, so the shortcut to Android's default home settings is hidden. Everything else here still works.",
                                 fontSize = 12.sp,
                                 color = Color(0xFFFDE68A),
                             )
-                        }
-                    }
-                }
-            } else {
-                // Appearance options
-                item {
-                    Text(
-                        "LAUNCHER APPEARANCE",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp,
-                        color = DarkTextSecondary,
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Row(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(DarkSurfaceVariant)
-                            .border(1.dp, DarkBorder, RoundedCornerShape(10.dp))
-                            .padding(3.dp),
-                        horizontalArrangement = Arrangement.spacedBy(3.dp),
-                    ) {
-                        LauncherSegment(
-                            label = "Classic",
-                            selected = settings.launcherTheme == "classic",
-                            onClick = {
-                                settingsViewModel.updateSettings(settings.copy(launcherTheme = "classic"))
-                            },
-                        )
-                        LauncherSegment(
-                            label = "Glassy",
-                            selected = settings.launcherTheme != "classic",
-                            onClick = {
-                                settingsViewModel.updateSettings(settings.copy(launcherTheme = "glassy"))
-                            },
-                        )
-                    }
-                }
-
-                if (settings.launcherTheme != "classic") {
-                    item {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(DarkCard)
-                                .border(1.dp, DarkBorder, RoundedCornerShape(10.dp))
-                                .padding(8.dp),
-                        ) {
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                ) {
-                                    Icon(Icons.Outlined.Image, contentDescription = null, tint = BrandPrimary)
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text("Wallpaper", fontWeight = FontWeight.Bold, color = DarkTextPrimary)
-                                        Text(
-                                            if (settings.launcherWallpaperUri == null) "Default dynamic gradient"
-                                            else "Custom wallpaper selected",
-                                            fontSize = 11.sp,
-                                            color = DarkTextSecondary,
-                                        )
-                                    }
-                                    Button(
-                                        onClick = { wallpaperPicker.launch("image/*") },
-                                        shape = RoundedCornerShape(10.dp),
-                                        colors = ButtonDefaults.buttonColors(containerColor = BrandPrimary),
-                                    ) {
-                                        Text("Pick", fontSize = 13.sp, color = Color.White)
-                                    }
-                                }
-                                if (settings.launcherWallpaperUri != null) {
-                                    TextButton(
-                                        onClick = {
-                                            settingsViewModel.updateSettings(settings.copy(launcherWallpaperUri = null))
-                                            scope.launch(Dispatchers.IO) { AppModule.wallpaperStore.clear() }
-                                        },
-                                    ) {
-                                        Text("Clear wallpaper", color = Color(0xFFEF4444), fontSize = 12.sp)
-                                    }
+                            if (settings.pinProtectionEnabled) {
+                                TextButton(onClick = { pinText = ""; pinError = false; showPinGate = true }) {
+                                    Text("Enter password to show it", color = Color(0xFFFBBF24), fontSize = 12.sp)
                                 }
                             }
                         }
                     }
                 }
+            }
 
-                // Lock launcher switch card
-                item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(DarkCard)
-                            .border(1.dp, DarkBorder, RoundedCornerShape(10.dp))
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                    ) {
+            // Look: Glassiness, drawer layout, wallpaper
+            item {
+                Text(
+                    "LAUNCHER LOOK",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp,
+                    color = DarkTextSecondary,
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(DarkCard)
+                        .border(1.dp, DarkBorder, RoundedCornerShape(10.dp))
+                        .padding(12.dp),
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    "Lock Launcher During Block",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = DarkTextPrimary,
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    "Prevent switching out of FocusFlow launcher while a standalone block is active.",
-                                    fontSize = 11.sp,
-                                    color = DarkTextSecondary,
-                                )
-                            }
-                            FocusFlowSwitch(
-                                checked = settings.launcherLockDuringStandalone,
-                                onCheckedChange = {
-                                    settingsViewModel.updateSettings(settings.copy(launcherLockDuringStandalone = it))
-                                },
+                            Text(
+                                "Glassiness",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = DarkTextPrimary,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Text(
+                                if (glassDraft.toInt() == 0) "0% · plain black" else "${glassDraft.toInt()}%",
+                                fontSize = 12.sp,
+                                color = DarkTextSecondary,
                             )
                         }
-                    }
-                }
-
-                // Focus Tools Section
-                item {
-                    Text(
-                        "FOCUS TOOLS",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp,
-                        color = DarkTextSecondary,
-                    )
-                    Text(
-                        "Always keep selected tools visible in the launcher during active focus sessions.",
-                        fontSize = 12.sp,
-                        color = DarkTextMuted,
-                    )
-                }
-
-                item {
-                    AppSearchField(search, { search = it })
-                }
-
-                if (appsLoading) {
-                    item {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 20.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            CircularProgressIndicator(
-                                color = BrandPrimary,
-                                modifier = Modifier.size(28.dp),
-                            )
-                        }
-                    }
-                }
-                if (!appsLoading && installedAppsState.error != null) {
-                    item {
+                        Slider(
+                            value = glassDraft,
+                            onValueChange = { glassDraft = it },
+                            onValueChangeFinished = {
+                                val level = glassDraft.toInt().coerceIn(0, 100)
+                                settingsViewModel.updateSettings { s -> s.copy(launcherGlassLevel = level) }
+                            },
+                            valueRange = 0f..100f,
+                            colors = SliderDefaults.colors(
+                                thumbColor = BrandPrimary,
+                                activeTrackColor = BrandPrimary,
+                            ),
+                        )
                         Text(
-                            "Installed apps could not be loaded. Return to this screen to retry.",
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 12.dp),
-                            fontSize = 12.sp,
+                            "0% is a plain black launcher. Higher values fade in your wallpaper and turn every panel into frosted glass. You can also change it from the launcher's ⋮ menu.",
+                            fontSize = 11.sp,
                             color = DarkTextSecondary,
                         )
                     }
                 }
+            }
 
-                items(filteredApps.take(15), key = { "tool-${it.packageName}" }) { app ->
-                    val checked = app.packageName in settings.focusToolPackages
-                    LauncherAppRow(
-                        app = app,
-                        checked = checked,
-                        onToggle = {
-                            val next = settings.focusToolPackages.toMutableSet()
-                            if (!next.add(app.packageName)) next.remove(app.packageName)
-                            settingsViewModel.updateSettings(settings.copy(focusToolPackages = next.toList()))
+            item {
+                Text(
+                    "APP DRAWER LAYOUT",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp,
+                    color = DarkTextSecondary,
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(DarkSurfaceVariant)
+                        .border(1.dp, DarkBorder, RoundedCornerShape(10.dp))
+                        .padding(3.dp),
+                    horizontalArrangement = Arrangement.spacedBy(3.dp),
+                ) {
+                    LauncherSegment(
+                        label = "Grid",
+                        selected = settings.launcherDrawerLayout != "list",
+                        onClick = {
+                            settingsViewModel.updateSettings { s -> s.copy(launcherDrawerLayout = "grid") }
                         },
                     )
-                }
-
-                // Hide from Launcher Section
-                item {
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Text(
-                        "HIDE FROM LAUNCHER",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp,
-                        color = DarkTextSecondary,
-                    )
-                    Text(
-                        "Hidden apps remain installed on Android but are removed from the launcher app drawer.",
-                        fontSize = 12.sp,
-                        color = DarkTextMuted,
-                    )
-                }
-
-                items(filteredApps.take(15), key = { "hidden-${it.packageName}" }) { app ->
-                    val checked = app.packageName in settings.launcherHiddenPackages
-                    LauncherAppRow(
-                        app = app,
-                        checked = checked,
-                        onToggle = {
-                            if (app.packageName !in settings.launcherHiddenPackages &&
-                                app.packageName !in blockedPackages
-                            ) {
-                                hideWarning = app.appName
-                            } else {
-                                val next = settings.launcherHiddenPackages.toMutableSet()
-                                if (!next.add(app.packageName)) next.remove(app.packageName)
-                                settingsViewModel.updateSettings(settings.copy(launcherHiddenPackages = next.toList()))
-                            }
+                    LauncherSegment(
+                        label = "List",
+                        selected = settings.launcherDrawerLayout == "list",
+                        onClick = {
+                            settingsViewModel.updateSettings { s -> s.copy(launcherDrawerLayout = "list") }
                         },
                     )
                 }
             }
 
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(DarkCard)
+                        .border(1.dp, DarkBorder, RoundedCornerShape(10.dp))
+                        .padding(8.dp),
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            Icon(Icons.Outlined.Image, contentDescription = null, tint = BrandPrimary)
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Wallpaper", fontWeight = FontWeight.Bold, color = DarkTextPrimary)
+                                Text(
+                                    if (settings.launcherWallpaperUri == null) "Default dynamic gradient"
+                                    else "Custom wallpaper selected",
+                                    fontSize = 11.sp,
+                                    color = DarkTextSecondary,
+                                )
+                            }
+                            Button(
+                                onClick = { wallpaperPicker.launch("image/*") },
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = BrandPrimary),
+                            ) {
+                                Text("Pick", fontSize = 13.sp, color = Color.White)
+                            }
+                        }
+                        if (settings.launcherWallpaperUri != null) {
+                            TextButton(
+                                onClick = {
+                                    settingsViewModel.updateSettings { s -> s.copy(launcherWallpaperUri = null) }
+                                    scope.launch(Dispatchers.IO) { AppModule.wallpaperStore.clear() }
+                                },
+                            ) {
+                                Text("Clear wallpaper", color = Color(0xFFEF4444), fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Lock launcher switch card
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(DarkCard)
+                        .border(1.dp, DarkBorder, RoundedCornerShape(10.dp))
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "Lock Launcher During Block",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = DarkTextPrimary,
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                "Prevent switching out of FocusFlow launcher while a standalone block is active.",
+                                fontSize = 11.sp,
+                                color = DarkTextSecondary,
+                            )
+                        }
+                        FocusFlowSwitch(
+                            checked = settings.launcherLockDuringStandalone,
+                            onCheckedChange = { enabled ->
+                                if (!enabled && locked) {
+                                    Toast.makeText(
+                                        context,
+                                        "This can't be turned off while a block is running.",
+                                        Toast.LENGTH_SHORT,
+                                    ).show()
+                                } else {
+                                    settingsViewModel.updateSettings { s ->
+                                        s.copy(launcherLockDuringStandalone = enabled)
+                                    }
+                                }
+                            },
+                        )
+                    }
+                }
+            }
+
+            // Focus tools and hidden apps: full lists open in a picker.
+            item {
+                Text(
+                    "APPS",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp,
+                    color = DarkTextSecondary,
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    LauncherPickerRow(
+                        title = "Focus tools",
+                        count = settings.focusToolPackages.size,
+                        subtitle = "Apps you want close at hand. They get their own FOCUS TOOLS filter in the app drawer. You can also long-press any app in the launcher.",
+                        onClick = { showFocusToolsPicker = true },
+                    )
+                    LauncherPickerRow(
+                        title = "Hidden apps",
+                        count = settings.launcherHiddenPackages.size,
+                        subtitle = "Hidden apps stay installed but leave the drawer and search. Any app can be hidden. Long-press an app in the launcher, then find them under Hidden apps.",
+                        onClick = { showHiddenPicker = true },
+                    )
+                }
+            }
             item { Spacer(modifier = Modifier.height(24.dp)) }
         }
     }
 
-    hideWarning?.let { name ->
+    if (showFocusToolsPicker) {
+        AppPickerDialog(
+            title = "Focus tools",
+            description = "Pick the apps for the Focus tools filter.",
+            apps = installedApps,
+            loading = appsLoading,
+            error = installedAppsState.error != null,
+            selected = settings.focusToolPackages.toSet(),
+            onToggle = { pkg ->
+                settingsViewModel.updateSettings { s ->
+                    val next = s.focusToolPackages.toMutableSet()
+                    if (!next.add(pkg)) next.remove(pkg)
+                    s.copy(focusToolPackages = next.toList())
+                }
+            },
+            onDismiss = { showFocusToolsPicker = false },
+        )
+    }
+    if (showHiddenPicker) {
+        AppPickerDialog(
+            title = "Hidden apps",
+            description = "Switch on any app to hide it from the drawer and search.",
+            apps = installedApps,
+            loading = appsLoading,
+            error = installedAppsState.error != null,
+            selected = settings.launcherHiddenPackages.toSet(),
+            onToggle = { pkg ->
+                settingsViewModel.updateSettings { s ->
+                    val next = s.launcherHiddenPackages.toMutableSet()
+                    if (!next.add(pkg)) next.remove(pkg)
+                    s.copy(launcherHiddenPackages = next.toList())
+                }
+            },
+            onDismiss = { showHiddenPicker = false },
+        )
+    }
+    if (showPinGate) {
         AlertDialog(
-            onDismissRequest = { hideWarning = null },
+            onDismissRequest = { showPinGate = false },
             containerColor = DarkCard,
             titleContentColor = DarkTextPrimary,
             textContentColor = DarkTextSecondary,
-            title = { Text("App is not blocked") },
-            text = { Text("Hide $name only after adding it to a block list so that important apps remain discoverable.", fontSize = 13.sp) },
+            title = { Text("Password required", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    OutlinedTextField(
+                        value = pinText,
+                        onValueChange = { pinText = it; pinError = false },
+                        label = { Text("Password", color = DarkTextMuted) },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        isError = pinError,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = DarkTextPrimary,
+                            unfocusedTextColor = DarkTextPrimary,
+                            focusedBorderColor = BrandPrimary,
+                            unfocusedBorderColor = DarkBorder,
+                        ),
+                    )
+                    if (pinError) {
+                        Text("That password is not right.", fontSize = 12.sp, color = Color(0xFFEF4444))
+                    }
+                }
+            },
             confirmButton = {
-                TextButton(onClick = { hideWarning = null }) {
-                    Text("OK", color = BrandPrimary)
+                Button(
+                    onClick = {
+                        if (settingsViewModel.verifyPin(pinText)) {
+                            pinText = ""
+                            showPinGate = false
+                            defaultRowUnlocked = true
+                        } else {
+                            pinError = true
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = BrandPrimary),
+                    shape = RoundedCornerShape(8.dp),
+                ) { Text("Continue") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPinGate = false }) {
+                    Text("Cancel", color = DarkTextSecondary)
                 }
             },
         )
@@ -616,6 +698,122 @@ private fun LauncherAppRow(app: InstalledAppInfo, checked: Boolean, onToggle: ()
                 checked = checked,
                 onCheckedChange = { onToggle() },
             )
+        }
+    }
+}
+
+@Composable
+private fun LauncherPickerRow(
+    title: String,
+    count: Int,
+    subtitle: String,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(DarkCard)
+            .border(1.dp, DarkBorder, RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = if (count > 0) "$title · $count" else title,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = DarkTextPrimary,
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(subtitle, fontSize = 11.sp, color = DarkTextSecondary)
+            }
+            Text("Edit", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = BrandPrimary)
+        }
+    }
+}
+
+/** Full-screen list of every installed app with a switch each (no 15-app cap). */
+@Composable
+private fun AppPickerDialog(
+    title: String,
+    description: String,
+    apps: List<InstalledAppInfo>,
+    loading: Boolean,
+    error: Boolean,
+    selected: Set<String>,
+    onToggle: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var query by remember { mutableStateOf("") }
+    val shown = remember(apps, query) {
+        val q = query.trim().lowercase()
+        if (q.isBlank()) apps else apps.filter {
+            it.appName.lowercase().contains(q) || it.packageName.lowercase().contains(q)
+        }
+    }
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(DarkBackground)
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = DarkTextPrimary)
+                    Text(description, fontSize = 12.sp, color = DarkTextMuted)
+                }
+                TextButton(onClick = onDismiss) {
+                    Text("Done", color = BrandPrimary, fontWeight = FontWeight.SemiBold)
+                }
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+            AppSearchField(query) { query = it }
+            Spacer(modifier = Modifier.height(10.dp))
+            if (loading) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 20.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CircularProgressIndicator(color = BrandPrimary, modifier = Modifier.size(28.dp))
+                }
+            }
+            if (!loading && error) {
+                Text(
+                    "Installed apps could not be loaded. Close this and reopen to retry.",
+                    modifier = Modifier.padding(vertical = 12.dp),
+                    fontSize = 12.sp,
+                    color = DarkTextSecondary,
+                )
+            }
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                items(shown, key = { it.packageName }) { app ->
+                    LauncherAppRow(
+                        app = app,
+                        checked = app.packageName in selected,
+                        onToggle = { onToggle(app.packageName) },
+                    )
+                }
+            }
         }
     }
 }

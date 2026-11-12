@@ -24,13 +24,15 @@ internal object ImageDecodeProtocol {
     const val KEY_DETECT = "detect"
     const val KEY_A1 = "a1"
     const val KEY_A2 = "a2"
+    /** Short human-readable reason sent back when a request fails (shown to the user). */
+    const val KEY_REASON = "reason"
 
     /** The isolated process refuses larger inputs; the stores enforce tighter limits themselves. */
     const val MAX_INPUT_BYTES = 24 * 1024 * 1024
     const val MAX_OUTPUT_BYTES = 16 * 1024 * 1024
 
     /** Hard limit for one request, including starting the isolated process. */
-    const val REQUEST_TIMEOUT_MILLIS = 10_000L
+    const val REQUEST_TIMEOUT_MILLIS = 20_000L
     /** The isolated process is released after this long without a request. */
     const val IDLE_DISCONNECT_MILLIS = 20_000L
 }

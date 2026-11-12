@@ -179,12 +179,22 @@ class SettingsViewModel(
      *
      * Backing calls: SettingsRepository.set*() per field (see inline comments).
      */
-    fun updateSettings(newSettings: AppSettings) {
+    fun updateSettings(newSettings: AppSettings) = persistSettings { newSettings }
+
+    /**
+     * Like [updateSettings], but [transform] runs on the latest stored settings inside the
+     * write gate. Use it for list toggles: two quick taps (or a change made from the launcher
+     * itself) can no longer overwrite each other with a stale copy.
+     */
+    fun updateSettings(transform: (AppSettings) -> AppSettings) = persistSettings(transform)
+
+    private fun persistSettings(build: (AppSettings) -> AppSettings) {
         viewModelScope.launch {
             var taskReminderPreferenceChanged = false
             var dayRatingScheduleChanged = false
             restoreGate.write("SettingsViewModel.updateSettings") {
             val current = _settings.value
+            val newSettings = build(current)
             var networkBlockEnabledForUi = newSettings.networkBlockEnabled
             val selfHealEnabled = VpnSelfHealPolicy.valueToPersist(
                 loadedValue = current.vpnSelfHealEnabled,
@@ -266,6 +276,12 @@ class SettingsViewModel(
             }
             if (newSettings.launcherTheme != current.launcherTheme) {
                 settingsRepository.setLauncherTheme(newSettings.launcherTheme)
+            }
+            if (newSettings.launcherGlassLevel != current.launcherGlassLevel) {
+                settingsRepository.setLauncherGlassLevel(newSettings.launcherGlassLevel)
+            }
+            if (newSettings.launcherDrawerLayout != current.launcherDrawerLayout) {
+                settingsRepository.setLauncherDrawerLayout(newSettings.launcherDrawerLayout)
             }
             if (newSettings.launcherWallpaperUri != current.launcherWallpaperUri) {
                 settingsRepository.setLauncherWallpaperUri(newSettings.launcherWallpaperUri)

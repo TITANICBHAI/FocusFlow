@@ -31,6 +31,9 @@ interface ImageCodec {
 
     fun orientation(bytes: ByteArray): Int = 1
 
+    /** A short reason the last call failed (for example "it took too long"), or null. */
+    fun lastFailure(): String? = null
+
     /** Decodes, scales to [maxLongEdge], and re-encodes to WebP using [quality]. */
     fun reencode(bytes: ByteArray, maxLongEdge: Int, quality: Int): ByteArray?
 
@@ -83,40 +86,78 @@ class AndroidBitmapImageCodec : ImageCodec {
         while (maxOf(bounds.width / sampleSize, bounds.height / sampleSize) > maxLongEdge) {
             sampleSize *= 2
         }
-        val options = BitmapFactory.Options().apply { inSampleSize = sampleSize }
+        // Huge photos can run out of memory at the first sample size; retry coarser instead of failing.
+        var attempts = 0
+        while (true) {
+            try {
+                return decodeAndEncode(bytes, sampleSize, maxLongEdge, quality, orientation)
+            } catch (oom: OutOfMemoryError) {
+                attempts++
+                if (attempts >= 3) throw oom
+                sampleSize *= 2
+            }
+        }
+    }
+
+    private fun decodeAndEncode(
+        bytes: ByteArray,
+        sampleSize: Int,
+        maxLongEdge: Int,
+        quality: Int,
+        orientation: Int,
+    ): ByteArray? {
+        val options = BitmapFactory.Options().apply {
+            inSampleSize = sampleSize
+            inPreferredConfig = Bitmap.Config.ARGB_8888
+        }
         val decoded = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options) ?: return null
-        val oriented = applyExifOrientation(decoded, orientation)
-        val scaled = if (maxOf(oriented.width, oriented.height) > maxLongEdge) {
-            val scale = maxLongEdge.toFloat() / maxOf(oriented.width, oriented.height)
-            Bitmap.createScaledBitmap(
-                oriented,
-                (oriented.width * scale).toInt().coerceAtLeast(1),
-                (oriented.height * scale).toInt().coerceAtLeast(1),
-                true,
-            )
-        } else oriented
-        return try {
+        var oriented: Bitmap? = null
+        var scaled: Bitmap? = null
+        try {
+            oriented = applyExifOrientation(decoded, orientation)
+            scaled = if (maxOf(oriented.width, oriented.height) > maxLongEdge) {
+                val scale = maxLongEdge.toFloat() / maxOf(oriented.width, oriented.height)
+                Bitmap.createScaledBitmap(
+                    oriented,
+                    (oriented.width * scale).toInt().coerceAtLeast(1),
+                    (oriented.height * scale).toInt().coerceAtLeast(1),
+                    true,
+                )
+            } else oriented
             val output = java.io.ByteArrayOutputStream()
-            val format = if (pngSource && Build.VERSION.SDK_INT >= 30) {
-                Bitmap.CompressFormat.WEBP_LOSSLESS
-            } else if (Build.VERSION.SDK_INT >= 30) {
-                Bitmap.CompressFormat.WEBP_LOSSY
-            } else {
-                @Suppress("DEPRECATION")
-                Bitmap.CompressFormat.WEBP
+            // Only pictures that really have see-through pixels need lossless WebP. Lossless at
+            // full effort is slow enough to time out on mid-range phones, and AI-generated PNGs
+            // are almost always opaque, so they take the fast lossy path like photos.
+            val needsLossless = Build.VERSION.SDK_INT >= 30 && hasTransparentPixels(scaled)
+            val format = when {
+                needsLossless -> Bitmap.CompressFormat.WEBP_LOSSLESS
+                Build.VERSION.SDK_INT >= 30 -> Bitmap.CompressFormat.WEBP_LOSSY
+                else -> {
+                    @Suppress("DEPRECATION")
+                    Bitmap.CompressFormat.WEBP
+                }
             }
-            val outputQuality = if (pngSource && Build.VERSION.SDK_INT >= 30) {
-                100
-            } else {
-                quality.coerceIn(1, 100)
-            }
-            if (!scaled.compress(format, outputQuality, output)) null
+            val outputQuality = if (needsLossless) LOSSLESS_EFFORT else quality.coerceIn(1, 100)
+            return if (!scaled.compress(format, outputQuality, output)) null
             else output.toByteArray()
         } finally {
-            if (scaled !== decoded) scaled.recycle()
-            if (oriented !== decoded && oriented !== scaled) oriented.recycle()
+            if (scaled != null && scaled !== decoded) scaled.recycle()
+            if (oriented != null && oriented !== decoded && oriented !== scaled) oriented.recycle()
             decoded.recycle()
         }
+    }
+
+    private fun hasTransparentPixels(bitmap: Bitmap): Boolean {
+        if (!bitmap.hasAlpha()) return false
+        val width = bitmap.width
+        val row = IntArray(width)
+        for (y in 0 until bitmap.height) {
+            bitmap.getPixels(row, 0, width, 0, y, width, 1)
+            for (pixel in row) {
+                if ((pixel ushr 24) < 255) return true
+            }
+        }
+        return false
     }
 
     private fun applyExifOrientation(bitmap: Bitmap, orientation: Int): Bitmap {
@@ -136,6 +177,11 @@ class AndroidBitmapImageCodec : ImageCodec {
         }
         matrix.setValues(values)
         return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+    }
+
+    private companion object {
+        /** Lossless WebP "quality" is really encoder effort; 70 is fast and still lossless. */
+        const val LOSSLESS_EFFORT = 70
     }
 
     private fun isPng(bytes: ByteArray): Boolean =

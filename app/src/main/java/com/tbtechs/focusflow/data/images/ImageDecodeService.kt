@@ -58,6 +58,7 @@ class ImageDecodeService : Service() {
         var a1 = 0
         var a2 = 0
         var encoded: ByteArray? = null
+        var reason: String? = null
         try {
             val bytes = input?.let { pfd ->
                 ParcelFileDescriptor.AutoCloseInputStream(pfd).use { stream ->
@@ -66,10 +67,15 @@ class ImageDecodeService : Service() {
             }
             if (bytes != null && bytes.isNotEmpty()) {
                 when (message.what) {
-                    ImageDecodeProtocol.OP_BOUNDS -> codec.bounds(bytes)?.let {
-                        ok = true
-                        a1 = it.width
-                        a2 = it.height
+                    ImageDecodeProtocol.OP_BOUNDS -> {
+                        val found = codec.bounds(bytes)
+                        if (found != null) {
+                            ok = true
+                            a1 = found.width
+                            a2 = found.height
+                        } else {
+                            reason = "the file is not a readable image"
+                        }
                     }
                     ImageDecodeProtocol.OP_ORIENTATION -> {
                         a1 = codec.orientation(bytes)
@@ -94,14 +100,22 @@ class ImageDecodeService : Service() {
                             ok = true
                             a1 = result.size
                         } else {
+                            reason = if (result == null) "the encoder produced nothing"
+                            else "the converted image is too large"
                             encoded = null
                         }
                     }
                 }
+            } else {
+                reason = "the image data did not arrive"
             }
-        } catch (_: Throwable) {
+        } catch (t: Throwable) {
             ok = false
             encoded = null
+            reason = when (t) {
+                is OutOfMemoryError -> "not enough memory for this picture"
+                else -> t.javaClass.simpleName
+            }
         }
 
         // Always close the output pipe so the other side sees end-of-stream.
@@ -126,6 +140,7 @@ class ImageDecodeService : Service() {
                         putLong(ImageDecodeProtocol.KEY_ID, id)
                         putInt(ImageDecodeProtocol.KEY_A1, a1)
                         putInt(ImageDecodeProtocol.KEY_A2, a2)
+                        if (!ok) putString(ImageDecodeProtocol.KEY_REASON, reason ?: "unknown")
                     }
                 },
             )

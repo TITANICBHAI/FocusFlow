@@ -182,6 +182,8 @@ class SettingsRepository(
         private const val KEY_LAUNCHER_HIDDEN_PACKAGES = "launcher_hidden_packages"
         private const val KEY_DRAWER_HIDDEN_PACKAGES = "drawer_hidden_packages"
         private const val KEY_LAUNCHER_THEME = "launcher_theme"
+        private const val KEY_LAUNCHER_GLASS_LEVEL = "launcher_glass_level"
+        private const val KEY_LAUNCHER_DRAWER_LAYOUT = "launcher_drawer_layout"
 
         /** Shared with LauncherActivity so the writer and the launcher can never drift apart. */
         const val PREF_LAUNCHER_WALLPAPER_URI = "launcher_wallpaper_uri"
@@ -1079,6 +1081,8 @@ class SettingsRepository(
             ),
             standaloneBlockUntilMs = prefs.getLong(KEY_STANDALONE_UNTIL_MS, 0L),
             launcherTheme = prefs.getString(KEY_LAUNCHER_THEME, "glassy") ?: "glassy",
+            launcherGlassLevel = readLauncherGlassLevel(),
+            launcherDrawerLayout = readLauncherDrawerLayout(),
             // A value that is not a readable file in app-private storage (for example a stale
             // content:// URI saved by an older version) is treated as "no wallpaper".
             launcherWallpaperUri = prefs.getString(PREF_LAUNCHER_WALLPAPER_URI, null)
@@ -1299,6 +1303,37 @@ class SettingsRepository(
 
     suspend fun setLauncherDockPackages(packages: List<String>) {
         setLauncherDockPackages(JSONArray(packages).toString())
+    }
+
+    /**
+     * Glassiness 0..100. A launcher that was on the old Classic theme and has never stored a
+     * level reads as 0 (plain black), so nobody's look changes until they move the slider.
+     */
+    private fun readLauncherGlassLevel(): Int {
+        if (prefs.contains(KEY_LAUNCHER_GLASS_LEVEL)) {
+            return prefs.getInt(KEY_LAUNCHER_GLASS_LEVEL, 70).coerceIn(0, 100)
+        }
+        return if (prefs.getString(KEY_LAUNCHER_THEME, "glassy") == "classic") 0 else 70
+    }
+
+    private fun readLauncherDrawerLayout(): String {
+        val stored = prefs.getString(KEY_LAUNCHER_DRAWER_LAYOUT, null)
+        if (stored == "grid" || stored == "list") return stored
+        return if (prefs.getString(KEY_LAUNCHER_THEME, "glassy") == "classic") "list" else "grid"
+    }
+
+    suspend fun setLauncherGlassLevel(level: Int) {
+        restoreGate.write("SettingsRepository.setLauncherGlassLevel") {
+            prefs.edit().putInt(KEY_LAUNCHER_GLASS_LEVEL, level.coerceIn(0, 100)).apply()
+        }
+    }
+
+    suspend fun setLauncherDrawerLayout(layout: String) {
+        restoreGate.write("SettingsRepository.setLauncherDrawerLayout") {
+            prefs.edit()
+                .putString(KEY_LAUNCHER_DRAWER_LAYOUT, if (layout == "list") "list" else "grid")
+                .apply()
+        }
     }
 
     suspend fun setLauncherTheme(theme: String) {

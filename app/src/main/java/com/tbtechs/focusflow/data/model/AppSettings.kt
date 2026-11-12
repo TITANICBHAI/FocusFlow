@@ -47,6 +47,13 @@ data class AppSettings(
     val launcherPresets: List<AllowedAppPreset> = emptyList(),
     val launcherDockPackages: List<String> = emptyList(),
     val launcherClockStyle: String = "",
+    /**
+     * How glassy the launcher looks, 0..100. 0 is a plain black launcher (the old Classic look);
+     * higher values fade in the wallpaper and frosted panels.
+     */
+    val launcherGlassLevel: Int = 70,
+    /** "grid" (icons side by side) or "list" (one app per row) for the launcher app drawer. */
+    val launcherDrawerLayout: String = "grid",
 
     // ── Portable preset and overlay settings ───────────────────────────────────
     val blockPresets: List<BlockPreset> = emptyList(),
