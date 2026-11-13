@@ -41,9 +41,16 @@ class SubtaskImageStoreTest {
     @Test
     fun rejectsUnsupportedMagicAndOversizedDimensionsBeforeDecode() = withStore { store, codec, _ ->
         assertTrue(store.ingest(byteArrayOf(1, 2, 3)).isFailure)
-        codec.imageBounds = ImageBounds(4_097, 1)
+        codec.imageBounds = ImageBounds(SubtaskImageStore.MAX_SOURCE_EDGE + 1, 1)
+        assertTrue(store.ingest(fakePng()).isFailure)
+        // Within the edge limit but over the pixel limit (20,000 x 20,000 = 400 megapixels).
+        codec.imageBounds = ImageBounds(SubtaskImageStore.MAX_SOURCE_EDGE, SubtaskImageStore.MAX_SOURCE_EDGE)
         assertTrue(store.ingest(fakePng()).isFailure)
         assertEquals(0, codec.reencodeCalls)
+
+        // A 24-megapixel phone photo is downsampled while decoding instead of being rejected.
+        codec.imageBounds = ImageBounds(6_000, 4_000)
+        assertTrue(store.ingest(fakePng()).isSuccess)
 
         codec.imageBounds = ImageBounds(64, 64)
         codec.encodedBytes = fakeWebp().copyOf(6 * 1024 * 1024 + 1)

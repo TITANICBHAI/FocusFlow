@@ -415,7 +415,7 @@ fun LauncherSetupScreen(
                             Column(modifier = Modifier.weight(1f)) {
                                 Text("Wallpaper", fontWeight = FontWeight.Bold, color = DarkTextPrimary)
                                 Text(
-                                    if (settings.launcherWallpaperUri == null) "Default dynamic gradient"
+                                    if (settings.launcherWallpaperUri == null) "Built-in or adaptive. Long-press the launcher to choose one."
                                     else "Custom wallpaper selected",
                                     fontSize = 11.sp,
                                     color = DarkTextSecondary,

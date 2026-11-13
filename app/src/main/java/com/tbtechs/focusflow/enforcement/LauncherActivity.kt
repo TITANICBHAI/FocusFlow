@@ -1,6 +1,7 @@
 package com.tbtechs.focusflow.enforcement
 
 import com.tbtechs.focusflow.data.repository.SettingsRepository
+import com.tbtechs.focusflow.di.AppModule
 import com.tbtechs.focusflow.data.images.WallpaperLoader
 import android.app.Activity
 import android.app.WallpaperManager
@@ -31,10 +32,12 @@ import android.os.Looper
 import android.text.Editable
 import android.text.SpannableString
 import android.text.Spanned
+import android.text.style.ForegroundColorSpan
 import android.text.style.RelativeSizeSpan
 import android.text.TextUtils
 import android.text.TextWatcher
 import android.view.Gravity
+import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
@@ -101,6 +104,14 @@ class LauncherActivity : Activity() {
         private const val PREF_SA_UNTIL = AppBlockerAccessibilityService.PREF_SA_UNTIL
         private const val PREF_ALWAYS_BLOCK = AppBlockerAccessibilityService.PREF_ALWAYS_BLOCK
         private const val PREF_ALWAYS_BLOCK_PKGS = AppBlockerAccessibilityService.PREF_ALWAYS_BLOCK_PKGS
+        private const val PREF_WALLPAPER_BUILTIN = "launcher_wallpaper_builtin"
+        private const val PREF_HOME_CLOCK = "launcher_home_clock"
+        private const val PREF_HOME_STATUS = "launcher_home_status"
+        private const val PREF_HOME_TASK = "launcher_home_task"
+        private const val PREF_HOME_LIMITS = "launcher_home_limits"
+        private const val PREF_HOME_SEARCH = "launcher_home_search"
+        private const val PREF_HOME_ALL_APPS = "launcher_home_all_apps"
+        private const val REQ_PICK_WALLPAPER = 4201
         private const val SIZE_DATE = 12f
         private const val SIZE_SEARCH_HINT = 14f
         private const val SIZE_HOME_LABEL = 12f
@@ -148,6 +159,11 @@ class LauncherActivity : Activity() {
 
     // Home views
     private var homeContent: LinearLayout? = null
+    private var homeColumn: LinearLayout? = null
+    private var homeLongPress: View.OnLongClickListener? = null
+    private var clockStyle = "light"
+    private var suppressPrefRebuild = false
+    private var drawerLimitInfo: Map<String, Pair<String, Float>> = emptyMap()
     private var homeScroll: ScrollView? = null
     private var dockView: LinearLayout? = null
     private var dockActionsRow: LinearLayout? = null
@@ -227,7 +243,25 @@ class LauncherActivity : Activity() {
     private fun wallpaperPath(): String =
         prefs.getString(PREF_LAUNCHER_WALLPAPER, "")?.trim().orEmpty()
 
-    private fun layoutSignature(): String = "${readGlassLevel()}|${wallpaperPath()}"
+    private fun builtinWallpaperId(): String =
+        prefs.getString(PREF_WALLPAPER_BUILTIN, "")?.takeIf { id -> builtinWallpapers.any { it.id == id } }.orEmpty()
+
+    private fun layoutSignature(): String = "${readGlassLevel()}|${wallpaperPath()}|${builtinWallpaperId()}"
+
+    /**
+     * Writes a look setting (glass level, wallpaper) without the preference listener
+     * rebuilding the whole launcher underneath an open sheet or drawer. SharedPreferences
+     * calls listeners synchronously on the main thread, so the guard has to wrap the write.
+     */
+    private fun writeLookPrefs(block: SharedPreferences.Editor.() -> Unit) {
+        suppressPrefRebuild = true
+        try {
+            prefs.edit().apply(block).apply()
+        } finally {
+            suppressPrefRebuild = false
+        }
+        renderedSignature = layoutSignature()
+    }
 
     // ── Glass: backdrop, blur and frosted panels ───────────────────────────────
 
@@ -373,10 +407,32 @@ class LauncherActivity : Activity() {
         }
     }
 
-    /** Soft aurora gradient built from the phone's own wallpaper colours. Used when no custom wallpaper is set. */
-    private fun makeAuroraBitmap(palette: IntArray): Bitmap {
-        val w = 180
-        val h = 390
+    private class BuiltinWallpaper(
+        val id: String,
+        val name: String,
+        val bestAt: Int,
+        val colors: IntArray,
+        val variant: Int,
+    )
+
+    /** Wallpapers drawn by the app itself: no image files, no licences, nothing to download. */
+    private val builtinWallpapers: List<BuiltinWallpaper> by lazy {
+        listOf(
+            BuiltinWallpaper("midnight", "Midnight", 40, intArrayOf(0xFF4F46E5.toInt(), 0xFF1E3A8A.toInt(), 0xFF7C3AED.toInt()), 0),
+            BuiltinWallpaper("aurora", "Aurora", 60, intArrayOf(0xFF10B981.toInt(), 0xFF6366F1.toInt(), 0xFF06B6D4.toInt()), 1),
+            BuiltinWallpaper("dusk", "Dusk", 55, intArrayOf(0xFFF97316.toInt(), 0xFFDB2777.toInt(), 0xFF7C3AED.toInt()), 2),
+            BuiltinWallpaper("forest", "Forest", 50, intArrayOf(0xFF059669.toInt(), 0xFF0F766E.toInt(), 0xFF65A30D.toInt()), 3),
+            BuiltinWallpaper("ocean", "Ocean", 65, intArrayOf(0xFF0EA5E9.toInt(), 0xFF2563EB.toInt(), 0xFF14B8A6.toInt()), 0),
+            BuiltinWallpaper("graphite", "Graphite", 30, intArrayOf(0xFF64748B.toInt(), 0xFF334155.toInt(), 0xFF94A3B8.toInt()), 1),
+        )
+    }
+
+    /**
+     * Soft glow gradient. [palette] gives three colours; [variant] moves the glows around so
+     * the built-in wallpapers do not all look alike. Used for the built-in wallpapers and,
+     * with colours from the phone's own wallpaper, for the adaptive default.
+     */
+    private fun makeAuroraBitmap(palette: IntArray, w: Int = 180, h: Int = 390, variant: Int = 0): Bitmap {
         val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -404,9 +460,15 @@ class LauncherActivity : Activity() {
             )
             canvas.drawCircle(cx, cy, r, paint)
         }
-        glow(w * 0.15f, h * 0.16f, w * 0.95f, ColorUtils.blendARGB(palette[0], Color.WHITE, 0.12f), 0.60f)
-        glow(w * 0.95f, h * 0.60f, w * 0.90f, palette[2], 0.42f)
-        glow(w * 0.20f, h * 0.96f, w * 0.85f, palette[1], 0.38f)
+        val spots = when (variant % 4) {
+            1 -> floatArrayOf(0.85f, 0.14f, 0.10f, 0.52f, 0.70f, 0.95f)
+            2 -> floatArrayOf(0.50f, 0.10f, 0.95f, 0.48f, 0.10f, 0.90f)
+            3 -> floatArrayOf(0.10f, 0.30f, 0.90f, 0.40f, 0.45f, 1.00f)
+            else -> floatArrayOf(0.15f, 0.16f, 0.95f, 0.60f, 0.20f, 0.96f)
+        }
+        glow(w * spots[0], h * spots[1], w * 0.95f, ColorUtils.blendARGB(palette[0], Color.WHITE, 0.12f), 0.60f)
+        glow(w * spots[2], h * spots[3], w * 0.90f, palette[2], 0.42f)
+        glow(w * spots[4], h * spots[5], w * 0.85f, palette[1], 0.38f)
         return bmp
     }
 
@@ -469,26 +531,32 @@ class LauncherActivity : Activity() {
     }
 
     /**
-     * Prepares the blurred backdrop off the main thread. The wallpaper file goes through the
-     * same path-confined, size-bounded loader as before; with no wallpaper a gradient built
-     * from the phone's wallpaper colours is used instead.
+     * Prepares the blurred backdrop off the main thread. Order of preference: the user's own
+     * image (path-confined, size-bounded loader), a built-in wallpaper, then the adaptive
+     * gradient built from the phone's wallpaper colours.
      */
     private fun ensureBackdrop() {
         val path = wallpaperPath()
-        val key = if (path.isEmpty()) "aurora:${wallpaperPalette().joinToString(",")}" else "file:$path"
+        val builtin = if (path.isEmpty()) builtinWallpapers.firstOrNull { it.id == builtinWallpaperId() } else null
+        val palette = if (path.isEmpty() && builtin == null) wallpaperPalette() else null
+        val key = when {
+            path.isNotEmpty() -> "file:$path"
+            builtin != null -> "builtin:${builtin.id}"
+            else -> "aurora:${palette!!.joinToString(",")}"
+        }
         if (key == backdropKey && backdropBlur != null) return
         backdropKey = key
         val token = ++backdropToken
-        val palette = if (path.isEmpty()) wallpaperPalette() else null
         val appContext = applicationContext
         Thread {
             val decoded = if (path.isNotEmpty()) WallpaperLoader.decode(appContext, path) else null
-            val aurora = if (decoded == null) {
-                makeAuroraBitmap(palette ?: wallpaperPalette())
+            val generated = if (decoded == null) {
+                if (builtin != null) makeAuroraBitmap(builtin.colors, 270, 585, builtin.variant)
+                else makeAuroraBitmap(palette ?: wallpaperPalette())
             } else {
                 null
             }
-            val source = decoded ?: aurora!!
+            val source = decoded ?: generated!!
             val blurred = try {
                 val small = shrinkTo(source, 160)
                 blurBitmap(small.copy(Bitmap.Config.ARGB_8888, true), radius = 5, passes = 3)
@@ -498,7 +566,7 @@ class LauncherActivity : Activity() {
             handler.post {
                 if (token != backdropToken || isFinishing) return@post
                 backdropBlur = blurred
-                backdropAurora = aurora
+                backdropAurora = generated
                 applyBackdropToViews()
                 invalidateFrosted()
             }
@@ -651,8 +719,17 @@ class LauncherActivity : Activity() {
             val name = label("", 15f, TEXT_PRIMARY).apply {
                 maxLines = 1
                 ellipsize = TextUtils.TruncateAt.END
+            }
+            val sub = label("", 12f, AMBER, bold = true).apply {
+                maxLines = 1
+                visibility = View.GONE
+            }
+            val nameColumn = LinearLayout(parent.context).apply {
+                orientation = LinearLayout.VERTICAL
                 layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
                     .also { it.leftMargin = dp(14) }
+                addView(name)
+                addView(sub)
             }
             val badge = TextView(parent.context).apply {
                 text = "≡"
@@ -663,9 +740,9 @@ class LauncherActivity : Activity() {
                 layoutParams = LinearLayout.LayoutParams(dp(32), dp(32))
             }
             row.addView(icon)
-            row.addView(name)
+            row.addView(nameColumn)
             row.addView(badge)
-            return AppHolder(row, icon, name, badge)
+            return AppHolder(row, icon, name, badge, sub)
         }
 
         private fun createGridHolder(parent: ViewGroup): RecyclerView.ViewHolder {
@@ -707,10 +784,26 @@ class LauncherActivity : Activity() {
                     it.rightMargin = dp(3)
                 }
             }
+            val limit = label("", 9f, AMBER, bold = true).apply {
+                maxLines = 1
+                gravity = Gravity.CENTER
+                setPadding(dp(5), dp(1), dp(5), dp(1))
+                background = roundedBackground(Color.parseColor("#CC000000"), Color.TRANSPARENT, 8)
+                visibility = View.GONE
+                layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.WRAP_CONTENT,
+                    FrameLayout.LayoutParams.WRAP_CONTENT,
+                ).also {
+                    it.gravity = Gravity.TOP or Gravity.START
+                    it.topMargin = dp(1)
+                    it.leftMargin = dp(1)
+                }
+            }
             cell.addView(icon)
             cell.addView(name)
             cell.addView(badge)
-            return AppHolder(cell, icon, name, badge)
+            cell.addView(limit)
+            return AppHolder(cell, icon, name, badge, limit)
         }
 
         override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
@@ -732,6 +825,14 @@ class LauncherActivity : Activity() {
             holder.label.text = item.label
             holder.label.setTextColor(if (blocked) TEXT_MUTED else if (listLayout) TEXT_PRIMARY else TEXT_DIM)
             holder.badge.visibility = if (isEditMode) View.VISIBLE else View.GONE
+            val limitInfo = drawerLimitInfo[item.packageName]
+            if (limitInfo != null && !isEditMode) {
+                holder.limit.text = limitInfo.first
+                holder.limit.setTextColor(limitColor(limitInfo.second))
+                holder.limit.visibility = View.VISIBLE
+            } else {
+                holder.limit.visibility = View.GONE
+            }
             holder.itemView.contentDescription =
                 if (blocked) "${item.label}, blocked" else item.label
             val selected = isEditMode && focusedDrawerPackage == item.packageName
@@ -766,11 +867,13 @@ class LauncherActivity : Activity() {
         val icon: ImageView,
         val label: TextView,
         val badge: TextView,
+        val limit: TextView,
     ) : RecyclerView.ViewHolder(view)
 
     private val preferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
         if (key == PREF_LAUNCHER_THEME ||
             key == PREF_LAUNCHER_WALLPAPER ||
+            key == PREF_WALLPAPER_BUILTIN ||
             key == PREF_GLASS_LEVEL ||
             key == PREF_DRAWER_LAYOUT ||
             key == PREF_DRAWER_HIDDEN ||
@@ -791,9 +894,9 @@ class LauncherActivity : Activity() {
             runOnUiThread {
                 if (!::rootFrame.isInitialized) return@runOnUiThread
                 if (key == PREF_LAUNCHER_THEME || key == PREF_LAUNCHER_WALLPAPER ||
-                    key == PREF_GLASS_LEVEL
+                    key == PREF_WALLPAPER_BUILTIN || key == PREF_GLASS_LEVEL
                 ) {
-                    if (renderedSignature != layoutSignature()) buildHomeLayout()
+                    if (!suppressPrefRebuild && renderedSignature != layoutSignature()) buildHomeLayout()
                 } else if (key == PREF_DRAWER_LAYOUT) {
                     if (isDrawerOpen) applyDrawerLayout()
                 } else {
@@ -802,6 +905,7 @@ class LauncherActivity : Activity() {
                     if (isDrawerOpen) {
                         if (!isEditMode) {
                             drawerAllApps = loadDrawerApps()
+                            reloadDrawerLimits()
                             drawerBlockedCount = getBlockedPackages().size
                             renderDrawerChips()
                             refreshDrawerItems()
@@ -876,6 +980,7 @@ class LauncherActivity : Activity() {
         }
         if (isDrawerOpen && !isEditMode) {
             drawerAllApps = loadDrawerApps()
+            reloadDrawerLimits()
             refreshDrawerItems()
         }
     }
@@ -966,6 +1071,7 @@ class LauncherActivity : Activity() {
             overScrollMode = View.OVER_SCROLL_NEVER
             clipChildren = false
             clipToPadding = false
+            isFillViewport = true
         }
         homeScroll = scroll
         val column = LinearLayout(this).apply {
@@ -975,10 +1081,16 @@ class LauncherActivity : Activity() {
                 ViewGroup.LayoutParams.WRAP_CONTENT,
             )
         }
-        column.addView(buildClockWidget())
-        column.addView(buildStatusPill())
-        column.addView(buildFocusSessionCard())
-        column.addView(buildTodaysLimits())
+        homeColumn = column
+        val customize = View.OnLongClickListener { v ->
+            v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+            showHomeCustomizeSheet()
+            true
+        }
+        homeLongPress = customize
+        column.setOnLongClickListener(customize)
+        content.setOnLongClickListener(customize)
+        populateHomeColumn(column)
         scroll.addView(column)
         scroll.setOnScrollChangeListener { _, _, _, _, _ -> invalidateFrosted() }
         content.addView(scroll)
@@ -991,6 +1103,59 @@ class LauncherActivity : Activity() {
         rootFrame.requestApplyInsets()
     }
 
+    // Per-widget style choices. Every one has a safe default and an "off".
+    private fun homeOption(key: String, default: String, allowed: Set<String>): String {
+        val value = prefs.getString(key, null)
+        return if (value != null && value in allowed) value else default
+    }
+
+    private fun clockStyleValue() =
+        homeOption(PREF_HOME_CLOCK, "light", setOf("light", "bold", "stacked", "compact", "off"))
+
+    private fun statusStyleValue() = homeOption(PREF_HOME_STATUS, "pill", setOf("pill", "text", "off"))
+    private fun taskStyleValue() = homeOption(PREF_HOME_TASK, "card", setOf("card", "compact", "off"))
+    private fun limitsStyleValue() =
+        homeOption(PREF_HOME_LIMITS, "bars", setOf("bars", "rings", "list", "off"))
+
+    private fun searchStyleValue() = homeOption(PREF_HOME_SEARCH, "bar", setOf("bar", "off"))
+    private fun allAppsButtonOn() = homeOption(PREF_HOME_ALL_APPS, "on", setOf("on", "off")) == "on"
+
+    private fun homeAlignGravity(): Int =
+        if (clockStyleValue() == "light" || clockStyleValue() == "off") Gravity.CENTER_HORIZONTAL
+        else Gravity.START
+
+    private fun populateHomeColumn(column: LinearLayout) {
+        column.removeAllViews()
+        clockView = null
+        dateView = null
+        statusText = null
+        statusDot = null
+        focusCard = null
+        focusTitleView = null
+        focusSubtitleView = null
+        focusProgressTrack = null
+        focusProgressFill = null
+        allowanceContainer = null
+        if (clockStyleValue() != "off") {
+            column.addView(buildClockWidget())
+        } else {
+            column.addView(View(this), LinearLayout.LayoutParams(1, dp(28)))
+        }
+        if (statusStyleValue() != "off") column.addView(buildStatusPill())
+        if (taskStyleValue() != "off") column.addView(buildFocusSessionCard())
+        if (limitsStyleValue() != "off") column.addView(buildTodaysLimits())
+    }
+
+    /** Rebuilds the home widgets and dock in place, so a style change shows instantly under an open sheet. */
+    private fun rebuildHomeSections() {
+        val column = homeColumn ?: return
+        populateHomeColumn(column)
+        populateDock()
+        pruneFrosted()
+        refreshHomeContent()
+        invalidateFrosted()
+    }
+
     private fun refreshHomeContent() {
         if (!::rootFrame.isInitialized) return
         refreshStatusPill()
@@ -1000,48 +1165,97 @@ class LauncherActivity : Activity() {
     }
 
     private fun buildClockWidget(): LinearLayout {
-        return LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_HORIZONTAL
+        val style = clockStyleValue()
+        clockStyle = style
+        val date = label("", SIZE_DATE, TEXT_DIM).apply {
+            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            if (style == "light") {
+                letterSpacing = 0.14f
+                isAllCaps = true
+            } else {
+                textSize = 14f
+                letterSpacing = 0.04f
+            }
+        }
+        val clock = label(
+            "",
+            when (style) {
+                "bold" -> 60f
+                "stacked" -> 88f
+                "compact" -> 30f
+                else -> 68f
+            },
+            TEXT_PRIMARY,
+        ).apply {
+            includeFontPadding = false
+            typeface = when (style) {
+                "bold", "compact" -> Typeface.create("sans-serif-medium", Typeface.NORMAL)
+                else -> Typeface.create("sans-serif-light", Typeface.NORMAL)
+            }
+            letterSpacing = if (style == "bold") -0.03f else -0.02f
+            if (style == "stacked") setLineSpacing(0f, 0.82f)
+            setShadowLayer(dp(10).toFloat(), 0f, dp(2).toFloat(), Color.parseColor("#55000000"))
+        }
+        val wrap = LinearLayout(this).apply {
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT,
             ).also {
-                it.topMargin = dp(36)
+                it.topMargin = dp(if (style == "compact") 8 else 36)
                 it.bottomMargin = dp(18)
             }
-            val date = label("", SIZE_DATE, TEXT_DIM).apply {
-                letterSpacing = 0.14f
-                isAllCaps = true
-                typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-            }
-            val clock = label("", 68f, TEXT_PRIMARY).apply {
-                typeface = Typeface.create("sans-serif-light", Typeface.NORMAL)
-                letterSpacing = -0.02f
-                includeFontPadding = false
-                setShadowLayer(dp(10).toFloat(), 0f, dp(2).toFloat(), Color.parseColor("#55000000"))
-            }
-            addView(date)
-            addView(clock)
-            dateView = date
-            clockView = clock
         }
+        when (style) {
+            "light" -> {
+                wrap.orientation = LinearLayout.VERTICAL
+                wrap.gravity = Gravity.CENTER_HORIZONTAL
+                wrap.addView(date)
+                wrap.addView(clock)
+            }
+            "compact" -> {
+                wrap.orientation = LinearLayout.HORIZONTAL
+                wrap.gravity = Gravity.BOTTOM or Gravity.START
+                wrap.addView(clock)
+                date.layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).also {
+                    it.leftMargin = dp(12)
+                    it.bottomMargin = dp(4)
+                }
+                wrap.addView(date)
+            }
+            else -> {
+                wrap.orientation = LinearLayout.VERTICAL
+                wrap.gravity = Gravity.START
+                wrap.addView(clock)
+                date.layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).also { it.topMargin = dp(4) }
+                wrap.addView(date)
+            }
+        }
+        dateView = date
+        clockView = clock
+        return wrap
     }
 
     private fun buildStatusPill(): View {
+        val asPill = statusStyleValue() == "pill"
         val pill = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
-                dp(34),
+                if (asPill) dp(34) else LinearLayout.LayoutParams.WRAP_CONTENT,
             ).also {
-                it.gravity = Gravity.CENTER_HORIZONTAL
+                it.gravity = homeAlignGravity()
                 it.bottomMargin = dp(18)
             }
-            setPadding(dp(14), 0, dp(16), 0)
+            if (asPill) setPadding(dp(14), 0, dp(16), 0)
         }
-        frost(pill, 17)
+        if (asPill) frost(pill, 17)
         val dot = View(this).apply {
             layoutParams = LinearLayout.LayoutParams(dp(8), dp(8))
             background = ovalBackground(GREEN_OK)
@@ -1083,6 +1297,7 @@ class LauncherActivity : Activity() {
     }
 
     private fun buildFocusSessionCard(): LinearLayout {
+        val compact = taskStyleValue() == "compact"
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             visibility = View.GONE
@@ -1090,42 +1305,42 @@ class LauncherActivity : Activity() {
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT,
             ).also { it.bottomMargin = dp(16) }
-            setPadding(dp(18), dp(14), dp(18), dp(14))
+            setPadding(dp(18), dp(if (compact) 10 else 14), dp(18), dp(if (compact) 10 else 14))
             isClickable = true
             isFocusable = true
             setOnClickListener { openFocusFlow() }
+            homeLongPress?.let { setOnLongClickListener(it) }
         }
-        frost(card, 24)
-        val header = label("CURRENT TASK", 11f, TEXT_DIM).apply {
-            letterSpacing = 0.12f
+        frost(card, if (compact) 18 else 24)
+        if (!compact) {
+            card.addView(label("CURRENT TASK", 11f, TEXT_DIM).apply { letterSpacing = 0.12f })
         }
-        val title = label("", 18f, TEXT_PRIMARY, bold = true).apply {
-            maxLines = 2
+        val title = label("", if (compact) 15f else 18f, TEXT_PRIMARY, bold = true).apply {
+            maxLines = if (compact) 1 else 2
             ellipsize = TextUtils.TruncateAt.END
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT,
-            ).also { it.topMargin = dp(8) }
+            ).also { it.topMargin = dp(if (compact) 0 else 8) }
         }
         val track = FrameLayout(this).apply {
             background = roundedBackground(Color.parseColor("#33FFFFFF"), Color.TRANSPARENT, 4)
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 dp(4),
-            ).also { it.topMargin = dp(12) }
+            ).also { it.topMargin = dp(if (compact) 8 else 12) }
         }
         val fill = View(this).apply {
             background = roundedBackground(Color.parseColor("#E0E7FF"), Color.TRANSPARENT, 4)
             layoutParams = FrameLayout.LayoutParams(0, dp(4))
         }
         track.addView(fill)
-        val subtitle = label("", 13f, TEXT_DIM).apply {
+        val subtitle = label("", if (compact) 12f else 13f, TEXT_DIM).apply {
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT,
-            ).also { it.topMargin = dp(8) }
+            ).also { it.topMargin = dp(if (compact) 6 else 8) }
         }
-        card.addView(header)
         card.addView(title)
         card.addView(track)
         card.addView(subtitle)
@@ -1134,7 +1349,7 @@ class LauncherActivity : Activity() {
         focusSubtitleView = subtitle
         focusProgressTrack = track
         focusProgressFill = fill
-        card.foreground = rippleForeground(24)
+        card.foreground = rippleForeground(if (compact) 18 else 24)
         return card
     }
 
@@ -1179,6 +1394,34 @@ class LauncherActivity : Activity() {
         return container
     }
 
+    private fun limitColor(fractionLeft: Float): Int = when {
+        fractionLeft > 0.5f -> GREEN_OK
+        fractionLeft > 0.2f -> AMBER
+        else -> RED_BLOCK
+    }
+
+    /** Draws "how much is left" as a ring. */
+    private inner class RingView(
+        private val fractionLeft: Float,
+        private val color: Int,
+    ) : View(this@LauncherActivity) {
+        private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = dp(4).toFloat()
+            strokeCap = Paint.Cap.ROUND
+        }
+        private val rect = RectF()
+
+        override fun onDraw(canvas: Canvas) {
+            val inset = paint.strokeWidth / 2f + 1f
+            rect.set(inset, inset, width - inset, height - inset)
+            paint.color = Color.parseColor("#33FFFFFF")
+            canvas.drawArc(rect, 0f, 360f, false, paint)
+            paint.color = color
+            canvas.drawArc(rect, -90f, 360f * fractionLeft.coerceIn(0.02f, 1f), false, paint)
+        }
+    }
+
     private fun refreshTodaysLimits() {
         val container = allowanceContainer ?: return
         container.removeAllViews()
@@ -1188,6 +1431,7 @@ class LauncherActivity : Activity() {
             pruneFrosted()
             return
         }
+        val style = limitsStyleValue()
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(18), dp(14), dp(18), dp(14))
@@ -1198,16 +1442,131 @@ class LauncherActivity : Activity() {
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT,
-            ).also { it.bottomMargin = dp(8) }
+            ).also { it.bottomMargin = dp(10) }
         })
-        val innerList = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        val scrollWrap = NestedScrollView(this).apply {
+        when (style) {
+            "rings" -> card.addView(buildLimitRings(cards))
+            "list" -> card.addView(buildLimitList(cards))
+            else -> card.addView(buildLimitBars(cards))
+        }
+        container.addView(card)
+        container.visibility = View.VISIBLE
+        pruneFrosted()
+    }
+
+    /** Default: icon, name and what is left, with a thin bar that shrinks as the allowance is used. */
+    private fun buildLimitBars(cards: List<AllowanceCardData>): View {
+        val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        cards.forEachIndexed { index, allowance ->
+            val color = limitColor(allowance.fraction)
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                if (index > 0) setPadding(0, dp(12), 0, 0)
+            }
+            val top = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+            top.addView(ImageView(this).apply {
+                layoutParams = LinearLayout.LayoutParams(dp(32), dp(32))
+                scaleType = ImageView.ScaleType.FIT_CENTER
+                setImageDrawable(getRoundIcon(allowance.pkg))
+            })
+            top.addView(label(allowance.label, 15f, TEXT_PRIMARY).apply {
+                maxLines = 1
+                ellipsize = TextUtils.TruncateAt.END
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                    .also { it.leftMargin = dp(12) }
+            })
+            top.addView(label(
+                if (allowance.approximate) "~${allowance.displayText}" else allowance.displayText,
+                13f,
+                color,
+                bold = true,
+            ).apply { gravity = Gravity.END })
+            row.addView(top)
+            val track = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                background = roundedBackground(Color.parseColor("#26FFFFFF"), Color.TRANSPARENT, 3)
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    dp(5),
+                ).also { it.topMargin = dp(8) }
+            }
+            val left = allowance.fraction.coerceIn(0f, 1f)
+            track.addView(View(this).apply {
+                background = roundedBackground(color, Color.TRANSPARENT, 3)
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, max(left, 0.001f))
+            })
+            track.addView(View(this).apply {
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, max(1f - left, 0.001f))
+            })
+            row.addView(track)
+            list.addView(row)
+        }
+        return NestedScrollView(this).apply {
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(52 * 3 + 16),
+                if (cards.size > 3) dp(66 * 3) else LinearLayout.LayoutParams.WRAP_CONTENT,
             )
             isNestedScrollingEnabled = true
+            addView(list)
         }
+    }
+
+    /** A row of rings: the app icon inside, the time left underneath. Scrolls sideways. */
+    private fun buildLimitRings(cards: List<AllowanceCardData>): View {
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        cards.forEach { allowance ->
+            val color = limitColor(allowance.fraction)
+            val item = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER_HORIZONTAL
+                layoutParams = LinearLayout.LayoutParams(dp(76), LinearLayout.LayoutParams.WRAP_CONTENT)
+            }
+            val ringBox = FrameLayout(this).apply {
+                layoutParams = LinearLayout.LayoutParams(dp(58), dp(58))
+            }
+            ringBox.addView(RingView(allowance.fraction, color), FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT,
+            ))
+            ringBox.addView(ImageView(this).apply {
+                scaleType = ImageView.ScaleType.FIT_CENTER
+                setImageDrawable(getRoundIcon(allowance.pkg))
+            }, FrameLayout.LayoutParams(dp(34), dp(34), Gravity.CENTER))
+            item.addView(ringBox)
+            item.addView(label(allowance.label, 11f, TEXT_DIM).apply {
+                maxLines = 1
+                ellipsize = TextUtils.TruncateAt.END
+                gravity = Gravity.CENTER
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).also { it.topMargin = dp(6) }
+            })
+            item.addView(label(
+                if (allowance.approximate) "~${allowance.displayText}" else allowance.displayText,
+                11f,
+                color,
+                bold = true,
+            ).apply {
+                maxLines = 1
+                ellipsize = TextUtils.TruncateAt.END
+                gravity = Gravity.CENTER
+            })
+            row.addView(item)
+        }
+        return HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            overScrollMode = View.OVER_SCROLL_NEVER
+            addView(row)
+        }
+    }
+
+    /** Plain text rows, as before. */
+    private fun buildLimitList(cards: List<AllowanceCardData>): View {
+        val innerList = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         cards.forEachIndexed { index, allowance ->
             val row = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
@@ -1215,35 +1574,32 @@ class LauncherActivity : Activity() {
                 minimumHeight = dp(48)
                 if (index > 0) setPadding(0, dp(6), 0, 0)
             }
-            val icon = ImageView(this).apply {
+            row.addView(ImageView(this).apply {
                 layoutParams = LinearLayout.LayoutParams(dp(36), dp(36))
                 scaleType = ImageView.ScaleType.FIT_CENTER
                 setImageDrawable(getRoundIcon(allowance.pkg))
-            }
-            val name = label(allowance.label, 15f, TEXT_PRIMARY).apply {
+            })
+            row.addView(label(allowance.label, 15f, TEXT_PRIMARY).apply {
                 maxLines = 1
                 ellipsize = TextUtils.TruncateAt.END
-                layoutParams = LinearLayout.LayoutParams(
-                    0,
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    1f,
-                ).also { it.leftMargin = dp(12) }
-            }
-            val value = label(formatUsedFull(allowance), 13f, TEXT_DIM).apply {
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                    .also { it.leftMargin = dp(12) }
+            })
+            row.addView(label(formatUsedFull(allowance), 13f, TEXT_DIM).apply {
                 gravity = Gravity.END
                 maxLines = 2
                 ellipsize = TextUtils.TruncateAt.END
-            }
-            row.addView(icon)
-            row.addView(name)
-            row.addView(value)
+            })
             innerList.addView(row)
         }
-        scrollWrap.addView(innerList)
-        card.addView(scrollWrap)
-        container.addView(card)
-        container.visibility = View.VISIBLE
-        pruneFrosted()
+        return NestedScrollView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(52 * 3 + 16),
+            )
+            isNestedScrollingEnabled = true
+            addView(innerList)
+        }
     }
 
     // ── Dock (always pinned to the bottom) ─────────────────────────────────────
@@ -1257,20 +1613,27 @@ class LauncherActivity : Activity() {
             )
             setPadding(0, dp(10), 0, 0)
         }
-        dock.addView(buildSearchBar())
+        dockView = dock
+        populateDock()
+        return dock
+    }
+
+    private fun populateDock() {
+        val dock = dockView ?: return
+        dock.removeAllViews()
+        val withSearch = searchStyleValue() == "bar"
+        if (withSearch) dock.addView(buildSearchBar())
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT,
-            ).also { it.topMargin = dp(18) }
+            ).also { it.topMargin = dp(if (withSearch) 18 else 0) }
         }
         dockActionsRow = row
         dock.addView(row)
-        dockView = dock
         refreshDockActions()
-        return dock
     }
 
     private fun buildSearchBar(): View {
@@ -1286,6 +1649,7 @@ class LauncherActivity : Activity() {
             isFocusable = true
             contentDescription = "Search apps"
             setOnClickListener { openDrawer(focusSearch = true) }
+            homeLongPress?.let { setOnLongClickListener(it) }
         }
         frost(bar, 26)
         bar.foreground = rippleForeground(26)
@@ -1302,7 +1666,10 @@ class LauncherActivity : Activity() {
     private fun refreshDockActions() {
         val row = dockActionsRow ?: return
         row.removeAllViews()
-        row.addView(dockAction("All apps", gridGlyph()) { openDrawer() })
+        if (allAppsButtonOn()) {
+            row.addView(dockAction("All apps", gridGlyph()) { openDrawer() })
+        }
+        // FocusFlow's own button is deliberately not removable: it is the way back into the app.
         row.addView(dockAction("FocusFlow", focusFlowGlyph()) { openFocusFlow() })
         val hiddenCount = hiddenInstalledApps().size
         if (hiddenCount > 0) {
@@ -1327,12 +1694,13 @@ class LauncherActivity : Activity() {
             isFocusable = true
             contentDescription = text
             setOnClickListener { onClick() }
+            // Long-press anywhere on the home screen, dock included, opens Customize home.
+            homeLongPress?.let { setOnLongClickListener(it) }
         }
         val circle = FrameLayout(this).apply {
             layoutParams = LinearLayout.LayoutParams(dp(58), dp(58))
         }
         frost(circle, 29)
-        circle.foreground = rippleForeground(29)
         circle.addView(glyph, FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.WRAP_CONTENT,
             FrameLayout.LayoutParams.WRAP_CONTENT,
@@ -1346,6 +1714,15 @@ class LauncherActivity : Activity() {
                 LinearLayout.LayoutParams.WRAP_CONTENT,
             ).also { it.topMargin = dp(6) }
         })
+        // Press feedback: the whole button dips slightly while pressed.
+        column.setOnTouchListener { v, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> v.animate().scaleX(0.93f).scaleY(0.93f).setDuration(90).start()
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL ->
+                    v.animate().scaleX(1f).scaleY(1f).setDuration(120).start()
+            }
+            false
+        }
         return column
     }
 
@@ -1400,6 +1777,7 @@ class LauncherActivity : Activity() {
         appliedListLayout = null
         drawerBlockedCount = getBlockedPackages().size
         drawerAllApps = loadDrawerApps()
+        reloadDrawerLimits()
         val g = glassFraction()
 
         val overlay = FrameLayout(this).apply {
@@ -1621,7 +1999,7 @@ class LauncherActivity : Activity() {
         val labels = listOf(
             DrawerFilter.ALL to "ALL APPS",
             DrawerFilter.FOCUS_TOOLS to "FOCUS TOOLS",
-            DrawerFilter.LIMITED_TODAY to "LIMITED TODAY",
+            DrawerFilter.LIMITED_TODAY to "LIMITED TIME",
             DrawerFilter.BLOCKED to "BLOCKED ($drawerBlockedCount)",
         )
         labels.forEach { (filter, text) ->
@@ -1654,6 +2032,13 @@ class LauncherActivity : Activity() {
         pruneFrosted()
     }
 
+    /** What is left of each limited app today, kept so typing in search does not hit the ledger. */
+    private fun reloadDrawerLimits() {
+        drawerLimitInfo = loadAllowanceCardData().associate {
+            it.pkg to (it.displayText to it.fraction)
+        }
+    }
+
     private fun refreshDrawerItems() {
         val adapter = drawerAdapter ?: return
         val query = drawerSearchInput?.text?.toString()?.lowercase(Locale.getDefault())?.trim().orEmpty()
@@ -1675,10 +2060,7 @@ class LauncherActivity : Activity() {
                 val tools = focusToolPackages()
                 all.filter { it.packageName in tools }
             }
-            DrawerFilter.LIMITED_TODAY -> {
-                val limited = loadAllowanceCardData().map { it.pkg }.toSet()
-                all.filter { it.packageName in limited }
-            }
+            DrawerFilter.LIMITED_TODAY -> all.filter { it.packageName in drawerLimitInfo }
             DrawerFilter.BLOCKED -> {
                 val blocked = getBlockedPackages()
                 all.filter { it.packageName in blocked }
@@ -1965,12 +2347,15 @@ class LauncherActivity : Activity() {
 
     // ── Bottom sheets: app actions and drawer options ──────────────────────────
 
-    private fun showSheet(build: (LinearLayout) -> Unit) {
+    private fun showSheet(
+        scrimColor: Int = Color.parseColor("#80000000"),
+        build: (LinearLayout) -> Unit,
+    ) {
         dismissSheet(animate = false)
         hideKeyboard()
         val overlay = FrameLayout(this).apply {
             layoutParams = matchParent()
-            setBackgroundColor(Color.parseColor("#80000000"))
+            setBackgroundColor(scrimColor)
             isClickable = true
             alpha = if (animationsEnabled()) 0f else 1f
             setOnClickListener { dismissSheet() }
@@ -2092,10 +2477,6 @@ class LauncherActivity : Activity() {
                 dismissSheet()
                 openAlwaysOnPicker(pkg)
             })
-            panel.addView(sheetRow("App info") {
-                dismissSheet()
-                openAppInfo(pkg)
-            })
         }
     }
 
@@ -2164,12 +2545,16 @@ class LauncherActivity : Activity() {
                 }
                 override fun onStartTrackingTouch(bar: SeekBar?) = Unit
                 override fun onStopTrackingTouch(bar: SeekBar?) {
-                    prefs.edit().putInt(PREF_GLASS_LEVEL, glassLevel).apply()
-                    renderedSignature = layoutSignature()
+                    writeLookPrefs { putInt(PREF_GLASS_LEVEL, glassLevel) }
                 }
             })
             panel.addView(seek)
 
+            panel.addView(sheetRow("Customize home", "Clock, widgets, wallpaper and dock") {
+                dismissSheet()
+                closeDrawer(animate = false)
+                showHomeCustomizeSheet()
+            })
             val hiddenCount = hiddenInstalledApps().size
             panel.addView(sheetRow(
                 if (hiddenCount > 0) "Hidden apps · $hiddenCount" else "Hidden apps",
@@ -2181,6 +2566,439 @@ class LauncherActivity : Activity() {
                 (it.layoutParams as? LinearLayout.LayoutParams)?.topMargin = dp(10)
             })
         }
+    }
+
+    // ── Customize home ─────────────────────────────────────────────────────────
+
+    private fun chipView(text: String, selected: Boolean, onClick: () -> Unit): View {
+        val chip = TextView(this).apply {
+            this.text = text
+            textSize = 13f
+            typeface = Typeface.create(Typeface.DEFAULT, if (selected) Typeface.BOLD else Typeface.NORMAL)
+            gravity = Gravity.CENTER
+            setTextColor(if (selected) Color.WHITE else TEXT_DIM)
+            setPadding(dp(14), 0, dp(14), 0)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                dp(36),
+            ).also { it.rightMargin = dp(8) }
+            setOnClickListener { onClick() }
+        }
+        chip.background = if (selected) {
+            roundedBackground(ACCENT, Color.TRANSPARENT, 18)
+        } else {
+            roundedBackground(Color.parseColor("#26FFFFFF"), Color.parseColor("#33FFFFFF"), 18)
+        }
+        return chip
+    }
+
+    /** A titled row of choices that saves to [key] and rebuilds the home widgets as you tap. */
+    private fun optionRow(
+        title: String,
+        key: String,
+        options: List<Pair<String, String>>,
+        default: String,
+    ): View {
+        val wrap = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).also { it.topMargin = dp(14) }
+        }
+        wrap.addView(label(title, 13f, TEXT_DIM))
+        val scroller = HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            overScrollMode = View.OVER_SCROLL_NEVER
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).also { it.topMargin = dp(6) }
+        }
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        scroller.addView(row)
+        fun render() {
+            row.removeAllViews()
+            val stored = prefs.getString(key, null)
+            val current = if (options.any { it.first == stored }) stored else default
+            options.forEach { (value, optionLabel) ->
+                row.addView(chipView(optionLabel, value == current) {
+                    prefs.edit().putString(key, value).apply()
+                    rebuildHomeSections()
+                    render()
+                })
+            }
+        }
+        render()
+        wrap.addView(scroller)
+        return wrap
+    }
+
+    private fun glassSliderBlock(): View {
+        val block = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).also { it.topMargin = dp(14) }
+        }
+        val glassLabel = label(
+            if (glassLevel == 0) "Glassiness · 0% (plain black)" else "Glassiness · $glassLevel%",
+            13f,
+            TEXT_DIM,
+        )
+        block.addView(glassLabel)
+        val seek = SeekBar(this).apply {
+            max = 100
+            progress = glassLevel
+            progressTintList = ColorStateList.valueOf(ACCENT_TEXT)
+            thumbTintList = ColorStateList.valueOf(Color.WHITE)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(36),
+            ).also { it.topMargin = dp(4) }
+        }
+        seek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(bar: SeekBar?, progress: Int, fromUser: Boolean) {
+                glassLevel = progress
+                glassLabel.text =
+                    if (progress == 0) "Glassiness · 0% (plain black)" else "Glassiness · $progress%"
+                applyGlassLive()
+            }
+            override fun onStartTrackingTouch(bar: SeekBar?) = Unit
+            override fun onStopTrackingTouch(bar: SeekBar?) {
+                writeLookPrefs { putInt(PREF_GLASS_LEVEL, glassLevel) }
+            }
+        })
+        block.addView(seek)
+        return block
+    }
+
+    private fun wallpaperSummary(): String = when {
+        wallpaperPath().isNotEmpty() -> "Your own picture"
+        builtinWallpaperId().isNotEmpty() ->
+            builtinWallpapers.firstOrNull { it.id == builtinWallpaperId() }?.name ?: "Adaptive"
+        else -> "Adaptive (matches your phone)"
+    }
+
+    /** Long-press the home screen to get here. Every widget has a few styles and an Off. */
+    private fun showHomeCustomizeSheet() {
+        if (!::rootFrame.isInitialized) return
+        showSheet(scrimColor = Color.parseColor("#33000000")) { panel ->
+            panel.addView(label("Customize home", 20f, TEXT_PRIMARY, bold = true))
+            panel.addView(label(
+                "Changes show instantly. Long-press the home screen any time to come back.",
+                12f,
+                TEXT_MUTED,
+            ).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).also { it.topMargin = dp(2); it.bottomMargin = dp(6) }
+            })
+            val scroller = ScrollView(this).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    (resources.displayMetrics.heightPixels * 0.5f).toInt(),
+                )
+                isVerticalScrollBarEnabled = false
+                overScrollMode = View.OVER_SCROLL_NEVER
+            }
+            val body = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            scroller.addView(body)
+            panel.addView(scroller)
+
+            body.addView(sheetRow("Wallpaper", wallpaperSummary()) {
+                dismissSheet()
+                showWallpaperSheet()
+            })
+            body.addView(glassSliderBlock())
+            body.addView(optionRow(
+                "Clock", PREF_HOME_CLOCK,
+                listOf("light" to "Light", "bold" to "Bold", "stacked" to "Stacked", "compact" to "Compact", "off" to "Off"),
+                "light",
+            ))
+            body.addView(optionRow(
+                "Status", PREF_HOME_STATUS,
+                listOf("pill" to "Pill", "text" to "Text", "off" to "Off"),
+                "pill",
+            ))
+            body.addView(optionRow(
+                "Current task", PREF_HOME_TASK,
+                listOf("card" to "Card", "compact" to "Compact", "off" to "Off"),
+                "card",
+            ))
+            body.addView(optionRow(
+                "Today's limits", PREF_HOME_LIMITS,
+                listOf("bars" to "Bars", "rings" to "Rings", "list" to "List", "off" to "Off"),
+                "bars",
+            ))
+            body.addView(optionRow(
+                "Search bar", PREF_HOME_SEARCH,
+                listOf("bar" to "Show", "off" to "Hide"),
+                "bar",
+            ))
+            body.addView(optionRow(
+                "All apps button", PREF_HOME_ALL_APPS,
+                listOf("on" to "Show", "off" to "Hide"),
+                "on",
+            ))
+            body.addView(label(
+                "Swipe up still opens your apps if you hide the search bar or the All apps button. The FocusFlow button always stays so you can get back into the app.",
+                11f,
+                TEXT_MUTED,
+            ).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).also { it.topMargin = dp(12) }
+            })
+            body.addView(sheetRow("Reset home layout", "Back to the default clock and widgets", TEXT_DIM) {
+                prefs.edit()
+                    .remove(PREF_HOME_CLOCK).remove(PREF_HOME_STATUS).remove(PREF_HOME_TASK)
+                    .remove(PREF_HOME_LIMITS).remove(PREF_HOME_SEARCH).remove(PREF_HOME_ALL_APPS)
+                    .apply()
+                dismissSheet(animate = false)
+                rebuildHomeSections()
+                showHomeCustomizeSheet()
+            })
+        }
+    }
+
+    // ── Wallpaper chooser ──────────────────────────────────────────────────────
+
+    private fun wallpaperTile(
+        title: String,
+        hint: String,
+        preview: Bitmap?,
+        selected: Boolean,
+        onClick: () -> Unit,
+    ): View {
+        val tile = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(dp(100), LinearLayout.LayoutParams.WRAP_CONTENT)
+                .also { it.rightMargin = dp(10) }
+            isClickable = true
+            isFocusable = true
+            contentDescription = "$title wallpaper. $hint"
+            setOnClickListener { onClick() }
+        }
+        val frame = FrameLayout(this).apply {
+            layoutParams = LinearLayout.LayoutParams(dp(100), dp(150))
+            background = roundedBackground(
+                Color.parseColor("#26FFFFFF"),
+                if (selected) ACCENT_TEXT else Color.parseColor("#33FFFFFF"),
+                14,
+            )
+            clipToOutline = true
+        }
+        if (preview != null) {
+            frame.addView(ImageView(this).apply {
+                scaleType = ImageView.ScaleType.CENTER_CROP
+                setImageBitmap(preview)
+            }, FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT,
+            ))
+        } else {
+            frame.addView(label("+", 30f, TEXT_DIM), FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                Gravity.CENTER,
+            ))
+        }
+        if (selected) {
+            frame.addView(label("✓", 14f, Color.WHITE, bold = true).apply {
+                gravity = Gravity.CENTER
+                background = ovalBackground(ACCENT)
+            }, FrameLayout.LayoutParams(dp(24), dp(24), Gravity.TOP or Gravity.END).also {
+                it.topMargin = dp(6)
+                it.rightMargin = dp(6)
+            })
+        }
+        tile.addView(frame)
+        tile.addView(label(title, 12f, TEXT_PRIMARY, bold = true).apply {
+            maxLines = 1
+            ellipsize = TextUtils.TruncateAt.END
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).also { it.topMargin = dp(6) }
+        })
+        // The "looks best at" hint lives on the wallpaper itself, not in a separate section.
+        tile.addView(label(hint, 10.5f, TEXT_MUTED).apply {
+            maxLines = 2
+        })
+        return tile
+    }
+
+    private fun showWallpaperSheet() {
+        showSheet(scrimColor = Color.parseColor("#22000000")) { panel ->
+            panel.addView(label("Wallpaper", 20f, TEXT_PRIMARY, bold = true))
+            panel.addView(label(
+                "Drawn by the app itself, so there is nothing to download. Try the slider to see each one at its best.",
+                12f,
+                TEXT_MUTED,
+            ).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).also { it.topMargin = dp(2); it.bottomMargin = dp(10) }
+            })
+            val scroller = HorizontalScrollView(this).apply {
+                isHorizontalScrollBarEnabled = false
+                overScrollMode = View.OVER_SCROLL_NEVER
+            }
+            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            scroller.addView(row)
+            panel.addView(scroller)
+            val phoneRow = sheetRow("Use as phone wallpaper…", "Also for the lock screen, and it fixes the Recents mismatch") {
+                confirmSetPhoneWallpaper()
+            }
+            fun choose(builtinId: String) {
+                writeLookPrefs {
+                    remove(PREF_LAUNCHER_WALLPAPER)
+                    if (builtinId.isEmpty()) remove(PREF_WALLPAPER_BUILTIN)
+                    else putString(PREF_WALLPAPER_BUILTIN, builtinId)
+                }
+                Thread { try { AppModule.wallpaperStore.clear() } catch (_: Throwable) { } }.start()
+                ensureBackdrop()
+            }
+            fun render() {
+                row.removeAllViews()
+                val customOn = wallpaperPath().isNotEmpty()
+                val builtinOn = if (customOn) "" else builtinWallpaperId()
+                row.addView(wallpaperTile(
+                    "Adaptive", "Matches your phone · best at 70%",
+                    makeAuroraBitmap(wallpaperPalette(), 90, 150),
+                    !customOn && builtinOn.isEmpty(),
+                ) { choose(""); render() })
+                builtinWallpapers.forEach { w ->
+                    row.addView(wallpaperTile(
+                        w.name, "Best at ${w.bestAt}%",
+                        makeAuroraBitmap(w.colors, 90, 150, w.variant),
+                        builtinOn == w.id,
+                    ) { choose(w.id); render() })
+                }
+                row.addView(wallpaperTile(
+                    if (customOn) "Your picture" else "From gallery",
+                    if (customOn) "Try 40–70%" else "Pick your own photo",
+                    null,
+                    customOn,
+                ) { pickWallpaperFromGallery() })
+                phoneRow.visibility =
+                    if (customOn || builtinOn.isNotEmpty()) View.VISIBLE else View.GONE
+            }
+            render()
+            panel.addView(glassSliderBlock())
+            panel.addView(phoneRow)
+        }
+    }
+
+    private fun pickWallpaperFromGallery() {
+        try {
+            startActivityForResult(
+                Intent(Intent.ACTION_GET_CONTENT).apply {
+                    type = "image/*"
+                    addCategory(Intent.CATEGORY_OPENABLE)
+                },
+                REQ_PICK_WALLPAPER,
+            )
+        } catch (_: Exception) {
+            Toast.makeText(this, "No gallery app found.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != REQ_PICK_WALLPAPER || resultCode != RESULT_OK) return
+        val uri = data?.data ?: return
+        Toast.makeText(this, "Preparing wallpaper…", Toast.LENGTH_SHORT).show()
+        Thread {
+            // Validated and re-encoded into app-private storage, same as the setup screen does.
+            val result = runCatching {
+                contentResolver.openInputStream(uri)?.use { input ->
+                    AppModule.wallpaperStore.ingest(input).getOrThrow()
+                } ?: error("The picture could not be opened.")
+            }
+            handler.post {
+                if (isFinishing) return@post
+                result.onSuccess { path ->
+                    writeLookPrefs {
+                        putString(PREF_LAUNCHER_WALLPAPER, path)
+                        remove(PREF_WALLPAPER_BUILTIN)
+                    }
+                    ensureBackdrop()
+                    Toast.makeText(this, "Wallpaper set. Try 40–70% glass.", Toast.LENGTH_SHORT).show()
+                }
+                result.onFailure {
+                    Toast.makeText(this, it.message ?: "That picture could not be used.", Toast.LENGTH_LONG).show()
+                }
+            }
+        }.start()
+    }
+
+    /** One-shot, explicit: makes Recents, the lock screen and home all show the same picture. */
+    private fun confirmSetPhoneWallpaper() {
+        showSheet(scrimColor = Color.parseColor("#66000000")) { panel ->
+            panel.addView(label("Use as phone wallpaper", 20f, TEXT_PRIMARY, bold = true))
+            panel.addView(label(
+                "This replaces your phone's current wallpaper and FocusFlow can't bring the old one back. Your home screen, lock screen and the Recents screen will then all match.",
+                13f,
+                TEXT_DIM,
+            ).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).also { it.topMargin = dp(6); it.bottomMargin = dp(8) }
+            })
+            panel.addView(sheetRow("Home and lock screen") {
+                applyPhoneWallpaper(WallpaperManager.FLAG_SYSTEM or WallpaperManager.FLAG_LOCK)
+            })
+            panel.addView(sheetRow("Home screen only") {
+                applyPhoneWallpaper(WallpaperManager.FLAG_SYSTEM)
+            })
+            panel.addView(sheetRow("Lock screen only") {
+                applyPhoneWallpaper(WallpaperManager.FLAG_LOCK)
+            })
+            panel.addView(sheetRow("Cancel", tint = TEXT_DIM) { dismissSheet() })
+        }
+    }
+
+    private fun applyPhoneWallpaper(flags: Int) {
+        dismissSheet()
+        val path = wallpaperPath()
+        val builtin = builtinWallpapers.firstOrNull { it.id == builtinWallpaperId() }
+        val metrics = resources.displayMetrics
+        val appContext = applicationContext
+        Toast.makeText(this, "Setting wallpaper…", Toast.LENGTH_SHORT).show()
+        Thread {
+            val ok = try {
+                val bitmap = when {
+                    path.isNotEmpty() -> WallpaperLoader.decode(appContext, path)
+                    builtin != null ->
+                        makeAuroraBitmap(builtin.colors, metrics.widthPixels, metrics.heightPixels, builtin.variant)
+                    else -> null
+                }
+                if (bitmap == null) {
+                    false
+                } else {
+                    WallpaperManager.getInstance(appContext).setBitmap(bitmap, null, true, flags)
+                    true
+                }
+            } catch (_: Exception) {
+                false
+            }
+            handler.post {
+                if (isFinishing) return@post
+                Toast.makeText(
+                    this,
+                    if (ok) "Phone wallpaper updated." else "Couldn't set the phone wallpaper.",
+                    Toast.LENGTH_SHORT,
+                ).show()
+            }
+        }.start()
     }
 
     // ── Hidden apps screen ─────────────────────────────────────────────────────
@@ -2478,17 +3296,6 @@ class LauncherActivity : Activity() {
         }
     }
 
-    private fun openAppInfo(pkg: String) {
-        try {
-            startActivity(
-                Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                    data = Uri.parse("package:$pkg")
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                },
-            )
-        } catch (_: Exception) {
-        }
-    }
 
     // ── Block and allowance data ────────────────────────────────────────────────
 
@@ -2666,17 +3473,47 @@ class LauncherActivity : Activity() {
     private fun updateClockText() {
         val now = Date()
         val use24h = android.text.format.DateFormat.is24HourFormat(this)
-        val time: CharSequence = if (use24h) {
-            SimpleDateFormat("HH:mm", Locale.getDefault()).format(now)
-        } else {
-            val hm = SimpleDateFormat("h:mm", Locale.getDefault()).format(now)
-            val ampm = SimpleDateFormat("a", Locale.getDefault()).format(now).lowercase(Locale.getDefault())
-            SpannableString("$hm $ampm").apply {
-                setSpan(RelativeSizeSpan(0.3f), hm.length, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        val hour = SimpleDateFormat(if (use24h) "HH" else "h", Locale.getDefault()).format(now)
+        val minute = SimpleDateFormat("mm", Locale.getDefault()).format(now)
+        val ampm = if (use24h) "" else
+            SimpleDateFormat("a", Locale.getDefault()).format(now).lowercase(Locale.getDefault())
+        val time: CharSequence = when (clockStyle) {
+            "stacked" -> {
+                val text = if (ampm.isEmpty()) "$hour\n$minute" else "$hour\n$minute $ampm"
+                SpannableString(text).apply {
+                    setSpan(
+                        ForegroundColorSpan(ACCENT_TEXT),
+                        hour.length + 1,
+                        hour.length + 1 + minute.length,
+                        Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
+                    )
+                    if (ampm.isNotEmpty()) {
+                        setSpan(
+                            RelativeSizeSpan(0.3f),
+                            hour.length + 1 + minute.length,
+                            length,
+                            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
+                        )
+                    }
+                }
+            }
+            else -> {
+                if (ampm.isEmpty()) {
+                    "$hour:$minute"
+                } else {
+                    val hm = "$hour:$minute"
+                    SpannableString("$hm $ampm").apply {
+                        setSpan(RelativeSizeSpan(0.3f), hm.length, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    }
+                }
             }
         }
         clockView?.text = time
-        dateView?.text = SimpleDateFormat("EEE, d MMM", Locale.getDefault()).format(now)
+        val fullDate = clockStyle == "bold" || clockStyle == "stacked"
+        dateView?.text = SimpleDateFormat(
+            if (fullDate) "EEEE, d MMMM" else "EEE, d MMM",
+            Locale.getDefault(),
+        ).format(now)
         refreshFocusCard()
     }
 
