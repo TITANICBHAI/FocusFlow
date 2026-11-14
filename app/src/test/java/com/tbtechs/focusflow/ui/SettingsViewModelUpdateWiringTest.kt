@@ -222,6 +222,8 @@ class SettingsViewModelUpdateWiringTest {
             val saved = JSONArray(preferences.getString("daily_allowance_config", "[]"))
                 .getJSONObject(0)
             assertEquals("com.example.manually_added", saved.getString("package"))
+            // The enforcement layer and the launcher look entries up by "packageName".
+            assertEquals("com.example.manually_added", saved.getString("packageName"))
             assertEquals("count", saved.getString("mode"))
             assertEquals(2, saved.getInt("countPerDay"))
             assertEquals(

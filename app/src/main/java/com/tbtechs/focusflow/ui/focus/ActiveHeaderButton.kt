@@ -73,7 +73,7 @@ fun evaluateActiveProtection(
 
     val allowancePackages = runCatching {
         val arr = JSONArray(settings.dailyAllowanceConfigJson ?: "[]")
-        (0 until arr.length()).mapNotNull { arr.optJSONObject(it)?.optString("package")?.takeIf(String::isNotBlank) }
+        (0 until arr.length()).mapNotNull { arr.optJSONObject(it)?.let { entry -> entry.optString("package").ifBlank { entry.optString("packageName") } }?.takeIf(String::isNotBlank) }
     }.getOrDefault(emptyList())
     val hasDailyAllowance = allowancePackages.isNotEmpty()
     val hasKeywords = settings.blockedWords.isNotEmpty()

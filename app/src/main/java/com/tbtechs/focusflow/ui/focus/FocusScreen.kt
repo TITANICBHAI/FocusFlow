@@ -1709,7 +1709,8 @@ private fun AppSettings.dailyAllowanceEntries(): List<DailyAllowanceEntry> {
         val array = JSONArray(raw)
         (0 until array.length()).mapNotNull { index ->
             val item = array.optJSONObject(index) ?: return@mapNotNull null
-            val packageName = item.optString("package").takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            val packageName = item.optString("package").ifBlank { item.optString("packageName") }
+                .takeIf { it.isNotBlank() } ?: return@mapNotNull null
             DailyAllowanceEntry(
                 packageName = packageName,
                 dailyAllowanceMs = item.optLong("dailyAllowanceMs", 0L),

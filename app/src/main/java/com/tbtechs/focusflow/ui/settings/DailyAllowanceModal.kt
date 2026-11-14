@@ -918,10 +918,12 @@ internal fun dailyAllowanceEntriesForSave(
 
 internal fun dailyAllowanceEntriesFromJson(raw: String?): List<DailyAllowanceEntry> = runCatching {
     val values = JSONArray(raw ?: "[]")
-    List(values.length()) { index ->
+    (0 until values.length()).mapNotNull { index ->
         val value = values.getJSONObject(index)
+        val entryPackage = value.optString("package", "").ifBlank { value.optString("packageName", "") }
+        if (entryPackage.isBlank()) return@mapNotNull null
         DailyAllowanceEntry(
-            packageName = value.getString("package"),
+            packageName = entryPackage,
             dailyAllowanceMs = value.optLong("dailyAllowanceMs", 0L),
             mode = value.optString("mode", "count"),
             countPerDay = value.optInt("countPerDay", 1).coerceAtLeast(1),

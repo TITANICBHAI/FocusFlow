@@ -241,7 +241,9 @@ fun DefenseScreen(
                             if (enabled) update(settings.copy(alwaysBlockEnabled = true))
                             else protectedToggle("Always-On Enforcement", false) {
                                 update(settings.copy(alwaysBlockEnabled = false))
-                                alwaysOnPinRotationVisible = true
+                                // Rotating the password only makes sense when one exists. Without
+                                // it, turning this off used to push a "set a password" prompt on you.
+                                if (settings.pinProtectionEnabled) alwaysOnPinRotationVisible = true
                             }
                         },
                     )

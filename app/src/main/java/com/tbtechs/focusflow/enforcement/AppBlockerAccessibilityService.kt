@@ -2475,7 +2475,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                 val arr = org.json.JSONArray(configJson)
                 for (i in 0 until arr.length()) {
                     val obj = arr.getJSONObject(i)
-                    val entryPkg = obj.optString("packageName", "")
+                    val entryPkg = obj.allowancePackage()
                     if (entryPkg.equals(pkg, ignoreCase = true)) {
                         return AllowanceEntry(
                             pkg         = entryPkg,
@@ -2706,7 +2706,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                         val arr = org.json.JSONArray(allowanceConfig)
                         if (arr.length() > 0) {
                             val inAllowance = (0 until arr.length()).any {
-                                arr.getJSONObject(it).optString("packageName", "")
+                                arr.getJSONObject(it).allowancePackage()
                                     .equals(pkg, ignoreCase = true)
                             }
                             if (!inAllowance) return true

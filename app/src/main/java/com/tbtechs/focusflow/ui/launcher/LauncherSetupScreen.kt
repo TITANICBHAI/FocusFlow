@@ -4,8 +4,6 @@ import android.content.Intent
 import android.widget.Toast
 import android.provider.Settings
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -68,6 +66,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.tbtechs.focusflow.data.images.BuiltinWallpapers
 import com.tbtechs.focusflow.data.repository.InstalledAppInfo
 import com.tbtechs.focusflow.di.AppModule
 import com.tbtechs.focusflow.data.repository.InstalledAppsRepository
@@ -118,6 +117,8 @@ fun LauncherSetupScreen(
     var defaultLauncher by remember { mutableStateOf<Boolean?>(null) }
     var showFocusToolsPicker by remember { mutableStateOf(false) }
     var showHiddenPicker by remember { mutableStateOf(false) }
+    var showWallpaperScreen by remember { mutableStateOf(false) }
+    var pendingUnhide by remember { mutableStateOf<String?>(null) }
     var showPinGate by remember { mutableStateOf(false) }
     var pinText by remember { mutableStateOf("") }
     var pinError by remember { mutableStateOf(false) }
@@ -161,33 +162,6 @@ fun LauncherSetupScreen(
         onDispose { activity?.lifecycle?.removeObserver(observer) }
     }
 
-    val wallpaperPicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.GetContent(),
-    ) { uri ->
-        if (uri != null) {
-            scope.launch {
-                // Validate and re-encode the picked image into app-private storage so
-                // the stored reference is a clean local file that survives restarts
-                // (the picker's own URI grant is temporary).
-                val storedPath = withContext(Dispatchers.IO) {
-                    runCatching {
-                        context.contentResolver.openInputStream(uri)?.use { input ->
-                            AppModule.wallpaperStore.ingest(input).getOrThrow()
-                        }
-                    }.getOrNull()
-                }
-                if (storedPath != null) {
-                    settingsViewModel.updateSettings(settings.copy(launcherWallpaperUri = storedPath))
-                } else {
-                    Toast.makeText(
-                        context,
-                        "That image could not be used as a wallpaper.",
-                        Toast.LENGTH_SHORT,
-                    ).show()
-                }
-            }
-        }
-    }
     Scaffold(
         containerColor = DarkBackground,
         topBar = {
@@ -415,30 +389,29 @@ fun LauncherSetupScreen(
                             Column(modifier = Modifier.weight(1f)) {
                                 Text("Wallpaper", fontWeight = FontWeight.Bold, color = DarkTextPrimary)
                                 Text(
-                                    if (settings.launcherWallpaperUri == null) "Built-in or adaptive. Long-press the launcher to choose one."
-                                    else "Custom wallpaper selected",
+                                    when {
+                                        !settings.launcherWallpaperUri.isNullOrBlank() -> "Your own picture"
+                                        BuiltinWallpapers.byId(settings.launcherBuiltinWallpaper) != null ->
+                                            BuiltinWallpapers.byId(settings.launcherBuiltinWallpaper)!!.name
+                                        else -> "Adaptive (follows your phone)"
+                                    },
                                     fontSize = 11.sp,
                                     color = DarkTextSecondary,
                                 )
                             }
                             Button(
-                                onClick = { wallpaperPicker.launch("image/*") },
+                                onClick = { showWallpaperScreen = true },
                                 shape = RoundedCornerShape(10.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = BrandPrimary),
                             ) {
-                                Text("Pick", fontSize = 13.sp, color = Color.White)
+                                Text("Choose", fontSize = 13.sp, color = Color.White)
                             }
                         }
-                        if (settings.launcherWallpaperUri != null) {
-                            TextButton(
-                                onClick = {
-                                    settingsViewModel.updateSettings { s -> s.copy(launcherWallpaperUri = null) }
-                                    scope.launch(Dispatchers.IO) { AppModule.wallpaperStore.clear() }
-                                },
-                            ) {
-                                Text("Clear wallpaper", color = Color(0xFFEF4444), fontSize = 12.sp)
-                            }
-                        }
+                        Text(
+                            "Pick one of ours or your own, and set it on your phone too so Recents and the lock screen match.",
+                            fontSize = 11.sp,
+                            color = DarkTextSecondary,
+                        )
                     }
                 }
             }
@@ -512,7 +485,7 @@ fun LauncherSetupScreen(
                     LauncherPickerRow(
                         title = "Hidden apps",
                         count = settings.launcherHiddenPackages.size,
-                        subtitle = "Hidden apps stay installed but leave the drawer and search. Any app can be hidden. Long-press an app in the launcher, then find them under Hidden apps.",
+                        subtitle = "Hidden apps stay installed but leave the drawer and search. Any app can be hidden. Long-press an app in the launcher; find them again in the drawer's ⋮ menu. Unhiding asks for your password if you set one.",
                         onClick = { showHiddenPicker = true },
                     )
                 }
@@ -548,18 +521,41 @@ fun LauncherSetupScreen(
             error = installedAppsState.error != null,
             selected = settings.launcherHiddenPackages.toSet(),
             onToggle = { pkg ->
-                settingsViewModel.updateSettings { s ->
-                    val next = s.launcherHiddenPackages.toMutableSet()
-                    if (!next.add(pkg)) next.remove(pkg)
-                    s.copy(launcherHiddenPackages = next.toList())
+                // Hiding is instant. Unhiding takes a little effort on purpose: it is refused
+                // while a block is running and asks for the password when one is set.
+                when {
+                    pkg !in settings.launcherHiddenPackages ->
+                        settingsViewModel.updateSettings { s ->
+                            s.copy(launcherHiddenPackages = (s.launcherHiddenPackages + pkg).distinct())
+                        }
+                    locked -> Toast.makeText(
+                        context,
+                        "Apps can't be unhidden while a block is running.",
+                        Toast.LENGTH_LONG,
+                    ).show()
+                    settings.pinProtectionEnabled -> {
+                        pinText = ""
+                        pinError = false
+                        pendingUnhide = pkg
+                        showPinGate = true
+                    }
+                    else -> settingsViewModel.updateSettings { s ->
+                        s.copy(launcherHiddenPackages = s.launcherHiddenPackages - pkg)
+                    }
                 }
             },
             onDismiss = { showHiddenPicker = false },
         )
     }
+    if (showWallpaperScreen) {
+        LauncherWallpaperScreen(
+            settingsViewModel = settingsViewModel,
+            onClose = { showWallpaperScreen = false },
+        )
+    }
     if (showPinGate) {
         AlertDialog(
-            onDismissRequest = { showPinGate = false },
+            onDismissRequest = { showPinGate = false; pendingUnhide = null },
             containerColor = DarkCard,
             titleContentColor = DarkTextPrimary,
             textContentColor = DarkTextSecondary,
@@ -591,7 +587,15 @@ fun LauncherSetupScreen(
                         if (settingsViewModel.verifyPin(pinText)) {
                             pinText = ""
                             showPinGate = false
-                            defaultRowUnlocked = true
+                            val unhide = pendingUnhide
+                            pendingUnhide = null
+                            if (unhide != null) {
+                                settingsViewModel.updateSettings { s ->
+                                    s.copy(launcherHiddenPackages = s.launcherHiddenPackages - unhide)
+                                }
+                            } else {
+                                defaultRowUnlocked = true
+                            }
                         } else {
                             pinError = true
                         }
@@ -601,7 +605,7 @@ fun LauncherSetupScreen(
                 ) { Text("Continue") }
             },
             dismissButton = {
-                TextButton(onClick = { showPinGate = false }) {
+                TextButton(onClick = { showPinGate = false; pendingUnhide = null }) {
                     Text("Cancel", color = DarkTextSecondary)
                 }
             },

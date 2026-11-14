@@ -81,6 +81,12 @@ class MainActivity : ComponentActivity() {
     private var externalBackupImportNonce by mutableStateOf(0)
     private var resumeNonce by mutableStateOf(0)
 
+    override fun onStop() {
+        // The schedule always starts on today again after the app has been closed or left.
+        com.tbtechs.focusflow.ui.home.ScheduleDateState.resetToToday()
+        super.onStop()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         StartupLogger.info("MainActivity", "Main activity created")

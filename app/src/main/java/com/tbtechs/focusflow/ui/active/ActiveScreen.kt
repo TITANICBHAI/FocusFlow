@@ -1090,7 +1090,7 @@ private fun ActivePinGateDialog(
 private fun AppSettings.dailyAllowancePackages(): List<String> = runCatching {
     val entries = JSONArray(dailyAllowanceConfigJson ?: "[]")
     (0 until entries.length()).mapNotNull {
-        entries.optJSONObject(it)?.optString("package")?.takeIf(String::isNotBlank)
+        entries.optJSONObject(it)?.let { entry -> entry.optString("package").ifBlank { entry.optString("packageName") } }?.takeIf(String::isNotBlank)
     }
 }.getOrDefault(emptyList())
 

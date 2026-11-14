@@ -2,6 +2,7 @@ package com.tbtechs.focusflow.ui.home
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,6 +24,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.CloudOff
+import androidx.compose.material.icons.outlined.KeyboardArrowDown
+import androidx.compose.material.icons.outlined.KeyboardArrowUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -48,6 +51,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.tbtechs.focusflow.ui.theme.scaledSp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -94,6 +98,12 @@ fun HomeScreen(
     val isDbReady by appBootViewModel.isDbReady.collectAsState()
     val isDbUnrecoverable by appBootViewModel.isDbUnrecoverable.collectAsState()
     val todayTasks = remember(tasks) { tasks.filter(Task::isToday) }
+    // The day the schedule is showing. Reads as "today" until a date is picked, and goes back
+    // to today whenever the app has been closed (ScheduleDateState.resetToToday).
+    val selectedDate = ScheduleDateState.current()
+    val viewingToday = ScheduleDateState.isToday()
+    var calendarOpen by remember { mutableStateOf(false) }
+    val dayTasks = remember(tasks, selectedDate) { tasks.filter { it.isOnDate(selectedDate) } }
     val activeTask = remember(todayTasks, focusSession) {
         todayTasks
             .filter { it.status !in setOf("completed", "skipped") }
@@ -154,13 +164,36 @@ fun HomeScreen(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Text(
-                                text = LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, MMMM d")),
-                                fontSize = 22.scaledSp,
-                                fontWeight = FontWeight.Bold,
-                                color = RefText,
-                                modifier = Modifier.weight(1f),
-                            )
+                            Row(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .clickable { calendarOpen = true }
+                                    .padding(vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text = selectedDate.format(
+                                        DateTimeFormatter.ofPattern(
+                                            if (selectedDate.year == LocalDate.now().year) "EEEE, MMMM d"
+                                            else "EEE, MMM d, yyyy",
+                                        ),
+                                    ),
+                                    fontSize = 22.scaledSp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = RefText,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f, fill = false),
+                                )
+                                Icon(
+                                    if (calendarOpen) Icons.Outlined.KeyboardArrowUp
+                                    else Icons.Outlined.KeyboardArrowDown,
+                                    contentDescription = "Choose a date",
+                                    tint = RefText,
+                                    modifier = Modifier.size(26.dp),
+                                )
+                            }
                             ActiveStatusIndicator(
                                 focusSession = focusSession,
                                 settings = settings,
@@ -168,17 +201,32 @@ fun HomeScreen(
                             )
                         }
                         Spacer(Modifier.height(4.dp))
-                        Text(
-                            text = if (todayTasks.isEmpty()) {
-                                "No tasks today"
-                            } else {
-                                val completed = todayTasks.count { it.status == "completed" }
-                                val skipped = todayTasks.count { it.status == "skipped" }
-                                "$completed/${todayTasks.size} tasks done · $skipped skipped"
-                            },
-                            fontSize = 13.scaledSp,
-                            color = RefSecondary,
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = if (dayTasks.isEmpty()) {
+                                    if (viewingToday) "No tasks today" else "No tasks on this day"
+                                } else {
+                                    val completed = dayTasks.count { it.status == "completed" }
+                                    val skipped = dayTasks.count { it.status == "skipped" }
+                                    "$completed/${dayTasks.size} tasks done · $skipped skipped"
+                                },
+                                fontSize = 13.scaledSp,
+                                color = RefSecondary,
+                                modifier = Modifier.weight(1f),
+                            )
+                            if (!viewingToday) {
+                                Text(
+                                    text = "Back to today",
+                                    fontSize = 13.scaledSp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = BrandPrimary,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable { ScheduleDateState.resetToToday() }
+                                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                                )
+                            }
+                        }
                     }
             },
             floatingActionButton = {
@@ -209,7 +257,7 @@ fun HomeScreen(
                         ] ?: LocalFocusFlowTextScale.current
                     ),
                 ) {
-                    if (bannerTask != null) {
+                    if (bannerTask != null && viewingToday) {
                         ActiveTaskBanner(
                             task = bannerTask,
                             onOpen = { detailTaskId = bannerTask.id },
@@ -219,9 +267,10 @@ fun HomeScreen(
                             onStartFocus = { focusSessionViewModel.startFocusMode(bannerTask.id) },
                         )
                     }
-                    if (todayTasks.isEmpty()) {
+                    if (dayTasks.isEmpty()) {
                         EmptySchedule(
                             modifier = Modifier.weight(1f),
+                            viewingToday = viewingToday,
                         )
                     } else {
                         LazyColumn(
@@ -231,13 +280,13 @@ fun HomeScreen(
                                 bottom = dimensions.bottomContentPadding,
                             ),
                         ) {
-                            items(todayTasks, key = Task::id) { task ->
+                            items(dayTasks, key = Task::id) { task ->
                                 TaskCard(
                                     task = task,
                                     isActive = task.id == activeTask?.id,
                                     onOpen = { detailTaskId = task.id },
                                     onComplete = { taskId ->
-                                        todayTasks.firstOrNull { it.id == taskId }
+                                        dayTasks.firstOrNull { it.id == taskId }
                                             ?.let(::completeAndMaybeStop)
                                             ?: taskViewModel.completeTask(taskId)
                                     },
@@ -250,6 +299,17 @@ fun HomeScreen(
                 }
             }
         }
+    }
+
+    if (calendarOpen) {
+        ScheduleDatePickerDialog(
+            initial = selectedDate,
+            onPick = { picked ->
+                ScheduleDateState.select(picked)
+                calendarOpen = false
+            },
+            onDismiss = { calendarOpen = false },
+        )
     }
 
     if (addOpen) {
@@ -265,8 +325,17 @@ fun HomeScreen(
         ) {
             QuickAddModal(
                 onDismiss = { addOpen = false },
-                onSave = taskViewModel::addTask,
+                onSave = { task ->
+                    taskViewModel.addTask(task)
+                    // Show the day the task landed on, so it is there when the form closes.
+                    runCatching {
+                        java.time.Instant.parse(task.startTime)
+                            .atZone(java.time.ZoneId.systemDefault())
+                            .toLocalDate()
+                    }.getOrNull()?.let(ScheduleDateState::select)
+                },
                 settingsViewModel = settingsViewModel,
+                initialDate = ScheduleDateState.selected,
             )
         }
     }
@@ -436,6 +505,7 @@ private fun DatabaseUnavailable(onRetry: () -> Unit) = Column(
 @Composable
 private fun EmptySchedule(
     modifier: Modifier = Modifier,
+    viewingToday: Boolean = true,
 ) {
     Column(
         modifier = modifier
@@ -452,14 +522,14 @@ private fun EmptySchedule(
         )
         Spacer(Modifier.height(8.dp))
         Text(
-            "No tasks scheduled for today",
+            if (viewingToday) "No tasks scheduled for today" else "No tasks scheduled for this day",
             fontSize = 18.scaledSp,
             fontWeight = FontWeight.SemiBold,
             color = RefSecondary,
         )
         Spacer(Modifier.height(4.dp))
         Text(
-            "Tap + to add your first task",
+            if (viewingToday) "Tap + to add your first task" else "Tap + to plan something for this day",
             fontSize = 13.scaledSp,
             color = RefMuted,
         )

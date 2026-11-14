@@ -31,7 +31,7 @@ internal class AllowanceUsageStateStore(
             buildList {
                 for (index in 0 until entries.length()) {
                     val item = entries.optJSONObject(index) ?: continue
-                    val packageName = item.optString("packageName", "")
+                    val packageName = item.allowancePackage()
                         .takeIf(String::isNotBlank) ?: continue
                     val mode = item.optString("mode", AllowanceLedger.MODE_COUNT)
                     when (mode) {
@@ -114,7 +114,7 @@ internal class AllowanceUsageStateStore(
             (0 until array.length())
                 .mapNotNull { array.optJSONObject(it) }
                 .firstOrNull {
-                    it.optString("packageName", "").equals(packageName, ignoreCase = true)
+                    it.allowancePackage().equals(packageName, ignoreCase = true)
                 }
         } catch (_: Exception) {
             null

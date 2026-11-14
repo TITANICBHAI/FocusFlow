@@ -52,6 +52,8 @@ data class AppSettings(
      * higher values fade in the wallpaper and frosted panels.
      */
     val launcherGlassLevel: Int = 70,
+    /** Id of a wallpaper drawn by the app (see BuiltinWallpapers), or "" for adaptive / custom. */
+    val launcherBuiltinWallpaper: String = "",
     /** "grid" (icons side by side) or "list" (one app per row) for the launcher app drawer. */
     val launcherDrawerLayout: String = "grid",
 

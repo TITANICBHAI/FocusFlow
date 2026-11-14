@@ -1049,7 +1049,7 @@ class ForegroundTaskService : Service() {
                 val arr = JSONArray(configJson)
                 for (i in 0 until arr.length()) {
                     val entry = arr.optJSONObject(i) ?: continue
-                    if (!entry.optString("packageName", "")
+                    if (!entry.allowancePackage()
                             .equals(pkg, ignoreCase = true)) continue
 
                     val mode = entry.optString("mode", "count")

@@ -2,6 +2,18 @@ package com.tbtechs.focusflow.enforcement
 
 import com.tbtechs.focusflow.data.repository.SettingsRepository
 import com.tbtechs.focusflow.di.AppModule
+import com.tbtechs.focusflow.domain.PinManager
+import com.tbtechs.focusflow.widget.WidgetMode
+import com.tbtechs.focusflow.widget.WidgetSession
+import com.tbtechs.focusflow.widget.WidgetSnapshot
+import com.tbtechs.focusflow.widget.WidgetSnapshotBuilder
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import com.tbtechs.focusflow.data.images.BuiltinWallpapers
 import com.tbtechs.focusflow.data.images.WallpaperLoader
 import android.app.Activity
 import android.app.WallpaperManager
@@ -174,7 +186,13 @@ class LauncherActivity : Activity() {
     private var statusText: TextView? = null
     private var statusDot: View? = null
     private var focusCard: LinearLayout? = null
+    private var focusHeaderView: TextView? = null
     private var focusTitleView: TextView? = null
+    private var homeTasks: List<com.tbtechs.focusflow.data.model.Task>? = null
+    private var homeSnapshot: WidgetSnapshot? = null
+    private var homeSnapshotValidUntilMs = 0L
+    private var taskCollectJob: Job? = null
+    private val uiScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var focusSubtitleView: TextView? = null
     private var focusProgressTrack: FrameLayout? = null
     private var focusProgressFill: View? = null
@@ -244,7 +262,7 @@ class LauncherActivity : Activity() {
         prefs.getString(PREF_LAUNCHER_WALLPAPER, "")?.trim().orEmpty()
 
     private fun builtinWallpaperId(): String =
-        prefs.getString(PREF_WALLPAPER_BUILTIN, "")?.takeIf { id -> builtinWallpapers.any { it.id == id } }.orEmpty()
+        prefs.getString(PREF_WALLPAPER_BUILTIN, "")?.takeIf { id -> BuiltinWallpapers.byId(id) != null }.orEmpty()
 
     private fun layoutSignature(): String = "${readGlassLevel()}|${wallpaperPath()}|${builtinWallpaperId()}"
 
@@ -407,71 +425,6 @@ class LauncherActivity : Activity() {
         }
     }
 
-    private class BuiltinWallpaper(
-        val id: String,
-        val name: String,
-        val bestAt: Int,
-        val colors: IntArray,
-        val variant: Int,
-    )
-
-    /** Wallpapers drawn by the app itself: no image files, no licences, nothing to download. */
-    private val builtinWallpapers: List<BuiltinWallpaper> by lazy {
-        listOf(
-            BuiltinWallpaper("midnight", "Midnight", 40, intArrayOf(0xFF4F46E5.toInt(), 0xFF1E3A8A.toInt(), 0xFF7C3AED.toInt()), 0),
-            BuiltinWallpaper("aurora", "Aurora", 60, intArrayOf(0xFF10B981.toInt(), 0xFF6366F1.toInt(), 0xFF06B6D4.toInt()), 1),
-            BuiltinWallpaper("dusk", "Dusk", 55, intArrayOf(0xFFF97316.toInt(), 0xFFDB2777.toInt(), 0xFF7C3AED.toInt()), 2),
-            BuiltinWallpaper("forest", "Forest", 50, intArrayOf(0xFF059669.toInt(), 0xFF0F766E.toInt(), 0xFF65A30D.toInt()), 3),
-            BuiltinWallpaper("ocean", "Ocean", 65, intArrayOf(0xFF0EA5E9.toInt(), 0xFF2563EB.toInt(), 0xFF14B8A6.toInt()), 0),
-            BuiltinWallpaper("graphite", "Graphite", 30, intArrayOf(0xFF64748B.toInt(), 0xFF334155.toInt(), 0xFF94A3B8.toInt()), 1),
-        )
-    }
-
-    /**
-     * Soft glow gradient. [palette] gives three colours; [variant] moves the glows around so
-     * the built-in wallpapers do not all look alike. Used for the built-in wallpapers and,
-     * with colours from the phone's own wallpaper, for the adaptive default.
-     */
-    private fun makeAuroraBitmap(palette: IntArray, w: Int = 180, h: Int = 390, variant: Int = 0): Bitmap {
-        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bmp)
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-        val deep = Color.parseColor("#05060D")
-        paint.shader = LinearGradient(
-            0f, 0f, 0f, h.toFloat(),
-            intArrayOf(
-                ColorUtils.blendARGB(palette[0], deep, 0.58f),
-                ColorUtils.blendARGB(palette[1], deep, 0.74f),
-                deep,
-            ),
-            floatArrayOf(0f, 0.55f, 1f),
-            Shader.TileMode.CLAMP,
-        )
-        canvas.drawRect(0f, 0f, w.toFloat(), h.toFloat(), paint)
-        fun glow(cx: Float, cy: Float, r: Float, color: Int, alpha: Float) {
-            paint.shader = RadialGradient(
-                cx, cy, r,
-                intArrayOf(
-                    ColorUtils.setAlphaComponent(color, (alpha * 255).toInt()),
-                    ColorUtils.setAlphaComponent(color, 0),
-                ),
-                null,
-                Shader.TileMode.CLAMP,
-            )
-            canvas.drawCircle(cx, cy, r, paint)
-        }
-        val spots = when (variant % 4) {
-            1 -> floatArrayOf(0.85f, 0.14f, 0.10f, 0.52f, 0.70f, 0.95f)
-            2 -> floatArrayOf(0.50f, 0.10f, 0.95f, 0.48f, 0.10f, 0.90f)
-            3 -> floatArrayOf(0.10f, 0.30f, 0.90f, 0.40f, 0.45f, 1.00f)
-            else -> floatArrayOf(0.15f, 0.16f, 0.95f, 0.60f, 0.20f, 0.96f)
-        }
-        glow(w * spots[0], h * spots[1], w * 0.95f, ColorUtils.blendARGB(palette[0], Color.WHITE, 0.12f), 0.60f)
-        glow(w * spots[2], h * spots[3], w * 0.90f, palette[2], 0.42f)
-        glow(w * spots[4], h * spots[5], w * 0.85f, palette[1], 0.38f)
-        return bmp
-    }
-
     private fun shrinkTo(src: Bitmap, maxEdge: Int): Bitmap {
         val longest = max(src.width, src.height)
         if (longest <= maxEdge) return src
@@ -537,7 +490,7 @@ class LauncherActivity : Activity() {
      */
     private fun ensureBackdrop() {
         val path = wallpaperPath()
-        val builtin = if (path.isEmpty()) builtinWallpapers.firstOrNull { it.id == builtinWallpaperId() } else null
+        val builtin = if (path.isEmpty()) BuiltinWallpapers.byId(builtinWallpaperId()) else null
         val palette = if (path.isEmpty() && builtin == null) wallpaperPalette() else null
         val key = when {
             path.isNotEmpty() -> "file:$path"
@@ -551,8 +504,8 @@ class LauncherActivity : Activity() {
         Thread {
             val decoded = if (path.isNotEmpty()) WallpaperLoader.decode(appContext, path) else null
             val generated = if (decoded == null) {
-                if (builtin != null) makeAuroraBitmap(builtin.colors, 270, 585, builtin.variant)
-                else makeAuroraBitmap(palette ?: wallpaperPalette())
+                if (builtin != null) BuiltinWallpapers.render(builtin, 270, 585)
+                else BuiltinWallpapers.adaptive(palette ?: wallpaperPalette(), 180, 390)
             } else {
                 null
             }
@@ -900,6 +853,7 @@ class LauncherActivity : Activity() {
                 } else if (key == PREF_DRAWER_LAYOUT) {
                     if (isDrawerOpen) applyDrawerLayout()
                 } else {
+                    invalidateSnapshot()
                     refreshHomeContent()
                     refreshDockActions()
                     if (isDrawerOpen) {
@@ -972,6 +926,8 @@ class LauncherActivity : Activity() {
         super.onResume()
         prefs.registerOnSharedPreferenceChangeListener(preferenceListener)
         iconCache.clear()
+        invalidateSnapshot()
+        startTaskCollection()
         if (renderedSignature != layoutSignature()) {
             buildHomeLayout()
         } else {
@@ -989,6 +945,7 @@ class LauncherActivity : Activity() {
         if (::prefs.isInitialized) {
             prefs.unregisterOnSharedPreferenceChangeListener(preferenceListener)
         }
+        stopTaskCollection()
         super.onPause()
     }
 
@@ -997,6 +954,7 @@ class LauncherActivity : Activity() {
             prefs.unregisterOnSharedPreferenceChangeListener(preferenceListener)
         }
         backdropToken++
+        stopTaskCollection()
         clockRunnable?.let { handler.removeCallbacks(it) }
         super.onDestroy()
     }
@@ -1131,6 +1089,7 @@ class LauncherActivity : Activity() {
         statusText = null
         statusDot = null
         focusCard = null
+        focusHeaderView = null
         focusTitleView = null
         focusSubtitleView = null
         focusProgressTrack = null
@@ -1286,12 +1245,12 @@ class LauncherActivity : Activity() {
     }
 
     private fun statusLabel(): String {
+        val snapshot = currentSnapshot(System.currentTimeMillis())
         return when {
             prefs.getBoolean(PREF_ALWAYS_BLOCK, false) -> "Always-On"
-            prefs.getBoolean(PREF_SA_ACTIVE, false) -> "Focus Mode"
-            prefs.getString("next_task_name", null)?.takeIf { it.isNotBlank() } != null -> {
-                "Next: ${prefs.getString("next_task_name", "")}"
-            }
+            prefs.getBoolean(PREF_SA_ACTIVE, false) || prefs.getBoolean("focus_active", false) -> "Focus Mode"
+            snapshot?.mode == WidgetMode.ACTIVE -> "In a task"
+            snapshot?.mode == WidgetMode.NEXT && snapshot.startsToday -> "Next: ${snapshot.title}"
             else -> "Ready"
         }
     }
@@ -1312,8 +1271,11 @@ class LauncherActivity : Activity() {
             homeLongPress?.let { setOnLongClickListener(it) }
         }
         frost(card, if (compact) 18 else 24)
+        focusHeaderView = null
         if (!compact) {
-            card.addView(label("CURRENT TASK", 11f, TEXT_DIM).apply { letterSpacing = 0.12f })
+            val header = label("CURRENT TASK", 11f, TEXT_DIM).apply { letterSpacing = 0.12f }
+            focusHeaderView = header
+            card.addView(header)
         }
         val title = label("", if (compact) 15f else 18f, TEXT_PRIMARY, bold = true).apply {
             maxLines = if (compact) 1 else 2
@@ -1353,32 +1315,101 @@ class LauncherActivity : Activity() {
         return card
     }
 
+    /**
+     * The same "what is happening now" the phone widget and the live notification use: the
+     * task in progress on the schedule (Focus Mode or not), a running Focus session, or the
+     * next task today. Rebuilt only when the schedule changes or a task starts or ends.
+     */
+    private fun currentSnapshot(now: Long): WidgetSnapshot? {
+        if (now < homeSnapshotValidUntilMs) return homeSnapshot
+        val tasks = homeTasks
+        val sessionName = prefs.getString("task_name", "").orEmpty()
+        val sessionEnd = prefs.getLong("task_end_ms", 0L)
+        val session = if (sessionName.isNotBlank() && sessionEnd > now) {
+            WidgetSession(
+                name = sessionName,
+                startMs = prefs.getLong("task_start_ms", 0L),
+                endMs = sessionEnd,
+                colorHex = prefs.getString("task_color", null),
+            )
+        } else null
+        val snapshot = if (tasks == null && session == null) {
+            null
+        } else {
+            WidgetSnapshotBuilder.build(tasks.orEmpty(), now, session)
+        }
+        homeSnapshot = snapshot
+        homeSnapshotValidUntilMs = when (snapshot?.mode) {
+            WidgetMode.ACTIVE -> min(snapshot.endMs, now + 60_000L)
+            WidgetMode.NEXT -> min(snapshot.startMs, now + 60_000L)
+            else -> now + 60_000L
+        }
+        return snapshot
+    }
+
+    private fun invalidateSnapshot() {
+        homeSnapshotValidUntilMs = 0L
+    }
+
+    /** Follows the task list while the launcher is on screen; stopped again in onPause. */
+    private fun startTaskCollection() {
+        if (taskCollectJob?.isActive == true) return
+        taskCollectJob = uiScope.launch {
+            try {
+                AppModule.taskRepository.observeAllTasks().collect { tasks ->
+                    homeTasks = tasks
+                    invalidateSnapshot()
+                    refreshFocusCard()
+                    refreshStatusPill()
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Throwable) {
+                // No task list available: the card still shows a running Focus session.
+            }
+        }
+    }
+
+    private fun stopTaskCollection() {
+        taskCollectJob?.cancel()
+        taskCollectJob = null
+    }
+
     private fun refreshFocusCard() {
         val card = focusCard ?: return
-        val active = prefs.getBoolean("focus_active", false)
-        val taskName = prefs.getString("task_name", null)?.takeIf { it.isNotBlank() }
-        if (!active || taskName == null) {
+        val now = System.currentTimeMillis()
+        val snapshot = currentSnapshot(now)
+        val showUpNext = snapshot?.mode == WidgetMode.NEXT && snapshot.startsToday
+        if (snapshot == null || !(snapshot.mode == WidgetMode.ACTIVE || showUpNext)) {
             card.visibility = View.GONE
             return
         }
-        val endMs = prefs.getLong("task_end_ms", 0L)
-        val startMs = prefs.getLong("task_start_ms", 0L)
-        val remaining = (endMs - System.currentTimeMillis()).coerceAtLeast(0L)
-        val total = if (startMs > 0L && endMs > startMs) endMs - startMs
-        else prefs.getLong("task_duration_ms", 0L).coerceAtLeast(1L)
-        val elapsed = (total - remaining).coerceIn(0L, total)
-        val fraction = if (total > 0L) elapsed.toFloat() / total.toFloat() else 0.35f
-        focusTitleView?.text = taskName
-        focusSubtitleView?.text = "Due today • ${formatDuration(remaining)} left"
-        card.visibility = View.VISIBLE
-        focusProgressTrack?.post {
-            val track = focusProgressTrack ?: return@post
-            val fill = focusProgressFill ?: return@post
-            fill.layoutParams = (fill.layoutParams as FrameLayout.LayoutParams).also {
-                it.width = (track.width * fraction.coerceIn(0.02f, 1f)).toInt()
+        focusTitleView?.text = snapshot.title
+        if (snapshot.mode == WidgetMode.ACTIVE) {
+            val remaining = (snapshot.endMs - now).coerceAtLeast(0L)
+            val start = if (snapshot.startMs in 1 until snapshot.endMs) snapshot.startMs else now
+            val total = (snapshot.endMs - start).coerceAtLeast(1L)
+            val fraction = ((total - remaining).toFloat() / total.toFloat()).coerceIn(0f, 1f)
+            val dayStats = if (snapshot.totalToday > 0) " · ${snapshot.doneToday}/${snapshot.totalToday}" else ""
+            focusHeaderView?.text = "CURRENT TASK$dayStats"
+            val following = snapshot.followingTitle?.let { " · Next: $it" }.orEmpty()
+            focusSubtitleView?.text = "${formatDuration(remaining)} left$following"
+            focusProgressTrack?.visibility = View.VISIBLE
+            focusProgressTrack?.post {
+                val track = focusProgressTrack ?: return@post
+                val fill = focusProgressFill ?: return@post
+                fill.layoutParams = (fill.layoutParams as FrameLayout.LayoutParams).also {
+                    it.width = (track.width * fraction.coerceIn(0.02f, 1f)).toInt()
+                }
+                fill.requestLayout()
             }
-            fill.requestLayout()
+        } else {
+            focusHeaderView?.text = "UP NEXT"
+            val at = android.text.format.DateFormat.getTimeFormat(this).format(Date(snapshot.startMs))
+            focusSubtitleView?.text = "Starts at $at · in ${formatDuration(snapshot.startMs - now)}"
+            focusProgressTrack?.visibility = View.GONE
         }
+        card.visibility = View.VISIBLE
     }
 
     private fun buildTodaysLimits(): LinearLayout {
@@ -1671,10 +1702,6 @@ class LauncherActivity : Activity() {
         }
         // FocusFlow's own button is deliberately not removable: it is the way back into the app.
         row.addView(dockAction("FocusFlow", focusFlowGlyph()) { openFocusFlow() })
-        val hiddenCount = hiddenInstalledApps().size
-        if (hiddenCount > 0) {
-            row.addView(dockAction("Hidden · $hiddenCount", eyeOffGlyph()) { openHiddenScreen() })
-        }
         pruneFrosted()
     }
 
@@ -1745,23 +1772,6 @@ class LauncherActivity : Activity() {
         setImageDrawable(getRoundIcon(ownPackage))
     }
 
-    private fun eyeOffGlyph(): View = object : View(this) {
-        private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = TEXT_PRIMARY
-            style = Paint.Style.STROKE
-            strokeWidth = dp(2).toFloat()
-            strokeCap = Paint.Cap.ROUND
-        }
-        override fun onDraw(canvas: Canvas) {
-            val cx = width / 2f
-            val cy = height / 2f
-            val rx = dp(11).toFloat()
-            val ry = dp(6.5f).toFloat()
-            canvas.drawOval(RectF(cx - rx, cy - ry, cx + rx, cy + ry), paint)
-            canvas.drawCircle(cx, cy, dp(2.5f).toFloat(), paint)
-            canvas.drawLine(cx - rx, cy + ry + dp(2), cx + rx, cy - ry - dp(2), paint)
-        }
-    }.apply { layoutParams = FrameLayout.LayoutParams(dp(28), dp(28)) }
 
     // ── App drawer ─────────────────────────────────────────────────────────────
 
@@ -2380,7 +2390,18 @@ class LauncherActivity : Activity() {
         })
         build(panel)
         overlay.addView(panel)
+        ViewCompat.setOnApplyWindowInsetsListener(overlay) { _, insets ->
+            val bars = insets.getInsets(
+                WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.ime(),
+            )
+            (panel.layoutParams as? FrameLayout.LayoutParams)?.let {
+                it.bottomMargin = bars.bottom + dp(12)
+                panel.layoutParams = it
+            }
+            insets
+        }
         rootFrame.addView(overlay)
+        overlay.requestApplyInsets()
         sheetOverlay = overlay
         if (animationsEnabled()) {
             overlay.animate().alpha(1f).setDuration(150).start()
@@ -2453,14 +2474,15 @@ class LauncherActivity : Activity() {
             if (hiddenContext) {
                 panel.addView(sheetRow("Unhide", "Show it in the drawer and search again") {
                     dismissSheet()
-                    setAppHidden(pkg, false)
-                    if (hiddenOverlay != null) renderHiddenList()
+                    requestUnhide(pkg, name) {
+                        if (hiddenOverlay != null) renderHiddenList()
+                    }
                 })
             } else {
-                panel.addView(sheetRow("Hide from launcher", "Find it later under Hidden apps") {
+                panel.addView(sheetRow("Hide from launcher", "Find it later in ⋮ → Hidden apps") {
                     dismissSheet()
                     setAppHidden(pkg, true)
-                    Toast.makeText(this, "$name hidden. Find it under Hidden apps.", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "$name hidden. Find it in ⋮ → Hidden apps.", Toast.LENGTH_SHORT).show()
                 })
             }
             val isTool = pkg in focusToolPackages()
@@ -2677,7 +2699,7 @@ class LauncherActivity : Activity() {
     private fun wallpaperSummary(): String = when {
         wallpaperPath().isNotEmpty() -> "Your own picture"
         builtinWallpaperId().isNotEmpty() ->
-            builtinWallpapers.firstOrNull { it.id == builtinWallpaperId() }?.name ?: "Adaptive"
+            BuiltinWallpapers.byId(builtinWallpaperId())?.name ?: "Adaptive"
         else -> "Adaptive (matches your phone)"
     }
 
@@ -2855,6 +2877,7 @@ class LauncherActivity : Activity() {
             val phoneRow = sheetRow("Use as phone wallpaper…", "Also for the lock screen, and it fixes the Recents mismatch") {
                 confirmSetPhoneWallpaper()
             }
+            val previews = HashMap<String, Bitmap>()
             fun choose(builtinId: String) {
                 writeLookPrefs {
                     remove(PREF_LAUNCHER_WALLPAPER)
@@ -2870,13 +2893,13 @@ class LauncherActivity : Activity() {
                 val builtinOn = if (customOn) "" else builtinWallpaperId()
                 row.addView(wallpaperTile(
                     "Adaptive", "Matches your phone · best at 70%",
-                    makeAuroraBitmap(wallpaperPalette(), 90, 150),
+                    previews.getOrPut("adaptive") { BuiltinWallpapers.adaptive(wallpaperPalette(), 90, 150) },
                     !customOn && builtinOn.isEmpty(),
                 ) { choose(""); render() })
-                builtinWallpapers.forEach { w ->
+                BuiltinWallpapers.all.forEach { w ->
                     row.addView(wallpaperTile(
                         w.name, "Best at ${w.bestAt}%",
-                        makeAuroraBitmap(w.colors, 90, 150, w.variant),
+                        previews.getOrPut(w.id) { BuiltinWallpapers.render(w, 90, 150) },
                         builtinOn == w.id,
                     ) { choose(w.id); render() })
                 }
@@ -2969,7 +2992,7 @@ class LauncherActivity : Activity() {
     private fun applyPhoneWallpaper(flags: Int) {
         dismissSheet()
         val path = wallpaperPath()
-        val builtin = builtinWallpapers.firstOrNull { it.id == builtinWallpaperId() }
+        val builtin = BuiltinWallpapers.byId(builtinWallpaperId())
         val metrics = resources.displayMetrics
         val appContext = applicationContext
         Toast.makeText(this, "Setting wallpaper…", Toast.LENGTH_SHORT).show()
@@ -2978,7 +3001,7 @@ class LauncherActivity : Activity() {
                 val bitmap = when {
                     path.isNotEmpty() -> WallpaperLoader.decode(appContext, path)
                     builtin != null ->
-                        makeAuroraBitmap(builtin.colors, metrics.widthPixels, metrics.heightPixels, builtin.variant)
+                        BuiltinWallpapers.render(builtin, metrics.widthPixels, metrics.heightPixels)
                     else -> null
                 }
                 if (bitmap == null) {
@@ -2999,6 +3022,124 @@ class LauncherActivity : Activity() {
                 ).show()
             }
         }.start()
+    }
+
+    // ── Unhiding takes a little effort on purpose ──────────────────────────────
+
+    /** A standalone block is running right now. */
+    private fun standaloneBlockRunning(): Boolean =
+        prefs.getBoolean(PREF_SA_ACTIVE, false) && prefs.getLong(PREF_SA_UNTIL, 0L) > System.currentTimeMillis()
+
+    /**
+     * Hiding is instant, but unhiding is not: it is refused while a standalone block is
+     * running, and asks for the defense password when one is set. Otherwise hiding an app
+     * would be no barrier at all.
+     */
+    private fun requestUnhide(pkg: String, name: String, onDone: () -> Unit) {
+        if (standaloneBlockRunning()) {
+            Toast.makeText(
+                this,
+                "Apps can't be unhidden while a block is running.",
+                Toast.LENGTH_LONG,
+            ).show()
+            return
+        }
+        val pinSet = try { PinManager(applicationContext).isPinSet() } catch (_: Throwable) { false }
+        if (!pinSet) {
+            setAppHidden(pkg, false)
+            onDone()
+            return
+        }
+        showPasswordPrompt(
+            title = "Unhide $name",
+            message = "Enter your defense password to show this app again.",
+        ) {
+            setAppHidden(pkg, false)
+            onDone()
+        }
+    }
+
+    /** Asks for the defense password. The check runs off the main thread because it is deliberately slow. */
+    private fun showPasswordPrompt(title: String, message: String, onVerified: () -> Unit) {
+        showSheet(scrimColor = Color.parseColor("#99000000")) { panel ->
+            panel.addView(label(title, 20f, TEXT_PRIMARY, bold = true))
+            panel.addView(label(message, 13f, TEXT_DIM).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).also { it.topMargin = dp(6); it.bottomMargin = dp(12) }
+            })
+            val input = EditText(this).apply {
+                hint = "Password"
+                setHintTextColor(TEXT_MUTED)
+                setTextColor(TEXT_PRIMARY)
+                textSize = 16f
+                isSingleLine = true
+                inputType = android.text.InputType.TYPE_CLASS_TEXT or
+                    android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+                imeOptions = EditorInfo.IME_ACTION_DONE
+                setPadding(dp(16), 0, dp(16), 0)
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    dp(48),
+                )
+            }
+            frost(input, 16, extraDark = 0.25f)
+            panel.addView(input)
+            val error = label("That password is not right.", 12f, RED_BLOCK).apply {
+                visibility = View.GONE
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).also { it.topMargin = dp(6) }
+            }
+            panel.addView(error)
+            val buttons = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    dp(46),
+                ).also { it.topMargin = dp(14) }
+            }
+            lateinit var confirm: TextView
+            fun submit() {
+                val typed = input.text.toString()
+                if (typed.isBlank()) return
+                confirm.isEnabled = false
+                confirm.alpha = 0.5f
+                error.visibility = View.GONE
+                Thread {
+                    val ok = try { PinManager(applicationContext).verifyPin(typed) } catch (_: Throwable) { false }
+                    handler.post {
+                        if (isFinishing) return@post
+                        if (ok) {
+                            hideKeyboard()
+                            dismissSheet()
+                            onVerified()
+                        } else {
+                            confirm.isEnabled = true
+                            confirm.alpha = 1f
+                            error.visibility = View.VISIBLE
+                        }
+                    }
+                }.start()
+            }
+            buttons.addView(customizeButton("Cancel") {
+                hideKeyboard()
+                dismissSheet()
+            })
+            confirm = customizeButton("Continue") { submit() } as TextView
+            buttons.addView(confirm)
+            panel.addView(buttons)
+            input.setOnEditorActionListener { _, _, _ ->
+                submit()
+                true
+            }
+            input.postDelayed({
+                input.requestFocus()
+                showKeyboard(input)
+            }, 200)
+        }
     }
 
     // ── Hidden apps screen ─────────────────────────────────────────────────────
@@ -3062,7 +3203,7 @@ class LauncherActivity : Activity() {
         })
         column.addView(header)
         column.addView(label(
-            "Hidden apps stay out of the drawer and search. Tap one to open it, or unhide it.",
+            "Hidden apps stay out of the drawer and search. Tap one to open it. Unhiding asks for your password if you set one, and is not possible while a block is running.",
             13f,
             TEXT_DIM,
         ).apply {
@@ -3173,8 +3314,7 @@ class LauncherActivity : Activity() {
                 isClickable = true
                 isFocusable = true
                 setOnClickListener {
-                    setAppHidden(app.packageName, false)
-                    renderHiddenList()
+                    requestUnhide(app.packageName, app.label) { renderHiddenList() }
                 }
             }
             frost(unhide, 18)
@@ -3382,7 +3522,7 @@ class LauncherActivity : Activity() {
             val arr = org.json.JSONArray(configJson)
             for (i in 0 until arr.length()) {
                 val obj = arr.getJSONObject(i)
-                val pkg = obj.optString("packageName", "").takeIf { it.isNotBlank() } ?: continue
+                val pkg = obj.allowancePackage().takeIf { it.isNotBlank() } ?: continue
                 val mode    = obj.optString("mode", "count")
 
                 val icon  = try { packageManager.getApplicationIcon(pkg) } catch (_: Exception) { null }

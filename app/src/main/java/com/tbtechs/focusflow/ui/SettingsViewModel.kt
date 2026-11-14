@@ -277,6 +277,9 @@ class SettingsViewModel(
             if (newSettings.launcherTheme != current.launcherTheme) {
                 settingsRepository.setLauncherTheme(newSettings.launcherTheme)
             }
+            if (newSettings.launcherBuiltinWallpaper != current.launcherBuiltinWallpaper) {
+                settingsRepository.setLauncherBuiltinWallpaper(newSettings.launcherBuiltinWallpaper)
+            }
             if (newSettings.launcherGlassLevel != current.launcherGlassLevel) {
                 settingsRepository.setLauncherGlassLevel(newSettings.launcherGlassLevel)
             }
@@ -363,6 +366,7 @@ class SettingsViewModel(
                 entries.forEach { entry ->
                     arr.put(JSONObject().apply {
                         put("package", entry.packageName)
+                        put("packageName", entry.packageName)
                         put("dailyAllowanceMs", entry.dailyAllowanceMs)
                         put("mode", entry.mode)
                         put("countPerDay", entry.countPerDay)
@@ -483,6 +487,7 @@ class SettingsViewModel(
                 config.allowanceEntries.forEach { entry ->
                     arr.put(JSONObject().apply {
                         put("package", entry.packageName)
+                        put("packageName", entry.packageName)
                         put("dailyAllowanceMs", entry.dailyAllowanceMs)
                         put("mode", entry.mode)
                         put("countPerDay", entry.countPerDay)

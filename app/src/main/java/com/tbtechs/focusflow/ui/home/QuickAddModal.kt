@@ -27,10 +27,14 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.KeyboardArrowDown
+import androidx.compose.material.icons.outlined.KeyboardArrowUp
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DatePicker
@@ -99,10 +103,17 @@ fun QuickAddModal(
     onDismiss: () -> Unit,
     onSave: (Task) -> Unit,
     settingsViewModel: SettingsViewModel = viewModel(factory = SettingsViewModel.Factory),
+    /** The day the schedule is showing. The form opens on it (today if it is in the past). */
+    initialDate: LocalDate? = null,
 ) {
     val settings by settingsViewModel.settings.collectAsState()
     val presets = settings.launcherPresets
-    val initialStart = remember { LocalDateTime.now().plusMinutes(5) }
+    val initialStart = remember {
+        val today = LocalDate.now()
+        val day = initialDate?.takeIf { !it.isBefore(today) } ?: today
+        if (day == today) LocalDateTime.now().plusMinutes(5)
+        else LocalDateTime.of(day, LocalTime.of(9, 0))
+    }
     var title by remember { mutableStateOf("") }
     var notes by remember { mutableStateOf("") }
     var date by remember { mutableStateOf(initialStart.toLocalDate().toString()) }
@@ -119,6 +130,7 @@ fun QuickAddModal(
     var allowedPackages by remember { mutableStateOf("") }
     var showAllowedApps by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
+    var dateMenuOpen by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
     var showError by remember { mutableStateOf(false) }
 
@@ -256,29 +268,64 @@ fun QuickAddModal(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(DarkSurfaceVariant)
-                        .border(1.dp, DarkBorder, RoundedCornerShape(14.dp))
-                        .clickable { showDatePicker = true }
-                         .padding(horizontal = 12.dp, vertical = 10.dp),
-                ) {
-                    Column {
+                Box(modifier = Modifier.weight(1f)) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(DarkSurfaceVariant)
+                            .border(1.dp, DarkBorder, RoundedCornerShape(14.dp))
+                            .clickable { dateMenuOpen = true }
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                    ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                             Icon(Icons.Outlined.CalendarMonth, contentDescription = null, tint = BrandPrimary, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Outlined.CalendarMonth, contentDescription = null, tint = BrandPrimary, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(6.dp))
                             Text(
-                                if (parsedDate == LocalDate.now()) "Today"
-                                else parsedDate.format(DateTimeFormatter.ofPattern("MMM d")),
-                                 fontSize = 15.scaledSp,
+                                when (parsedDate) {
+                                    LocalDate.now() -> "Today"
+                                    LocalDate.now().plusDays(1) -> "Tomorrow"
+                                    else -> parsedDate.format(DateTimeFormatter.ofPattern("EEE, MMM d"))
+                                },
+                                fontSize = 15.scaledSp,
                                 color = RefText,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Icon(
+                                if (dateMenuOpen) Icons.Outlined.KeyboardArrowUp else Icons.Outlined.KeyboardArrowDown,
+                                contentDescription = "Choose a date",
+                                tint = RefText,
+                                modifier = Modifier.size(20.dp),
                             )
                         }
                     }
+                    DropdownMenu(
+                        expanded = dateMenuOpen,
+                        onDismissRequest = { dateMenuOpen = false },
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Today") },
+                            onClick = {
+                                date = LocalDate.now().toString()
+                                dateMenuOpen = false
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Tomorrow") },
+                            onClick = {
+                                date = LocalDate.now().plusDays(1).toString()
+                                dateMenuOpen = false
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Choose from calendar…") },
+                            onClick = {
+                                dateMenuOpen = false
+                                showDatePicker = true
+                            },
+                        )
+                    }
                 }
-
                 Box(
                     modifier = Modifier
                         .weight(1f)
@@ -447,61 +494,14 @@ fun QuickAddModal(
     }
 
     if (showDatePicker) {
-        val pickerState = rememberDatePickerState(
-            initialSelectedDateMillis = parsedDate
-                .atStartOfDay(ZoneId.systemDefault())
-                .toInstant()
-                .toEpochMilli(),
+        ScheduleDatePickerDialog(
+            initial = parsedDate,
+            onPick = { picked ->
+                date = picked.toString()
+                showDatePicker = false
+            },
+            onDismiss = { showDatePicker = false },
         )
-        DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
-            shape = RoundedCornerShape(24.dp),
-            colors = DatePickerDefaults.colors(
-                containerColor = DarkCard,
-            ),
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        pickerState.selectedDateMillis?.let { millis ->
-                            date = Instant.ofEpochMilli(millis)
-                                .atZone(ZoneId.systemDefault())
-                                .toLocalDate()
-                                .toString()
-                        }
-                        showDatePicker = false
-                    },
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.defaultMinSize(minHeight = 44.dp),
-                ) { Text("OK", color = BrandPrimary) }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = { showDatePicker = false },
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.defaultMinSize(minHeight = 44.dp),
-                ) { Text("Cancel", color = DarkTextSecondary) }
-            },
-        ) {
-            DatePicker(
-                state = pickerState,
-                colors = DatePickerDefaults.colors(
-                    containerColor = DarkCard,
-                    titleContentColor = DarkTextPrimary,
-                    headlineContentColor = DarkTextPrimary,
-                    weekdayContentColor = DarkTextSecondary,
-                    subheadContentColor = DarkTextSecondary,
-                    yearContentColor = DarkTextPrimary,
-                    currentYearContentColor = BrandPrimary,
-                    selectedYearContentColor = Color.White,
-                    selectedYearContainerColor = BrandPrimary,
-                    dayContentColor = DarkTextPrimary,
-                    selectedDayContentColor = Color.White,
-                    selectedDayContainerColor = BrandPrimary,
-                    todayContentColor = BrandPrimary,
-                    todayDateBorderColor = BrandPrimary,
-                ),
-            )
-        }
     }
 
     if (showTimePicker) {

@@ -183,6 +183,7 @@ class SettingsRepository(
         private const val KEY_DRAWER_HIDDEN_PACKAGES = "drawer_hidden_packages"
         private const val KEY_LAUNCHER_THEME = "launcher_theme"
         private const val KEY_LAUNCHER_GLASS_LEVEL = "launcher_glass_level"
+        private const val KEY_LAUNCHER_BUILTIN_WALLPAPER = "launcher_wallpaper_builtin"
         private const val KEY_LAUNCHER_DRAWER_LAYOUT = "launcher_drawer_layout"
 
         /** Shared with LauncherActivity so the writer and the launcher can never drift apart. */
@@ -941,6 +942,7 @@ class SettingsRepository(
             allowanceEntries.forEach { entry ->
                 put(JSONObject().apply {
                     put("package", entry.packageName)
+                    put("packageName", entry.packageName)
                     put("dailyAllowanceMs", entry.dailyAllowanceMs)
                     put("mode", entry.mode)
                     put("countPerDay", entry.countPerDay)
@@ -1082,6 +1084,7 @@ class SettingsRepository(
             standaloneBlockUntilMs = prefs.getLong(KEY_STANDALONE_UNTIL_MS, 0L),
             launcherTheme = prefs.getString(KEY_LAUNCHER_THEME, "glassy") ?: "glassy",
             launcherGlassLevel = readLauncherGlassLevel(),
+            launcherBuiltinWallpaper = prefs.getString(KEY_LAUNCHER_BUILTIN_WALLPAPER, "").orEmpty(),
             launcherDrawerLayout = readLauncherDrawerLayout(),
             // A value that is not a readable file in app-private storage (for example a stale
             // content:// URI saved by an older version) is treated as "no wallpaper".
@@ -1320,6 +1323,15 @@ class SettingsRepository(
         val stored = prefs.getString(KEY_LAUNCHER_DRAWER_LAYOUT, null)
         if (stored == "grid" || stored == "list") return stored
         return if (prefs.getString(KEY_LAUNCHER_THEME, "glassy") == "classic") "list" else "grid"
+    }
+
+    suspend fun setLauncherBuiltinWallpaper(id: String) {
+        restoreGate.write("SettingsRepository.setLauncherBuiltinWallpaper") {
+            prefs.edit().apply {
+                if (id.isBlank()) remove(KEY_LAUNCHER_BUILTIN_WALLPAPER)
+                else putString(KEY_LAUNCHER_BUILTIN_WALLPAPER, id)
+            }.apply()
+        }
     }
 
     suspend fun setLauncherGlassLevel(level: Int) {

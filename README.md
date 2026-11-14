@@ -1,15 +1,20 @@
 <div align="center">
 
-<img src="docs/logo-transparent.png" alt="FocusFlow logo: a blue-to-purple focus ring" width="112" />
+<img src="docs/images/readme/marketing/hero.webp" alt="FocusFlow: Decide once. Stay on track. A free, open-source Android app blocker and focus planner, shown on three phone screens (Defense tab, an active app block and a focus session)." width="100%" />
 
 # FocusFlow: Open-Source App Blocker & Focus Planner for Android
 
-**Make room for focus. Keep distractions out.**
+**Your phone is built to pull you away. FocusFlow is built to bring you back.**
 
-Block distracting apps, plan focused work sessions and build routines that stick, with layered protection that runs entirely on your phone.<br />
+Block distracting apps, plan the work that matters and keep both locked in with layered protection that runs on your phone.<br />
 Native Kotlin · Jetpack Compose · no ads · no account · no root
 
-[**⬇ Download the APK**](https://github.com/TITANICBHAI/FocusFlow/releases/latest) &nbsp;·&nbsp; [Huawei AppGallery](https://appgallery.huawei.com/app/C117698039) &nbsp;·&nbsp; [Website](https://focusflowapp.pages.dev/) &nbsp;·&nbsp; [Features](#features) &nbsp;·&nbsp; [FAQ](#faq)
+<a href="https://github.com/TITANICBHAI/FocusFlow/releases/latest"><img src="docs/images/readme/marketing/badge-github.webp" alt="Download the APK from GitHub Releases" height="48" /></a>
+<a href="https://appgallery.huawei.com/app/C117698039"><img src="docs/images/readme/marketing/badge-huawei.webp" alt="Get FocusFlow on Huawei AppGallery" height="48" /></a>
+<a href="https://apps.gov.in/app-info/2691"><img src="docs/images/readme/marketing/badge-mobileseva.webp" alt="Get FocusFlow on the Mobile Seva AppStore" height="48" /></a>
+<a href="https://indusapp.store/kcf38kt1"><img src="docs/images/readme/marketing/badge-indus.webp" alt="Get FocusFlow on the Indus Appstore" height="48" /></a>
+
+[Website](https://focusflowapp.pages.dev/) &nbsp;·&nbsp; [Features](#features) &nbsp;·&nbsp; [How it works](#how-it-works) &nbsp;·&nbsp; [Install](#download-and-install) &nbsp;·&nbsp; [FAQ](#faq)
 
 [![Latest release](https://img.shields.io/github/v/release/TITANICBHAI/FocusFlow?label=latest%20release&color=6366f1)](https://github.com/TITANICBHAI/FocusFlow/releases)
 [![License: AGPL-3.0](https://img.shields.io/github/license/TITANICBHAI/FocusFlow?color=6366f1)](LICENSE)
@@ -21,35 +26,40 @@ Native Kotlin · Jetpack Compose · no ads · no account · no root
 
 ---
 
-## What is FocusFlow?
+## Why FocusFlow?
 
-**FocusFlow is a free, open-source Android app that blocks distracting apps and helps you plan the work you actually want to do.** Add a task, start a focus session, and FocusFlow keeps the apps you chose out of reach. It combines Android's Accessibility Service, an optional on-device VPN and optional Device Admin protection, with a PIN that only you control. It is built natively in Kotlin and Jetpack Compose, needs no root, shows no ads, and keeps your tasks, settings and stats on your phone.
+Most phone timers ask you to resist in the moment, and the moment is when willpower is weakest. FocusFlow works the other way around: **you decide once, in a calm moment, and the app holds the line when you reach for the feed.**
 
-Use it to study without your phone pulling you away, protect deep-work blocks, cut down on short-form video (YouTube Shorts, Instagram Reels, TikTok), set daily limits for social apps, or run a digital detox on a schedule.
-
-| At a glance | |
+| A typical screen-time reminder | FocusFlow |
 |---|---|
-| **What it is** | App blocker, focus timer and task planner for Android |
-| **Price** | Free. No ads, no subscription, no in-app purchases |
-| **License** | Open source, GNU AGPL-3.0 |
-| **Works on** | Android 10 (API 29) and newer. No root required |
-| **Privacy** | Data stays on your device (Room/SQLite). No accounts, no analytics or advertising SDKs |
-| **Language** | English app. The [website](https://focusflowapp.pages.dev/) is available in 7 languages |
-| **Package ID** | `com.tbtechs.focusflow` |
-| **Built with** | Kotlin 2.0 · Jetpack Compose (Material 3) · Room · Coroutines · WorkManager |
-| **Developer** | [TBTechs](https://tbtechs.pages.dev) |
+| A nudge you can snooze or switch off in a couple of taps | A timed block you can **extend but not cut short**, with an optional password needed before protections can be turned off |
+| Blocks a whole app or nothing | Blocks the **YouTube Shorts player or Instagram Reels viewer** and leaves the rest of the app usable |
+| Tells you your total screen time | Logs your **blocked attempts** (the latest 500) and sends a weekly report, so you see what you actually reach for |
+| Often a subscription | **Free, no ads, no premium tier**, and the full source code is public |
 
-## Why people use FocusFlow
+**Free, open source and private by design:** no account, no ads, no analytics or advertising SDKs. Your tasks, settings and stats live in a local database on your phone, and you can read the code to check.
 
-- **Plan first, then block.** Put work on your schedule, start a focus session from any task, and blocking begins with a countdown, reminders and an end-of-session alarm. Recurring *Scheduled Blocks* switch on by themselves.
-- **Harder to talk yourself out of.** Layered protection: Accessibility Service blocking, optional per-app network blocking through a local VPN, optional Device Admin, System Guard, and a PIN you must enter before protections can be turned off.
-- **Block the feed, not the whole app.** Optional YouTube Shorts and Instagram Reels blockers redirect you away from the short-video player while the rest of the app stays usable.
-- **See what is really happening.** A Temptation Log records blocked attempts, a weekly report summarises them, and on-device stats show where your time goes.
-- **Private by design.** No account, no ads, no analytics SDKs. Everything lives in a local database on your phone, and the source code is public so you can check.
+## See it in action
 
-## Screenshots
+The screenshots below are real FocusFlow screens. The Stats screen uses clearly labelled sample data, not measured results.
 
-The screenshots below are framed and cropped to remove the phone's status and system navigation bars. Profile details are redacted. **The Stats image uses clearly labeled illustrative data, not measured results.**
+<p align="center">
+  <img src="docs/images/readme/marketing/panel-plan.webp" alt="Plan the work, then protect it: the Schedule tab with a task timeline next to a focus session with countdown, Done and Extend controls." width="100%" />
+</p>
+<p align="center">
+  <img src="docs/images/readme/marketing/panel-lock.webp" alt="When a block is on, it stays on: an Apps Blocked screen with a countdown and +30m, +1h, +2h and +4h extension buttons, next to the Focus home screen." width="100%" />
+</p>
+<p align="center">
+  <img src="docs/images/readme/marketing/panel-defense.webp" alt="Build your own defence: the Defense tab with Always-On Enforcement, Daily Allowance, Keyword Blocker, Scheduled Blocks, VPN app list and PIN protection." width="100%" />
+</p>
+<p align="center">
+  <img src="docs/images/readme/marketing/panel-insight.webp" alt="See what keeps pulling you in: the Stats screen with sample data marked as illustrative. Screenshot uses labelled sample data, not measured results." width="100%" />
+</p>
+
+<details>
+<summary><b>All screenshots</b> (originals, status bar cropped, profile details redacted)</summary>
+
+<br />
 
 <table>
   <tr>
@@ -67,6 +77,89 @@ The screenshots below are framed and cropped to remove the phone's status and sy
   </tr>
 </table>
 
+</details>
+
+## Beyond the basics
+
+Most blockers stop at "pick apps, set a timer". These parts of FocusFlow go further, and each one is in the code today.
+
+<p align="center">
+  <img src="docs/images/readme/marketing/rules-flow.webp" alt="Custom Screen Rules (beta): capture a screen in any app, choose its elements, test the rule, then switch it on as a Defense toggle." width="100%" />
+</p>
+
+### Block one screen, not the whole app *(beta)*
+
+**Custom Screen Rules** let you point at the exact screen you want gone, such as a Reels tab, a Shorts player or a shopping feed, and block only that. Capture it once, pick the elements that only appear there, test the rule, and switch it on. Each rule becomes its own toggle on the Defense tab, so you can turn it on or off like any other protection.
+
+- Up to **30 rules**, each with up to 5 matchers (view id, text, description, class, or "must be the selected tab").
+- **Share rules** as a JSON file, or import a friend's. Imported rules are validated and anything invalid is refused with a reason.
+- Settings, System UI, the package installer and FocusFlow itself can never be blocked by a rule.
+- FocusFlow **never takes a screenshot**. It reads the element tree an app exposes to Android's accessibility service. It is marked beta because an app update can change a screen and break a rule.
+
+### Understand your phone habits, on your phone
+
+Open **Stats → Extra** (Overview · Apps · Habits) for screen time, unlocks, wake-ups, sessions, quick checks (sessions under a minute), the **first app you open after unlocking**, **reflex apps** you open eight or more times a day, and **rising apps** whose use has grown 1.5× or more.
+
+FocusFlow also looks for patterns in your own usage and turns them into plain-language findings, each with a one-tap action to **block the app** or **cap its daily time**. Examples it can detect: late-night use (23:00 to 04:00), heavy daily use, weekend spikes, an app that grabs your first session of the morning, steadily rising use over four weeks, and one app quietly replacing another. Findings appear once there is enough data, and every threshold is documented in the in-app guide *How usage data is calculated*.
+
+Optional **habit nudges** warn you shortly before the hour you usually slip, for example 15 minutes before your most-used distracting hour, with a short block ready to start. They are capped at a few a day, spaced at least 30 minutes apart, and you can switch them off at any time.
+
+### Plan a week with any AI assistant
+
+FocusFlow does not call any AI service. Instead, **Settings → FocusFlow File Guide** has a **Copy task-backup prompt** button. Paste it into the assistant you already use, describe your tasks, dates and time zone, and it writes a `.focusflow` file. Open that file in FocusFlow and you get a **review screen with Merge or Replace** before anything is imported. The prompt keeps the file task-only, so it cannot change your protections or settings.
+
+### Make the block screen yours
+
+**Settings → Overlay Appearance** lets you set your own background image from your gallery and your own rotating quotes. Leave them empty to use the built-in dark gradient and focus quotes.
+
+### Locks that only tighten
+
+While a block is running, you can **add** keywords and apps, but existing keywords stay locked. Scheduled block windows can't be deleted until the block ends. Turning a screen rule off, editing it or deleting it is refused while a block is active, and needs your password when password protection is on. A standalone block "cannot be stopped early".
+
+### Safety is built in
+
+The phone dialer and emergency apps stay reachable by default, and the optional VPN excludes them. If you truly must end a focus session, **Emergency Override** asks for confirmation and logs it. The home-screen widget shows the live task, a countdown and your next task, and deliberately shows nothing about your blocking setup.
+
+## Popular setups
+
+| I want to... | Do this |
+|---|---|
+| **Study without my phone pulling me away** | Add a task on **Schedule**, choose the apps allowed for it, then tap **Activate Focus**. Everything else is blocked until the task ends. |
+| **Stop the scroll but keep the app** | **Defense → Block YouTube Shorts** and **Block Instagram Reels**. The rest of each app stays usable. |
+| **Block one screen in any other app** | **Settings → Custom Screen Rules**, then capture it. See [Beyond the basics](#beyond-the-basics). |
+| **Quiet evenings on autopilot** | **Defense → Scheduled Blocks**, then add a recurring window such as weeknights. Optionally cut internet for those apps too. |
+| **Limit one app instead of banning it** | **Defense → Daily Allowance**: a daily open count, a daily time budget, or a cooldown between opens. |
+| **Make quitting hard** | Set a **Defense password** and a **Focus session password** (8+ characters, with a "Generate for me" option), or let someone you trust set them. |
+| **Start a block right now, no task needed** | **Focus → Block Apps Without a Task**, choose apps and an end time, or use a quick preset. |
+| **Delete the apps for good** | **Defense → Uninstall Distracting Apps** (Nuclear Mode). Android asks you to confirm each one. |
+
+## What is FocusFlow?
+
+**FocusFlow is a free, open-source Android app that blocks distracting apps and helps you plan the work you actually want to do.** Add a task, start a focus session, and FocusFlow keeps the apps you chose out of reach. It combines Android's Accessibility Service, an optional on-device VPN and optional Device Admin protection, with a PIN that only you control. It is built natively in Kotlin and Jetpack Compose, needs no root, shows no ads, and keeps your tasks, settings and stats on your phone.
+
+Use it to study without your phone pulling you away, protect deep-work blocks, cut down on short-form video (YouTube Shorts, Instagram Reels, TikTok), set daily limits for social apps, or run a digital detox on a schedule.
+
+| At a glance | |
+|---|---|
+| **What it is** | App blocker, focus timer and task planner for Android |
+| **Price** | Free. No ads, no subscription, no in-app purchases |
+| **License** | Open source, GNU AGPL-3.0 |
+| **Works on** | Android 10 (API 29) and newer. No root required |
+| **Get it from** | [GitHub Releases](https://github.com/TITANICBHAI/FocusFlow/releases/latest) · [Huawei AppGallery](https://appgallery.huawei.com/app/C117698039) · [Mobile Seva AppStore](https://apps.gov.in/app-info/2691) · [Indus Appstore](https://indusapp.store/kcf38kt1) |
+| **Privacy** | Data stays on your device (Room/SQLite). No accounts, no analytics or advertising SDKs |
+| **Language** | English app. The [website](https://focusflowapp.pages.dev/) is available in 7 languages |
+| **Package ID** | `com.tbtechs.focusflow` |
+| **Built with** | Kotlin 2.0 · Jetpack Compose (Material 3) · Room · Coroutines · WorkManager |
+| **Developer** | [TBTechs](https://tbtechs.pages.dev) |
+
+## Layered protection, your way
+
+<p align="center">
+  <img src="docs/images/readme/marketing/layers.webp" alt="Three layers between you and the scroll: Layer 1 Accessibility Service (core), Layer 2 Local VPN (optional), Layer 3 Device Admin plus PIN (optional). No Android app is tamper-proof; FocusFlow is built to stop impulsive bypassing." width="100%" />
+</p>
+
+Start with the Accessibility Service alone, or stack the optional layers when you need a harder stop. Each one is something you switch on deliberately and Android asks for consent for each.
+
 ## Features
 
 ### Plan your focus
@@ -75,42 +168,51 @@ The screenshots below are framed and cropped to remove the phone's status and sy
 - **Subtasks** for routines and step-by-step work, with optional timers and photos.
 - **Focus sessions** with a countdown, extend controls and an end-of-session debrief.
 - **Pomodoro cycles** with configurable work and break lengths (optional).
-- **Reminders and task-end alarms**, a live status notification and a home-screen widget.
-- **Rate your day** prompts that feed your stats.
+- **Reminders that match the task**: 10, 5 and 1 minute before, at the start, 15- and 30-minute check-ins, and one minute before the end. Task-end alerts can be a ringing alarm or a quiet notification.
+- **Extend a task** and the tasks after it shift forward automatically.
+- **Breaks unlock your apps** during Pomodoro cycles, then blocking resumes.
+- A live status notification and a home-screen widget (live clock, current or next task, countdown and progress).
+- **Daily reflection and day-rating prompts** that feed your stats.
 
 ### Block distractions
 
 | Mode | What it does |
 |---|---|
 | **Task-based blocks** | During a focus session, only the apps you allow for that task are usable |
-| **Standalone blocks** | Start an instant, timed block without creating a task, with quick presets |
+| **Standalone blocks** | Start an instant block until a time you choose, with quick presets and +30m / +1h / +2h / +4h extensions. It can't be stopped early. Advanced options add a per-app daily allowance and per-app network block |
 | **Scheduled Blocks** | Recurring time windows (for example weeknights) that switch on automatically |
 | **Always-On Enforcement** | Keep chosen apps blocked around the clock |
 | **Daily Allowance** | Set daily open-count, time-budget or interval limits per app |
 | **Keyword Blocker** | Block keywords in URLs, searches and on-screen text |
 | **Local VPN blocking** | Optional. Cut internet access for selected apps through an on-device VPN. No traffic goes to a server |
 | **Shorts and Reels blockers** | Optional. Redirect away from the YouTube Shorts player and the Instagram Reels viewer |
+| **Custom Screen Rules** *(beta)* | Capture and block a specific screen inside any app. Up to 30 rules, shareable as JSON |
+| **Protect system controls** | Optional. Blocks the power menu, the notification shade and sensitive Settings pages (Accessibility, app data, date and time, Usage Access, battery optimization, Device Admin, Developer Options, reset and Special Access) during an active focus session or block |
 | **Sideload Guard** | Apps installed during a protected session are blocked too |
-| **Focus Launcher** | Optional. Use FocusFlow as a minimal home screen that intercepts blocked launches |
+| **Focus Launcher** | Optional. Use FocusFlow as a minimal home screen with pinned and hidden apps, your own wallpaper and a clock style. It can lock itself during a standalone block and hide Uninstall from the long-press menu |
 | **Nuclear Mode** | Pick apps from your block list and uninstall them for good (Android asks you to confirm) |
 
 ### Stay accountable
 
-- **PIN protection**: require a PIN before protections can be disabled.
+- **Password protection**: a **Defense password** guards your protections and a **Focus session password** guards ending a session. Passwords need 8+ characters, common ones are rejected, and there is a strength meter and a **Generate for me** option. They are stored only as hashes, and **there is no recovery**, so write it down or set it with someone you trust.
+- **Password rotation**: when you pause Always-On Enforcement, FocusFlow asks you to set the password you will need next time. You can keep the same one at most three times a day.
 - **System Guard** and optional **Device Admin** add resistance to force-stopping or uninstalling FocusFlow mid-session.
-- **Temptation Log** records blocked attempts (the latest 500), with a **weekly report** every Sunday morning.
-- **Aversive feedback** (optional, off by default): screen dim, vibration and sound when a blocked app opens.
+- **Temptation Log** records blocked attempts (the latest 500), with a **weekly report** every Sunday at 08:00.
+- **Aversive feedback** (optional, off by default): screen dim (to 2% brightness), repeating vibration and a sound when a blocked app opens.
 - **Boot recovery** restarts protection after a reboot.
 
 ### Understand your habits
 
-- Focus reports, on-device usage stats, trend charts, achievements and streaks, and plain-language insights.
-- Everything is calculated on your phone from Android's own usage data.
+- **Stats** for Today, Yesterday, Week and All Time, with trend charts and a focus summary, plus **Extra** (Overview, Apps, Habits) for phone-wide screen time, unlocks and sessions.
+- **Findings and one-tap actions** that turn patterns into plain-language insights. See [Beyond the basics](#beyond-the-basics).
+- **Achievements and streaks**, such as *Iron session* (a focus session without opening a blocked app once), *Quiet win* (an hour of focus with no blocked attempts) and *Three weeks* (a 21-day streak).
+- Everything is calculated on your phone from Android's own usage data. FocusFlow reads up to 14 days of history the first time, then keeps a small daily summary for up to a year.
 
 ### Your data stays yours
 
 - **Backup and restore** your setup as a `.focusflow` file ([file format](https://focusflowapp.pages.dev/focusflow-file-format/)).
-- Built-in diagnostics, troubleshooting and a how-to guide.
+- Built-in how-to guide, a *What's New* changelog, and **brand-specific troubleshooting** for the permissions Android makers hide.
+- **Report an Issue** builds a diagnostic email with links, addresses and obvious secrets removed. You review the draft and press send. Nothing is sent automatically.
 - Light and dark themes with adjustable text size.
 
 ## How it works
@@ -134,21 +236,39 @@ The screenshots below are framed and cropped to remove the phone's status and sy
 
 ## Download and install
 
+Pick the channel that suits your phone. All of them are the same FocusFlow.
+
 | Where | Link |
 |---|---|
 | **GitHub Releases** (signed APKs) | [Latest release](https://github.com/TITANICBHAI/FocusFlow/releases/latest) |
-| Huawei AppGallery | [FocusFlow on AppGallery](https://appgallery.huawei.com/app/C117698039) |
-| Mobile Seva AppStore | [apps.gov.in](https://apps.gov.in/app-info/2691) |
-| Indus Appstore | [indusapp.store](https://indusapp.store/kcf38kt1) |
+| **Huawei AppGallery** | [FocusFlow on AppGallery](https://appgallery.huawei.com/app/C117698039) |
+| **Mobile Seva AppStore** (India's government app store) | [apps.gov.in](https://apps.gov.in/app-info/2691) |
+| **Indus Appstore** | [indusapp.store](https://indusapp.store/kcf38kt1) |
 | Google Play | Not available at the moment |
 
 **Which APK should I pick?** Releases include `arm64-v8a` (most phones from the last several years), `armeabi-v7a` (older 32-bit phones) and a `universal` APK. If you are unsure, take the universal one.
 
-**Install steps**
+**Install steps for the APK**
 
 1. Download the APK on your phone and open it. If Android asks, allow your browser or file manager to install unknown apps.
 2. Open FocusFlow and follow the permission setup.
 3. On Android 13 and newer, if the Accessibility toggle is greyed out, open **App info → ⋮ menu → Allow restricted settings**, then go back. FocusFlow shows these steps in the app too.
+
+### Works on the phone you have
+
+FocusFlow needs Android 10 or newer and no root. The in-app troubleshooter has brand-specific tips for **Samsung, Xiaomi, OnePlus, Realme / Oppo and stock Android**, because each maker handles background apps and permissions differently.
+
+The project's compatibility notes list these firmware families: Samsung One UI, Xiaomi MIUI and HyperOS, Oppo ColorOS, OnePlus OxygenOS, Realme UI, Vivo Funtouch and OriginOS, Huawei EMUI (including phones without Google services), Nothing OS, Motorola, Asus, Nokia, Sony Xperia, Meizu, Lenovo and ZTE. See the [website](https://focusflowapp.pages.dev/) for details.
+
+## What FocusFlow is not
+
+Straight answers, so you can decide quickly:
+
+- **Not tamper-proof.** No Android app can stop a determined person with physical access to their own phone (Safe Mode, ADB or a factory reset). FocusFlow is built to stop *impulsive* bypassing. For a stronger guarantee, set the PIN with someone you trust.
+- **Not a parental-control app.** It is a self-control tool for your own phone, with no remote or multi-device management.
+- **Android only.** No iOS version and no cloud sync between devices.
+- **Not on Google Play right now.** Use any channel in the table above.
+- **English app interface.** The website is available in 7 languages.
 
 ## FocusFlow vs. other app blockers
 
@@ -182,7 +302,7 @@ Three are required: Accessibility Service, Usage Access and Appear on Top. Every
 
 ### Does FocusFlow collect or upload my data?
 
-No analytics, advertising or crash-reporting SDKs are included, and there are no accounts. Tasks, settings and stats are stored in a local database on your phone, and backups are `.focusflow` files that you export yourself. The optional VPN is a local on-device tunnel, not a remote server. You can check all of this in the source, and the [privacy policy](https://focusflowapp.pages.dev/privacy-policy/) explains it in plain language.
+No analytics, advertising or crash-reporting SDKs are included, and there are no accounts. The app's dependencies are AndroidX and Jetpack libraries, Room, WorkManager and Kotlin libraries, listed in `app/build.gradle.kts`. Tasks, settings and stats are stored in a local database on your phone, Android's automatic cloud backup is switched off, and backups are `.focusflow` files that you export yourself. The optional VPN is a local on-device tunnel, not a remote server. The only direct network request in the app's code is downloading a task photo from a link you add yourself, over HTTPS only. You can check all of this in the source, and the [privacy policy](https://focusflowapp.pages.dev/privacy-policy/) explains it in plain language.
 
 ### Can I still bypass FocusFlow?
 
@@ -212,17 +332,33 @@ No. Several unrelated apps share the name. This project is the open-source Andro
 
 Earlier versions of this project used React Native and Expo. Current releases are a fully native Android app written in Kotlin with Jetpack Compose.
 
+### Can I block just one screen inside an app?
+
+Yes, with **Custom Screen Rules** (beta). Capture the screen once and FocusFlow blocks only that screen. See [Beyond the basics](#beyond-the-basics).
+
+### Will FocusFlow block my phone calls or emergency apps?
+
+No. The phone dialer and emergency apps stay reachable by default, and the optional VPN excludes them. You can choose to block other system apps, and FocusFlow warns you before you do.
+
+### What if I forget my password?
+
+FocusFlow stores only a hash of each password and has **no recovery option**. Write it down, use **Generate for me** and keep the result somewhere safe, or set it with someone you trust.
+
+### What if I really have to end a focus session early?
+
+Use **Emergency Override** on the Focus tab. It asks you to confirm and logs the override. Standalone blocks can be extended but not stopped early.
+
+### Can I plan my week with an AI assistant?
+
+Yes, without FocusFlow talking to any AI service. Copy the task-backup prompt from **Settings → FocusFlow File Guide**, give it to the assistant you use, and import the `.focusflow` file it writes. You review it and choose Merge or Replace first.
+
 ### Is there a Windows version?
 
 Yes. FocusFlow for Windows is a separate project: [FocusFlow-PC on GitHub](https://github.com/TITANICBHAI/FocusFlow-PC) · [website](https://focusflowpc.pages.dev/).
 
-### Good to know
-
-Android only (no iOS) · English app interface · no cloud sync · no remote or parental management · not on Google Play right now.
-
 ## For developers
 
-FocusFlow is a single-module native Android app with 300+ Kotlin source files and a suite of unit and instrumented tests.
+FocusFlow is a single-module native Android app with 400+ Kotlin source files (about 96,000 lines) and a suite of unit and instrumented tests.
 
 | Area | Details |
 |---|---|
@@ -250,11 +386,12 @@ Release APKs (`arm64-v8a`, `armeabi-v7a`, universal) are built and signed by the
 
 ```text
 app/src/main/java/com/tbtechs/focusflow/
-├── enforcement/     Accessibility service, VPN service, Device Admin, alarms, daily allowances
+├── enforcement/     Accessibility service, VPN service, Device Admin, alarms, daily allowances,
+│                    customrules/ (Custom Screen Rules), health/ (self-checks)
 ├── analytics/       On-device usage rollups, insights, achievements
 ├── data/            Room database, repositories, backup and restore (.focusflow)
 ├── domain/          Scheduler engine, PIN management
-├── notifications/   Reminders and live status notifications
+├── notifications/   Reminders, live status and habit nudges
 ├── ui/              Jetpack Compose screens: home, focus, defense, stats, settings
 └── widget/          Home-screen widget
 ```
