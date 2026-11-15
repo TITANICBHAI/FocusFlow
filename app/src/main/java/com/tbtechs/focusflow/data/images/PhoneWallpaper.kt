@@ -9,6 +9,8 @@ import android.graphics.Paint
 import android.graphics.Rect
 import android.os.Build
 import androidx.core.content.FileProvider
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
 import kotlin.math.max
@@ -55,24 +57,61 @@ object PhoneWallpaper {
     fun apply(context: Context, bitmap: Bitmap, flags: Int): PhoneWallpaperResult {
         val wantHome = flags and WallpaperManager.FLAG_SYSTEM != 0
         val wantLock = flags and WallpaperManager.FLAG_LOCK != 0
-        val asked = { if (wantHome) Outcome.FAILED else Outcome.NOT_ASKED } to
-            { if (wantLock) Outcome.FAILED else Outcome.NOT_ASKED }
+        val askedHome = if (wantHome) Outcome.FAILED else Outcome.NOT_ASKED
+        val askedLock = if (wantLock) Outcome.FAILED else Outcome.NOT_ASKED
         val manager = try {
             WallpaperManager.getInstance(context.applicationContext)
         } catch (_: Exception) {
             return PhoneWallpaperResult(
-                asked.first(),
-                asked.second(),
+                askedHome,
+                askedLock,
                 "This phone doesn't let apps change the wallpaper.",
             )
         }
         val blocked = blockedReason(manager)
         if (blocked != null) {
-            return PhoneWallpaperResult(asked.first(), asked.second(), blocked)
+            return PhoneWallpaperResult(askedHome, askedLock, blocked)
         }
-        val home = if (wantHome) setOne(manager, bitmap, WallpaperManager.FLAG_SYSTEM) else Outcome.NOT_ASKED
-        val lock = if (wantLock) setOne(manager, bitmap, WallpaperManager.FLAG_LOCK) else Outcome.NOT_ASKED
+        val home = if (wantHome) {
+            setOne(manager, bitmap, WallpaperManager.FLAG_SYSTEM, WallpaperManager.FLAG_SYSTEM)
+        } else {
+            Outcome.NOT_ASKED
+        }
+        val lock = if (wantLock) setLock(manager, bitmap, alsoHome = wantHome) else Outcome.NOT_ASKED
         return PhoneWallpaperResult(home, lock)
+    }
+
+    /**
+     * The lock screen is the one phones disagree about, so it gets more than one try, stopping
+     * at the first that the phone clearly confirms: a bitmap for the lock screen alone, then
+     * the same as a stream (some phone makers handle only one of the two), then, when the home
+     * screen is being set as well, both screens in a single call.
+     */
+    private fun setLock(manager: WallpaperManager, bitmap: Bitmap, alsoHome: Boolean): Outcome {
+        var best = setOne(manager, bitmap, WallpaperManager.FLAG_LOCK, WallpaperManager.FLAG_LOCK)
+        if (best == Outcome.DONE) return best
+        best = better(best, setOneStream(manager, bitmap, WallpaperManager.FLAG_LOCK))
+        if (best == Outcome.DONE || !alsoHome) return best
+        return better(
+            best,
+            setOne(
+                manager,
+                bitmap,
+                WallpaperManager.FLAG_SYSTEM or WallpaperManager.FLAG_LOCK,
+                WallpaperManager.FLAG_LOCK,
+            ),
+        )
+    }
+
+    /** The more trustworthy of two outcomes: done, then unconfirmed, then failed. */
+    internal fun better(a: Outcome, b: Outcome): Outcome {
+        fun rank(o: Outcome) = when (o) {
+            Outcome.DONE -> 3
+            Outcome.UNCONFIRMED -> 2
+            Outcome.FAILED -> 1
+            Outcome.NOT_ASKED -> 0
+        }
+        return if (rank(b) > rank(a)) b else a
     }
 
     private fun blockedReason(manager: WallpaperManager): String? = try {
@@ -87,12 +126,28 @@ object PhoneWallpaper {
         null
     }
 
-    private fun setOne(manager: WallpaperManager, bitmap: Bitmap, flag: Int): Outcome {
+    /** [flags] is what is asked for; [verifyFlag] is the one screen whose id is checked. */
+    private fun setOne(manager: WallpaperManager, bitmap: Bitmap, flags: Int, verifyFlag: Int): Outcome {
         val id = try {
-            manager.setBitmap(bitmap, null, true, flag)
+            manager.setBitmap(bitmap, null, true, flags)
         } catch (_: Exception) {
             return Outcome.FAILED
         }
+        return verify(manager, id, verifyFlag)
+    }
+
+    /** Same, handing the picture over as a stream instead of a bitmap. */
+    private fun setOneStream(manager: WallpaperManager, bitmap: Bitmap, flag: Int): Outcome {
+        val id = try {
+            val bytes = ByteArrayOutputStream().also { bitmap.compress(Bitmap.CompressFormat.JPEG, 95, it) }
+            manager.setStream(ByteArrayInputStream(bytes.toByteArray()), null, true, flag)
+        } catch (_: Exception) {
+            return Outcome.FAILED
+        }
+        return verify(manager, id, flag)
+    }
+
+    private fun verify(manager: WallpaperManager, id: Int, flag: Int): Outcome {
         if (id <= 0) return Outcome.FAILED
         val reported = try {
             manager.getWallpaperId(flag)

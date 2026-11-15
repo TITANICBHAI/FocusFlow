@@ -307,13 +307,17 @@ internal fun LauncherWallpaperScreen(
                     }
                     // 3. The wallpapers.
                     item {
-                        SectionLabel("Wallpapers")
-                        Spacer(Modifier.height(2.dp))
-                        Text(
-                            "Drawn by the app, so there is nothing to download. Tap one to use it.",
-                            fontSize = 12.scaledSp,
-                            color = DarkTextMuted,
-                        )
+                        // One item holds several elements, so they must sit in a Column or the
+                        // list would draw them on top of each other.
+                        Column {
+                            SectionLabel("Wallpapers")
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                "Drawn by the app, so there is nothing to download. Tap one to use it.",
+                                fontSize = 12.scaledSp,
+                                color = DarkTextMuted,
+                            )
+                        }
                     }
                     items(tiles.chunked(2), key = { row -> row.first().id }) { pair ->
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -341,6 +345,7 @@ internal fun LauncherWallpaperScreen(
                     }
                     // 4. Your own picture: its own row, not dressed up as a wallpaper.
                     item {
+                        Column {
                         SectionLabel("From your gallery")
                         Spacer(Modifier.height(6.dp))
                         Row(
@@ -398,6 +403,7 @@ internal fun LauncherWallpaperScreen(
                             }
                             Text("›", color = DarkTextSecondary, fontSize = 22.scaledSp)
                         }
+                                            }
                     }
                     item { Spacer(Modifier.height(24.dp)) }
                 }

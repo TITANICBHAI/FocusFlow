@@ -11,7 +11,7 @@ DEVELOPER / AUTHOR:
 TBTechs
 
 SHORT DESCRIPTION (≤ 150 characters):
-An Android app blocker built to hold. Accessibility Service + VPN + Device Admin. Temptation Log. Free.
+The hardest-to-bypass Android app blocker. Accessibility Service + VPN + Device Admin. Temptation Log. Free.
 
 LONG DESCRIPTION:
 FocusFlow is a free, open-source Android app blocker built on the premise that willpower shouldn't be required to use an app blocker. Once a focus session starts, blocked apps genuinely cannot be opened — there is no dismiss button, no "ignore limit" tap-through, and no workaround that doesn't require factory-resetting your phone.
@@ -30,6 +30,7 @@ UNIQUE FEATURES (not found in any other free app blocker):
 - Content-specific blocking: block YouTube Shorts without blocking YouTube; block Instagram Reels without blocking Instagram
 - Aversive feedback: screen dims + vibration + sound triggers the moment a blocked app opens
 - Sideload Guard: apps installed during an active session are automatically blocked
+- Clock tamper detection: validates session timestamps on startup to prevent the "change system time" bypass
 - Boot Recovery: BootReceiver restores active sessions after device reboot
 
 OTHER FEATURES:
@@ -43,7 +44,7 @@ OTHER FEATURES:
 
 PLATFORM:
 Android 10+ (no root required)
-Tested on major Android brands: Samsung, Xiaomi, Huawei, OPPO, Realme, OnePlus, Vivo, Motorola, Nokia, Asus, Nothing, Sony, Honor, Black Shark, Lenovo, and more.
+Tested on 30+ OEM brands: Samsung, Xiaomi, Huawei, OPPO, Realme, OnePlus, Vivo, Motorola, Nokia, Asus, Nothing, Sony, Honor, Black Shark, Lenovo, and more.
 
 PRICE:
 Free. No subscription. No in-app purchases. No premium tier.
@@ -101,7 +102,7 @@ ALTERNATIVES TO (for comparison pages):
   PRODUCT HUNT — Specific Instructions
 ===========================================================
 If you create a Product Hunt account later:
-1. Tagline: "The Android app blocker that holds the line"
+1. Tagline: "The Android app blocker that actually can't be bypassed"
 2. Description: Use the LONG DESCRIPTION above
 3. Topics: Android, Productivity, Focus, Health & Fitness
 4. Gallery images: screenshot of the block screen, the Temptation Log, the Weekly Report

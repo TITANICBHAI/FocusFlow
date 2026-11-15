@@ -27,14 +27,14 @@ class AllowanceResetTextTest {
     fun unknownWindowGivesNoResetTime() {
         assertEquals(0L, AllowanceResetText.resetAtMs(0L, 3_600_000L))
         assertEquals(0L, AllowanceResetText.resetAtMs(1_000L, 0L))
-        assertNull(AllowanceResetText.backText(0L, at(15, 12, 0), clock, zone, Locale.US))
+        assertNull(AllowanceResetText.backText(0L, at(15, 12, 0), zone, Locale.US, clock))
     }
 
     @Test
     fun sameDayReadsBackAtTime() {
         assertEquals(
             "back at 15:40",
-            AllowanceResetText.backText(at(15, 15, 40), at(15, 14, 40), clock, zone, Locale.US),
+            AllowanceResetText.backText(at(15, 15, 40), at(15, 14, 40), zone, Locale.US, clock),
         )
     }
 
@@ -42,7 +42,7 @@ class AllowanceResetTextTest {
     fun nextDayReadsTomorrow() {
         assertEquals(
             "back tomorrow 8:10",
-            AllowanceResetText.backText(at(16, 8, 10), at(15, 23, 30), clock, zone, Locale.US),
+            AllowanceResetText.backText(at(16, 8, 10), at(15, 23, 30), zone, Locale.US, clock),
         )
     }
 
@@ -51,7 +51,7 @@ class AllowanceResetTextTest {
         // 18 Nov 2026 is a Wednesday.
         assertEquals(
             "back Wed 8:10",
-            AllowanceResetText.backText(at(18, 8, 10), at(15, 12, 0), clock, zone, Locale.US),
+            AllowanceResetText.backText(at(18, 8, 10), at(15, 12, 0), zone, Locale.US, clock),
         )
     }
 

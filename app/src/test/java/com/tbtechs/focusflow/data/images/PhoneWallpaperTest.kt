@@ -69,4 +69,13 @@ class PhoneWallpaperTest {
     fun cropToleratesZeroSizes() {
         assertArrayEquals(intArrayOf(0, 0, 0, 0), PhoneWallpaper.cropBox(0, 0, 100, 100))
     }
+
+    @Test
+    fun betterKeepsTheMostTrustworthyOutcome() {
+        assertEquals(Outcome.DONE, PhoneWallpaper.better(Outcome.FAILED, Outcome.DONE))
+        assertEquals(Outcome.DONE, PhoneWallpaper.better(Outcome.DONE, Outcome.FAILED))
+        assertEquals(Outcome.UNCONFIRMED, PhoneWallpaper.better(Outcome.FAILED, Outcome.UNCONFIRMED))
+        assertEquals(Outcome.UNCONFIRMED, PhoneWallpaper.better(Outcome.UNCONFIRMED, Outcome.FAILED))
+        assertEquals(Outcome.FAILED, PhoneWallpaper.better(Outcome.FAILED, Outcome.FAILED))
+    }
 }

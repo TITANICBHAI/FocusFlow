@@ -1,5 +1,6 @@
 # FocusFlow by TBTechs — robots.txt
 # Allow all search engines and beneficial AI retrieval bots.
+# Disallow only known training scrapers that do not contribute to visibility.
 
 User-agent: *
 Allow: /
@@ -47,22 +48,4 @@ User-agent: DuckDuckBot
 Allow: /
 
 User-agent: Slurp
-Allow: /
-
-User-agent: ClaudeBot
-Allow: /
-
-User-agent: Claude-SearchBot
-Allow: /
-
-User-agent: Claude-User
-Allow: /
-
-User-agent: Perplexity-User
-Allow: /
-
-User-agent: Google-Extended
-Allow: /
-
-User-agent: Applebot-Extended
 Allow: /

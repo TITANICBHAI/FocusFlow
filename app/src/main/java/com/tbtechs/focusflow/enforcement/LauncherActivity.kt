@@ -1277,7 +1277,7 @@ class LauncherActivity : Activity() {
             }
             letterSpacing = if (style == "bold") -0.03f else -0.02f
             if (style == "stacked") setLineSpacing(0f, 0.82f)
-            setShadowLayer(dp(10).toFloat(), 0f, dp(2).toFloat(), Color.parseColor("#55000000"))
+            setShadowLayer(dp(10).toFloat(), 0f, dp(2).toFloat(), Color.parseColor("#80000000"))
         }
         val wrap = LinearLayout(this).apply {
             layoutParams = LinearLayout.LayoutParams(
@@ -3059,7 +3059,7 @@ class LauncherActivity : Activity() {
                 }
                 row.addView(wallpaperTile(
                     if (customOn) "Your picture" else "From gallery",
-                    if (customOn) "Try 40–70%" else "Pick your own photo",
+                    if (customOn) "In use · tap to change" else "Pick your own photo",
                     null,
                     customOn,
                 ) { pickWallpaperFromGallery() })

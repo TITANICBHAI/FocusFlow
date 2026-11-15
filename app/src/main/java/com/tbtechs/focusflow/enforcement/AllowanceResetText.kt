@@ -31,9 +31,9 @@ object AllowanceResetText {
     fun backText(
         resetAtMs: Long,
         nowMs: Long,
-        clockText: (Long) -> String,
         zone: TimeZone = TimeZone.getDefault(),
         locale: Locale = Locale.getDefault(),
+        clockText: (Long) -> String,
     ): String? {
         if (resetAtMs <= 0L) return null
         val clock = clockText(resetAtMs)
