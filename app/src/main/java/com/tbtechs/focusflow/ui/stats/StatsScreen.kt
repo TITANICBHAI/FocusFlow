@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -30,7 +31,10 @@ import com.tbtechs.focusflow.ui.stats.phone.ExtraPhoneContent
 import com.tbtechs.focusflow.ui.stats.phone.ExtraTab
 import com.tbtechs.focusflow.ui.stats.phone.PhoneStatsSection
 import com.tbtechs.focusflow.ui.stats.phone.PhoneStatsViewModel
+import com.tbtechs.focusflow.ui.navigation.RouteTextScaleContext
+import com.tbtechs.focusflow.ui.navigation.Routes
 import com.tbtechs.focusflow.ui.theme.DarkBackground
+import com.tbtechs.focusflow.ui.theme.LocalFocusFlowTextScale
 
 /**
  * Stats keeps its original shape: the period tabs, the Observed Device Time card, focus numbers and one
@@ -45,6 +49,8 @@ fun StatsScreen(
     focusDayRating: Boolean = false,
     dayRatingRequestNonce: Int = 0,
     onDayRatingRequestHandled: (Int) -> Unit = {},
+    /** The per-screen text sizes from Settings, so Extra's three tabs can each have their own. */
+    screenTextScales: Map<String, Float> = emptyMap(),
 ) {
     var showExtra by rememberSaveable { mutableStateOf(false) }
     var extraTab by rememberSaveable { mutableStateOf(ExtraTab.OVERVIEW) }
@@ -130,6 +136,11 @@ fun StatsScreen(
                 },
             )
         } else {
+            val inheritedScale = LocalFocusFlowTextScale.current
+            val extraScale = screenTextScales[
+                RouteTextScaleContext.screenScaleKey(Routes.STATS, extraScreenId(extraTab))
+            ] ?: inheritedScale
+            CompositionLocalProvider(LocalFocusFlowTextScale provides extraScale) {
             ExtraHeader(
                 window = window,
                 onSelectWindow = statsViewModel::setWindow,
@@ -163,8 +174,16 @@ fun StatsScreen(
                     )
                 }
             }
+            }
         }
     }
+}
+
+/** The text-size screen id for each of Extra's tabs. Days is only a period, so it uses the tab's. */
+internal fun extraScreenId(tab: ExtraTab): String = when (tab) {
+    ExtraTab.OVERVIEW -> RouteTextScaleContext.STATS_EXTRAS_OVERVIEW_SCREEN
+    ExtraTab.APPS -> RouteTextScaleContext.STATS_EXTRAS_APPS_SCREEN
+    ExtraTab.HABITS -> RouteTextScaleContext.STATS_EXTRAS_HABITS_SCREEN
 }
 
 /** Preserved current analytics implementation, isolated from the RN-style route. */

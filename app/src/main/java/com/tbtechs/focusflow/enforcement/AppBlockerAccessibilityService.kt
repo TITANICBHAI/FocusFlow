@@ -3312,9 +3312,15 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             }
             "interval" -> {
                 val windowHours = (entry.windowMs / 3_600_000L).coerceAtLeast(1L)
-                "Allowance window exhausted — ${formatAllowanceDuration(usage.usedMs)} of " +
+                val base = "Allowance window exhausted — ${formatAllowanceDuration(usage.usedMs)} of " +
                     "${formatAllowanceDuration(entry.intervalMs)} used in the " +
                     "${windowHours}-hour window"
+                // Say when it opens again: the window start plus its length.
+                val resetAt = AllowanceResetText.resetAtMs(usage.windowStartMs, entry.windowMs)
+                val back = AllowanceResetText.backText(resetAt, System.currentTimeMillis()) { ms ->
+                    android.text.format.DateFormat.getTimeFormat(this).format(java.util.Date(ms))
+                }
+                if (back == null) base else "$base. ${back.replaceFirstChar { it.uppercase() }}."
             }
             else -> "Daily allowance exhausted"
         }

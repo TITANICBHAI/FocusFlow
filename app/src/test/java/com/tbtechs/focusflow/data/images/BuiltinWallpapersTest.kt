@@ -26,4 +26,13 @@ class BuiltinWallpapersTest {
         assertNull(BuiltinWallpapers.byId(""))
         assertNull(BuiltinWallpapers.byId(null))
     }
+
+    @Test
+    fun obsidianAndFogAreOfferedAndDrawAtAnySize() {
+        listOf("obsidian", "fog").forEach { id ->
+            val spec = BuiltinWallpapers.byId(id)
+            org.junit.Assert.assertNotNull("$id exists", spec)
+            org.junit.Assert.assertTrue(spec!!.bestAt in 1..100)
+        }
+    }
 }

@@ -214,4 +214,85 @@ class RouteTextScaleContextTest {
         )
         assertEquals(Routes.ACTIVE, RouteTextScaleContext.routeWithSourceTab(Routes.ACTIVE, null))
     }
+
+    @Test
+    fun launcherScreensAndStatsExtrasHaveDistinctOwnedIds() {
+        val defense = listOf(
+            RouteTextScaleContext.DEFENSE_LAUNCHER_WALLPAPER_SCREEN,
+            RouteTextScaleContext.DEFENSE_FOCUS_TOOLS_PICKER_SCREEN,
+            RouteTextScaleContext.DEFENSE_HIDDEN_APPS_PICKER_SCREEN,
+        )
+        val stats = listOf(
+            RouteTextScaleContext.STATS_EXTRAS_OVERVIEW_SCREEN,
+            RouteTextScaleContext.STATS_EXTRAS_APPS_SCREEN,
+            RouteTextScaleContext.STATS_EXTRAS_HABITS_SCREEN,
+        )
+        assertEquals(6, (defense + stats).toSet().size)
+    }
+
+    @Test
+    fun eachNewScreenKeepsItsOwnSizeAndFallsBackToTheTab() {
+        val wallpaperKey = RouteTextScaleContext.screenScaleKey(
+            Routes.DEFENSE,
+            RouteTextScaleContext.DEFENSE_LAUNCHER_WALLPAPER_SCREEN,
+        )
+        val habitsKey = RouteTextScaleContext.screenScaleKey(
+            Routes.STATS,
+            RouteTextScaleContext.STATS_EXTRAS_HABITS_SCREEN,
+        )
+        val custom = settings.copy(screenTextScales = mapOf(wallpaperKey to 1.9f, habitsKey to 0.9f))
+        assertEquals(
+            1.9f,
+            RouteTextScaleContext.screenScaleFor(
+                Routes.DEFENSE, RouteTextScaleContext.DEFENSE_LAUNCHER_WALLPAPER_SCREEN, custom, 1.5f,
+            ),
+            0f,
+        )
+        assertEquals(
+            0.9f,
+            RouteTextScaleContext.screenScaleFor(
+                Routes.STATS, RouteTextScaleContext.STATS_EXTRAS_HABITS_SCREEN, custom, 1.3f,
+            ),
+            0f,
+        )
+        // Not customised: follows the tab's own size.
+        assertEquals(
+            1.3f,
+            RouteTextScaleContext.screenScaleFor(
+                Routes.STATS, RouteTextScaleContext.STATS_EXTRAS_APPS_SCREEN, custom, 1.3f,
+            ),
+            0f,
+        )
+    }
+
+    @Test
+    fun customRulesScreensFollowSettingsWhenOpenedFromSettings() {
+        listOf(
+            Routes.CUSTOM_RULES,
+            Routes.CUSTOM_RULES_LIST,
+            Routes.CUSTOM_RULE_EDIT,
+            Routes.CUSTOM_RULE_CAPTURE,
+            Routes.CUSTOM_RULE_PICK,
+            Routes.CUSTOM_RULES_TRANSFER,
+            Routes.CUSTOM_RULES_GUIDE,
+            Routes.SETTINGS_USAGE_DATA,
+            Routes.FOCUSFLOW_FILE_GUIDE,
+            Routes.TEXT_SIZE_SETTINGS,
+        ).forEach { route ->
+            assertEquals(
+                "$route follows Settings",
+                1.4f,
+                RouteTextScaleContext.scaleFor(route, Routes.SETTINGS, settings),
+                0f,
+            )
+            val key = RouteTextScaleContext.screenScaleKey(Routes.SETTINGS, route)
+            val custom = settings.copy(screenTextScales = mapOf(key to 1.8f))
+            assertEquals(
+                "$route has its own size",
+                1.8f,
+                RouteTextScaleContext.scaleFor(route, Routes.SETTINGS, custom),
+                0f,
+            )
+        }
+    }
 }

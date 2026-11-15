@@ -160,6 +160,10 @@ data class AppSettings(
     val standaloneBlockHintDismissed: Boolean = false,
     val alwaysOnInfoDismissed: Boolean = false,
     val protectionStatusBannerDismissed: Boolean = false,
+    /** "Make your phone match" card on the launcher Wallpaper screen was closed. Device-local. */
+    val wallpaperMatchCardDismissed: Boolean = false,
+    /** The "why use it on your phone too" note in the Wallpaper bottom sheet was closed. Device-local. */
+    val wallpaperPhoneNoteDismissed: Boolean = false,
 )
 
 /**

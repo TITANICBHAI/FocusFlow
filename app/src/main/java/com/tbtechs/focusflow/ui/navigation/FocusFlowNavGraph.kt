@@ -280,6 +280,7 @@ fun FocusFlowNavGraph(
                                 focusDayRating = focusDayRating,
                                 dayRatingRequestNonce = dayRatingRequestNonce,
                                 onDayRatingRequestHandled = onDayRatingRequestHandled,
+                                screenTextScales = settings.screenTextScales,
                             )
                         }
                     }

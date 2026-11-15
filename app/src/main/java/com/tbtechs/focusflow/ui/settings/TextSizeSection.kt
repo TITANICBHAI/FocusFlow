@@ -127,6 +127,9 @@ internal fun TextSizeSection(
                 TextSizeTarget(Routes.DEFENSE, "Defense", "Always-On", Routes.ALWAYS_ON, "Always-On app controls."),
                 TextSizeTarget(Routes.DEFENSE, "Defense", "Block Defense", Routes.BLOCK_DEFENSE, "Standalone block controls."),
                 TextSizeTarget(Routes.DEFENSE, "Defense", "Home launcher setup", Routes.HOME_LAUNCHER_SETUP, "Launcher setup and app visibility."),
+                TextSizeTarget(Routes.DEFENSE, "Defense", "Launcher wallpaper", RouteTextScaleContext.DEFENSE_LAUNCHER_WALLPAPER_SCREEN, "The Wallpaper screen opened from Home launcher setup."),
+                TextSizeTarget(Routes.DEFENSE, "Defense", "Focus tools picker", RouteTextScaleContext.DEFENSE_FOCUS_TOOLS_PICKER_SCREEN, "The app list for Focus tools in Home launcher setup."),
+                TextSizeTarget(Routes.DEFENSE, "Defense", "Hidden apps picker", RouteTextScaleContext.DEFENSE_HIDDEN_APPS_PICKER_SCREEN, "The app list for Hidden apps in Home launcher setup."),
                 TextSizeTarget(Routes.DEFENSE, "Defense", "Keyword blocking", Routes.KEYWORD_BLOCKER, "Keyword blocker controls."),
                 TextSizeTarget(Routes.DEFENSE, "Defense", "Password protection", Routes.PASSWORD_PROTECTION, "Defense PIN and protection settings."),
                 TextSizeTarget(Routes.DEFENSE, "Defense", "VPN block list", Routes.VPN_BLOCK_LIST, "Apps managed by VPN blocking."),
@@ -144,6 +147,9 @@ internal fun TextSizeSection(
             screens = listOf(
                 TextSizeTarget(Routes.STATS, "Stats", "Reports", Routes.REPORTS, "The reports list opened from Stats."),
                 TextSizeTarget(Routes.STATS, "Stats", "Report details", Routes.REPORT, "A report opened from Stats."),
+                TextSizeTarget(Routes.STATS, "Stats", "Extra · Overview", RouteTextScaleContext.STATS_EXTRAS_OVERVIEW_SCREEN, "Extra's Overview tab, whichever period is chosen."),
+                TextSizeTarget(Routes.STATS, "Stats", "Extra · Apps", RouteTextScaleContext.STATS_EXTRAS_APPS_SCREEN, "Extra's Apps tab, whichever period is chosen."),
+                TextSizeTarget(Routes.STATS, "Stats", "Extra · Habits", RouteTextScaleContext.STATS_EXTRAS_HABITS_SCREEN, "Extra's Habits tab, whichever period is chosen."),
             ),
         ) { value ->
             onUpdate(settings.copy(statsTextScale = value))
@@ -160,6 +166,16 @@ internal fun TextSizeSection(
                 TextSizeTarget(Routes.SETTINGS, "Settings", "Privacy Policy", Routes.PRIVACY_POLICY, "The privacy policy screen."),
                 TextSizeTarget(Routes.SETTINGS, "Settings", "Terms of Service", Routes.TERMS_OF_SERVICE, "The terms screen."),
                 TextSizeTarget(Routes.SETTINGS, "Settings", "Permissions", Routes.PERMISSIONS, "The permissions screen opened from Settings."),
+                TextSizeTarget(Routes.SETTINGS, "Settings", "Custom rules", Routes.CUSTOM_RULES, "The custom screen rules hub."),
+                TextSizeTarget(Routes.SETTINGS, "Settings", "Custom rules · List", Routes.CUSTOM_RULES_LIST, "The list of custom screen rules."),
+                TextSizeTarget(Routes.SETTINGS, "Settings", "Custom rules · Edit", Routes.CUSTOM_RULE_EDIT, "Editing one custom screen rule."),
+                TextSizeTarget(Routes.SETTINGS, "Settings", "Custom rules · Capture", Routes.CUSTOM_RULE_CAPTURE, "Capturing a screen for a custom rule."),
+                TextSizeTarget(Routes.SETTINGS, "Settings", "Custom rules · Pick", Routes.CUSTOM_RULE_PICK, "Picking the screen a custom rule applies to."),
+                TextSizeTarget(Routes.SETTINGS, "Settings", "Custom rules · Transfer", Routes.CUSTOM_RULES_TRANSFER, "Importing and exporting custom rules."),
+                TextSizeTarget(Routes.SETTINGS, "Settings", "Custom rules · Guide", Routes.CUSTOM_RULES_GUIDE, "The custom rules guide."),
+                TextSizeTarget(Routes.SETTINGS, "Settings", "Usage data", Routes.SETTINGS_USAGE_DATA, "The usage data screen."),
+                TextSizeTarget(Routes.SETTINGS, "Settings", "FocusFlow file guide", Routes.FOCUSFLOW_FILE_GUIDE, "The guide to .focusflow files."),
+                TextSizeTarget(Routes.SETTINGS, "Settings", "Text size", Routes.TEXT_SIZE_SETTINGS, "This Text Size screen itself."),
             ),
         ) { value ->
             onUpdate(settings.copy(settingsTextScale = value))

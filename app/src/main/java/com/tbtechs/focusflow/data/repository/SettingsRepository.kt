@@ -178,6 +178,8 @@ class SettingsRepository(
         private const val KEY_STANDALONE_BLOCK_HINT_DISMISSED = "standalone_block_hint_dismissed"
         private const val KEY_ALWAYS_ON_INFO_DISMISSED = "always_on_info_dismissed"
         private const val KEY_PROTECTION_STATUS_BANNER_DISMISSED = "protection_status_banner_dismissed"
+        private const val KEY_WALLPAPER_MATCH_CARD_DISMISSED = "wallpaper_match_card_dismissed"
+        private const val KEY_WALLPAPER_PHONE_NOTE_DISMISSED = "wallpaper_phone_note_dismissed"
         private const val KEY_LAUNCHER_DOCK_PACKAGES = "launcher_dock_packages"
         private const val KEY_LAUNCHER_HIDDEN_PACKAGES = "launcher_hidden_packages"
         private const val KEY_DRAWER_HIDDEN_PACKAGES = "drawer_hidden_packages"
@@ -1020,6 +1022,8 @@ class SettingsRepository(
             .putBoolean(KEY_STANDALONE_BLOCK_HINT_DISMISSED, settings.standaloneBlockHintDismissed)
             .putBoolean(KEY_ALWAYS_ON_INFO_DISMISSED, settings.alwaysOnInfoDismissed)
             .putBoolean(KEY_PROTECTION_STATUS_BANNER_DISMISSED, settings.protectionStatusBannerDismissed)
+            .putBoolean(KEY_WALLPAPER_MATCH_CARD_DISMISSED, settings.wallpaperMatchCardDismissed)
+            .putBoolean(KEY_WALLPAPER_PHONE_NOTE_DISMISSED, settings.wallpaperPhoneNoteDismissed)
             .apply {
                 if (settings.homeTextScale == null) {
                     remove(KEY_HOME_TEXT_SCALE)
@@ -1221,6 +1225,8 @@ class SettingsRepository(
             standaloneBlockHintDismissed = prefs.getBoolean(KEY_STANDALONE_BLOCK_HINT_DISMISSED, false),
             alwaysOnInfoDismissed = prefs.getBoolean(KEY_ALWAYS_ON_INFO_DISMISSED, false),
             protectionStatusBannerDismissed = prefs.getBoolean(KEY_PROTECTION_STATUS_BANNER_DISMISSED, false),
+            wallpaperMatchCardDismissed = prefs.getBoolean(KEY_WALLPAPER_MATCH_CARD_DISMISSED, false),
+            wallpaperPhoneNoteDismissed = prefs.getBoolean(KEY_WALLPAPER_PHONE_NOTE_DISMISSED, false),
         )
     }
 

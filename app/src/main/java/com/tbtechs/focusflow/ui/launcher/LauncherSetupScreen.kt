@@ -62,6 +62,11 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.tbtechs.focusflow.ui.theme.scaledSp
+import com.tbtechs.focusflow.ui.theme.LocalFocusFlowTextScale
+import com.tbtechs.focusflow.ui.navigation.Routes
+import com.tbtechs.focusflow.ui.navigation.RouteTextScaleContext
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.Lifecycle
@@ -115,6 +120,10 @@ fun LauncherSetupScreen(
     val installedApps = installedAppsState.apps
     val appsLoading = installedAppsState.loading
     var defaultLauncher by remember { mutableStateOf<Boolean?>(null) }
+    val inheritedScale = LocalFocusFlowTextScale.current
+    fun screenScale(screenId: String): Float = settings.screenTextScales[
+        RouteTextScaleContext.screenScaleKey(Routes.DEFENSE, screenId)
+    ] ?: inheritedScale
     var showFocusToolsPicker by remember { mutableStateOf(false) }
     var showHiddenPicker by remember { mutableStateOf(false) }
     var showWallpaperScreen by remember { mutableStateOf(false) }
@@ -211,7 +220,7 @@ fun LauncherSetupScreen(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 "Default Home App",
-                                fontSize = 13.sp,
+                                fontSize = 13.scaledSp,
                                 fontWeight = FontWeight.Bold,
                                 color = DarkTextPrimary,
                             )
@@ -222,7 +231,7 @@ fun LauncherSetupScreen(
                                     false -> "Choose FocusFlow in Android Home settings"
                                     null -> "Checking Android Home settings…"
                                 },
-                                fontSize = 11.sp,
+                                fontSize = 11.scaledSp,
                                 color = if (defaultLauncher == true) Color(0xFF34D399) else DarkTextSecondary,
                             )
                         }
@@ -239,7 +248,7 @@ fun LauncherSetupScreen(
                             ),
                             colors = ButtonDefaults.buttonColors(containerColor = BrandPrimary),
                         ) {
-                            Text("Open", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+                            Text("Open", fontSize = 13.scaledSp, fontWeight = FontWeight.SemiBold, color = Color.White)
                         }
                     }
                 }
@@ -265,12 +274,12 @@ fun LauncherSetupScreen(
                             }
                             Text(
                                 "A block is running, so the shortcut to Android's default home settings is hidden. Everything else here still works.",
-                                fontSize = 12.sp,
+                                fontSize = 12.scaledSp,
                                 color = Color(0xFFFDE68A),
                             )
                             if (settings.pinProtectionEnabled) {
                                 TextButton(onClick = { pinText = ""; pinError = false; showPinGate = true }) {
-                                    Text("Enter password to show it", color = Color(0xFFFBBF24), fontSize = 12.sp)
+                                    Text("Enter password to show it", color = Color(0xFFFBBF24), fontSize = 12.scaledSp)
                                 }
                             }
                         }
@@ -282,7 +291,7 @@ fun LauncherSetupScreen(
             item {
                 Text(
                     "LAUNCHER LOOK",
-                    fontSize = 12.sp,
+                    fontSize = 12.scaledSp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.sp,
                     color = DarkTextSecondary,
@@ -304,13 +313,13 @@ fun LauncherSetupScreen(
                             Text(
                                 "Glassiness",
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp,
+                                fontSize = 13.scaledSp,
                                 color = DarkTextPrimary,
                                 modifier = Modifier.weight(1f),
                             )
                             Text(
                                 if (glassDraft.toInt() == 0) "0% · plain black" else "${glassDraft.toInt()}%",
-                                fontSize = 12.sp,
+                                fontSize = 12.scaledSp,
                                 color = DarkTextSecondary,
                             )
                         }
@@ -329,7 +338,7 @@ fun LauncherSetupScreen(
                         )
                         Text(
                             "0% is a plain black launcher. Higher values fade in your wallpaper and turn every panel into frosted glass. You can also change it from the launcher's ⋮ menu.",
-                            fontSize = 11.sp,
+                            fontSize = 11.scaledSp,
                             color = DarkTextSecondary,
                         )
                     }
@@ -339,7 +348,7 @@ fun LauncherSetupScreen(
             item {
                 Text(
                     "APP DRAWER LAYOUT",
-                    fontSize = 12.sp,
+                    fontSize = 12.scaledSp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.sp,
                     color = DarkTextSecondary,
@@ -371,49 +380,18 @@ fun LauncherSetupScreen(
             }
 
             item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(DarkCard)
-                        .border(1.dp, DarkBorder, RoundedCornerShape(10.dp))
-                        .padding(8.dp),
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            Icon(Icons.Outlined.Image, contentDescription = null, tint = BrandPrimary)
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("Wallpaper", fontWeight = FontWeight.Bold, color = DarkTextPrimary)
-                                Text(
-                                    when {
-                                        !settings.launcherWallpaperUri.isNullOrBlank() -> "Your own picture"
-                                        BuiltinWallpapers.byId(settings.launcherBuiltinWallpaper) != null ->
-                                            BuiltinWallpapers.byId(settings.launcherBuiltinWallpaper)!!.name
-                                        else -> "Adaptive (follows your phone)"
-                                    },
-                                    fontSize = 11.sp,
-                                    color = DarkTextSecondary,
-                                )
-                            }
-                            Button(
-                                onClick = { showWallpaperScreen = true },
-                                shape = RoundedCornerShape(10.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = BrandPrimary),
-                            ) {
-                                Text("Choose", fontSize = 13.sp, color = Color.White)
-                            }
-                        }
-                        Text(
-                            "Pick one of ours or your own, and set it on your phone too so Recents and the lock screen match.",
-                            fontSize = 11.sp,
-                            color = DarkTextSecondary,
-                        )
-                    }
-                }
+                // The whole row opens the Wallpaper screen: a name, the current choice, and ›.
+                LauncherPickerRow(
+                    title = "Wallpaper",
+                    count = 0,
+                    subtitle = when {
+                        !settings.launcherWallpaperUri.isNullOrBlank() -> "Your own photo"
+                        BuiltinWallpapers.byId(settings.launcherBuiltinWallpaper) != null ->
+                            BuiltinWallpapers.byId(settings.launcherBuiltinWallpaper)!!.name
+                        else -> "Adaptive · follows your phone"
+                    },
+                    onClick = { showWallpaperScreen = true },
+                )
             }
 
             // Lock launcher switch card
@@ -434,14 +412,14 @@ fun LauncherSetupScreen(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 "Lock Launcher During Block",
-                                fontSize = 13.sp,
+                                fontSize = 13.scaledSp,
                                 fontWeight = FontWeight.Bold,
                                 color = DarkTextPrimary,
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
                                 "Prevent switching out of FocusFlow launcher while a standalone block is active.",
-                                fontSize = 11.sp,
+                                fontSize = 11.scaledSp,
                                 color = DarkTextSecondary,
                             )
                         }
@@ -469,7 +447,7 @@ fun LauncherSetupScreen(
             item {
                 Text(
                     "APPS",
-                    fontSize = 12.sp,
+                    fontSize = 12.scaledSp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.sp,
                     color = DarkTextSecondary,
@@ -479,13 +457,13 @@ fun LauncherSetupScreen(
                     LauncherPickerRow(
                         title = "Focus tools",
                         count = settings.focusToolPackages.size,
-                        subtitle = "Apps you want close at hand. They get their own FOCUS TOOLS filter in the app drawer. You can also long-press any app in the launcher.",
+                        subtitle = "Kept close in the drawer's Focus tools filter",
                         onClick = { showFocusToolsPicker = true },
                     )
                     LauncherPickerRow(
                         title = "Hidden apps",
                         count = settings.launcherHiddenPackages.size,
-                        subtitle = "Hidden apps stay installed but leave the drawer and search. Any app can be hidden. Long-press an app in the launcher; find them again in the drawer's ⋮ menu. Unhiding asks for your password if you set one.",
+                        subtitle = "Out of the drawer and search. Unhiding asks for your password if you set one",
                         onClick = { showHiddenPicker = true },
                     )
                 }
@@ -494,7 +472,9 @@ fun LauncherSetupScreen(
         }
     }
 
-    if (showFocusToolsPicker) {
+    if (showFocusToolsPicker) CompositionLocalProvider(
+        LocalFocusFlowTextScale provides screenScale(RouteTextScaleContext.DEFENSE_FOCUS_TOOLS_PICKER_SCREEN),
+    ) {
         AppPickerDialog(
             title = "Focus tools",
             description = "Pick the apps for the Focus tools filter.",
@@ -512,7 +492,9 @@ fun LauncherSetupScreen(
             onDismiss = { showFocusToolsPicker = false },
         )
     }
-    if (showHiddenPicker) {
+    if (showHiddenPicker) CompositionLocalProvider(
+        LocalFocusFlowTextScale provides screenScale(RouteTextScaleContext.DEFENSE_HIDDEN_APPS_PICKER_SCREEN),
+    ) {
         AppPickerDialog(
             title = "Hidden apps",
             description = "Switch on any app to hide it from the drawer and search.",
@@ -577,7 +559,7 @@ fun LauncherSetupScreen(
                         ),
                     )
                     if (pinError) {
-                        Text("That password is not right.", fontSize = 12.sp, color = Color(0xFFEF4444))
+                        Text("That password is not right.", fontSize = 12.scaledSp, color = Color(0xFFEF4444))
                     }
                 }
             },
@@ -630,7 +612,7 @@ private fun LauncherSegment(
         Text(
             text = label,
             color = if (selected) Color.White else DarkTextSecondary,
-            fontSize = 13.sp,
+            fontSize = 13.scaledSp,
             fontWeight = FontWeight.SemiBold,
         )
     }
@@ -651,7 +633,7 @@ private fun AppSearchField(value: String, onValueChange: (String) -> Unit) {
                 }
             }
         },
-        placeholder = { Text("Search installed apps", color = DarkTextMuted, fontSize = 13.sp) },
+        placeholder = { Text("Search installed apps", color = DarkTextMuted, fontSize = 13.scaledSp) },
         shape = RoundedCornerShape(10.dp),
         colors = OutlinedTextFieldDefaults.colors(
             focusedContainerColor = DarkSurfaceVariant,
@@ -684,7 +666,7 @@ private fun LauncherAppRow(app: InstalledAppInfo, checked: Boolean, onToggle: ()
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = app.appName,
-                    fontSize = 13.sp,
+                    fontSize = 13.scaledSp,
                     fontWeight = FontWeight.SemiBold,
                     color = DarkTextPrimary,
                     maxLines = 1,
@@ -692,7 +674,7 @@ private fun LauncherAppRow(app: InstalledAppInfo, checked: Boolean, onToggle: ()
                 )
                 Text(
                     text = app.packageName,
-                    fontSize = 11.sp,
+                    fontSize = 11.scaledSp,
                     color = DarkTextSecondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -730,14 +712,14 @@ private fun LauncherPickerRow(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = if (count > 0) "$title · $count" else title,
-                    fontSize = 13.sp,
+                    fontSize = 13.scaledSp,
                     fontWeight = FontWeight.Bold,
                     color = DarkTextPrimary,
                 )
                 Spacer(modifier = Modifier.height(2.dp))
-                Text(subtitle, fontSize = 11.sp, color = DarkTextSecondary)
+                Text(subtitle, fontSize = 11.scaledSp, color = DarkTextSecondary)
             }
-            Text("Edit", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = BrandPrimary)
+            Text("›", fontSize = 22.scaledSp, color = DarkTextSecondary)
         }
     }
 }
@@ -778,8 +760,8 @@ private fun AppPickerDialog(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = DarkTextPrimary)
-                    Text(description, fontSize = 12.sp, color = DarkTextMuted)
+                    Text(title, fontSize = 18.scaledSp, fontWeight = FontWeight.Bold, color = DarkTextPrimary)
+                    Text(description, fontSize = 12.scaledSp, color = DarkTextMuted)
                 }
                 TextButton(onClick = onDismiss) {
                     Text("Done", color = BrandPrimary, fontWeight = FontWeight.SemiBold)
@@ -802,7 +784,7 @@ private fun AppPickerDialog(
                 Text(
                     "Installed apps could not be loaded. Close this and reopen to retry.",
                     modifier = Modifier.padding(vertical = 12.dp),
-                    fontSize = 12.sp,
+                    fontSize = 12.scaledSp,
                     color = DarkTextSecondary,
                 )
             }

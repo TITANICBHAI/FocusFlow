@@ -18,6 +18,12 @@ internal object RouteTextScaleContext {
     const val FOCUS_STANDALONE_PANEL_SCREEN = "focus:standalone_panel"
     const val FOCUS_STANDALONE_SETUP_SCREEN = "focus:standalone_setup"
     const val FOCUS_EXTENSION_SCREEN = "focus:extension"
+    const val DEFENSE_LAUNCHER_WALLPAPER_SCREEN = "defense:launcher_wallpaper"
+    const val DEFENSE_FOCUS_TOOLS_PICKER_SCREEN = "defense:focus_tools_picker"
+    const val DEFENSE_HIDDEN_APPS_PICKER_SCREEN = "defense:hidden_apps_picker"
+    const val STATS_EXTRAS_OVERVIEW_SCREEN = "stats:extras_overview"
+    const val STATS_EXTRAS_APPS_SCREEN = "stats:extras_apps"
+    const val STATS_EXTRAS_HABITS_SCREEN = "stats:extras_habits"
 
     private val sharedRoutes = setOf(
         Routes.ACTIVE,

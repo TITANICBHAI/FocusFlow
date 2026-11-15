@@ -124,7 +124,8 @@
             android:excludeFromRecents="true"
             android:exported="true"
             android:launchMode="singleTask"
-            android:taskAffinity="">
+            android:taskAffinity=""
+            android:theme="@style/Theme.FocusFlow.Launcher">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.HOME" />
@@ -261,7 +262,8 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_info" />
         </receiver>
-        <!-- Lets "Share full log" hand one cached .txt to the share sheet; nothing else is exposed. -->
+        <!-- Lets "Share full log" hand one cached .txt, and the wallpaper picker hand one cached
+             .jpg, to another app; nothing else is exposed. -->
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

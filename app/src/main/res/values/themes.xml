@@ -11,6 +11,23 @@
     </style>
 
     <!--
+      Launcher theme
+      The launcher is dark and draws its own wallpaper edge to edge, so the system bars must not
+      add their own light strip. Without this, three-button navigation shows a translucent white
+      bar behind the buttons because the app theme is a light theme.
+    -->
+    <style name="Theme.FocusFlow.Launcher" parent="Theme.FocusFlow">
+        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarDividerColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:enforceNavigationBarContrast">false</item>
+        <item name="android:enforceStatusBarContrast">false</item>
+    </style>
+
+    <!--
       Native Splash Theme
       Mirrors archived Expo splash configuration:
       backgroundColor: #6366f1, resizeMode: contain, image: splash.png

@@ -14,6 +14,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import com.tbtechs.focusflow.data.images.BuiltinWallpapers
+import com.tbtechs.focusflow.data.images.PhoneWallpaper
 import com.tbtechs.focusflow.data.images.WallpaperLoader
 import android.app.Activity
 import android.app.WallpaperManager
@@ -111,6 +112,10 @@ class LauncherActivity : Activity() {
         private const val PREF_DRAWER_ORDER = "drawer_custom_order"
         private const val PREF_DRAWER_SCALE = "drawer_icon_scale"
         private const val PREF_DRAWER_COLUMNS = "drawer_grid_columns"
+        private const val STATUS_READY = "Ready"
+        /** The list drawer's icon at 100%; the Icon size slider scales it like the grid's. */
+        private const val LIST_ICON_BASE_DP = 40
+        private const val LIST_ROW_MIN_DP = 58
         private const val PREF_SA_ACTIVE = AppBlockerAccessibilityService.PREF_SA_ACTIVE
         private const val PREF_SA_PKGS = AppBlockerAccessibilityService.PREF_SA_PKGS
         private const val PREF_SA_UNTIL = AppBlockerAccessibilityService.PREF_SA_UNTIL
@@ -123,6 +128,10 @@ class LauncherActivity : Activity() {
         private const val PREF_HOME_LIMITS = "launcher_home_limits"
         private const val PREF_HOME_SEARCH = "launcher_home_search"
         private const val PREF_HOME_ALL_APPS = "launcher_home_all_apps"
+        private const val PREF_HOME_ORDER = "launcher_home_order"
+        private val HOME_WIDGETS = listOf("clock", "status", "task", "limits")
+        /** Rows shown in the home limits list; the rest are one tap away in the drawer. */
+        private const val MAX_HOME_LIMITS = 3
         private const val REQ_PICK_WALLPAPER = 4201
         private const val SIZE_DATE = 12f
         private const val SIZE_SEARCH_HINT = 14f
@@ -152,6 +161,8 @@ class LauncherActivity : Activity() {
         val displayText: String,
         val fraction: Float,
         val approximate: Boolean,
+        /** Shorter wording for the small chip on an app icon. Empty means use [displayText]. */
+        val chipText: String = "",
     )
 
     private sealed class DrawerItem {
@@ -180,7 +191,6 @@ class LauncherActivity : Activity() {
     private var dockView: LinearLayout? = null
     private var dockActionsRow: LinearLayout? = null
     private var homeBackdrop: ImageView? = null
-    private var homeScrim: View? = null
     private var clockView: TextView? = null
     private var dateView: TextView? = null
     private var statusText: TextView? = null
@@ -209,7 +219,6 @@ class LauncherActivity : Activity() {
     // Drawer
     private var drawerOverlay: FrameLayout? = null
     private var drawerBackdrop: ImageView? = null
-    private var drawerScrim: View? = null
     private var drawerSheet: LinearLayout? = null
     private var drawerHeader: LinearLayout? = null
     private var drawerChipRow: LinearLayout? = null
@@ -230,7 +239,6 @@ class LauncherActivity : Activity() {
     // Hidden apps screen and bottom sheets
     private var hiddenOverlay: FrameLayout? = null
     private var hiddenBackdrop: ImageView? = null
-    private var hiddenScrim: View? = null
     private var hiddenListContainer: LinearLayout? = null
     private var sheetOverlay: FrameLayout? = null
 
@@ -238,6 +246,9 @@ class LauncherActivity : Activity() {
     private var swipeTouchStartY = 0f
     private var swipeStartedInDock = false
     private var swipeDrawerAtTop = true
+    private var swipeStartScrollY = 0
+    private var swipeContentCanScrollDown = false
+    private var swipeContentScrolledDown = false
     private var swipeVelocityTracker: VelocityTracker? = null
 
     private val ownPackage: String
@@ -257,6 +268,13 @@ class LauncherActivity : Activity() {
     }
 
     private fun glassFraction(): Float = glassLevel / 100f
+
+    /**
+     * How much of the wallpaper shows, 0..1. Glassiness 0 is a plain black launcher; the
+     * wallpaper then fades in over the first few percent and from there on is shown at full
+     * strength. Nothing dims it any more: no black blend, no darkening layer.
+     */
+    private fun wallpaperFade(): Float = LauncherGlass.wallpaperFade(glassFraction())
 
     private fun wallpaperPath(): String =
         prefs.getString(PREF_LAUNCHER_WALLPAPER, "")?.trim().orEmpty()
@@ -318,15 +336,20 @@ class LauncherActivity : Activity() {
             val h = rect.height()
             val g = glassFraction()
 
-            // 1. Base: near-black. Fully opaque at 0, mostly see-through when glassy.
-            fill.shader = null
-            val baseAlpha = (0.94f - 0.80f * g + extraDark).coerceIn(0f, 0.97f)
-            fill.color = Color.argb((baseAlpha * 255).toInt(), 10, 10, 12)
-            canvas.drawRoundRect(rect, radiusPx, radiusPx, fill)
+            val fade = wallpaperFade()
 
-            // 2. The blurred wallpaper under this panel.
+            // 1. Base: near-black, and only while the wallpaper is still fading in. At
+            //    Glassiness 0 this is the whole panel; above the fade it is gone.
+            fill.shader = null
+            val baseAlpha = if (fade >= 1f) 0f else (0.97f * (1f - fade)).coerceIn(0f, 0.97f)
+            if (baseAlpha > 0f) {
+                fill.color = Color.argb((baseAlpha * 255).toInt(), 10, 10, 12)
+                canvas.drawRoundRect(rect, radiusPx, radiusPx, fill)
+            }
+
+            // 2. The blurred wallpaper under this panel, at full strength.
             val bmp = backdropBlur
-            if (g > 0f && bmp != null && rootFrame.width > 0 && rootFrame.height > 0) {
+            if (fade > 0f && bmp != null && rootFrame.width > 0 && rootFrame.height > 0) {
                 if (shaderBitmap !== bmp) {
                     shader = BitmapShader(bmp, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
                     shaderBitmap = bmp
@@ -345,20 +368,32 @@ class LauncherActivity : Activity() {
                 matrix.postTranslate(ox - left, oy - top)
                 shader?.setLocalMatrix(matrix)
                 blurPaint.shader = shader
-                blurPaint.alpha = (min(1f, g * 1.6f) * 255).toInt()
+                blurPaint.alpha = (fade * 255).toInt()
                 canvas.drawRoundRect(rect, radiusPx, radiusPx, blurPaint)
             }
 
-            // 3. Light tint.
-            fill.color = Color.argb(((0.03f + 0.11f * g) * 255).toInt(), 255, 255, 255)
-            canvas.drawRoundRect(rect, radiusPx, radiusPx, fill)
+            // 3. Frost. The higher the Glassiness, the thinner it is, so the wallpaper shows
+            //    through more. A cool neutral tint plus a light veil: never a black layer.
+            //    Panels that sit on top of everything (sheets) ask for a little more.
+            if (g > 0f) {
+                val frostAmount = 1f - g
+                val tint = (0.06f + 0.16f * frostAmount + extraDark * 0.5f).coerceIn(0f, 0.6f)
+                fill.color = Color.argb((tint * fade * 255).toInt(), 24, 28, 40)
+                canvas.drawRoundRect(rect, radiusPx, radiusPx, fill)
+                val veil = 0.04f + 0.10f * frostAmount
+                fill.color = Color.argb((veil * fade * 255).toInt(), 255, 255, 255)
+                canvas.drawRoundRect(rect, radiusPx, radiusPx, fill)
+            } else {
+                fill.color = Color.argb((0.03f * 255).toInt(), 255, 255, 255)
+                canvas.drawRoundRect(rect, radiusPx, radiusPx, fill)
+            }
 
             val key = "${w.toInt()}x${h.toInt()}@${glassLevel}"
             if (key != builtKey) {
                 builtKey = key
                 sheen = LinearGradient(
                     0f, 0f, 0f, h * 0.6f,
-                    Color.argb((0.20f * g * 255).toInt(), 255, 255, 255),
+                    Color.argb((0.20f * g * wallpaperFade() * 255).toInt(), 255, 255, 255),
                     Color.TRANSPARENT,
                     Shader.TileMode.CLAMP,
                 )
@@ -503,9 +538,24 @@ class LauncherActivity : Activity() {
         val appContext = applicationContext
         Thread {
             val decoded = if (path.isNotEmpty()) WallpaperLoader.decode(appContext, path) else null
+            // Drawn at the screen's own size. Drawing small and stretching it is what made the
+            // launcher look softer than the phone's own wallpaper.
+            val screen = appContext.resources.displayMetrics
             val generated = if (decoded == null) {
-                if (builtin != null) BuiltinWallpapers.render(builtin, 270, 585)
-                else BuiltinWallpapers.adaptive(palette ?: wallpaperPalette(), 180, 390)
+                try {
+                    if (builtin != null) {
+                        BuiltinWallpapers.render(builtin, screen.widthPixels, screen.heightPixels)
+                    } else {
+                        BuiltinWallpapers.adaptive(
+                            palette ?: wallpaperPalette(),
+                            screen.widthPixels,
+                            screen.heightPixels,
+                        )
+                    }
+                } catch (_: OutOfMemoryError) {
+                    if (builtin != null) BuiltinWallpapers.render(builtin, 540, 1170)
+                    else BuiltinWallpapers.adaptive(palette ?: wallpaperPalette(), 360, 780)
+                }
             } else {
                 null
             }
@@ -546,13 +596,10 @@ class LauncherActivity : Activity() {
     }
 
     private fun applyGlassLive() {
-        val g = glassFraction()
-        homeBackdrop?.alpha = g
-        homeScrim?.alpha = min(1f, g * 2f)
-        drawerBackdrop?.alpha = g
-        drawerScrim?.alpha = min(1f, g * 2f)
-        hiddenBackdrop?.alpha = g
-        hiddenScrim?.alpha = min(1f, g * 2f)
+        val fade = wallpaperFade()
+        homeBackdrop?.alpha = fade
+        drawerBackdrop?.alpha = fade
+        hiddenBackdrop?.alpha = fade
         invalidateFrosted()
     }
 
@@ -568,7 +615,7 @@ class LauncherActivity : Activity() {
         textSize = sizeSp
         setTextColor(color)
         if (bold) typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-        setShadowLayer(dp(3).toFloat(), 0f, dp(1).toFloat(), Color.parseColor("#55000000"))
+        setShadowLayer(dp(4).toFloat(), 0f, dp(1).toFloat(), Color.parseColor("#80000000"))
     }
 
     private fun lp(w: Int, h: Int, weight: Float? = null): LinearLayout.LayoutParams =
@@ -666,7 +713,7 @@ class LauncherActivity : Activity() {
                 )
             }
             val icon = ImageView(parent.context).apply {
-                layoutParams = LinearLayout.LayoutParams(dp(40), dp(40))
+                layoutParams = LinearLayout.LayoutParams(dp(LIST_ICON_BASE_DP), dp(LIST_ICON_BASE_DP))
                 scaleType = ImageView.ScaleType.FIT_CENTER
             }
             val name = label("", 15f, TEXT_PRIMARY).apply {
@@ -763,7 +810,16 @@ class LauncherActivity : Activity() {
             val item = items.getOrNull(position) ?: return
             holder as AppHolder
             val blocked = getBlockedPackages().contains(item.packageName)
-            if (!listLayout) {
+            if (listLayout) {
+                val size = (LIST_ICON_BASE_DP * iconScale).toInt()
+                holder.icon.layoutParams = (holder.icon.layoutParams as LinearLayout.LayoutParams).also {
+                    it.width = dp(size)
+                    it.height = dp(size)
+                }
+                holder.itemView.layoutParams = holder.itemView.layoutParams.also {
+                    it.height = dp((size + 18).coerceAtLeast(LIST_ROW_MIN_DP))
+                }
+            } else {
                 val size = (42f * iconScale).toInt()
                 holder.icon.layoutParams = (holder.icon.layoutParams as FrameLayout.LayoutParams).also {
                     it.width = dp(size)
@@ -883,8 +939,18 @@ class LauncherActivity : Activity() {
         }
         window.statusBarColor = Color.TRANSPARENT
         window.navigationBarColor = Color.TRANSPARENT
+        // With three-button navigation Android otherwise paints its own translucent strip
+        // (white, for a light theme) behind the buttons. Turn that off so the wallpaper runs
+        // all the way to the bottom edge, and use light icons because the launcher is dark.
+        window.navigationBarDividerColor = Color.TRANSPARENT
+        window.isNavigationBarContrastEnforced = false
+        window.isStatusBarContrastEnforced = false
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         WindowCompat.setDecorFitsSystemWindows(window, false)
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightNavigationBars = false
+            isAppearanceLightStatusBars = false
+        }
         rootFrame = FrameLayout(this)
         rootFrame.setBackgroundColor(Color.BLACK)
         setContentView(rootFrame)
@@ -987,30 +1053,16 @@ class LauncherActivity : Activity() {
         sheetOverlay = null
         isDrawerOpen = false
         isEditMode = false
-        val g = glassFraction()
 
         val backdrop = ImageView(this).apply {
             layoutParams = matchParent()
             scaleType = ImageView.ScaleType.CENTER_CROP
-            alpha = g
+            alpha = wallpaperFade()
         }
         homeBackdrop = backdrop
         rootFrame.addView(backdrop)
 
-        val scrim = View(this).apply {
-            layoutParams = matchParent()
-            background = GradientDrawable(
-                GradientDrawable.Orientation.TOP_BOTTOM,
-                intArrayOf(
-                    Color.parseColor("#44000000"),
-                    Color.parseColor("#14000000"),
-                    Color.parseColor("#78000000"),
-                ),
-            )
-            alpha = min(1f, g * 2f)
-        }
-        homeScrim = scrim
-        rootFrame.addView(scrim)
+        // No darkening layer over the wallpaper: text stays readable through its own shadow.
 
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -1095,14 +1147,86 @@ class LauncherActivity : Activity() {
         focusProgressTrack = null
         focusProgressFill = null
         allowanceContainer = null
-        if (clockStyleValue() != "off") {
-            column.addView(buildClockWidget())
-        } else {
+        if (clockStyleValue() == "off") {
             column.addView(View(this), LinearLayout.LayoutParams(1, dp(28)))
         }
-        if (statusStyleValue() != "off") column.addView(buildStatusPill())
-        if (taskStyleValue() != "off") column.addView(buildFocusSessionCard())
-        if (limitsStyleValue() != "off") column.addView(buildTodaysLimits())
+        // In the order the person arranged them (long-press the home screen to change it).
+        homeOrder().forEach { id ->
+            when (id) {
+                "clock" -> if (clockStyleValue() != "off") column.addView(buildClockWidget())
+                "status" -> if (statusStyleValue() != "off") column.addView(buildStatusPill())
+                "task" -> if (taskStyleValue() != "off") column.addView(buildFocusSessionCard())
+                "limits" -> if (limitsStyleValue() != "off") column.addView(buildTodaysLimits())
+            }
+        }
+    }
+
+    /** The saved widget order, with anything missing or unknown put back in its default place. */
+    private fun homeOrder(): List<String> {
+        val saved = prefs.getString(PREF_HOME_ORDER, null)
+            ?.split(',')
+            ?.map { it.trim() }
+            ?.filter { it in HOME_WIDGETS }
+            ?.distinct()
+            .orEmpty()
+        return saved + HOME_WIDGETS.filter { it !in saved }
+    }
+
+    private fun moveHomeWidget(id: String, delta: Int) {
+        val order = homeOrder().toMutableList()
+        val from = order.indexOf(id)
+        val to = from + delta
+        if (from < 0 || to !in order.indices) return
+        order.removeAt(from)
+        order.add(to, id)
+        prefs.edit().putString(PREF_HOME_ORDER, order.joinToString(",")).apply()
+        rebuildHomeSections()
+    }
+
+    private fun homeOrderBlock(onChanged: () -> Unit): View {
+        val names = mapOf(
+            "clock" to "Clock",
+            "status" to "Status",
+            "task" to "Current task",
+            "limits" to "Today's limits",
+        )
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).also { it.topMargin = dp(10) }
+        }
+        box.addView(label("Order on the home screen", 14f, TEXT_DIM))
+        val order = homeOrder()
+        order.forEachIndexed { index, id ->
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                minimumHeight = dp(44)
+            }
+            row.addView(label(names[id] ?: id, 15f, TEXT_PRIMARY).apply {
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            })
+            fun arrow(glyph: String, enabled: Boolean, delta: Int) = label(glyph, 16f, TEXT_PRIMARY).apply {
+                gravity = Gravity.CENTER
+                alpha = if (enabled) 1f else 0.3f
+                layoutParams = LinearLayout.LayoutParams(dp(44), dp(44))
+                contentDescription = (if (delta < 0) "Move up " else "Move down ") + (names[id] ?: id)
+                if (enabled) {
+                    isClickable = true
+                    background = rippleForeground(22)
+                    setOnClickListener {
+                        moveHomeWidget(id, delta)
+                        onChanged()
+                    }
+                }
+            }
+            row.addView(arrow("▲", index > 0, -1))
+            row.addView(arrow("▼", index < order.lastIndex, 1))
+            box.addView(row)
+        }
+        return box
     }
 
     /** Rebuilds the home widgets and dock in place, so a style change shows instantly under an open sheet. */
@@ -1140,7 +1264,7 @@ class LauncherActivity : Activity() {
             "",
             when (style) {
                 "bold" -> 60f
-                "stacked" -> 88f
+                "stacked" -> 72f
                 "compact" -> 30f
                 else -> 68f
             },
@@ -1160,8 +1284,10 @@ class LauncherActivity : Activity() {
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT,
             ).also {
-                it.topMargin = dp(if (style == "compact") 8 else 36)
-                it.bottomMargin = dp(18)
+                // The stacked clock is two lines tall, so it gets less air above and below to leave
+                // room for the widgets without making the home screen scroll.
+                it.topMargin = dp(if (style == "compact") 8 else if (style == "stacked") 20 else 36)
+                it.bottomMargin = dp(if (style == "stacked") 12 else 18)
             }
         }
         when (style) {
@@ -1235,7 +1361,11 @@ class LauncherActivity : Activity() {
 
     private fun refreshStatusPill() {
         val text = statusText ?: return
-        text.text = "${getBlockedPackages().size} blocked • ${statusLabel()}"
+        val label = statusLabel()
+        // "Ready" says nothing the person needs, so the status only appears when something is
+        // actually going on: Focus Mode, Always-On, a task, or what is coming up next.
+        (text.parent as? View)?.visibility = if (label == STATUS_READY) View.GONE else View.VISIBLE
+        text.text = "${getBlockedPackages().size} blocked • $label"
         val color = when {
             prefs.getBoolean(PREF_ALWAYS_BLOCK, false) -> RED_BLOCK
             prefs.getBoolean(PREF_SA_ACTIVE, false) -> AMBER
@@ -1251,7 +1381,7 @@ class LauncherActivity : Activity() {
             prefs.getBoolean(PREF_SA_ACTIVE, false) || prefs.getBoolean("focus_active", false) -> "Focus Mode"
             snapshot?.mode == WidgetMode.ACTIVE -> "In a task"
             snapshot?.mode == WidgetMode.NEXT && snapshot.startsToday -> "Next: ${snapshot.title}"
-            else -> "Ready"
+            else -> STATUS_READY
         }
     }
 
@@ -1273,7 +1403,7 @@ class LauncherActivity : Activity() {
         frost(card, if (compact) 18 else 24)
         focusHeaderView = null
         if (!compact) {
-            val header = label("CURRENT TASK", 11f, TEXT_DIM).apply { letterSpacing = 0.12f }
+            val header = label("Now", 12f, TEXT_DIM)
             focusHeaderView = header
             card.addView(header)
         }
@@ -1390,8 +1520,8 @@ class LauncherActivity : Activity() {
             val start = if (snapshot.startMs in 1 until snapshot.endMs) snapshot.startMs else now
             val total = (snapshot.endMs - start).coerceAtLeast(1L)
             val fraction = ((total - remaining).toFloat() / total.toFloat()).coerceIn(0f, 1f)
-            val dayStats = if (snapshot.totalToday > 0) " · ${snapshot.doneToday}/${snapshot.totalToday}" else ""
-            focusHeaderView?.text = "CURRENT TASK$dayStats"
+            val dayStats = if (snapshot.totalToday > 0) " · ${snapshot.doneToday} of ${snapshot.totalToday}" else ""
+            focusHeaderView?.text = "Now$dayStats"
             val following = snapshot.followingTitle?.let { " · Next: $it" }.orEmpty()
             focusSubtitleView?.text = "${formatDuration(remaining)} left$following"
             focusProgressTrack?.visibility = View.VISIBLE
@@ -1404,7 +1534,7 @@ class LauncherActivity : Activity() {
                 fill.requestLayout()
             }
         } else {
-            focusHeaderView?.text = "UP NEXT"
+            focusHeaderView?.text = "Up next"
             val at = android.text.format.DateFormat.getTimeFormat(this).format(Date(snapshot.startMs))
             focusSubtitleView?.text = "Starts at $at · in ${formatDuration(snapshot.startMs - now)}"
             focusProgressTrack?.visibility = View.GONE
@@ -1423,6 +1553,17 @@ class LauncherActivity : Activity() {
         }
         allowanceContainer = container
         return container
+    }
+
+    /** Opens the drawer already filtered to the apps with a limit today. */
+    private fun openDrawerLimited() {
+        openDrawer()
+        handler.post {
+            if (!isDrawerOpen) return@post
+            drawerFilter = DrawerFilter.LIMITED_TODAY
+            renderDrawerChips()
+            refreshDrawerItems()
+        }
     }
 
     private fun limitColor(fractionLeft: Float): Int = when {
@@ -1463,22 +1604,27 @@ class LauncherActivity : Activity() {
             return
         }
         val style = limitsStyleValue()
+        // No frame and no heading: each row already says which app and how much is left, so the
+        // limits sit quietly on the wallpaper instead of adding another box to the home screen.
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(18), dp(14), dp(18), dp(14))
+            setPadding(dp(6), dp(2), dp(6), dp(2))
         }
-        frost(card, 24)
-        card.addView(label("TODAY'S LIMITS", 11f, TEXT_DIM).apply {
-            letterSpacing = 0.12f
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-            ).also { it.bottomMargin = dp(10) }
-        })
+        // Rings scroll sideways, so they take everything. Bars and the list are capped, with the
+        // ones closest to running out first, so a long list never makes the whole home scroll.
+        val capped = style != "rings" && cards.size > MAX_HOME_LIMITS
+        val shown = if (capped) cards.sortedBy { it.fraction }.take(MAX_HOME_LIMITS) else cards
         when (style) {
-            "rings" -> card.addView(buildLimitRings(cards))
-            "list" -> card.addView(buildLimitList(cards))
-            else -> card.addView(buildLimitBars(cards))
+            "rings" -> card.addView(buildLimitRings(shown))
+            "list" -> card.addView(buildLimitList(shown))
+            else -> card.addView(buildLimitBars(shown))
+        }
+        if (capped) {
+            card.addView(label("+${cards.size - shown.size} more · tap to see all", 12f, TEXT_DIM).apply {
+                setPadding(0, dp(10), 0, dp(4))
+                isClickable = true
+                setOnClickListener { openDrawerLimited() }
+            })
         }
         container.addView(card)
         container.visibility = View.VISIBLE
@@ -1788,7 +1934,6 @@ class LauncherActivity : Activity() {
         drawerBlockedCount = getBlockedPackages().size
         drawerAllApps = loadDrawerApps()
         reloadDrawerLimits()
-        val g = glassFraction()
 
         val overlay = FrameLayout(this).apply {
             layoutParams = matchParent()
@@ -1799,19 +1944,11 @@ class LauncherActivity : Activity() {
         val backdrop = ImageView(this).apply {
             layoutParams = matchParent()
             scaleType = ImageView.ScaleType.CENTER_CROP
-            alpha = g
+            alpha = wallpaperFade()
         }
         drawerBackdrop = backdrop
         bindBlurredBackdrop(backdrop)
         overlay.addView(backdrop)
-        val scrim = View(this).apply {
-            layoutParams = matchParent()
-            setBackgroundColor(Color.parseColor("#99000000"))
-            alpha = min(1f, g * 2f)
-        }
-        drawerScrim = scrim
-        overlay.addView(scrim)
-
         val sheet = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             layoutParams = matchParent()
@@ -1920,7 +2057,6 @@ class LauncherActivity : Activity() {
             rootFrame.removeView(overlay)
             drawerOverlay = null
             drawerBackdrop = null
-            drawerScrim = null
             drawerSheet = null
             drawerHeader = null
             drawerChipRow = null
@@ -2045,7 +2181,7 @@ class LauncherActivity : Activity() {
     /** What is left of each limited app today, kept so typing in search does not hit the ledger. */
     private fun reloadDrawerLimits() {
         drawerLimitInfo = loadAllowanceCardData().associate {
-            it.pkg to (it.displayText to it.fraction)
+            it.pkg to ((it.chipText.ifBlank { it.displayText }) to it.fraction)
         }
     }
 
@@ -2161,10 +2297,10 @@ class LauncherActivity : Activity() {
         customize.visibility = View.VISIBLE
         overlay.addView(customize)
         drawerCustomizeSheet = customize
-        drawerRecycler?.setPadding(0, 0, 0, dp(if (drawerIsList()) 190 else 330))
+        drawerRecycler?.setPadding(0, 0, 0, dp(if (drawerIsList()) 250 else 330))
         renderDrawerChips()
         renderDrawerHeader()
-        if (!drawerIsList()) drawerAdapter?.setIconScale(editDraftScale)
+        drawerAdapter?.setIconScale(editDraftScale)
         refreshDrawerItems()
     }
 
@@ -2238,7 +2374,7 @@ class LauncherActivity : Activity() {
         sheet.addView(selection)
         updateCustomizeSelection()
 
-        if (!drawerIsList()) {
+        run {
             val scaleLabel = label("", 14f, TEXT_DIM)
             sheet.addView(scaleLabel)
             val seek = SeekBar(this).apply {
@@ -2265,7 +2401,9 @@ class LauncherActivity : Activity() {
                 override fun onStopTrackingTouch(bar: SeekBar?) = Unit
             })
             updateScale(seek.progress)
+        }
 
+        if (!drawerIsList()) {
             val gridRow = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 layoutParams = LinearLayout.LayoutParams(
@@ -2357,6 +2495,17 @@ class LauncherActivity : Activity() {
 
     // ── Bottom sheets: app actions and drawer options ──────────────────────────
 
+    /**
+     * Bottom sheets dim what is behind them. Once the wallpaper is showing that dimming is cut
+     * to a third, so opening a sheet does not turn the launcher dark. At Glassiness 0 the
+     * launcher is plain black and the original dimming is kept.
+     */
+    private fun softenScrim(color: Int): Int {
+        if (glassLevel <= 0) return color
+        val alpha = (Color.alpha(color) * 0.33f).toInt()
+        return Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color))
+    }
+
     private fun showSheet(
         scrimColor: Int = Color.parseColor("#80000000"),
         build: (LinearLayout) -> Unit,
@@ -2365,7 +2514,7 @@ class LauncherActivity : Activity() {
         hideKeyboard()
         val overlay = FrameLayout(this).apply {
             layoutParams = matchParent()
-            setBackgroundColor(scrimColor)
+            setBackgroundColor(softenScrim(scrimColor))
             isClickable = true
             alpha = if (animationsEnabled()) 0f else 1f
             setOnClickListener { dismissSheet() }
@@ -2735,6 +2884,10 @@ class LauncherActivity : Activity() {
                 showWallpaperSheet()
             })
             body.addView(glassSliderBlock())
+            body.addView(homeOrderBlock {
+                dismissSheet(animate = false)
+                showHomeCustomizeSheet()
+            })
             body.addView(optionRow(
                 "Clock", PREF_HOME_CLOCK,
                 listOf("light" to "Light", "bold" to "Bold", "stacked" to "Stacked", "compact" to "Compact", "off" to "Off"),
@@ -2779,6 +2932,7 @@ class LauncherActivity : Activity() {
                 prefs.edit()
                     .remove(PREF_HOME_CLOCK).remove(PREF_HOME_STATUS).remove(PREF_HOME_TASK)
                     .remove(PREF_HOME_LIMITS).remove(PREF_HOME_SEARCH).remove(PREF_HOME_ALL_APPS)
+                    .remove(PREF_HOME_ORDER)
                     .apply()
                 dismissSheet(animate = false)
                 rebuildHomeSections()
@@ -2953,7 +3107,7 @@ class LauncherActivity : Activity() {
                         remove(PREF_WALLPAPER_BUILTIN)
                     }
                     ensureBackdrop()
-                    Toast.makeText(this, "Wallpaper set. Try 40–70% glass.", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "Wallpaper set.", Toast.LENGTH_SHORT).show()
                 }
                 result.onFailure {
                     Toast.makeText(this, it.message ?: "That picture could not be used.", Toast.LENGTH_LONG).show()
@@ -2992,36 +3146,57 @@ class LauncherActivity : Activity() {
     private fun applyPhoneWallpaper(flags: Int) {
         dismissSheet()
         val path = wallpaperPath()
-        val builtin = BuiltinWallpapers.byId(builtinWallpaperId())
-        val metrics = resources.displayMetrics
+        val builtinId = builtinWallpaperId()
         val appContext = applicationContext
         Toast.makeText(this, "Setting wallpaper…", Toast.LENGTH_SHORT).show()
         Thread {
-            val ok = try {
-                val bitmap = when {
-                    path.isNotEmpty() -> WallpaperLoader.decode(appContext, path)
-                    builtin != null ->
-                        BuiltinWallpapers.render(builtin, metrics.widthPixels, metrics.heightPixels)
-                    else -> null
-                }
-                if (bitmap == null) {
-                    false
-                } else {
-                    WallpaperManager.getInstance(appContext).setBitmap(bitmap, null, true, flags)
-                    true
-                }
-            } catch (_: Exception) {
-                false
+            // Same routine as the Wallpaper screen: screen-sized picture, home and lock set
+            // separately, and each one checked rather than assumed.
+            val bitmap = runCatching { PhoneWallpaper.screenBitmap(appContext, path, builtinId) }.getOrNull()
+            val result = if (bitmap == null) null else {
+                runCatching { PhoneWallpaper.apply(appContext, bitmap, flags) }.getOrNull()
+            }
+            val picker = if (bitmap != null && result != null && result.needsSystemPicker) {
+                runCatching { PhoneWallpaper.systemPickerIntent(appContext, bitmap) }.getOrNull()
+            } else {
+                null
             }
             handler.post {
                 if (isFinishing) return@post
-                Toast.makeText(
-                    this,
-                    if (ok) "Phone wallpaper updated." else "Couldn't set the phone wallpaper.",
-                    Toast.LENGTH_SHORT,
-                ).show()
+                if (result == null) {
+                    Toast.makeText(this, "Couldn't set the phone wallpaper.", Toast.LENGTH_SHORT).show()
+                    return@post
+                }
+                Toast.makeText(this, PhoneWallpaper.message(result), Toast.LENGTH_LONG).show()
+                if (picker != null) showSystemPickerSheet(picker)
             }
         }.start()
+    }
+
+    /** Offered when the phone did not clearly accept the lock screen wallpaper. */
+    private fun showSystemPickerSheet(picker: Intent) {
+        showSheet(scrimColor = Color.parseColor("#66000000")) { panel ->
+            panel.addView(label("Finish in the system picker", 20f, TEXT_PRIMARY, bold = true))
+            panel.addView(label(
+                "Your phone's own wallpaper screen opens with this picture. Choose Home, Lock or both there.",
+                13f,
+                TEXT_DIM,
+            ).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).also { it.topMargin = dp(6); it.bottomMargin = dp(8) }
+            })
+            panel.addView(sheetRow("Open system picker") {
+                dismissSheet()
+                try {
+                    startActivity(picker)
+                } catch (_: Exception) {
+                    Toast.makeText(this, "Couldn't open the system picker.", Toast.LENGTH_SHORT).show()
+                }
+            })
+            panel.addView(sheetRow("Not now", tint = TEXT_DIM) { dismissSheet() })
+        }
     }
 
     // ── Unhiding takes a little effort on purpose ──────────────────────────────
@@ -3147,7 +3322,6 @@ class LauncherActivity : Activity() {
     private fun openHiddenScreen() {
         if (hiddenOverlay != null || !::rootFrame.isInitialized) return
         hideKeyboard()
-        val g = glassFraction()
         val overlay = FrameLayout(this).apply {
             layoutParams = matchParent()
             setBackgroundColor(Color.BLACK)
@@ -3157,19 +3331,11 @@ class LauncherActivity : Activity() {
         val backdrop = ImageView(this).apply {
             layoutParams = matchParent()
             scaleType = ImageView.ScaleType.CENTER_CROP
-            alpha = g
+            alpha = wallpaperFade()
         }
         hiddenBackdrop = backdrop
         bindBlurredBackdrop(backdrop)
         overlay.addView(backdrop)
-        val scrim = View(this).apply {
-            layoutParams = matchParent()
-            setBackgroundColor(Color.parseColor("#99000000"))
-            alpha = min(1f, g * 2f)
-        }
-        hiddenScrim = scrim
-        overlay.addView(scrim)
-
         val column = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             layoutParams = matchParent()
@@ -3239,7 +3405,6 @@ class LauncherActivity : Activity() {
         val remove = {
             rootFrame.removeView(overlay)
             hiddenBackdrop = null
-            hiddenScrim = null
             hiddenListContainer = null
             refreshDockActions()
             pruneFrosted()
@@ -3468,6 +3633,11 @@ class LauncherActivity : Activity() {
                 val remaining = card.total - card.used
                 if (remaining <= 0L) "no opens left" else "$remaining of ${card.total} opens left"
             }
+            "interval" -> if (card.remaining <= 0L) {
+                "${formatDuration(card.used)} used • ${card.displayText}"
+            } else {
+                "${formatDuration(card.used)} used • ${formatDuration(card.total - card.used)} left"
+            }
             else -> "${formatDuration(card.used)} used • ${formatDuration(card.total - card.used)} left"
         }
         return if (card.approximate) "About $value" else value
@@ -3572,11 +3742,20 @@ class LauncherActivity : Activity() {
                             windowMs = windowMs,
                         )
                         val windowExpired = usage.windowExpired
-                        val usedMs        = usage.usedMs
+                        // A window that has ended has its whole allowance back.
+                        val usedMs        = if (windowExpired) 0L else usage.usedMs
                         val remainingMs   = (intervalMs - usedMs).coerceAtLeast(0L)
                         val fraction      = if (intervalMs > 0L) remainingMs.toFloat() / intervalMs.toFloat() else 0f
-                        val display       = if (windowExpired) "reset" else formatRemainingMs(remainingMs)
-                        result.add(AllowanceCardData(pkg, label, icon, usedMs, intervalMs, remainingMs, mode, display, fraction, usageIsApproximate(pkg)))
+                        // Used up: say when it comes back instead of a bare "time's up".
+                        val resetAt       = AllowanceResetText.resetAtMs(usage.windowStartMs, windowMs)
+                        val backText      = if (remainingMs <= 0L) {
+                            AllowanceResetText.backText(resetAt, now) { ms -> clockText(ms) }
+                        } else null
+                        val display       = backText ?: formatRemainingMs(remainingMs)
+                        // The small chip on a drawer icon has no room for a clock time, so it keeps
+                        // the short wording. The home screen and the block screen say when.
+                        val chip          = if (remainingMs <= 0L) "time's up" else ""
+                        result.add(AllowanceCardData(pkg, label, icon, usedMs, intervalMs, remainingMs, mode, display, fraction, usageIsApproximate(pkg), chip))
                     }
                 }
             }
@@ -3584,6 +3763,10 @@ class LauncherActivity : Activity() {
 
         return result
     }
+
+    /** A clock time in the phone's own 12 or 24 hour style. */
+    private fun clockText(ms: Long): String =
+        android.text.format.DateFormat.getTimeFormat(this).format(Date(ms))
 
     private fun formatRemainingMs(ms: Long): String {
         if (ms <= 0L) return "time's up"
@@ -3681,6 +3864,13 @@ class LauncherActivity : Activity() {
                 val dock = dockView
                 swipeStartedInDock = dock != null && dock.isShown &&
                     ev.rawY >= dock.locationOnScreenY()
+                // Remember what the home content could do when the finger landed. Deciding at
+                // lift-off is what let a swipe that merely scrolled the home screen to its
+                // bottom open the drawer as well.
+                val homeScrollView = homeScroll
+                swipeStartScrollY = homeScrollView?.scrollY ?: 0
+                swipeContentCanScrollDown = homeScrollView?.canScrollVertically(1) == true
+                swipeContentScrolledDown = homeScrollView?.canScrollVertically(-1) == true
                 val recycler = drawerRecycler
                 swipeDrawerAtTop = recycler == null ||
                     !recycler.canScrollVertically(-1) ||
@@ -3703,15 +3893,15 @@ class LauncherActivity : Activity() {
             val dy = swipeTouchStartY - ev.rawY
             if (!overlayOpen) {
                 if (dy > dp(60) && velocity < -250f && !isDrawerOpen) {
-                    val scroll = homeScroll
-                    val contentCanScroll = scroll != null && scroll.canScrollVertically(1)
-                    if (!contentCanScroll || swipeStartedInDock) openDrawer()
+                    val scrollMoved = (homeScroll?.scrollY ?: 0) != swipeStartScrollY
+                    val ownsTheSwipe = swipeContentCanScrollDown || scrollMoved
+                    if (!ownsTheSwipe || swipeStartedInDock) openDrawer()
                 } else if (dy < -dp(80) && velocity > 250f) {
                     if (isDrawerOpen) {
                         if (!isEditMode && swipeDrawerAtTop) closeDrawer()
                     } else {
-                        val scrolled = homeScroll?.canScrollVertically(-1) == true
-                        if (!scrolled) expandNotificationsPanel()
+                        val scrollMoved = (homeScroll?.scrollY ?: 0) != swipeStartScrollY
+                        if (!swipeContentScrolledDown && !scrollMoved) expandNotificationsPanel()
                     }
                 }
             }

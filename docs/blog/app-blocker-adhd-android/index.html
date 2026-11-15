@@ -1,28 +1,29 @@
 <!DOCTYPE html>
+
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Best App Blocker for ADHD on Android — Hard Enforcement Explained | FocusFlow</title>
-  <meta name="description" content="Soft timers don't work for ADHD. Here's why enforcement-level app blocking is different, and why FocusFlow's three-layer system works where Digital Wellbeing and AppBlock fail." />
-  <meta name="robots" content="index, follow" />
-  <link rel="canonical" href="https://focusflowapp.pages.dev/blog/app-blocker-adhd-android/" />
-  <meta name="google-site-verification" content="sou-98cZYPWFJmbwxJgJptO-ZaIPNJqz2ven_iS4NjI" />
-  <meta name="msvalidate.01" content="FC2887EF2F94BFFE090CAB25A456AE86" />
-  <meta property="og:title" content="Best App Blocker for ADHD on Android — Hard Enforcement Explained" />
-  <meta property="og:description" content="Soft timers don't work for ADHD. Here's why enforcement-level blocking is different, and which app delivers it free on Android." />
-  <meta property="og:type" content="article" />
-  <meta property="og:url" content="https://focusflowapp.pages.dev/blog/app-blocker-adhd-android/" />
-  <meta property="og:site_name" content="FocusFlow by TBTechs" />
-  <meta property="og:locale" content="en_US" />
-  <meta property="og:image" content="https://focusflowapp.pages.dev/og-image.jpg" />
-  <meta name="twitter:card" content="summary_large_image" />
-  <link rel="icon" href="../../logo-transparent.png" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" media="print" onload="this.media='all'" />
-  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" /></noscript>
-  <style>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Best App Blocker for ADHD on Android — Hard Enforcement Explained | FocusFlow</title>
+<meta content="Soft timers don't work for ADHD. Here's why enforcement-level app blocking is different, and why FocusFlow's three-layer system works where Digital Wellbeing and AppBlock fail." name="description"/>
+<meta content="index, follow" name="robots"/>
+<link href="https://focusflowapp.pages.dev/blog/app-blocker-adhd-android/" rel="canonical"/>
+<meta content="sou-98cZYPWFJmbwxJgJptO-ZaIPNJqz2ven_iS4NjI" name="google-site-verification"/>
+<meta content="FC2887EF2F94BFFE090CAB25A456AE86" name="msvalidate.01"/>
+<meta content="Best App Blocker for ADHD on Android — Hard Enforcement Explained" property="og:title"/>
+<meta content="Soft timers don't work for ADHD. Here's why enforcement-level blocking is different, and which app delivers it free on Android." property="og:description"/>
+<meta content="article" property="og:type"/>
+<meta content="https://focusflowapp.pages.dev/blog/app-blocker-adhd-android/" property="og:url"/>
+<meta content="FocusFlow by TBTechs" property="og:site_name"/>
+<meta content="en_US" property="og:locale"/>
+<meta content="https://focusflowapp.pages.dev/og-image.jpg" property="og:image"/>
+<meta content="summary_large_image" name="twitter:card"/>
+<link href="/logo-transparent.png" rel="icon"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" media="print" onload="this.media='all'" rel="stylesheet"/>
+<noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/></noscript>
+<style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root { --bg: #0D0D14; --surface: #13131F; --border: rgba(255,255,255,0.07); --accent: #6C63FF; --text: #F0F0F8; --muted: #9090B0; --green: #34D399; --red: #F87171; }
     body { background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, sans-serif; line-height: 1.75; }
@@ -33,15 +34,7 @@
     .nav-links { display: flex; gap: 1.4rem; align-items: center; }
     .nav-links a { color: var(--muted); font-size: 0.88rem; transition: color 0.2s; }
     .nav-links a:hover { color: var(--text); }
-    .nav-cta { background: var(--accent); color: #fff !important; padding: 0.45rem 1rem; border-radius: 8px; font-weight: 600; font-size: 0.82rem !important; }
-    #lang-toggle { background: none; border: 1px solid var(--border); color: var(--muted); padding: 0.28rem 0.7rem; border-radius: 6px; cursor: pointer; font-size: 0.82rem; font-family: inherit; transition: border-color 0.2s, color 0.2s; }
-    #lang-toggle:hover { border-color: var(--accent); color: var(--text); }
-    .zh { display: none; }
-    [data-lang="zh"] .zh { display: block; }
-    [data-lang="zh"] .en { display: none; }
-    [data-lang="zh"] span.zh { display: inline; }
-    [data-lang="zh"] span.en { display: none; }
-    .breadcrumb { padding: 1rem 2rem; font-size: 0.8rem; color: var(--muted); }
+    .nav-cta { background: var(--accent); color: #fff !important; padding: 0.45rem 1rem; border-radius: 8px; font-weight: 600; font-size: 0.82rem !important; }.breadcrumb { padding: 1rem 2rem; font-size: 0.8rem; color: var(--muted); }
     .breadcrumb a { color: var(--accent); }
     .breadcrumb span { margin: 0 0.4rem; }
     article { max-width: 740px; margin: 0 auto; padding: 2.5rem 2rem 6rem; }
@@ -74,211 +67,140 @@
     footer { border-top: 1px solid var(--border); padding: 2rem; text-align: center; color: var(--muted); font-size: 0.8rem; }
     footer a { color: var(--accent); }
     @media (max-width: 560px) { .feature-grid { grid-template-columns: 1fr; } }
-  </style>
-  <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "MobileApplication",
-    "name": "FocusFlow",
-    "operatingSystem": "Android 10+",
-    "applicationCategory": "ProductivityApplication",
-    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
-    "installUrl": "https://appgallery.huawei.com/app/C117698039",
-    "author": { "@type": "Organization", "name": "TBTechs", "url": "https://focusflowapp.pages.dev/" }
+  
+/* language switcher (URL-based, no JS) */
+.lang-switch{position:relative;font-size:.82rem;font-family:inherit}
+details.lang-switch>summary{display:block;font-size:.82rem;font-weight:400;line-height:1.4;padding:.28rem .7rem;margin:0;background:none;width:auto;gap:0}
+details.lang-switch>summary::after{content:none;display:none}
+.lang-switch summary{list-style:none;cursor:pointer;border:1px solid var(--border,rgba(108,99,255,.2));color:var(--muted,#9090B0);padding:.28rem .7rem;border-radius:6px;white-space:nowrap;user-select:none}
+.lang-switch summary::-webkit-details-marker{display:none}
+.lang-switch[open] summary,.lang-switch summary:hover{border-color:var(--accent,#6C63FF);color:var(--text,#F0F0FF)}
+.lang-switch ul{position:absolute;right:0;top:calc(100% + .4rem);list-style:none;margin:0;padding:.35rem;background:var(--surface,#16161F);border:1px solid var(--border,rgba(108,99,255,.2));border-radius:10px;min-width:9.5rem;z-index:300;box-shadow:0 12px 32px rgba(0,0,0,.45)}
+.lang-switch li a{display:block;padding:.4rem .7rem;border-radius:6px;color:var(--muted,#9090B0)!important;font-size:.85rem}
+.lang-switch li a:hover{background:var(--accent-subtle,rgba(108,99,255,.12));color:var(--text,#F0F0FF)!important}
+.lang-switch li a[aria-current]{color:var(--text,#F0F0FF)!important;font-weight:700}
+a.en-fallback::after{content:"EN";font-size:.58rem;margin-left:.3rem;padding:.04rem .28rem;border:1px solid currentColor;border-radius:4px;opacity:.65;vertical-align:middle}
+@media(max-width:720px){.lang-switch ul{right:auto;left:50%;transform:translateX(-50%)}}
+
+/* layout fixes shared by all pages */
+nav.breadcrumb{position:static;background:none;-webkit-backdrop-filter:none;backdrop-filter:none;border:0;padding:0;flex-direction:row;flex-wrap:wrap;justify-content:center;gap:.4rem;z-index:auto}
+.page-hero{overflow-x:clip}
+nav:not(.breadcrumb){flex-wrap:wrap;gap:.6rem 1.25rem}
+.nav-links{flex-wrap:wrap;justify-content:flex-end}
+@media(max-width:720px){
+  .nav-links{justify-content:center}
+  .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .compare-table,.big-compare,article table{display:block;max-width:100%;overflow-x:auto}
+}
+.hero{overflow-x:clip}
+.df-body{min-width:0}
+.df-body h3{overflow-wrap:anywhere}
+</style>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "MobileApplication",
+  "name": "FocusFlow",
+  "operatingSystem": "Android 10+",
+  "applicationCategory": "ProductivityApplication",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  },
+  "installUrl": "https://appgallery.huawei.com/app/C117698039",
+  "author": {
+    "@type": "Organization",
+    "name": "TBTechs",
+    "url": "https://focusflowapp.pages.dev/"
   }
+}
   </script>
 </head>
 <body>
-  <nav>
-    <a class="brand" href="../../">
-      <img src="../../logo-transparent.png" alt="FocusFlow" />
+<nav>
+<a class="brand" href="/">
+<img alt="FocusFlow" src="/logo-transparent.png"/>
       FocusFlow
     </a>
-    <div class="nav-links">
-      <a href="../../features/">Features</a>
-      <a href="../../compare/">Compare</a>
-      <a href="../../alternatives/">Alternatives</a>
-      <a href="../../how-it-works/">How it works</a>
-      <a href="../../faq/">FAQ</a>
-      <a href="../../blog/">Blog</a>
-      <a class="nav-cta" href="https://github.com/TITANICBHAI/FocusFlow/releases">Download APK</a>
-      <button id="lang-toggle">中文</button>
-    </div>
-  </nav>
+<div class="nav-links"><a href="/features/">Features</a><a href="/compare/">Compare</a><a href="/alternatives/">Alternatives</a><a href="/setup/">Setup</a><a href="/docs/">Docs</a><a href="/faq/">FAQ</a><a aria-current="page" class="active" href="/blog/">Blog</a><a class="nav-cta" href="https://github.com/TITANICBHAI/FocusFlow/releases">Download APK</a><details class="lang-switch"><summary aria-label="Language"><span aria-hidden="true">🌐</span> English</summary><ul><li><a aria-current="true" href="/blog/app-blocker-adhd-android/" hreflang="en" lang="en">English</a></li><li><a href="/zh/" hreflang="zh-Hans" lang="zh-Hans">简体中文</a></li><li><a href="/de/" hreflang="de" lang="de">Deutsch</a></li><li><a href="/es/" hreflang="es" lang="es">Español</a></li><li><a href="/fr/" hreflang="fr" lang="fr">Français</a></li><li><a href="/ja/" hreflang="ja" lang="ja">日本語</a></li><li><a href="/ko/" hreflang="ko" lang="ko">한국어</a></li></ul></details></div>
+</nav>
+<div class="breadcrumb">
+<a href="/">Home</a><span>›</span><a href="/blog/">Blog</a><span>›</span>
+<span>Best App Blocker for ADHD on Android</span>
 
-  <div class="breadcrumb">
-    <a href="../../">Home</a><span>›</span><a href="../../blog/">Blog</a><span>›</span>
-    <span class="en">Best App Blocker for ADHD on Android</span>
-    <span class="zh">Android ADHD 最佳应用屏蔽器</span>
-  </div>
+</div>
+<article>
+<p class="post-tag">Guide</p>
 
-  <article>
-    <p class="post-tag en">Guide</p>
-    <p class="post-tag zh">指南</p>
+<h1>Best App Blocker for ADHD on Android — Hard Enforcement Explained</h1>
 
-    <h1 class="en">Best App Blocker for ADHD on Android — Hard Enforcement Explained</h1>
-    <h1 class="zh">Android ADHD 最佳应用屏蔽器——强制执行详解</h1>
+<p class="post-meta">By TBTechs · May 2025 · 7 min read</p>
 
-    <p class="post-meta en">By TBTechs · May 2025 · 7 min read</p>
-    <p class="post-meta zh">作者：TBTechs · 2025年5月 · 7分钟阅读</p>
-
-    <div class="bluf en">
-      <strong>Bottom line:</strong> ADHD involves a structural deficit in inhibitory control, not a motivation deficit. Soft timers with one-tap overrides don't create enough friction. FocusFlow's three-layer enforcement (Accessibility + VPN + Device Admin) creates genuine, multi-step friction resistant to impulsive override — and it's the only free app on Android that does this.
-    </div>
-    <div class="bluf zh">
-      <strong>结论：</strong>ADHD 涉及抑制控制的结构性缺陷，而非动力不足。带有一键覆盖的软定时器无法创造足够的摩擦。FocusFlow 的三层执行机制（无障碍 + VPN + 设备管理员）创造了真正的、多步骤的、抵抗冲动覆盖的摩擦——它是 Android 上唯一免费做到这一点的应用。
+<div class="bluf">
+<strong>Bottom line:</strong> ADHD involves a structural deficit in inhibitory control, not a motivation deficit. Soft timers with one-tap overrides don't create enough friction. FocusFlow's three-layer enforcement (Accessibility + VPN + Device Admin) creates genuine, multi-step friction resistant to impulsive override — and it's the only free app on Android that does this.
     </div>
 
-    <div class="en">
-      <h2>Why Standard App Blockers Fail for ADHD</h2>
-      <p>Most focus apps are designed for neurotypical users who are easily distracted but have intact impulse control. For people with ADHD, the problem is different: the impulse to open Instagram isn't a lapse in attention — it's an executive function failure that's neurologically faster than the rational decision to stop it.</p>
-
-      <div class="insight-box">
+<div>
+<h2>Why Standard App Blockers Fail for ADHD</h2>
+<p>Most focus apps are designed for neurotypical users who are easily distracted but have intact impulse control. For people with ADHD, the problem is different: the impulse to open Instagram isn't a lapse in attention — it's an executive function failure that's neurologically faster than the rational decision to stop it.</p>
+<div class="insight-box">
         ADHD is associated with reduced activity in the prefrontal cortex — the circuits responsible for inhibitory control. When the impulse to check a phone fires, it often fires and completes before the "don't do this" signal catches up. This is why telling someone with ADHD to "just use willpower" is genuinely ineffective.
       </div>
-
-      <h2>What "Hard Enforcement" Actually Means</h2>
-      <ul>
-        <li>The app is physically blocked at the OS level, not just visually indicated</li>
-        <li>The block cannot be removed with a single tap</li>
-        <li>The blocker itself cannot be uninstalled without a deliberate multi-step process</li>
-        <li>A reboot doesn't end the session</li>
-      </ul>
-      <p>FocusFlow is the only free Android app that checks all four of these boxes.</p>
-
-      <h2>FocusFlow Features Most Useful for ADHD</h2>
-      <div class="feature-grid">
-        <div class="feature-card"><h3>Session PIN</h3><p>A PIN is required before a protected session can be ended — not a one-tap override.</p></div>
-        <div class="feature-card"><h3>Aversive Feedback</h3><p>Screen dims to 2%, full-screen overlay, vibration, and sound. The sudden shift breaks the impulsive flow state.</p></div>
-        <div class="feature-card"><h3>Temptation Log</h3><p>Every blocked-app attempt logged with timestamp. Creates external accountability — a proven ADHD management strategy.</p></div>
-        <div class="feature-card"><h3>Weekly Temptation Report</h3><p>Sunday push notification with 7-day attempt data per app. Externalizes the pattern, which is harder for ADHD brains to track internally.</p></div>
-        <div class="feature-card"><h3>Scheduled Greyout</h3><p>Set blocking windows in advance (when calm) that fire automatically (when impulsive). Removes the in-the-moment decision entirely.</p></div>
-        <div class="feature-card"><h3>Device Admin Lock</h3><p>Cannot be uninstalled during a session. Removes the escape valve of "I'll just delete the app."</p></div>
-        <div class="feature-card"><h3>Boot Recovery</h3><p>Restarting the phone doesn't end the session. The common impulsive workaround doesn't work.</p></div>
+<h2>What "Hard Enforcement" Actually Means</h2>
+<ul>
+<li>The app is physically blocked at the OS level, not just visually indicated</li>
+<li>The block cannot be removed with a single tap</li>
+<li>The blocker itself cannot be uninstalled without a deliberate multi-step process</li>
+<li>A reboot doesn't end the session</li>
+</ul>
+<p>FocusFlow is the only free Android app that checks all four of these boxes.</p>
+<h2>FocusFlow Features Most Useful for ADHD</h2>
+<div class="feature-grid">
+<div class="feature-card"><h3>Session PIN</h3><p>A PIN is required before a protected session can be ended — not a one-tap override.</p></div>
+<div class="feature-card"><h3>Aversive Feedback</h3><p>Screen dims to 2%, full-screen overlay, vibration, and sound. The sudden shift breaks the impulsive flow state.</p></div>
+<div class="feature-card"><h3>Temptation Log</h3><p>Every blocked-app attempt logged with timestamp. Creates external accountability — a proven ADHD management strategy.</p></div>
+<div class="feature-card"><h3>Weekly Temptation Report</h3><p>Sunday push notification with 7-day attempt data per app. Externalizes the pattern, which is harder for ADHD brains to track internally.</p></div>
+<div class="feature-card"><h3>Scheduled Greyout</h3><p>Set blocking windows in advance (when calm) that fire automatically (when impulsive). Removes the in-the-moment decision entirely.</p></div>
+<div class="feature-card"><h3>Device Admin Lock</h3><p>Cannot be uninstalled during a session. Removes the escape valve of "I'll just delete the app."</p></div>
+<div class="feature-card"><h3>Boot Recovery</h3><p>Restarting the phone doesn't end the session. The common impulsive workaround doesn't work.</p></div>
+</div>
+<h2>Recommended Setup for ADHD Users</h2>
+<ol>
+<li><strong>Install FocusFlow</strong> and complete the full setup including Device Admin</li>
+<li><strong>Block your highest-impulse apps:</strong> Instagram, TikTok, Twitter, YouTube Shorts, Reddit, games</li>
+<li><strong>Set Scheduled Greyout for your work/study hours</strong> — do this once, when calm</li>
+<li><strong>Enable Weekly Temptation Report</strong> — reviewing the data gives external evidence of progress</li>
+</ol>
+<h2>What About Content-Specific Blocking for ADHD?</h2>
+<p>ADHD impulsivity often targets specific high-dopamine content. YouTube Shorts is more impulsive than YouTube subscriptions. FocusFlow's content-specific blockers let you block only the high-impulsivity surface — keeping access to productive parts while eliminating infinite scroll traps.</p>
+<div class="verdict">
+<strong>Best app blocker for ADHD on Android:</strong> FocusFlow. It's the only free option with genuine multi-layer enforcement that resists impulsive override — the specific failure mode that soft blockers trigger in ADHD users.
       </div>
+<div class="cta-box">
+<h2>Try FocusFlow — Free for ADHD Users</h2>
+<p>Hard enforcement, Temptation Log, Device Admin lock. All features free. No subscription.</p>
+<a href="https://appgallery.huawei.com/app/C117698039" style="display:inline-block;flex-shrink:0;vertical-align:middle;">
+<img alt="Explore it on AppGallery" src="/huawei-appgallery-badge.svg" style="height:52px;width:auto;display:block;"/>
+</a>
+<a class="btn" href="https://apps.gov.in/app-info/2691" rel="noopener" target="_blank">🇮🇳 Gov.in Appstore</a>
+<a class="btn" href="https://github.com/TITANICBHAI/FocusFlow/releases">⬇ GitHub APK →</a>
+</div>
+<div class="internal-links">
+<h2>Related guides</h2>
+<ul>
+<li><a href="/blog/how-to-stop-doom-scrolling/">How to stop doom scrolling on Android</a></li>
+<li><a href="/features/">All FocusFlow features — Temptation Log, Device Admin, Scheduled Greyout</a></li>
+<li><a href="/faq/">FocusFlow FAQ</a></li>
+<li><a href="/setup/">How FocusFlow works — setup guide</a></li>
+</ul>
+</div>
+</div>
 
-      <h2>Recommended Setup for ADHD Users</h2>
-      <ol>
-        <li><strong>Install FocusFlow</strong> and complete the full setup including Device Admin</li>
-        <li><strong>Block your highest-impulse apps:</strong> Instagram, TikTok, Twitter, YouTube Shorts, Reddit, games</li>
-        <li><strong>Set Scheduled Greyout for your work/study hours</strong> — do this once, when calm</li>
-        <li><strong>Enable Weekly Temptation Report</strong> — reviewing the data gives external evidence of progress</li>
-      </ol>
+</article>
+<footer>
+<p>© 2025 TBTechs · <a href="/docs/">Docs</a> · <a href="/privacy-policy/">Privacy</a> · <a href="/terms-of-service/">Terms</a> · <a href="https://github.com/TITANICBHAI/FocusFlow">GitHub</a></p>
+</footer>
 
-      <h2>What About Content-Specific Blocking for ADHD?</h2>
-      <p>ADHD impulsivity often targets specific high-dopamine content. YouTube Shorts is more impulsive than YouTube subscriptions. FocusFlow's content-specific blockers let you block only the high-impulsivity surface — keeping access to productive parts while eliminating infinite scroll traps.</p>
-
-      <div class="verdict">
-        <strong>Best app blocker for ADHD on Android:</strong> FocusFlow. It's the only free option with genuine multi-layer enforcement that resists impulsive override — the specific failure mode that soft blockers trigger in ADHD users.
-      </div>
-
-      <div class="cta-box">
-        <h2>Try FocusFlow — Free for ADHD Users</h2>
-        <p>Hard enforcement, Temptation Log, Device Admin lock. All features free. No subscription.</p>
-        <a href="https://appgallery.huawei.com/app/C117698039" style="display:inline-block;flex-shrink:0;vertical-align:middle;">
-          <img src="../../huawei-appgallery-badge.svg" alt="Explore it on AppGallery" style="height:52px;width:auto;display:block;" />
-        </a>
-        <a class="btn" href="https://apps.gov.in/app-info/2691" target="_blank" rel="noopener">🇮🇳 Gov.in Appstore</a>
-        <a class="btn" href="https://github.com/TITANICBHAI/FocusFlow/releases">⬇ GitHub APK →</a>
-      </div>
-
-      <div class="internal-links">
-        <h2>Related guides</h2>
-        <ul>
-          <li><a href="../how-to-stop-doom-scrolling/">How to stop doom scrolling on Android</a></li>
-          <li><a href="../../features/">All FocusFlow features — Temptation Log, Device Admin, Scheduled Greyout</a></li>
-          <li><a href="../../faq/">FocusFlow FAQ</a></li>
-          <li><a href="../../how-it-works/">How FocusFlow works — setup guide</a></li>
-        </ul>
-      </div>
-    </div>
-
-    <div class="zh">
-      <h2>为什么标准应用屏蔽器对 ADHD 失败</h2>
-      <p>大多数专注应用是为神经典型用户设计的，他们容易分心但冲动控制完好。对于 ADHD 患者，问题不同：打开 Instagram 的冲动不是注意力的疏失——它是一种执行功能失败，在神经学上比阻止它的理性决定更快。</p>
-
-      <div class="insight-box">
-        ADHD 与前额叶皮质活动减少有关——负责抑制控制的回路。当检查手机的冲动触发时，它往往在"不要这样做"的信号赶上来之前就触发并完成了。这就是为什么告诉 ADHD 患者"就用意志力"真的无效。
-      </div>
-
-      <h2>"强制执行"实际上意味着什么</h2>
-      <ul>
-        <li>应用在操作系统层面被物理屏蔽，而不仅仅是视觉上显示</li>
-        <li>屏蔽无法通过单次点击解除</li>
-        <li>屏蔽器本身无法在没有多步骤有意识过程的情况下被卸载</li>
-        <li>重启不会结束会话</li>
-      </ul>
-      <p>FocusFlow 是 Android 上唯一免费勾选所有四项的应用。</p>
-
-      <h2>FocusFlow 对 ADHD 最有用的功能</h2>
-      <div class="feature-grid">
-        <div class="feature-card"><h3>会话 PIN</h3><p>结束受保护的会话前需要输入 PIN，而不是一键覆盖。</p></div>
-        <div class="feature-card"><h3>厌恶反馈</h3><p>屏幕调暗至 2%、全屏覆盖层、振动和声音。突然的变化打破冲动的心流状态。</p></div>
-        <div class="feature-card"><h3>诱惑日志</h3><p>每次被屏蔽应用尝试都记录时间戳。创造外部责任——这是经过验证的 ADHD 管理策略。</p></div>
-        <div class="feature-card"><h3>每周诱惑报告</h3><p>周日推送通知，包含每个应用的 7 天尝试数据。外部化模式，这对 ADHD 大脑内部追踪更难的情况很有帮助。</p></div>
-        <div class="feature-card"><h3>计划灰显</h3><p>提前设置屏蔽窗口（冷静时），自动触发（冲动时）。完全消除当下的决策。</p></div>
-        <div class="feature-card"><h3>设备管理员锁</h3><p>会话期间无法卸载。消除了"我就删掉这个应用"的逃生阀。</p></div>
-        <div class="feature-card"><h3>启动恢复</h3><p>重启手机不会结束会话。常见的冲动解决方法不起作用。</p></div>
-      </div>
-
-      <h2>ADHD 用户的推荐设置</h2>
-      <ol>
-        <li><strong>安装 FocusFlow</strong> 并完成包括设备管理员在内的完整设置</li>
-        <li><strong>屏蔽您冲动最强的应用：</strong>Instagram、TikTok、Twitter、YouTube Shorts、Reddit、游戏</li>
-        <li><strong>为您的工作/学习时间设置计划灰显</strong>——在冷静时做一次</li>
-        <li><strong>启用每周诱惑报告</strong>——查看数据提供进度的外部证据</li>
-      </ol>
-
-      <h2>ADHD 的内容特定屏蔽呢？</h2>
-      <p>ADHD 的冲动性往往针对特定的高多巴胺内容。YouTube Shorts 比 YouTube 订阅更冲动。FocusFlow 的内容特定屏蔽器让您只屏蔽应用内的高冲动性界面——保留对有生产力部分的访问，同时消除无限滚动陷阱。</p>
-
-      <div class="verdict">
-        <strong>Android ADHD 最佳应用屏蔽器：</strong>FocusFlow。它是唯一免费的、具有真正多层执行的、能抵抗冲动覆盖的选项——这是软屏蔽器在 ADHD 用户身上触发的具体失效模式。
-      </div>
-
-      <div class="cta-box">
-        <h2>试用 FocusFlow——ADHD 用户免费</h2>
-        <p>强制执行、诱惑日志、设备管理员锁。所有功能免费。无订阅。</p>
-        <a class="btn" href="https://github.com/TITANICBHAI/FocusFlow/releases">下载 FocusFlow APK →</a>
-      </div>
-
-      <div class="internal-links">
-        <h2>相关指南</h2>
-        <ul>
-          <li><a href="../how-to-stop-doom-scrolling/">如何在 Android 上停止末日滚动</a></li>
-          <li><a href="../../features/">所有 FocusFlow 功能——诱惑日志、设备管理员、计划灰显</a></li>
-          <li><a href="../../faq/">FocusFlow 常见问题</a></li>
-          <li><a href="../../how-it-works/">FocusFlow 如何工作——设置指南</a></li>
-        </ul>
-      </div>
-    </div>
-  </article>
-
-  <footer>
-    <p>© 2025 TBTechs · <a href="../../privacy-policy/">Privacy</a> · <a href="../../terms-of-service/">Terms</a> · <a href="https://github.com/TITANICBHAI/FocusFlow">GitHub</a></p>
-  </footer>
-
-  <script>
-  (function(){
-    var stored = localStorage.getItem('ff-lang');
-    var auto = (navigator.language || navigator.userLanguage || '').startsWith('zh');
-    var isZh = stored ? stored === 'zh' : auto;
-    function apply(zh){
-      document.documentElement.setAttribute('data-lang', zh ? 'zh' : 'en');
-      localStorage.setItem('ff-lang', zh ? 'zh' : 'en');
-      var btn = document.getElementById('lang-toggle');
-      if(btn) btn.textContent = zh ? 'EN' : '中文';
-    }
-    apply(isZh);
-    document.addEventListener('DOMContentLoaded', function(){
-      apply(isZh);
-      var btn = document.getElementById('lang-toggle');
-      if(btn) btn.addEventListener('click', function(){
-        var cur = document.documentElement.getAttribute('data-lang');
-        apply(cur !== 'zh');
-      });
-    });
-  })();
-  </script>
 </body>
 </html>

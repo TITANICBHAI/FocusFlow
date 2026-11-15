@@ -26,7 +26,7 @@ import kotlin.math.sin
  */
 object BuiltinWallpapers {
 
-    enum class Style { MESH, RIBBONS, DUNES, RIDGES, ORBS, WAVES, STARS, RIPPLE }
+    enum class Style { MESH, RIBBONS, DUNES, RIDGES, ORBS, WAVES, STARS, RIPPLE, GLOW, MIST }
 
     /** [bestAt] is the Glassiness (0-100) at which the launcher's frosted panels read best on it. */
     class Spec(
@@ -39,18 +39,20 @@ object BuiltinWallpapers {
     )
 
     val all: List<Spec> = listOf(
-        Spec("midnight", "Midnight", 40, Style.MESH, intArrayOf(0xFF4F46E5.toInt(), 0xFF1E3A8A.toInt(), 0xFF7C3AED.toInt()), 11),
-        Spec("aurora", "Aurora", 60, Style.RIBBONS, intArrayOf(0xFF10B981.toInt(), 0xFF6366F1.toInt(), 0xFF06B6D4.toInt()), 12),
-        Spec("dusk", "Dusk", 55, Style.DUNES, intArrayOf(0xFFF97316.toInt(), 0xFFDB2777.toInt(), 0xFF7C3AED.toInt()), 13),
-        Spec("forest", "Forest", 50, Style.RIDGES, intArrayOf(0xFF059669.toInt(), 0xFF0F766E.toInt(), 0xFF65A30D.toInt()), 14),
-        Spec("ocean", "Ocean", 65, Style.WAVES, intArrayOf(0xFF0EA5E9.toInt(), 0xFF2563EB.toInt(), 0xFF14B8A6.toInt()), 15),
-        Spec("graphite", "Graphite", 30, Style.RIPPLE, intArrayOf(0xFF64748B.toInt(), 0xFF334155.toInt(), 0xFF94A3B8.toInt()), 16),
-        Spec("nebula", "Nebula", 45, Style.STARS, intArrayOf(0xFF8B5CF6.toInt(), 0xFF2563EB.toInt(), 0xFFEC4899.toInt()), 17),
-        Spec("neon", "Neon", 60, Style.ORBS, intArrayOf(0xFFF43F5E.toInt(), 0xFF22D3EE.toInt(), 0xFFA3E635.toInt()), 18),
-        Spec("ember", "Ember", 50, Style.MESH, intArrayOf(0xFFEF4444.toInt(), 0xFFF59E0B.toInt(), 0xFF9A3412.toInt()), 19),
-        Spec("glacier", "Glacier", 55, Style.RIDGES, intArrayOf(0xFF38BDF8.toInt(), 0xFF6366F1.toInt(), 0xFFE0F2FE.toInt()), 20),
-        Spec("lagoon", "Lagoon", 60, Style.WAVES, intArrayOf(0xFF14B8A6.toInt(), 0xFF0EA5E9.toInt(), 0xFF34D399.toInt()), 21),
-        Spec("sakura", "Sakura", 50, Style.DUNES, intArrayOf(0xFFF472B6.toInt(), 0xFFA855F7.toInt(), 0xFFFB7185.toInt()), 22),
+        Spec("midnight", "Midnight", 60, Style.MESH, intArrayOf(0xFF4F46E5.toInt(), 0xFF1E3A8A.toInt(), 0xFF7C3AED.toInt()), 11),
+        Spec("obsidian", "Obsidian", 40, Style.GLOW, intArrayOf(0xFF38BDF8.toInt(), 0xFF1E293B.toInt(), 0xFF6366F1.toInt()), 23),
+        Spec("fog", "Fog", 55, Style.MIST, intArrayOf(0xFF5B7C8D.toInt(), 0xFF3F5560.toInt(), 0xFF9FB8C4.toInt()), 24),
+        Spec("aurora", "Aurora", 70, Style.RIBBONS, intArrayOf(0xFF10B981.toInt(), 0xFF6366F1.toInt(), 0xFF06B6D4.toInt()), 12),
+        Spec("dusk", "Dusk", 65, Style.DUNES, intArrayOf(0xFFF97316.toInt(), 0xFFDB2777.toInt(), 0xFF7C3AED.toInt()), 13),
+        Spec("forest", "Forest", 60, Style.RIDGES, intArrayOf(0xFF059669.toInt(), 0xFF0F766E.toInt(), 0xFF65A30D.toInt()), 14),
+        Spec("ocean", "Ocean", 75, Style.WAVES, intArrayOf(0xFF0EA5E9.toInt(), 0xFF2563EB.toInt(), 0xFF14B8A6.toInt()), 15),
+        Spec("graphite", "Graphite", 50, Style.RIPPLE, intArrayOf(0xFF64748B.toInt(), 0xFF334155.toInt(), 0xFF94A3B8.toInt()), 16),
+        Spec("nebula", "Nebula", 60, Style.STARS, intArrayOf(0xFF8B5CF6.toInt(), 0xFF2563EB.toInt(), 0xFFEC4899.toInt()), 17),
+        Spec("neon", "Neon", 70, Style.ORBS, intArrayOf(0xFFF43F5E.toInt(), 0xFF22D3EE.toInt(), 0xFFA3E635.toInt()), 18),
+        Spec("ember", "Ember", 60, Style.MESH, intArrayOf(0xFFEF4444.toInt(), 0xFFF59E0B.toInt(), 0xFF9A3412.toInt()), 19),
+        Spec("glacier", "Glacier", 65, Style.RIDGES, intArrayOf(0xFF38BDF8.toInt(), 0xFF6366F1.toInt(), 0xFFE0F2FE.toInt()), 20),
+        Spec("lagoon", "Lagoon", 70, Style.WAVES, intArrayOf(0xFF14B8A6.toInt(), 0xFF0EA5E9.toInt(), 0xFF34D399.toInt()), 21),
+        Spec("sakura", "Sakura", 60, Style.DUNES, intArrayOf(0xFFF472B6.toInt(), 0xFFA855F7.toInt(), 0xFFFB7185.toInt()), 22),
     )
 
     fun byId(id: String?): Spec? = all.firstOrNull { it.id == id }
@@ -70,6 +72,8 @@ object BuiltinWallpapers {
             Style.WAVES -> waves(canvas, w, h, spec.colors, rnd)
             Style.STARS -> stars(canvas, w, h, spec.colors, rnd)
             Style.RIPPLE -> ripple(canvas, w, h, spec.colors, rnd)
+            Style.GLOW -> glowDrift(canvas, w, h, spec.colors, rnd)
+            Style.MIST -> mist(canvas, w, h, spec.colors, rnd)
         }
         grain(canvas, w, h, rnd)
         return bitmap
@@ -390,5 +394,54 @@ object BuiltinWallpapers {
             r += w * (0.105f + 0.004f * i)
             i++
         }
+    }
+
+    /**
+     * Almost black, with one faint cool glow low on the screen and a smaller one up high.
+     * Meant for people who want the launcher to stay out of the way.
+     */
+    private fun glowDrift(c: Canvas, w: Int, h: Int, p: IntArray, rnd: Random) {
+        verticalGradient(
+            c, w, h,
+            intArrayOf(mix(p[1], DEEP, 0.55f), mix(p[1], DEEP, 0.82f), DEEP),
+            floatArrayOf(0f, 0.55f, 1f),
+        )
+        val lowX = w * (0.3f + 0.4f * rnd.nextFloat())
+        glow(c, lowX, h * 0.82f, w * 0.95f, p[0], 0.20f)
+        glow(c, w * (0.55f + 0.3f * rnd.nextFloat()), h * 0.16f, w * 0.6f, p[2], 0.12f)
+    }
+
+    /** Soft desaturated bands of haze over a quiet blue-grey gradient. */
+    private fun mist(c: Canvas, w: Int, h: Int, p: IntArray, rnd: Random) {
+        verticalGradient(
+            c, w, h,
+            intArrayOf(mix(p[1], DEEP, 0.45f), mix(p[0], DEEP, 0.55f), mix(p[1], DEEP, 0.8f)),
+            floatArrayOf(0f, 0.5f, 1f),
+        )
+        for (i in 0 until 5) {
+            val centre = h * (0.14f + 0.18f * i + 0.04f * rnd.nextFloat())
+            val thickness = h * (0.10f + 0.06f * rnd.nextFloat())
+            val tilt = (rnd.nextFloat() - 0.5f) * h * 0.05f
+            val band = Path().apply {
+                moveTo(0f, centre - thickness + tilt)
+                lineTo(w.toFloat(), centre - thickness - tilt)
+                lineTo(w.toFloat(), centre + thickness - tilt)
+                lineTo(0f, centre + thickness + tilt)
+                close()
+            }
+            val fill = paint()
+            fill.shader = LinearGradient(
+                0f, centre - thickness, 0f, centre + thickness,
+                intArrayOf(
+                    withAlpha(p[2], 0f),
+                    withAlpha(mix(p[2], Color.WHITE, 0.2f), 0.16f + 0.05f * rnd.nextFloat()),
+                    withAlpha(p[2], 0f),
+                ),
+                floatArrayOf(0f, 0.5f, 1f),
+                Shader.TileMode.CLAMP,
+            )
+            c.drawPath(band, fill)
+        }
+        glow(c, w * 0.5f, h * 0.9f, w * 0.9f, p[0], 0.18f)
     }
 }
