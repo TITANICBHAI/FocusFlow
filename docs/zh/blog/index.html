@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>FocusFlow 博客：Android 专注与应用屏蔽指南 | TBTechs</title>
+<meta content="关于屏蔽干扰应用、停止刷屏、对比应用屏蔽器并掌控 Android 屏幕时间的实用指南。TBTechs 出品。" name="description"/>
+<meta content="index, follow" name="robots"/>
+<link href="https://focusflowapp.pages.dev/zh/blog/" rel="canonical"/><link href="https://focusflowapp.pages.dev/blog/" hreflang="en" rel="alternate"/><link href="https://focusflowapp.pages.dev/zh/blog/" hreflang="zh-Hans" rel="alternate"/><link href="https://focusflowapp.pages.dev/blog/" hreflang="x-default" rel="alternate"/>
+<meta content="sou-98cZYPWFJmbwxJgJptO-ZaIPNJqz2ven_iS4NjI" name="google-site-verification"/>
+<meta content="FC2887EF2F94BFFE090CAB25A456AE86" name="msvalidate.01"/>
+<meta content="FocusFlow 博客：Android 专注与应用屏蔽指南 | TBTechs" property="og:title"/>
+<meta content="关于屏蔽干扰应用、停止刷屏、对比应用屏蔽器并掌控 Android 屏幕时间的实用指南。TBTechs 出品。" property="og:description"/>
+<meta content="website" property="og:type"/>
+<meta content="https://focusflowapp.pages.dev/zh/blog/" property="og:url"/>
+<meta content="FocusFlow by TBTechs" property="og:site_name"/>
+<meta content="zh_CN" property="og:locale"/><meta content="en_US" property="og:locale:alternate"/>
+<meta content="https://focusflowapp.pages.dev/og-image.jpg" property="og:image"/>
+<meta content="summary_large_image" name="twitter:card"/>
+<meta content="FocusFlow 博客：Android 专注与应用屏蔽指南 | TBTechs" name="twitter:title"/>
+<meta content="关于屏蔽干扰应用、停止刷屏、对比应用屏蔽器并掌控 Android 屏幕时间的实用指南。TBTechs 出品。" name="twitter:description"/>
+<meta content="https://focusflowapp.pages.dev/og-image.jpg" name="twitter:image"/>
+<link href="/logo-transparent.png" rel="icon"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="preload"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" media="print" onload="this.media='all'" rel="stylesheet"/>
+<noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/></noscript>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "首页",
+      "item": "https://focusflowapp.pages.dev/zh/"
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "博客",
+      "item": "https://focusflowapp.pages.dev/zh/blog/"
+    }
+  ]
+}
+  </script>
+<style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0D0D14; --surface: #13131F; --border: rgba(255,255,255,0.07);
+      --accent: #6C63FF; --text: #F0F0F8; --muted: #9090B0;
+    }
+    body { background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, sans-serif; line-height: 1.7; }
+    a { color: inherit; text-decoration: none; }
+    nav {
+      position: sticky; top: 0; display: flex; align-items: center; justify-content: space-between;
+      padding: 1rem 2rem; border-bottom: 1px solid var(--border);
+      background: rgba(13,13,20,0.92); backdrop-filter: blur(14px); z-index: 100;
+    }
+    .brand { display: flex; align-items: center; gap: 0.5rem; font-weight: 800; font-size: 1.05rem; }
+    .brand img { width: 28px; height: 28px; border-radius: 7px; }
+    .nav-links { display: flex; gap: 1.4rem; align-items: center; }
+    .nav-links a { color: var(--muted); font-size: 0.88rem; transition: color 0.2s; }
+    .nav-links a:hover, .nav-links a.active { color: var(--text); }
+    .nav-cta { background: var(--accent); color: #fff !important; padding: 0.45rem 1rem; border-radius: 8px; font-weight: 600; font-size: 0.82rem !important; }
+    .nav-cta:hover { background: #7a72ff !important; }.breadcrumb { padding: 1rem 2rem; font-size: 0.8rem; color: var(--muted); }
+    .breadcrumb a { color: var(--accent); }
+    .breadcrumb span { margin: 0 0.4rem; }
+    main { max-width: 1100px; margin: 0 auto; padding: 3rem 2rem 6rem; }
+    .page-header { text-align: center; margin-bottom: 3.5rem; }
+    .eyebrow { font-size: 0.78rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); margin-bottom: 0.75rem; }
+    h1 { font-size: clamp(2rem, 5vw, 2.8rem); font-weight: 800; letter-spacing: -0.03em; line-height: 1.2; margin-bottom: 1rem; }
+    .lead { color: var(--muted); font-size: 1.05rem; max-width: 560px; margin: 0 auto; }
+    .blog-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.5rem; }
+    .card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+      padding: 1.75rem; display: flex; flex-direction: column; gap: 0.75rem;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+    .card:hover { border-color: var(--accent); transform: translateY(-2px); }
+    .card-tag { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); }
+    .card h2 { font-size: 1.1rem; font-weight: 700; line-height: 1.35; }
+    .card p { font-size: 0.88rem; color: var(--muted); flex: 1; }
+    .card-meta { font-size: 0.75rem; color: var(--muted); }
+    .read-more { margin-top: 0.5rem; font-size: 0.85rem; font-weight: 600; color: var(--accent); display: inline-flex; align-items: center; gap: 0.3rem; }
+    footer { border-top: 1px solid var(--border); padding: 2rem; text-align: center; color: var(--muted); font-size: 0.8rem; }
+    footer a { color: var(--accent); }
+  
+/* language switcher (URL-based, no JS) */
+.lang-switch{position:relative;font-size:.82rem;font-family:inherit}
+details.lang-switch>summary{display:block;font-size:.82rem;font-weight:400;line-height:1.4;padding:.28rem .7rem;margin:0;background:none;width:auto;gap:0}
+details.lang-switch>summary::after{content:none;display:none}
+.lang-switch summary{list-style:none;cursor:pointer;border:1px solid var(--border,rgba(108,99,255,.2));color:var(--muted,#9090B0);padding:.28rem .7rem;border-radius:6px;white-space:nowrap;user-select:none}
+.lang-switch summary::-webkit-details-marker{display:none}
+.lang-switch[open] summary,.lang-switch summary:hover{border-color:var(--accent,#6C63FF);color:var(--text,#F0F0FF)}
+.lang-switch ul{position:absolute;right:0;top:calc(100% + .4rem);list-style:none;margin:0;padding:.35rem;background:var(--surface,#16161F);border:1px solid var(--border,rgba(108,99,255,.2));border-radius:10px;min-width:9.5rem;z-index:300;box-shadow:0 12px 32px rgba(0,0,0,.45)}
+.lang-switch li a{display:block;padding:.4rem .7rem;border-radius:6px;color:var(--muted,#9090B0)!important;font-size:.85rem}
+.lang-switch li a:hover{background:var(--accent-subtle,rgba(108,99,255,.12));color:var(--text,#F0F0FF)!important}
+.lang-switch li a[aria-current]{color:var(--text,#F0F0FF)!important;font-weight:700}
+a.en-fallback::after{content:"EN";font-size:.58rem;margin-left:.3rem;padding:.04rem .28rem;border:1px solid currentColor;border-radius:4px;opacity:.65;vertical-align:middle}
+@media(max-width:720px){.lang-switch ul{right:auto;left:50%;transform:translateX(-50%)}}
+
+/* layout fixes shared by all pages */
+nav.breadcrumb{position:static;background:none;-webkit-backdrop-filter:none;backdrop-filter:none;border:0;padding:0;flex-direction:row;flex-wrap:wrap;justify-content:center;gap:.4rem;z-index:auto}
+.page-hero{overflow-x:clip}
+nav:not(.breadcrumb){flex-wrap:wrap;gap:.6rem 1.25rem}
+.nav-links{flex-wrap:wrap;justify-content:flex-end}
+@media(max-width:720px){
+  .nav-links{justify-content:center}
+  .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .compare-table,.big-compare,article table{display:block;max-width:100%;overflow-x:auto}
+}
+.hero{overflow-x:clip}
+.df-body{min-width:0}
+.df-body h3{overflow-wrap:anywhere}
+</style>
+</head>
+<body>
+<nav>
+<a class="brand" href="/zh/">
+<img alt="FocusFlow" src="/logo-transparent.png"/>
+      FocusFlow
+    </a>
+<div class="nav-links"><a href="/zh/features/">功能</a><a href="/zh/compare/">对比</a><a href="/zh/alternatives/">替代方案</a><a href="/zh/setup/">设置</a><a class="en-fallback" href="/docs/" hreflang="en">文档</a><a href="/zh/faq/">常见问题</a><a aria-current="page" class="active" href="/zh/blog/">博客</a><a class="nav-cta" href="https://github.com/TITANICBHAI/FocusFlow/releases">Download APK</a><details class="lang-switch"><summary aria-label="语言"><span aria-hidden="true">🌐</span> 简体中文</summary><ul><li><a href="/blog/" hreflang="en" lang="en">English</a></li><li><a aria-current="true" href="/zh/blog/" hreflang="zh-Hans" lang="zh-Hans">简体中文</a></li><li><a href="/de/" hreflang="de" lang="de">Deutsch</a></li><li><a href="/es/" hreflang="es" lang="es">Español</a></li><li><a href="/fr/" hreflang="fr" lang="fr">Français</a></li><li><a href="/ja/" hreflang="ja" lang="ja">日本語</a></li><li><a href="/ko/" hreflang="ko" lang="ko">한국어</a></li></ul></details></div>
+</nav>
+<div class="breadcrumb">
+<a href="/zh/">首页</a><span>›</span>
+
+<span>博客</span>
+</div>
+<main>
+<header class="page-header">
+
+<p class="eyebrow">FocusFlow 博客</p>
+
+<h1>重获 Android 专注力的实用指南</h1>
+
+<p class="lead">关于屏蔽干扰、停止末日滚动并了解您选择的实用、无废话指南。</p><p class="lead" style="font-size:.9rem;opacity:.85">文章正文目前为英文版本。</p>
+</header>
+<div class="blog-grid">
+<a class="card en-fallback" href="/blog/how-to-block-youtube-shorts-android/" hreflang="en">
+
+<span class="card-tag">操作指南</span>
+
+<h2>如何在 Android 上屏蔽 YouTube Shorts 而不屏蔽 YouTube</h2>
+
+<p>逐步指南：屏蔽 Shorts 信息流，同时保留对 YouTube 视频、频道和播放列表的完整访问权限。</p>
+
+<span class="card-meta">2025年5月 · 6分钟阅读</span>
+
+<span class="read-more">阅读指南 →</span>
+</a>
+<a class="card en-fallback" href="/blog/how-to-block-instagram-reels-android/" hreflang="en">
+
+<span class="card-tag">操作指南</span>
+
+<h2>如何在 Android 上屏蔽 Instagram Reels 而不屏蔽 Instagram</h2>
+
+<p>屏蔽 Reels 标签和自动播放视频，同时不影响私信、故事或信息流的访问。具体方法如下。</p>
+
+<span class="card-meta">2025年5月 · 6分钟阅读</span>
+
+<span class="read-more">阅读指南 →</span>
+</a>
+<a class="card en-fallback" href="/blog/best-free-app-blocker-android/" hreflang="en">
+
+<span class="card-tag">评测</span>
+
+<h2>2025年 Android 最佳免费应用屏蔽器</h2>
+
+<p>我们测试了数字健康、AppBlock、Freedom 和 FocusFlow。以下是哪款真正能阻止您重新进入的结论。</p>
+
+<span class="card-meta">2025年5月 · 8分钟阅读</span>
+
+<span class="read-more">阅读指南 →</span>
+</a>
+<a class="card en-fallback" href="/blog/freedom-app-alternative/" hreflang="en">
+
+<span class="card-tag">对比</span>
+
+<h2>Android 最佳免费 Freedom 应用替代品</h2>
+
+<p>Freedom 每月需花费 $6.99。这些免费 Android 替代品屏蔽效果同样强硬——其中一款甚至更强。</p>
+
+<span class="card-meta">2025年5月 · 7分钟阅读</span>
+
+<span class="read-more">阅读指南 →</span>
+</a>
+<a class="card en-fallback" href="/blog/how-to-stop-doom-scrolling/" hreflang="en">
+
+<span class="card-tag">深度分析</span>
+
+<h2>如何在 Android 上停止末日滚动（真正有效的方法）</h2>
+
+<p>单靠意志力无法阻止它。以下是研究的发现，以及应用层面的执行实际上能做什么。</p>
+
+<span class="card-meta">2025年5月 · 9分钟阅读</span>
+
+<span class="read-more">阅读指南 →</span>
+</a>
+<a class="card en-fallback" href="/blog/app-blocker-adhd-android/" hreflang="en">
+
+<span class="card-tag">指南</span>
+
+<h2>Android ADHD 最佳应用屏蔽器——强制执行详解</h2>
+
+<p>软定时器对 ADHD 无效。以下是执行级屏蔽为何不同，以及哪款 Android 应用能实现它。</p>
+
+<span class="card-meta">2025年5月 · 7分钟阅读</span>
+
+<span class="read-more">阅读指南 →</span>
+</a>
+<a class="card en-fallback" href="/blog/how-to-block-tiktok-android/" hreflang="en">
+
+<span class="card-tag">操作指南</span>
+
+<h2>如何在 Android 上永久屏蔽 TikTok，且无法绕过</h2>
+
+<p>使用无障碍服务 + VPN + 设备管理员硬屏蔽 TikTok。所有绕过路径均已覆盖。免费，无需 root。</p>
+
+<span class="card-meta">2025年5月 · 7分钟阅读</span>
+
+<span class="read-more">阅读指南 →</span>
+</a>
+<a class="card en-fallback" href="/blog/best-app-blocker-android-2025/" hreflang="en">
+
+<span class="card-tag">对比</span>
+
+<h2>2025年 Android 最佳免费应用屏蔽器——真实对比</h2>
+
+<p>FocusFlow vs Freedom vs Opal vs 数字健康 vs AppBlock。在真实设备上测试。按执行强度排名。</p>
+
+<span class="card-meta">2025年5月 · 10分钟阅读</span>
+
+<span class="read-more">阅读对比 →</span>
+</a>
+<a class="card en-fallback" href="/blog/cold-turkey-alternative-android/" hreflang="en">
+
+<span class="card-tag">替代方案</span>
+
+<h2>Cold Turkey 的 Android 替代品——无需 PC 的硬屏蔽</h2>
+
+<p>Cold Turkey 仅限 Windows/Mac。这是最接近的 Android 等价品——相同的无绕过理念，免费。</p>
+
+<span class="card-meta">2025年5月 · 8分钟阅读</span>
+
+<span class="read-more">阅读指南 →</span>
+</a>
+<a class="card en-fallback" href="/blog/how-to-stop-phone-addiction-android/" hreflang="en">
+
+<span class="card-tag">深度分析</span>
+
+<h2>如何在 Android 上戒除手机成瘾——真正有效的方法</h2>
+
+<p>手机成瘾是多巴胺循环，而非意志力问题。以下是科学依据——以及系统级屏蔽实际改变了什么。</p>
+
+<span class="card-meta">2025年5月 · 9分钟阅读</span>
+
+<span class="read-more">阅读指南 →</span>
+</a>
+</div>
+</main>
+<footer>
+<p>© 2025 TBTechs · <a class="en-fallback" href="/docs/" hreflang="en">文档</a> · <a href="/zh/privacy-policy/">Privacy</a> · <a href="/zh/terms-of-service/">Terms</a> · <a href="https://github.com/TITANICBHAI/FocusFlow">GitHub</a></p>
+</footer>
+
+</body>
+</html>

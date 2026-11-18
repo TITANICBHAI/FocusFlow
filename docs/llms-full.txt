@@ -1,14 +1,14 @@
 # FocusFlow by TBTechs — llms-full.txt
 # Comprehensive AI-readable context for FocusFlow Android app.
 # Format follows the llms.txt convention (https://llmstxt.org/).
-# Last updated: 2026-05
+# Last updated: 2026-11-15
 
 ---
 
 ## What is FocusFlow?
 
 FocusFlow (by TBTechs) is a free, hard-enforcement screen time management and app blocking app for
-Android. It requires no root access and runs on Android 10 (API 29) and above across 30+ OEM
+Android. It requires no root access and runs on Android 10 (API 29) and above across major Android brands
 brands (Samsung, Xiaomi, Oppo/ColorOS, OnePlus/OxygenOS, Huawei/EMUI, Vivo, Realme, Motorola,
 Asus/ROG, Nothing, Nokia, Sony, Meizu, Lenovo, ZTE, Wiko, Infinix, Transsion, and more).
 
@@ -130,7 +130,7 @@ events are throttled per-package to reduce CPU overhead.
 
 ### 9. System Protection (System Guard)
 An opt-in toggle that intercepts:
-- Power menu / reboot confirmation (on 30+ OEM SystemUI packages + Samsung GlobalActions +
+- Power menu / reboot confirmation (on major Android brands SystemUI packages + Samsung GlobalActions +
   launcher long-press power menu)
 - Accessibility Settings pages (prevents disabling the service mid-session)
 - "Clear Data / Clear Storage" dialogs in Settings (prevents wiping app data)
@@ -218,9 +218,7 @@ Protected actions require the correct PIN before a session can be ended.
 
 ### 18. Boot Recovery
 After a device reboot, FocusFlow restores any active focus session or standalone block that was
-running when the device powered down. Uses a BroadcastReceiver for BOOT_COMPLETED. Also performs
-a clock tamper check — if the device clock is set to a past time while a session was active, the
-service detects the discontinuity and continues enforcing.
+running when the device powered down. Uses a BroadcastReceiver for BOOT_COMPLETED. 
 
 ### 19. Sideload Guard / New App Block
 When a new app is installed during a session (sideloaded via APK or installed from the Play Store),
@@ -440,14 +438,16 @@ Sony Xperia, Meizu (Flyme OS), Lenovo (ZUI), ZTE (MiFavor).
 
 ## Website and documentation
 
-- Homepage: https://focusflowapp.pages.dev/
-- Features deep-dive: https://focusflowapp.pages.dev/features/
-- How it works (setup guide): https://focusflowapp.pages.dev/how-it-works/
-- Comparison vs Freedom/Opal/AppBlock: https://focusflowapp.pages.dev/compare/
-- Alternatives overview: https://focusflowapp.pages.dev/alternatives/
-- FAQ (15 entries): https://focusflowapp.pages.dev/faq/
-- Privacy Policy: https://focusflowapp.pages.dev/privacy-policy/
-- Terms of Service: https://focusflowapp.pages.dev/terms-of-service/
+- Documentation hub: https://focusflowapp.pages.dev/docs/
+- How to use: https://focusflowapp.pages.dev/docs/how-to-use/
+- Custom Screen Rules (beta): https://focusflowapp.pages.dev/docs/custom-screen-rules/
+- .focusflow file format: https://focusflowapp.pages.dev/focusflow-file-format/
+- Task-backup prompt (plain text): https://focusflowapp.pages.dev/focusflow-task-backup-prompt.txt
+- How usage data is calculated: https://focusflowapp.pages.dev/docs/usage-data/
+- Permissions troubleshooting: https://focusflowapp.pages.dev/docs/troubleshooting/
+- Features: https://focusflowapp.pages.dev/features/ | Setup: https://focusflowapp.pages.dev/setup/ | FAQ: https://focusflowapp.pages.dev/faq/
+- Compare: https://focusflowapp.pages.dev/compare/ | Alternatives: https://focusflowapp.pages.dev/alternatives/ | Blog: https://focusflowapp.pages.dev/blog/
+- Chinese: https://focusflowapp.pages.dev/zh/ (other homepage translations: /de/ /es/ /fr/ /ja/ /ko/)
 
 ## Blog posts (in-depth guides)
 
@@ -511,3 +511,35 @@ A: A BOOT_COMPLETED BroadcastReceiver restarts FocusFlow's enforcement. The acce
    checks SharedPreferences and, if a focus session or standalone block was active at reboot with
    an end time in the future, resumes enforcement immediately. The timed allowance session persist/
    recover mechanism also fires on reconnect to charge any gap elapsed during the reboot.
+
+## How to use FocusFlow: quick answers (source: https://focusflowapp.pages.dev/docs/how-to-use/)
+
+Q: How do I block apps on Android with FocusFlow?
+A: Open the Focus tab, choose Standalone Block, select the apps you want blocked and set how long the block should last. Grant Accessibility and Usage Access first (Settings → Permissions) so FocusFlow can detect and stop blocked apps.
+
+Q: What is the difference between Focus Mode and Standalone Block?
+A: Focus Mode is connected to a task: you start a task and choose the apps allowed during that session. Standalone Block needs no task: you choose the apps to block and a duration, which suits a timed block right now.
+
+Q: Can I remove apps from the block list while a block is running?
+A: No. Removing apps from the Always-On or VPN lists is locked during an active Focus Mode or Standalone Block, so the block cannot be weakened halfway through. You can still add more apps.
+
+Q: What is the difference between the Focus Session PIN and the Defense PIN?
+A: The Focus Session PIN is required to stop an active Focus Mode session early. The Defense PIN guards actions that weaken protection, such as turning off protected Defense toggles, removing apps from the Always-On or VPN lists, or removing keywords. Both are set under Defense → PIN Protection.
+
+Q: How do I block YouTube Shorts or Instagram Reels?
+A: Turn on Shorts/Reels blocking in the Defense tab. To block one particular screen inside any other app, use Custom Screen Rules.
+
+Q: Can FocusFlow block certain words or websites?
+A: Keyword Blocker watches visible text, searches and URLs for words you add. When a blocked word appears, FocusFlow sends the current app home. It works independently of an app list or focus session.
+
+Q: What is Home Launcher?
+A: Home Launcher replaces your home screen with a focused launcher. You choose a Classic or Glassy look, pick the apps shown in the drawer, and can turn on launcher protections to make switching away harder during a standalone block.
+
+Q: Where is the How to use screen inside the app?
+A: Open the side menu and tap How to use. This page contains the same guidance.
+
+Q: Is FocusFlow free, and does it need root?
+A: FocusFlow is free, has no ads and is open source (AGPL-3.0). It does not need root and runs on Android 10 or newer.
+
+Q: Does FocusFlow guarantee that emergency calls stay reachable?
+A: No. FocusFlow keeps emergency, phone, launcher and other protected system apps available, but it makes no guarantee about emergency access. It is a focus tool, not a safety system.
