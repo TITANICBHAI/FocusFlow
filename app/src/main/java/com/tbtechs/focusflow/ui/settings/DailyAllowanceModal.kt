@@ -10,6 +10,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -218,7 +221,15 @@ fun DailyAllowanceModal(
     fun entryIsLocked(packageName: String): Boolean =
         locked && packageName in originalPackages
 
+    // Its own full-screen window. Drawn inline it left the app's bottom navigation bar showing
+    // underneath, so the editor never owned the whole screen.
+    Dialog(
+        onDismissRequest = onClose,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+    com.tbtechs.focusflow.ui.common.TransparentDialogSystemBars()
     Scaffold(
+        modifier = Modifier.fillMaxSize(),
         containerColor = DarkBackground,
         contentWindowInsets = WindowInsets.statusBars,
         topBar = {
@@ -247,7 +258,11 @@ fun DailyAllowanceModal(
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding),
+                .padding(padding)
+                .imePadding(),
+            // The list runs to the very bottom edge; only the last row is lifted clear of the
+            // system buttons.
+            contentPadding = WindowInsets.navigationBars.asPaddingValues(),
             verticalArrangement = Arrangement.spacedBy(0.dp),
         ) {
             item {
@@ -587,6 +602,7 @@ fun DailyAllowanceModal(
             }
 
         }
+    }
     }
 
     pendingRemoval?.let { pending ->

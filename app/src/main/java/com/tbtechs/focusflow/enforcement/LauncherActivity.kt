@@ -20,7 +20,11 @@ import android.app.Activity
 import android.app.WallpaperManager
 import android.content.Context
 import android.content.Intent
+import android.appwidget.AppWidgetHostView
+import android.appwidget.AppWidgetManager
+import android.appwidget.AppWidgetProviderInfo
 import android.content.SharedPreferences
+import android.content.pm.LauncherApps
 import android.graphics.Bitmap
 import android.graphics.BitmapShader
 import android.graphics.Canvas
@@ -49,9 +53,11 @@ import android.text.style.ForegroundColorSpan
 import android.text.style.RelativeSizeSpan
 import android.text.TextUtils
 import android.text.TextWatcher
+import android.os.Process
 import android.view.Gravity
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
+import android.view.ScaleGestureDetector
 import android.view.View
 import android.view.ViewGroup
 import android.view.VelocityTracker
@@ -83,6 +89,7 @@ import java.util.Date
 import java.util.Locale
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 /**
  * LauncherActivity — FocusFlow's full home-screen replacement.
@@ -112,7 +119,10 @@ class LauncherActivity : Activity() {
         private const val PREF_DRAWER_ORDER = "drawer_custom_order"
         private const val PREF_DRAWER_SCALE = "drawer_icon_scale"
         private const val PREF_DRAWER_COLUMNS = "drawer_grid_columns"
+        private const val PREF_DRAWER_SECTIONS = "drawer_sections"
         private const val STATUS_READY = "Ready"
+        /** Same key the app's Wallpaper screen uses, so closing the note in one closes it in both. */
+        private const val PREF_PHONE_NOTE_DISMISSED = "wallpaper_phone_note_dismissed"
         /** The list drawer's icon at 100%; the Icon size slider scales it like the grid's. */
         private const val LIST_ICON_BASE_DP = 40
         private const val LIST_ROW_MIN_DP = 58
@@ -129,9 +139,22 @@ class LauncherActivity : Activity() {
         private const val PREF_HOME_SEARCH = "launcher_home_search"
         private const val PREF_HOME_ALL_APPS = "launcher_home_all_apps"
         private const val PREF_HOME_ORDER = "launcher_home_order"
-        private val HOME_WIDGETS = listOf("clock", "status", "task", "limits")
+        private val HOME_WIDGETS = listOf("clock", "status", "task", "limits", "pinned", "widgets")
+        private const val PREF_HOME_WIDGETS = "launcher_home_widgets"
+        private const val PREF_HOME_WIDGETS_ITEMS = HomeWidgetEntries.PREF_KEY
+        private const val REQ_BIND_WIDGET = 4202
+        private const val REQ_CONFIGURE_WIDGET = 4203
+        private const val PREF_HOME_PINNED = "launcher_home_pinned"
+        private const val PREF_HOME_PINNED_ITEMS = HomePinnedItems.PREF_KEY
+        private const val PREF_HOME_PINNED_SIZE = HomePinnedItems.PREF_SIZE_KEY
         /** Rows shown in the home limits list; the rest are one tap away in the drawer. */
         private const val MAX_HOME_LIMITS = 3
+        /** Screen-reader actions on the reorder handle. Any ids clear of the system's own. */
+        private const val ARRANGE_ROW_DP = 64
+        private const val ARRANGE_GAP_DP = 8
+        private const val PREV_STYLE_SUFFIX = "_prev"
+        private const val A11Y_MOVE_UP = 0x0F100001
+        private const val A11Y_MOVE_DOWN = 0x0F100002
         private const val REQ_PICK_WALLPAPER = 4201
         private const val SIZE_DATE = 12f
         private const val SIZE_SEARCH_HINT = 14f
@@ -246,6 +269,33 @@ class LauncherActivity : Activity() {
     private var swipeTouchStartY = 0f
     private var swipeStartedInDock = false
     private var swipeDrawerAtTop = true
+    private var swipeMultiTouch = false
+    private var pinchStartSpan = 0f
+    private var pinchFired = false
+    private val pinchDetector: ScaleGestureDetector by lazy {
+        ScaleGestureDetector(
+            this,
+            object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+                override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
+                    pinchStartSpan = detector.currentSpan
+                    pinchFired = false
+                    return true
+                }
+
+                override fun onScale(detector: ScaleGestureDetector): Boolean {
+                    if (!pinchFired && pinchStartSpan > 0f) {
+                        val ratio = detector.currentSpan / pinchStartSpan
+                        if (ratio < 0.8f || ratio > 1.25f) {
+                            pinchFired = true
+                            rootFrame.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                            enterHomeArrange()
+                        }
+                    }
+                    return true
+                }
+            },
+        )
+    }
     private var swipeStartScrollY = 0
     private var swipeContentCanScrollDown = false
     private var swipeContentScrolledDown = false
@@ -994,11 +1044,19 @@ class LauncherActivity : Activity() {
         iconCache.clear()
         invalidateSnapshot()
         startTaskCollection()
+        startWidgetListening()
         if (renderedSignature != layoutSignature()) {
             buildHomeLayout()
         } else {
             refreshHomeContent()
             refreshDockActions()
+            // Something may have been pinned while the launcher was away (Chrome's "Add to
+            // Home screen"), so redraw the grid if the saved list changed.
+            if (prefs.getString(PREF_HOME_PINNED_ITEMS, null) != pinnedRenderedRaw ||
+                prefs.getString(PREF_HOME_WIDGETS_ITEMS, null) != widgetsRenderedRaw
+            ) {
+                rebuildHomeSections()
+            }
         }
         if (isDrawerOpen && !isEditMode) {
             drawerAllApps = loadDrawerApps()
@@ -1012,6 +1070,7 @@ class LauncherActivity : Activity() {
             prefs.unregisterOnSharedPreferenceChangeListener(preferenceListener)
         }
         stopTaskCollection()
+        stopWidgetListening()
         super.onPause()
     }
 
@@ -1030,6 +1089,7 @@ class LauncherActivity : Activity() {
         when {
             sheetOverlay != null -> dismissSheet()
             hiddenOverlay != null -> closeHiddenScreen()
+            homeArrangeActive -> exitHomeArrange()
             isDrawerOpen -> if (isEditMode) cancelEditMode() else closeDrawer()
             else -> Unit
         }
@@ -1053,6 +1113,8 @@ class LauncherActivity : Activity() {
         sheetOverlay = null
         isDrawerOpen = false
         isEditMode = false
+        homeArrangeActive = false
+        arrangeBar = null
 
         val backdrop = ImageView(this).apply {
             layoutParams = matchParent()
@@ -1094,7 +1156,7 @@ class LauncherActivity : Activity() {
         homeColumn = column
         val customize = View.OnLongClickListener { v ->
             v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-            showHomeCustomizeSheet()
+            enterHomeArrange()
             true
         }
         homeLongPress = customize
@@ -1128,6 +1190,10 @@ class LauncherActivity : Activity() {
         homeOption(PREF_HOME_LIMITS, "bars", setOf("bars", "rings", "list", "off"))
 
     private fun searchStyleValue() = homeOption(PREF_HOME_SEARCH, "bar", setOf("bar", "off"))
+
+    private fun pinnedStyleValue() = homeOption(PREF_HOME_PINNED, "grid", setOf("grid", "off"))
+
+    private fun widgetsStyleValue() = homeOption(PREF_HOME_WIDGETS, "show", setOf("show", "off"))
     private fun allAppsButtonOn() = homeOption(PREF_HOME_ALL_APPS, "on", setOf("on", "off")) == "on"
 
     private fun homeAlignGravity(): Int =
@@ -1147,6 +1213,10 @@ class LauncherActivity : Activity() {
         focusProgressTrack = null
         focusProgressFill = null
         allowanceContainer = null
+        if (homeArrangeActive) {
+            populateArrangeColumn(column)
+            return
+        }
         if (clockStyleValue() == "off") {
             column.addView(View(this), LinearLayout.LayoutParams(1, dp(28)))
         }
@@ -1157,6 +1227,8 @@ class LauncherActivity : Activity() {
                 "status" -> if (statusStyleValue() != "off") column.addView(buildStatusPill())
                 "task" -> if (taskStyleValue() != "off") column.addView(buildFocusSessionCard())
                 "limits" -> if (limitsStyleValue() != "off") column.addView(buildTodaysLimits())
+                "pinned" -> if (pinnedStyleValue() != "off") buildPinnedWidget()?.let { column.addView(it) }
+                "widgets" -> if (widgetsStyleValue() != "off") buildWidgetsBlock()?.let { column.addView(it) }
             }
         }
     }
@@ -1183,50 +1255,753 @@ class LauncherActivity : Activity() {
         rebuildHomeSections()
     }
 
-    private fun homeOrderBlock(onChanged: () -> Unit): View {
-        val names = mapOf(
-            "clock" to "Clock",
-            "status" to "Status",
-            "task" to "Current task",
-            "limits" to "Today's limits",
-        )
-        val box = LinearLayout(this).apply {
+    // ── App widgets ────────────────────────────────────────────────────────────
+    //
+    // Real Android widgets (weather, calendar, music...) hosted on the home screen. Android draws
+    // each one; the launcher only gives it room. They are listened to only while the launcher is
+    // on screen, so a hidden launcher costs no widget updates. A widget can open any app, but the
+    // block screen and allowances still apply the moment that app reaches the foreground.
+
+    private val appWidgetManager: AppWidgetManager by lazy { AppWidgetManager.getInstance(this) }
+    private val widgetHost by lazy { HomeWidgetHost.create(this) }
+    private val widgetViews = HashMap<Int, AppWidgetHostView>()
+    private var pendingWidgetId = -1
+    private var widgetsRenderedRaw: String? = null
+    private var widgetsListening = false
+
+    private fun widgetEntries(): List<HomeWidgetEntries.Entry> =
+        HomeWidgetEntries.parse(prefs.getString(PREF_HOME_WIDGETS_ITEMS, null))
+
+    private fun saveWidgets(items: List<HomeWidgetEntries.Entry>) {
+        prefs.edit().putString(PREF_HOME_WIDGETS_ITEMS, HomeWidgetEntries.serialize(items)).apply()
+    }
+
+    private fun startWidgetListening() {
+        if (widgetsListening || widgetEntries().isEmpty()) return
+        try {
+            widgetHost.startListening()
+            widgetsListening = true
+        } catch (_: Exception) {
+        }
+    }
+
+    private fun stopWidgetListening() {
+        if (!widgetsListening) return
+        try {
+            widgetHost.stopListening()
+        } catch (_: Exception) {
+        }
+        widgetsListening = false
+    }
+
+    private fun widgetLabel(entry: HomeWidgetEntries.Entry): String = try {
+        appWidgetManager.getAppWidgetInfo(entry.appWidgetId)?.loadLabel(packageManager)
+    } catch (_: Exception) {
+        null
+    } ?: entry.provider.substringAfterLast('/').trimStart('.')
+
+    /** Null when no widget has been added, so the block takes up no room. */
+    private fun buildWidgetsBlock(): View? {
+        widgetsRenderedRaw = prefs.getString(PREF_HOME_WIDGETS_ITEMS, null)
+        val entries = widgetEntries()
+        if (entries.isEmpty()) return null
+        val density = resources.displayMetrics.density
+        val widthDp = (resources.displayMetrics.widthPixels / density).toInt() - 40
+        val block = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT,
-            ).also { it.topMargin = dp(10) }
+            ).also { it.topMargin = dp(12) }
         }
-        box.addView(label("Order on the home screen", 14f, TEXT_DIM))
-        val order = homeOrder()
-        order.forEachIndexed { index, id ->
+        val gone = ArrayList<Int>()
+        entries.forEach { entry ->
+            val info = try {
+                appWidgetManager.getAppWidgetInfo(entry.appWidgetId)
+            } catch (_: Exception) {
+                null
+            }
+            if (info == null) {
+                // Its app was uninstalled or Android dropped it.
+                gone.add(entry.appWidgetId)
+                return@forEach
+            }
+            val view = widgetViews.getOrPut(entry.appWidgetId) {
+                widgetHost.createView(this, entry.appWidgetId, info)
+            }
+            (view.parent as? ViewGroup)?.removeView(view)
+            val needsDp = (info.minHeight / density).toInt().coerceAtMost(320)
+            val heightDp = HomeWidgetEntries.heightDp(entry.size, needsDp)
+            view.layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(heightDp),
+            ).also { it.bottomMargin = dp(10) }
+            view.updateAppWidgetSize(null, widthDp, heightDp, widthDp, heightDp)
+            view.setOnLongClickListener {
+                it.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                showWidgetActions(entry)
+                true
+            }
+            block.addView(view)
+        }
+        if (gone.isNotEmpty()) {
+            gone.forEach {
+                try { widgetHost.deleteAppWidgetId(it) } catch (_: Exception) {}
+                widgetViews.remove(it)
+            }
+            saveWidgets(entries.filterNot { it.appWidgetId in gone })
+        }
+        return if (block.childCount == 0) null else block
+    }
+
+    private fun showWidgetPicker() {
+        if (!::rootFrame.isInitialized) return
+        val providers = try {
+            appWidgetManager.installedProviders
+        } catch (_: Exception) {
+            emptyList<AppWidgetProviderInfo>()
+        }.map { info ->
+            val widgetName = try { info.loadLabel(packageManager) } catch (_: Exception) { null }
+            val appName = try {
+                packageManager.getApplicationInfo(info.provider.packageName, 0)
+                    .loadLabel(packageManager).toString()
+            } catch (_: Exception) {
+                info.provider.packageName
+            }
+            Triple(info, appName, widgetName ?: info.provider.shortClassName)
+        }.sortedWith(compareBy({ it.second.lowercase() }, { it.third.lowercase() }))
+        showSheet(scrimColor = Color.parseColor("#33000000")) { panel ->
+            panel.addView(label("Add a widget", 20f, TEXT_PRIMARY, bold = true))
+            panel.addView(label(
+                "These are on your phone already. Android asks once to let FocusFlow show a widget.",
+                12f,
+                TEXT_MUTED,
+            ).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).also { it.topMargin = dp(2); it.bottomMargin = dp(6) }
+            })
+            val scroller = ScrollView(this).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    (resources.displayMetrics.heightPixels * 0.55f).toInt(),
+                )
+                isVerticalScrollBarEnabled = false
+                overScrollMode = View.OVER_SCROLL_NEVER
+            }
+            val body = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            scroller.addView(body)
+            panel.addView(scroller)
+            if (providers.isEmpty()) {
+                body.addView(label("No widgets found on this phone.", 14f, TEXT_DIM))
+            }
+            providers.forEach { (info, appName, widgetName) ->
+                body.addView(sheetRow(widgetName, appName) {
+                    dismissSheet()
+                    startAddingWidget(info)
+                })
+            }
+        }
+    }
+
+    private fun startAddingWidget(info: AppWidgetProviderInfo) {
+        if (widgetEntries().size >= HomeWidgetEntries.MAX_WIDGETS) {
+            Toast.makeText(this, "Home is full. Remove a widget first.", Toast.LENGTH_LONG).show()
+            return
+        }
+        val id = try {
+            widgetHost.allocateAppWidgetId()
+        } catch (_: Exception) {
+            Toast.makeText(this, "Couldn't add that widget.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val bound = try {
+            appWidgetManager.bindAppWidgetIdIfAllowed(id, info.provider)
+        } catch (_: Exception) {
+            false
+        }
+        if (bound) {
+            onWidgetBound(id, info)
+            return
+        }
+        // Android has not yet let FocusFlow show this widget: it asks the person once.
+        pendingWidgetId = id
+        val ask = Intent(AppWidgetManager.ACTION_APPWIDGET_BIND)
+            .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id)
+            .putExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER, info.provider)
+        try {
+            startActivityForResult(ask, REQ_BIND_WIDGET)
+        } catch (_: Exception) {
+            pendingWidgetId = -1
+            try { widgetHost.deleteAppWidgetId(id) } catch (_: Exception) {}
+            Toast.makeText(this, "Couldn't add that widget.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /** Some widgets have a setup screen of their own; open it before the widget is placed. */
+    private fun onWidgetBound(id: Int, info: AppWidgetProviderInfo) {
+        if (info.configure == null) {
+            finishAddingWidget(id)
+            return
+        }
+        pendingWidgetId = id
+        try {
+            widgetHost.startAppWidgetConfigureActivityForResult(this, id, 0, REQ_CONFIGURE_WIDGET, null)
+        } catch (_: Exception) {
+            pendingWidgetId = -1
+            finishAddingWidget(id)
+        }
+    }
+
+    private fun finishAddingWidget(id: Int) {
+        val info = appWidgetManager.getAppWidgetInfo(id)
+        if (info == null) {
+            try { widgetHost.deleteAppWidgetId(id) } catch (_: Exception) {}
+            return
+        }
+        val outcome = HomeWidgetEntries.add(
+            widgetEntries(),
+            HomeWidgetEntries.Entry(id, info.provider.flattenToString()),
+        )
+        if (outcome.status != HomeWidgetEntries.Status.ADDED) {
+            try { widgetHost.deleteAppWidgetId(id) } catch (_: Exception) {}
+            Toast.makeText(this, "Home is full. Remove a widget first.", Toast.LENGTH_LONG).show()
+            return
+        }
+        saveWidgets(outcome.items)
+        // A hidden "App widgets" block would make the new widget vanish: turn it back on.
+        if (widgetsStyleValue() == "off") prefs.edit().remove(PREF_HOME_WIDGETS).apply()
+        startWidgetListening()
+        rebuildHomeSections()
+        Toast.makeText(this, "Widget added", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun removeWidget(entry: HomeWidgetEntries.Entry) {
+        try { widgetHost.deleteAppWidgetId(entry.appWidgetId) } catch (_: Exception) {}
+        widgetViews.remove(entry.appWidgetId)
+        val remaining = HomeWidgetEntries.remove(widgetEntries(), entry.appWidgetId)
+        saveWidgets(remaining)
+        // With no widgets left there is nothing to listen for.
+        if (remaining.isEmpty()) stopWidgetListening()
+        rebuildHomeSections()
+    }
+
+    private fun showWidgetActions(entry: HomeWidgetEntries.Entry) {
+        showSheet { panel ->
+            panel.addView(label(widgetLabel(entry), 18f, TEXT_PRIMARY, bold = true))
+            panel.addView(label("Height", 13f, TEXT_DIM).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).also { it.topMargin = dp(10) }
+            })
+            val sizes = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).also { it.topMargin = dp(6); it.bottomMargin = dp(6) }
+            }
+            HomeWidgetEntries.Size.values().forEach { size ->
+                sizes.addView(chipView(size.label, size == entry.size) {
+                    saveWidgets(HomeWidgetEntries.setSize(widgetEntries(), entry.appWidgetId, size))
+                    dismissSheet()
+                    rebuildHomeSections()
+                })
+            }
+            panel.addView(sizes)
+            panel.addView(sheetRow("Remove widget") {
+                dismissSheet()
+                removeWidget(entry)
+            })
+            panel.addView(sheetRow("Arrange home", "Move or hide the widgets", TEXT_DIM) {
+                dismissSheet()
+                enterHomeArrange()
+            })
+        }
+    }
+
+    private fun showManageWidgetsSheet() {
+        showSheet { panel ->
+            panel.addView(label("Widgets on your home", 18f, TEXT_PRIMARY, bold = true))
+            widgetEntries().forEach { entry ->
+                panel.addView(sheetRow(widgetLabel(entry), "Height: ${entry.size.label}") {
+                    dismissSheet()
+                    showWidgetActions(entry)
+                })
+            }
+            panel.addView(sheetRow("Done", tint = TEXT_DIM) { dismissSheet() })
+        }
+    }
+
+    // ── Pinned apps ────────────────────────────────────────────────────────────
+    //
+    // A grid of icons on the home screen: apps added from the drawer, and shortcuts that other
+    // apps hand over through "Add to Home screen" (see PinShortcutActivity). It is empty and
+    // invisible until something is pinned, and it is a widget like the others, so it can be moved
+    // or hidden in arrange mode.
+
+    private var pinnedRenderedRaw: String? = null
+    private val shortcutIconCache = HashMap<String, Drawable>()
+
+    private fun pinnedColumns(): Int =
+        HomePinnedItems.columnsFromPref(prefs.getString(PREF_HOME_PINNED_SIZE, null))
+
+    private fun pinnedEntries(): List<HomePinnedItems.Entry> =
+        HomePinnedItems.parse(prefs.getString(PREF_HOME_PINNED_ITEMS, null))
+
+    private fun savePinned(items: List<HomePinnedItems.Entry>) {
+        prefs.edit().putString(PREF_HOME_PINNED_ITEMS, HomePinnedItems.serialize(items)).apply()
+    }
+
+    private fun pinApp(pkg: String, name: String) {
+        val outcome = HomePinnedItems.add(
+            pinnedEntries(),
+            HomePinnedItems.Entry(HomePinnedItems.Kind.APP, pkg, "", name),
+            HomePinnedItems.capacity(pinnedColumns()),
+        )
+        when (outcome.status) {
+            HomePinnedItems.Status.ADDED -> {
+                savePinned(outcome.items)
+                // A hidden "Pinned apps" widget would make the new icon vanish: turn it back on.
+                if (pinnedStyleValue() == "off") prefs.edit().remove(PREF_HOME_PINNED).apply()
+                rebuildHomeSections()
+                Toast.makeText(this, "$name added to home", Toast.LENGTH_SHORT).show()
+            }
+            HomePinnedItems.Status.DUPLICATE ->
+                Toast.makeText(this, "$name is already on your home screen", Toast.LENGTH_SHORT).show()
+            HomePinnedItems.Status.FULL ->
+                Toast.makeText(this, "Home is full. Remove one first.", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun unpinApp(pkg: String) {
+        savePinned(HomePinnedItems.removeApp(pinnedEntries(), pkg))
+        rebuildHomeSections()
+    }
+
+    private fun unpin(entry: HomePinnedItems.Entry) {
+        savePinned(HomePinnedItems.remove(pinnedEntries(), entry.key))
+        rebuildHomeSections()
+    }
+
+    /** Whether an app entry can still be opened. Shortcuts are checked when they are tapped. */
+    private fun pinnedStillThere(entry: HomePinnedItems.Entry): Boolean =
+        entry.kind == HomePinnedItems.Kind.SHORTCUT ||
+            packageManager.getLaunchIntentForPackage(entry.packageName) != null
+
+    /** Null when nothing is pinned, so an empty grid takes up no room at all. */
+    private fun buildPinnedWidget(): View? {
+        pinnedRenderedRaw = prefs.getString(PREF_HOME_PINNED_ITEMS, null)
+        val all = pinnedEntries()
+        val entries = all.filter { pinnedStillThere(it) }
+        // Apps that were uninstalled quietly drop off.
+        if (entries.size != all.size) savePinned(entries)
+        if (entries.isEmpty()) return null
+        val columns = pinnedColumns()
+        // After choosing a smaller grid the extra icons are kept, just not shown.
+        val shown = entries.take(HomePinnedItems.capacity(columns))
+        val grid = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).also { it.topMargin = dp(12); it.bottomMargin = dp(6) }
+        }
+        shown.chunked(columns).forEach { rowItems ->
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).also { it.bottomMargin = dp(10) }
+            }
+            rowItems.forEach { row.addView(pinnedCell(it, columns)) }
+            // Empty cells keep the columns lined up on a short last row.
+            repeat(columns - rowItems.size) {
+                row.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
+            }
+            grid.addView(row)
+        }
+        if (shown.size < entries.size) {
+            grid.addView(label("${entries.size - shown.size} more not shown. Choose a bigger grid in Customize home.", 11f, TEXT_DIM))
+        }
+        return grid
+    }
+
+    private fun pinnedCell(entry: HomePinnedItems.Entry, columns: Int): View {
+        val cell = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            setPadding(dp(2), dp(4), dp(2), dp(4))
+            isClickable = true
+            background = rippleForeground(16)
+            contentDescription = entry.label
+        }
+        // Fewer columns mean wider cells, so the icons grow; with five they shrink to still fit.
+        val iconSize = dp(when (columns) { 3 -> 60; 5 -> 44; else -> 52 })
+        if (entry.kind == HomePinnedItems.Kind.APP) {
+            cell.addView(ImageView(this).apply {
+                layoutParams = LinearLayout.LayoutParams(iconSize, iconSize)
+                setImageDrawable(getRoundIcon(entry.packageName))
+            })
+        } else {
+            // A shortcut's own picture is fetched from the system, so a plain disc with the
+            // first letter shows first and the real icon replaces it when it arrives.
+            val holder = FrameLayout(this).apply {
+                layoutParams = LinearLayout.LayoutParams(iconSize, iconSize)
+                background = roundedBackground(Color.parseColor("#33FFFFFF"), Color.TRANSPARENT, 26)
+            }
+            val letter = label(entry.label.take(1).uppercase().ifBlank { "•" }, 20f, TEXT_PRIMARY, bold = true).apply {
+                gravity = Gravity.CENTER
+                layoutParams = FrameLayout.LayoutParams(iconSize, iconSize)
+            }
+            val picture = ImageView(this).apply {
+                layoutParams = FrameLayout.LayoutParams(dp(34), dp(34), Gravity.CENTER)
+                scaleType = ImageView.ScaleType.FIT_CENTER
+            }
+            holder.addView(letter)
+            holder.addView(picture)
+            cell.addView(holder)
+            val cached = shortcutIconCache[entry.key]
+            if (cached != null) {
+                picture.setImageDrawable(cached)
+                letter.visibility = View.GONE
+            } else {
+                Thread {
+                    val drawable = loadShortcutIcon(entry)
+                    if (drawable != null) {
+                        handler.post {
+                            if (isFinishing) return@post
+                            shortcutIconCache[entry.key] = drawable
+                            picture.setImageDrawable(drawable)
+                            letter.visibility = View.GONE
+                        }
+                    }
+                }.start()
+            }
+        }
+        cell.addView(label(entry.label, 11f, TEXT_DIM).apply {
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            gravity = Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).also { it.topMargin = dp(4) }
+        })
+        cell.setOnClickListener { openPinned(entry) }
+        cell.setOnLongClickListener {
+            it.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+            showPinnedActions(entry)
+            true
+        }
+        return cell
+    }
+
+    /** Same rules as the drawer: a blocked app shows the block screen instead of opening. */
+    private fun openPinned(entry: HomePinnedItems.Entry) {
+        if (entry.packageName in getBlockedPackages()) {
+            launchBlockOverlay(entry.packageName)
+            return
+        }
+        if (entry.kind == HomePinnedItems.Kind.APP) {
+            launchApp(entry.packageName)
+            return
+        }
+        try {
+            val launcherApps = getSystemService(LauncherApps::class.java)
+            launcherApps?.startShortcut(entry.packageName, entry.id, null, null, Process.myUserHandle())
+        } catch (_: Exception) {
+            Toast.makeText(this, "Couldn't open ${entry.label}. Hold it to remove it.", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun loadShortcutIcon(entry: HomePinnedItems.Entry): Drawable? = try {
+        val launcherApps = getSystemService(LauncherApps::class.java)
+        val query = LauncherApps.ShortcutQuery()
+            .setPackage(entry.packageName)
+            .setShortcutIds(listOf(entry.id))
+            .setQueryFlags(LauncherApps.ShortcutQuery.FLAG_MATCH_PINNED)
+        val info = launcherApps?.getShortcuts(query, Process.myUserHandle())?.firstOrNull()
+        if (info == null) null else launcherApps.getShortcutIconDrawable(info, resources.displayMetrics.densityDpi)
+    } catch (_: Exception) {
+        null
+    }
+
+    private fun showPinnedActions(entry: HomePinnedItems.Entry) {
+        showSheet { panel ->
+            panel.addView(label(entry.label, 18f, TEXT_PRIMARY, bold = true))
+            panel.addView(sheetRow("Remove from home") {
+                dismissSheet()
+                unpin(entry)
+            })
+            panel.addView(sheetRow("Arrange home", "Move or hide the pinned apps", TEXT_DIM) {
+                dismissSheet()
+                enterHomeArrange()
+            })
+        }
+    }
+
+    // ── Arrange mode ───────────────────────────────────────────────────────────
+    //
+    // Long-press the home screen, or pinch it in or out, and the widgets turn into one compact
+    // tile each. Compact tiles are all the same height, so a long limits list or a tall task card
+    // is no harder to move than the clock. Drag ≡ to reorder, Hide or Show to switch one off or on,
+    // Done to go back. "Style & options" opens the full Customize home sheet.
+
+    private var homeArrangeActive = false
+    private var arrangeBar: View? = null
+
+    private class HomeWidgetInfo(val title: String, val prefKey: String, val style: () -> String)
+
+    private fun homeWidgetInfo(id: String): HomeWidgetInfo = when (id) {
+        "clock" -> HomeWidgetInfo("Clock", PREF_HOME_CLOCK) { clockStyleValue() }
+        "status" -> HomeWidgetInfo("Status", PREF_HOME_STATUS) { statusStyleValue() }
+        "task" -> HomeWidgetInfo("Current task", PREF_HOME_TASK) { taskStyleValue() }
+        "pinned" -> HomeWidgetInfo("Pinned apps", PREF_HOME_PINNED) { pinnedStyleValue() }
+        "widgets" -> HomeWidgetInfo("App widgets", PREF_HOME_WIDGETS) { widgetsStyleValue() }
+        else -> HomeWidgetInfo("Today's limits", PREF_HOME_LIMITS) { limitsStyleValue() }
+    }
+
+    /** Hiding keeps the style it had, so showing it again brings back the same look. */
+    private fun setHomeWidgetVisible(id: String, visible: Boolean) {
+        val info = homeWidgetInfo(id)
+        val remembered = prefs.getString(info.prefKey + PREV_STYLE_SUFFIX, null)
+        val current = info.style()
+        val editor = prefs.edit()
+        if (visible) {
+            if (remembered != null && remembered != "off") editor.putString(info.prefKey, remembered)
+            else editor.remove(info.prefKey)
+            editor.remove(info.prefKey + PREV_STYLE_SUFFIX)
+        } else {
+            if (current != "off") editor.putString(info.prefKey + PREV_STYLE_SUFFIX, current)
+            editor.putString(info.prefKey, "off")
+        }
+        editor.apply()
+        rebuildHomeSections()
+    }
+
+    private fun enterHomeArrange() {
+        if (homeArrangeActive || isDrawerOpen || sheetOverlay != null || hiddenOverlay != null) return
+        val content = homeContent ?: return
+        homeArrangeActive = true
+        homeScroll?.scrollTo(0, 0)
+        val bar = buildArrangeBar()
+        arrangeBar = bar
+        content.addView(bar, 1) // between the scrolling area and the dock
+        rebuildHomeSections()
+    }
+
+    private fun exitHomeArrange() {
+        if (!homeArrangeActive) return
+        homeArrangeActive = false
+        arrangeBar?.let { (it.parent as? ViewGroup)?.removeView(it) }
+        arrangeBar = null
+        rebuildHomeSections()
+    }
+
+    private fun buildArrangeBar(): View {
+        val bar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).also { it.topMargin = dp(8); it.bottomMargin = dp(8) }
+        }
+        fun button(text: String, selected: Boolean, onClick: () -> Unit): View =
+            chipView(text, selected, onClick).apply {
+                layoutParams = LinearLayout.LayoutParams(0, dp(44), 1f)
+                    .also { it.leftMargin = dp(4); it.rightMargin = dp(4) }
+            }
+        bar.addView(button("Style & options", false) {
+            exitHomeArrange()
+            showHomeCustomizeSheet()
+        })
+        bar.addView(button("Done", true) { exitHomeArrange() })
+        return bar
+    }
+
+    private fun populateArrangeColumn(column: LinearLayout) {
+        column.addView(label("Arrange your home", 20f, TEXT_PRIMARY, bold = true).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).also { it.topMargin = dp(12) }
+        })
+        column.addView(label("Hold ≡ and drag to move a widget. Hide or show with the button on the right.", 12f, TEXT_DIM).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).also { it.topMargin = dp(4); it.bottomMargin = dp(14) }
+        })
+        val order = homeOrder().toMutableList()
+        val rows = mutableListOf<View>()
+        val stride = dp(ARRANGE_ROW_DP + ARRANGE_GAP_DP)
+        order.forEach { id ->
+            val info = homeWidgetInfo(id)
+            val style = info.style()
+            val hidden = style == "off"
             val row = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
-                minimumHeight = dp(44)
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    dp(ARRANGE_ROW_DP),
+                ).also { it.bottomMargin = dp(ARRANGE_GAP_DP) }
+                alpha = if (hidden) 0.55f else 1f
             }
-            row.addView(label(names[id] ?: id, 15f, TEXT_PRIMARY).apply {
-                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-            })
-            fun arrow(glyph: String, enabled: Boolean, delta: Int) = label(glyph, 16f, TEXT_PRIMARY).apply {
+            frost(row, 16)
+            val handle = label("≡", 24f, TEXT_DIM).apply {
                 gravity = Gravity.CENTER
-                alpha = if (enabled) 1f else 0.3f
-                layoutParams = LinearLayout.LayoutParams(dp(44), dp(44))
-                contentDescription = (if (delta < 0) "Move up " else "Move down ") + (names[id] ?: id)
-                if (enabled) {
-                    isClickable = true
-                    background = rippleForeground(22)
-                    setOnClickListener {
-                        moveHomeWidget(id, delta)
-                        onChanged()
-                    }
-                }
+                layoutParams = LinearLayout.LayoutParams(dp(56), LinearLayout.LayoutParams.MATCH_PARENT)
+                contentDescription = "Reorder ${info.title}"
             }
-            row.addView(arrow("▲", index > 0, -1))
-            row.addView(arrow("▼", index < order.lastIndex, 1))
-            box.addView(row)
+            val texts = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            }
+            texts.addView(label(info.title, 16f, TEXT_PRIMARY, bold = true))
+            texts.addView(label(
+                when {
+                    hidden -> "Hidden"
+                    id == "pinned" && pinnedEntries().isEmpty() -> "Nothing pinned yet"
+                    id == "widgets" -> widgetEntries().size.let { n ->
+                        if (n == 0) "Nothing added yet" else if (n == 1) "1 widget" else "$n widgets"
+                    }
+                    else -> style.replaceFirstChar { it.uppercase() }
+                },
+                12f,
+                TEXT_DIM,
+            ))
+            val toggle = label(if (hidden) "Show" else "Hide", 13f, if (hidden) ACCENT_TEXT else TEXT_DIM).apply {
+                gravity = Gravity.CENTER
+                layoutParams = LinearLayout.LayoutParams(dp(72), LinearLayout.LayoutParams.MATCH_PARENT)
+                isClickable = true
+                background = rippleForeground(16)
+                contentDescription = (if (hidden) "Show " else "Hide ") + info.title
+                setOnClickListener { setHomeWidgetVisible(id, hidden) }
+            }
+            row.addView(handle)
+            row.addView(texts)
+            row.addView(toggle)
+            attachReorderDrag(handle, row, rows, order, stride, id)
+            rows.add(row)
+            column.addView(row)
         }
-        return box
+        val actions = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).also { it.topMargin = dp(4) }
+        }
+        actions.addView(chipView("+ Add a widget", false) {
+            exitHomeArrange()
+            showWidgetPicker()
+        })
+        if (widgetEntries().isNotEmpty()) {
+            actions.addView(chipView("Manage widgets", false) { showManageWidgetsSheet() })
+        }
+        column.addView(actions)
+    }
+
+    /**
+     * Press the handle and drag: the row follows the finger and the others slide out of the way.
+     * Letting go saves the order. Screen readers get "Move up" and "Move down" on the handle
+     * instead, because a drag is not possible there.
+     */
+    private fun attachReorderDrag(
+        handle: View,
+        row: View,
+        rows: List<View>,
+        order: MutableList<String>,
+        stride: Int,
+        id: String,
+    ) {
+        var startY = 0f
+        var from = 0
+        var to = 0
+        handle.setOnTouchListener { v, ev ->
+            when (ev.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    // The home screen scrolls; keep it from taking the gesture away mid-drag.
+                    v.parent.requestDisallowInterceptTouchEvent(true)
+                    v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                    startY = ev.rawY
+                    from = rows.indexOf(row)
+                    to = from
+                    row.scaleX = 1.03f
+                    row.scaleY = 1.03f
+                    row.translationZ = dp(8).toFloat()
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val minDy = -from * stride.toFloat()
+                    val maxDy = (rows.lastIndex - from) * stride.toFloat()
+                    val dy = (ev.rawY - startY).coerceIn(minDy, maxDy)
+                    row.translationY = dy
+                    val newTo = (from + (dy / stride).roundToInt()).coerceIn(0, rows.lastIndex)
+                    if (newTo != to) {
+                        to = newTo
+                        rows.forEachIndexed { i, other ->
+                            if (other !== row) {
+                                val shift = when {
+                                    from < to && i in (from + 1)..to -> -stride.toFloat()
+                                    from > to && i in to until from -> stride.toFloat()
+                                    else -> 0f
+                                }
+                                other.animate().translationY(shift).setDuration(120).start()
+                            }
+                        }
+                    }
+                    true
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    v.parent.requestDisallowInterceptTouchEvent(false)
+                    row.scaleX = 1f
+                    row.scaleY = 1f
+                    row.translationZ = 0f
+                    if (ev.actionMasked == MotionEvent.ACTION_UP && to != from) {
+                        val moved = order.removeAt(from)
+                        order.add(to, moved)
+                        prefs.edit().putString(PREF_HOME_ORDER, order.joinToString(",")).apply()
+                        rebuildHomeSections()
+                    } else {
+                        rows.forEach { it.animate().translationY(0f).setDuration(120).start() }
+                    }
+                    true
+                }
+                else -> false
+            }
+        }
+        handle.accessibilityDelegate = object : View.AccessibilityDelegate() {
+            override fun onInitializeAccessibilityNodeInfo(
+                host: View,
+                info: android.view.accessibility.AccessibilityNodeInfo,
+            ) {
+                super.onInitializeAccessibilityNodeInfo(host, info)
+                info.addAction(
+                    android.view.accessibility.AccessibilityNodeInfo.AccessibilityAction(A11Y_MOVE_UP, "Move up"),
+                )
+                info.addAction(
+                    android.view.accessibility.AccessibilityNodeInfo.AccessibilityAction(A11Y_MOVE_DOWN, "Move down"),
+                )
+            }
+
+            override fun performAccessibilityAction(host: View, action: Int, args: android.os.Bundle?): Boolean {
+                val delta = when (action) {
+                    A11Y_MOVE_UP -> -1
+                    A11Y_MOVE_DOWN -> 1
+                    else -> return super.performAccessibilityAction(host, action, args)
+                }
+                moveHomeWidget(id, delta)
+                return true
+            }
+        }
     }
 
     /** Rebuilds the home widgets and dock in place, so a style change shows instantly under an open sheet. */
@@ -1867,7 +2642,7 @@ class LauncherActivity : Activity() {
             isFocusable = true
             contentDescription = text
             setOnClickListener { onClick() }
-            // Long-press anywhere on the home screen, dock included, opens Customize home.
+            // Long-press anywhere on the home screen, dock included, opens arrange mode.
             homeLongPress?.let { setOnLongClickListener(it) }
         }
         val circle = FrameLayout(this).apply {
@@ -1928,7 +2703,7 @@ class LauncherActivity : Activity() {
         if (isDrawerOpen || !::rootFrame.isInitialized) return
         isDrawerOpen = true
         isEditMode = false
-        drawerFilter = DrawerFilter.ALL
+        drawerFilter = drawerSections().first()
         focusedDrawerPackage = null
         appliedListLayout = null
         drawerBlockedCount = getBlockedPackages().size
@@ -2139,15 +2914,74 @@ class LauncherActivity : Activity() {
         return view
     }
 
+    /** The sections shown above the apps, in their usual order. Never empty. */
+    private fun drawerSections(): List<DrawerFilter> {
+        val saved = prefs.getString(PREF_DRAWER_SECTIONS, null)
+            ?.split(',')
+            ?.mapNotNull { name -> DrawerFilter.values().firstOrNull { it.name == name.trim() } }
+            ?.toSet()
+        val chosen = DrawerFilter.values().filter { saved == null || it in saved }
+        return chosen.ifEmpty { listOf(DrawerFilter.ALL) }
+    }
+
+    private fun clampDrawerFilter() {
+        val sections = drawerSections()
+        if (drawerFilter !in sections) drawerFilter = sections.first()
+    }
+
+    private fun showDrawerSectionsSheet() {
+        showSheet { panel ->
+            panel.addView(label("Drawer sections", 20f, TEXT_PRIMARY, bold = true))
+            panel.addView(label(
+                "Remove the ones you don't use. With only one left, the row of sections is hidden.",
+                12f,
+                TEXT_DIM,
+            ).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).also { it.topMargin = dp(2); it.bottomMargin = dp(10) }
+            })
+            val names = listOf(
+                DrawerFilter.ALL to "All apps",
+                DrawerFilter.FOCUS_TOOLS to "Focus tools",
+                DrawerFilter.LIMITED_TODAY to "Limited time",
+                DrawerFilter.BLOCKED to "Blocked",
+            )
+            val current = drawerSections()
+            names.forEach { (filter, name) ->
+                val on = filter in current
+                panel.addView(sheetRow(if (on) "✓  $name" else "     $name") {
+                    val next = if (on) current - filter else current + filter
+                    if (next.isEmpty()) {
+                        Toast.makeText(this, "Keep at least one section.", Toast.LENGTH_SHORT).show()
+                        return@sheetRow
+                    }
+                    prefs.edit().putString(PREF_DRAWER_SECTIONS, next.joinToString(",") { it.name }).apply()
+                    clampDrawerFilter()
+                    renderDrawerChips()
+                    refreshDrawerItems()
+                    dismissSheet(animate = false)
+                    showDrawerSectionsSheet()
+                })
+            }
+            panel.addView(sheetRow("Done", tint = TEXT_DIM) { dismissSheet() })
+        }
+    }
+
     private fun renderDrawerChips() {
         val row = drawerChipRow ?: return
         row.removeAllViews()
+        val sections = drawerSections()
+        // With a single section there is nothing to switch between, so the row (and the name
+        // of the section) is not shown at all.
+        (row.parent as? View)?.visibility = if (sections.size > 1 || isEditMode) View.VISIBLE else View.GONE
         val labels = listOf(
             DrawerFilter.ALL to "ALL APPS",
             DrawerFilter.FOCUS_TOOLS to "FOCUS TOOLS",
             DrawerFilter.LIMITED_TODAY to "LIMITED TIME",
             DrawerFilter.BLOCKED to "BLOCKED ($drawerBlockedCount)",
-        )
+        ).filter { (filter, _) -> filter in sections }
         labels.forEach { (filter, text) ->
             val active = filter == drawerFilter
             val chip = TextView(this).apply {
@@ -2313,6 +3147,7 @@ class LauncherActivity : Activity() {
             isEnabled = true
             alpha = 1f
         }
+        clampDrawerFilter()
         renderDrawerChips()
         renderDrawerHeader()
     }
@@ -2634,6 +3469,16 @@ class LauncherActivity : Activity() {
                     Toast.makeText(this, "$name hidden. Find it in ⋮ → Hidden apps.", Toast.LENGTH_SHORT).show()
                 })
             }
+            if (!hiddenContext) {
+                val onHome = HomePinnedItems.contains(pinnedEntries(), HomePinnedItems.Kind.APP, pkg, "")
+                panel.addView(sheetRow(
+                    if (onHome) "Remove from home" else "Add to home",
+                    "An icon on your home screen",
+                ) {
+                    dismissSheet()
+                    if (onHome) unpinApp(pkg) else pinApp(pkg, name)
+                })
+            }
             val isTool = pkg in focusToolPackages()
             panel.addView(
                 sheetRow(
@@ -2721,6 +3566,10 @@ class LauncherActivity : Activity() {
             })
             panel.addView(seek)
 
+            panel.addView(sheetRow("Sections", "All apps, Focus tools, Limited time, Blocked") {
+                dismissSheet()
+                showDrawerSectionsSheet()
+            })
             panel.addView(sheetRow("Customize home", "Clock, widgets, wallpaper and dock") {
                 dismissSheet()
                 closeDrawer(animate = false)
@@ -2884,10 +3733,6 @@ class LauncherActivity : Activity() {
                 showWallpaperSheet()
             })
             body.addView(glassSliderBlock())
-            body.addView(homeOrderBlock {
-                dismissSheet(animate = false)
-                showHomeCustomizeSheet()
-            })
             body.addView(optionRow(
                 "Clock", PREF_HOME_CLOCK,
                 listOf("light" to "Light", "bold" to "Bold", "stacked" to "Stacked", "compact" to "Compact", "off" to "Off"),
@@ -2907,6 +3752,25 @@ class LauncherActivity : Activity() {
                 "Today's limits", PREF_HOME_LIMITS,
                 listOf("bars" to "Bars", "rings" to "Rings", "list" to "List", "off" to "Off"),
                 "bars",
+            ))
+            body.addView(optionRow(
+                "Pinned apps", PREF_HOME_PINNED,
+                listOf("grid" to "Show", "off" to "Hide"),
+                "grid",
+            ))
+            body.addView(sheetRow("Add a widget", "Pick from the widgets on your phone") {
+                dismissSheet()
+                showWidgetPicker()
+            })
+            body.addView(optionRow(
+                "App widgets", PREF_HOME_WIDGETS,
+                listOf("show" to "Show", "off" to "Hide"),
+                "show",
+            ))
+            body.addView(optionRow(
+                "Pinned grid size", PREF_HOME_PINNED_SIZE,
+                listOf("3" to "3×3", "4" to "4×4", "5" to "5×5"),
+                "4",
             ))
             body.addView(optionRow(
                 "Search bar", PREF_HOME_SEARCH,
@@ -2932,7 +3796,8 @@ class LauncherActivity : Activity() {
                 prefs.edit()
                     .remove(PREF_HOME_CLOCK).remove(PREF_HOME_STATUS).remove(PREF_HOME_TASK)
                     .remove(PREF_HOME_LIMITS).remove(PREF_HOME_SEARCH).remove(PREF_HOME_ALL_APPS)
-                    .remove(PREF_HOME_ORDER)
+                    .remove(PREF_HOME_ORDER).remove(PREF_HOME_PINNED).remove(PREF_HOME_PINNED_SIZE)
+                    .remove(PREF_HOME_WIDGETS)
                     .apply()
                 dismissSheet(animate = false)
                 rebuildHomeSections()
@@ -3028,9 +3893,6 @@ class LauncherActivity : Activity() {
             val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
             scroller.addView(row)
             panel.addView(scroller)
-            val phoneRow = sheetRow("Use as phone wallpaper…", "Also for the lock screen, and it fixes the Recents mismatch") {
-                confirmSetPhoneWallpaper()
-            }
             val previews = HashMap<String, Bitmap>()
             fun choose(builtinId: String) {
                 writeLookPrefs {
@@ -3045,30 +3907,35 @@ class LauncherActivity : Activity() {
                 row.removeAllViews()
                 val customOn = wallpaperPath().isNotEmpty()
                 val builtinOn = if (customOn) "" else builtinWallpaperId()
+                // Your own photo comes first, like the Wallpaper screen in the app.
+                row.addView(wallpaperTile(
+                    if (customOn) "Your photo" else "+ Your photo",
+                    if (customOn) "In use · tap to change" else "From your gallery",
+                    null,
+                    customOn,
+                ) { pickWallpaperFromGallery() })
                 row.addView(wallpaperTile(
                     "Adaptive", "Matches your phone · best at 70%",
                     previews.getOrPut("adaptive") { BuiltinWallpapers.adaptive(wallpaperPalette(), 90, 150) },
                     !customOn && builtinOn.isEmpty(),
-                ) { choose(""); render() })
+                ) {
+                    // Picking one offers it to the phone too; tapping the one in use offers it again.
+                    if (!customOn && builtinOn.isEmpty()) return@wallpaperTile
+                    choose(""); render()
+                })
                 BuiltinWallpapers.all.forEach { w ->
                     row.addView(wallpaperTile(
                         w.name, "Best at ${w.bestAt}%",
                         previews.getOrPut(w.id) { BuiltinWallpapers.render(w, 90, 150) },
                         builtinOn == w.id,
-                    ) { choose(w.id); render() })
+                    ) {
+                        if (builtinOn != w.id) choose(w.id)
+                        offerPhoneWallpaper()
+                    })
                 }
-                row.addView(wallpaperTile(
-                    if (customOn) "Your picture" else "From gallery",
-                    if (customOn) "In use · tap to change" else "Pick your own photo",
-                    null,
-                    customOn,
-                ) { pickWallpaperFromGallery() })
-                phoneRow.visibility =
-                    if (customOn || builtinOn.isNotEmpty()) View.VISIBLE else View.GONE
             }
             render()
             panel.addView(glassSliderBlock())
-            panel.addView(phoneRow)
         }
     }
 
@@ -3089,6 +3956,23 @@ class LauncherActivity : Activity() {
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQ_BIND_WIDGET || requestCode == REQ_CONFIGURE_WIDGET) {
+            val id = pendingWidgetId
+            pendingWidgetId = -1
+            if (id < 0) return
+            if (resultCode != RESULT_OK) {
+                // Cancelled at the permission or setup step: give the widget id back.
+                try { widgetHost.deleteAppWidgetId(id) } catch (_: Exception) {}
+                return
+            }
+            val info = appWidgetManager.getAppWidgetInfo(id)
+            when {
+                info == null -> try { widgetHost.deleteAppWidgetId(id) } catch (_: Exception) {}
+                requestCode == REQ_BIND_WIDGET -> onWidgetBound(id, info)
+                else -> finishAddingWidget(id)
+            }
+            return
+        }
         if (requestCode != REQ_PICK_WALLPAPER || resultCode != RESULT_OK) return
         val uri = data?.data ?: return
         Toast.makeText(this, "Preparing wallpaper…", Toast.LENGTH_SHORT).show()
@@ -3108,6 +3992,7 @@ class LauncherActivity : Activity() {
                     }
                     ensureBackdrop()
                     Toast.makeText(this, "Wallpaper set.", Toast.LENGTH_SHORT).show()
+                    offerPhoneWallpaper()
                 }
                 result.onFailure {
                     Toast.makeText(this, it.message ?: "That picture could not be used.", Toast.LENGTH_LONG).show()
@@ -3116,12 +4001,17 @@ class LauncherActivity : Activity() {
         }.start()
     }
 
-    /** One-shot, explicit: makes Recents, the lock screen and home all show the same picture. */
-    private fun confirmSetPhoneWallpaper() {
+    /**
+     * "Use it on your phone too?", the same choice as the Wallpaper screen in the app: Home and
+     * lock, Home only, or not now. The warning about replacing the phone's wallpaper always
+     * stays; the explanation above the buttons can be closed for good.
+     */
+    private fun offerPhoneWallpaper() {
+        if (wallpaperPath().isEmpty() && builtinWallpaperId().isEmpty()) return
         showSheet(scrimColor = Color.parseColor("#66000000")) { panel ->
-            panel.addView(label("Use as phone wallpaper", 20f, TEXT_PRIMARY, bold = true))
+            panel.addView(label("Use it on your phone too?", 20f, TEXT_PRIMARY, bold = true))
             panel.addView(label(
-                "This replaces your phone's current wallpaper and FocusFlow can't bring the old one back. Your home screen, lock screen and the Recents screen will then all match.",
+                "This replaces your current phone wallpaper, and FocusFlow can't bring the old one back.",
                 13f,
                 TEXT_DIM,
             ).apply {
@@ -3130,16 +4020,46 @@ class LauncherActivity : Activity() {
                     LinearLayout.LayoutParams.WRAP_CONTENT,
                 ).also { it.topMargin = dp(6); it.bottomMargin = dp(8) }
             })
-            panel.addView(sheetRow("Home and lock screen") {
+            if (!prefs.getBoolean(PREF_PHONE_NOTE_DISMISSED, false)) {
+                val note = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.TOP
+                    background = roundedBackground(Color.parseColor("#14FFFFFF"), Color.parseColor("#22FFFFFF"), 12)
+                    setPadding(dp(12), dp(8), dp(4), dp(8))
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                    ).also { it.bottomMargin = dp(8) }
+                }
+                note.addView(label(
+                    "The same picture on your home and lock screens makes Recents and app switching match FocusFlow.",
+                    12f,
+                    TEXT_DIM,
+                ).apply {
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                        .also { it.topMargin = dp(4) }
+                })
+                note.addView(label("✕", 14f, TEXT_DIM).apply {
+                    gravity = Gravity.CENTER
+                    layoutParams = LinearLayout.LayoutParams(dp(40), dp(40))
+                    contentDescription = "Dismiss"
+                    isClickable = true
+                    background = rippleForeground(20)
+                    setOnClickListener {
+                        // Closed for good: remembered, so it does not come back.
+                        prefs.edit().putBoolean(PREF_PHONE_NOTE_DISMISSED, true).apply()
+                        (note.parent as? ViewGroup)?.removeView(note)
+                    }
+                })
+                panel.addView(note)
+            }
+            panel.addView(sheetRow("Home + lock screen") {
                 applyPhoneWallpaper(WallpaperManager.FLAG_SYSTEM or WallpaperManager.FLAG_LOCK)
             })
             panel.addView(sheetRow("Home screen only") {
                 applyPhoneWallpaper(WallpaperManager.FLAG_SYSTEM)
             })
-            panel.addView(sheetRow("Lock screen only") {
-                applyPhoneWallpaper(WallpaperManager.FLAG_LOCK)
-            })
-            panel.addView(sheetRow("Cancel", tint = TEXT_DIM) { dismissSheet() })
+            panel.addView(sheetRow("Not now", tint = TEXT_DIM) { dismissSheet() })
         }
     }
 
@@ -3506,6 +4426,10 @@ class LauncherActivity : Activity() {
      * and every screen re-reads them from storage rather than trusting an in-memory copy.
      */
     private fun setAppHidden(pkg: String, hide: Boolean) {
+        // A hidden app must not stay on the home screen, or hiding it would mean nothing.
+        if (hide && HomePinnedItems.contains(pinnedEntries(), HomePinnedItems.Kind.APP, pkg, "")) {
+            savePinned(HomePinnedItems.removeApp(pinnedEntries(), pkg))
+        }
         val hidden = drawerHiddenPackages().toMutableSet()
         if (hide) hidden.add(pkg) else hidden.remove(pkg)
         val json = JSONArray(hidden.toList()).toString()
@@ -3856,8 +4780,14 @@ class LauncherActivity : Activity() {
      * The touch is always passed on to the views first, so lists and sheets keep scrolling.
      */
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        // Pinching the home screen in or out does what a long press does: opens arrange mode.
+        if (!homeArrangeActive && !isDrawerOpen && sheetOverlay == null && hiddenOverlay == null) {
+            pinchDetector.onTouchEvent(ev)
+        }
+        if (ev.actionMasked == MotionEvent.ACTION_POINTER_DOWN) swipeMultiTouch = true
         when (ev.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
+                swipeMultiTouch = false
                 swipeTouchStartY = ev.rawY
                 swipeVelocityTracker?.recycle()
                 swipeVelocityTracker = VelocityTracker.obtain().also { it.addMovement(ev) }
@@ -3891,7 +4821,8 @@ class LauncherActivity : Activity() {
             swipeVelocityTracker = null
             val overlayOpen = sheetOverlay != null || hiddenOverlay != null
             val dy = swipeTouchStartY - ev.rawY
-            if (!overlayOpen) {
+            // No drawer or notification swipes while arranging, or during a two-finger pinch.
+            if (!overlayOpen && !homeArrangeActive && !swipeMultiTouch) {
                 if (dy > dp(60) && velocity < -250f && !isDrawerOpen) {
                     val scrollMoved = (homeScroll?.scrollY ?: 0) != swipeStartScrollY
                     val ownsTheSwipe = swipeContentCanScrollDown || scrollMoved

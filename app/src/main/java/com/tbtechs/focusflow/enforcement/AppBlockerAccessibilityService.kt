@@ -732,9 +732,9 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         }
 
         // Skip exhaustion enforcement while an active allowance session is in progress.
-        // For count mode, isAllowanceAvailable returns false immediately after
-        // recordAllowanceOpen increments the counter, even though this foreground
-        // session is still valid. Timed modes can also briefly report exhaustion
+        // For count mode, the counter already includes the open that started this
+        // foreground session, so isAllowanceAvailable reads "exhausted" for the last
+        // allowed open even though the session is still valid (see isAllowanceUsableNow). Timed modes can also briefly report exhaustion
         // before their next checkpoint is persisted.
         if (currentTimedPkg?.equals(pkg, ignoreCase = true) == true) {
             if (currentTimedSessionEndMs > 0L &&
@@ -1576,7 +1576,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         // not enforcement is active. This branch only starts an enforcement timer.
         val allowanceEntry = findAllowanceEntry(pkg)
         if (allowanceEntry != null) {
-            if (isAllowanceAvailable(pkg, allowanceEntry)) {
+            if (isAllowanceUsableNow(pkg, allowanceEntry)) {
                 if (currentTimedPkg != pkg) {
                     // App is newly in an enforced foreground session.
                     val sessionEndMs = recordAllowanceOpen(pkg, allowanceEntry)
@@ -2510,6 +2510,21 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     /**
      * Returns true if the app still has allowance quota for the current period.
      */
+    /**
+     * Whether the app that has just come to the foreground may stay. Time budget and interval
+     * simply ask whether any allowance is left. Count mode is different: the coordinator has
+     * already counted this very open, so asking "is anything left" would call the last allowed
+     * open exhausted and block it. See [AllowanceCountPolicy].
+     */
+    private fun isAllowanceUsableNow(pkg: String, entry: AllowanceEntry): Boolean {
+        if (entry.mode != "count") return isAllowanceAvailable(pkg, entry)
+        return AllowanceCountPolicy.isOpenUsable(
+            countIncludingThisOpen = readAllowance(pkg, entry).count,
+            limit = entry.countPerDay,
+            sessionAlreadyAdmitted = currentTimedPkg?.equals(pkg, ignoreCase = true) == true,
+        )
+    }
+
     private fun isAllowanceAvailable(pkg: String, entry: AllowanceEntry): Boolean {
         val now = System.currentTimeMillis()
         return when (entry.mode) {

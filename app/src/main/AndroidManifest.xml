@@ -119,6 +119,20 @@
             android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen"
             android:turnScreenOn="true" />
 
+        <!-- Receives "Add to Home screen" requests (a website from Chrome, a chat shortcut, a widget) when
+             FocusFlow is the home app. It asks before adding anything. -->
+        <activity
+            android:name=".enforcement.PinShortcutActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.content.pm.action.CONFIRM_PIN_SHORTCUT" />
+                <action android:name="android.content.pm.action.CONFIRM_PIN_APPWIDGET" />
+            </intent-filter>
+        </activity>
+
         <activity
             android:name=".enforcement.LauncherActivity"
             android:excludeFromRecents="true"

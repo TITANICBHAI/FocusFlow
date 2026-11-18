@@ -52,6 +52,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -81,6 +85,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 private const val ADAPTIVE_ID = "adaptive"
+private const val CUSTOM_ID = "custom"
 
 private class WallpaperTileInfo(
     val id: String,
@@ -106,7 +111,7 @@ internal fun LauncherWallpaperScreen(
     val builtinId = BuiltinWallpapers.byId(settings.launcherBuiltinWallpaper)?.id.orEmpty()
     val customOn = customPath != null
     val selectedId = when {
-        customOn -> "custom"
+        customOn -> CUSTOM_ID
         builtinId.isNotEmpty() -> builtinId
         else -> ADAPTIVE_ID
     }
@@ -201,7 +206,10 @@ internal fun LauncherWallpaperScreen(
     }
 
     val tiles = remember {
-        listOf(WallpaperTileInfo(ADAPTIVE_ID, "Adaptive", "Follows your phone · best at 70%")) +
+        listOf(
+            WallpaperTileInfo(CUSTOM_ID, "Your photo", "From your gallery"),
+            WallpaperTileInfo(ADAPTIVE_ID, "Adaptive", "Follows your phone · best at 70%"),
+        ) +
             BuiltinWallpapers.all.map { WallpaperTileInfo(it.id, it.name, "Best at ${it.bestAt}%") }
     }
     val hasWallpaperToShare = customOn || builtinId.isNotEmpty()
@@ -217,6 +225,7 @@ internal fun LauncherWallpaperScreen(
             onDismissRequest = onClose,
             properties = DialogProperties(usePlatformDefaultWidth = false),
         ) {
+            com.tbtechs.focusflow.ui.common.TransparentDialogSystemBars()
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -323,87 +332,38 @@ internal fun LauncherWallpaperScreen(
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             pair.forEach { tile ->
                                 Box(modifier = Modifier.weight(1f)) {
-                                    WallpaperTile(
-                                        title = tile.title,
-                                        hint = tile.hint,
-                                        selected = selectedId == tile.id,
-                                        preview = previews[tile.id],
-                                        onClick = {
-                                            val id = if (tile.id == ADAPTIVE_ID) "" else tile.id
-                                            // Tapping the one already in use offers the phone again.
-                                            if (selectedId == tile.id) {
-                                                if (hasWallpaperToShare) offerPhone = true
-                                            } else {
-                                                chooseBuiltin(id)
-                                            }
-                                        },
-                                    )
+                                    if (tile.id == CUSTOM_ID) {
+                                        // Always the first tile: a + until a photo is chosen.
+                                        GalleryTile(
+                                            hint = if (customOn) "In use" else tile.hint,
+                                            set = customOn,
+                                            selected = customOn,
+                                            preview = customPreview,
+                                            onPick = { gallery.launch("image/*") },
+                                            onUse = { if (hasWallpaperToShare) offerPhone = true },
+                                            onRemove = { chooseBuiltin("") },
+                                        )
+                                    } else {
+                                        WallpaperTile(
+                                            title = tile.title,
+                                            hint = tile.hint,
+                                            selected = selectedId == tile.id,
+                                            preview = previews[tile.id],
+                                            onClick = {
+                                                val id = if (tile.id == ADAPTIVE_ID) "" else tile.id
+                                                // Tapping the one already in use offers the phone again.
+                                                if (selectedId == tile.id) {
+                                                    if (hasWallpaperToShare) offerPhone = true
+                                                } else {
+                                                    chooseBuiltin(id)
+                                                }
+                                            },
+                                        )
+                                    }
                                 }
                             }
                             if (pair.size == 1) Spacer(Modifier.weight(1f))
                         }
-                    }
-                    // 4. Your own picture: its own row, not dressed up as a wallpaper.
-                    item {
-                        Column {
-                        SectionLabel("From your gallery")
-                        Spacer(Modifier.height(6.dp))
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(DarkCard)
-                                .border(
-                                    if (customOn) 2.dp else 1.dp,
-                                    if (customOn) BrandPrimary else DarkBorder,
-                                    RoundedCornerShape(14.dp),
-                                )
-                                .clickable(onClickLabel = "Choose a photo") { gallery.launch("image/*") }
-                                .padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(width = 40.dp, height = 64.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(DarkBorder),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                val preview = customPreview
-                                if (customOn && preview != null) {
-                                    Image(
-                                        bitmap = preview,
-                                        contentDescription = "Your photo",
-                                        contentScale = ContentScale.Crop,
-                                        modifier = Modifier.fillMaxSize(),
-                                    )
-                                } else {
-                                    Text("+", color = DarkTextSecondary, fontSize = 20.scaledSp)
-                                }
-                            }
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    "Your photo",
-                                    fontWeight = FontWeight.Bold,
-                                    color = DarkTextPrimary,
-                                    fontSize = 14.scaledSp,
-                                )
-                                Text(
-                                    if (customOn) "In use · tap to change"
-                                    else "Pick one from your gallery. It stays in the app's private storage.",
-                                    fontSize = 12.scaledSp,
-                                    color = DarkTextSecondary,
-                                )
-                            }
-                            if (customOn) {
-                                TextButton(onClick = { chooseBuiltin("") }) {
-                                    Text("Remove", color = Color(0xFFEF4444), fontSize = 13.scaledSp)
-                                }
-                            }
-                            Text("›", color = DarkTextSecondary, fontSize = 22.scaledSp)
-                        }
-                                            }
                     }
                     item { Spacer(Modifier.height(24.dp)) }
                 }
@@ -539,6 +499,108 @@ private fun InfoCard(title: String, body: String, onDismiss: (() -> Unit)? = nul
                 Text("✕", color = DarkTextSecondary, fontSize = 14.scaledSp)
             }
         }
+    }
+}
+
+/**
+ * The first tile in the grid: a dashed + while no photo is chosen, then the photo itself with
+ * small Change and Remove actions. Tapping the photo offers it to the phone like any other.
+ */
+@Composable
+private fun GalleryTile(
+    hint: String,
+    set: Boolean,
+    selected: Boolean,
+    preview: ImageBitmap?,
+    onPick: () -> Unit,
+    onUse: () -> Unit,
+    onRemove: () -> Unit,
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        val shape = RoundedCornerShape(16.dp)
+        val dashColor = DarkTextMuted
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(0.62f)
+                .clip(shape)
+                .background(DarkCard)
+                .then(
+                    if (set) {
+                        Modifier.border(
+                            if (selected) 2.dp else 1.dp,
+                            if (selected) BrandPrimary else DarkBorder,
+                            shape,
+                        )
+                    } else {
+                        Modifier.drawBehind {
+                            drawRoundRect(
+                                color = dashColor,
+                                cornerRadius = CornerRadius(16.dp.toPx()),
+                                style = Stroke(
+                                    width = 2.dp.toPx(),
+                                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(24f, 16f)),
+                                ),
+                            )
+                        }
+                    },
+                )
+                .clickable(onClickLabel = if (set) "Use your photo" else "Choose a photo") {
+                    if (set) onUse() else onPick()
+                },
+            contentAlignment = Alignment.Center,
+        ) {
+            if (set && preview != null) {
+                Image(
+                    bitmap = preview,
+                    contentDescription = "Your photo",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                if (selected) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(8.dp)
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .background(BrandPrimary),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text("✓", color = Color.White, fontSize = 13.scaledSp, fontWeight = FontWeight.Bold)
+                    }
+                }
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    listOf("Change" to onPick, "Remove" to onRemove).forEach { (label, action) ->
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(50))
+                                .background(Color(0xCC000000))
+                                .clickable(onClickLabel = label, onClick = action)
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                        ) {
+                            Text(label, color = Color.White, fontSize = 11.scaledSp)
+                        }
+                    }
+                }
+            } else {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("+", fontSize = 44.scaledSp, color = DarkTextSecondary, fontWeight = FontWeight.Light)
+                    Text("Add a photo", fontSize = 12.scaledSp, color = DarkTextSecondary)
+                }
+            }
+        }
+        Spacer(Modifier.height(4.dp))
+        Text("Your photo", fontSize = 13.scaledSp, fontWeight = FontWeight.Bold, color = DarkTextPrimary)
+        Text(hint, fontSize = 11.scaledSp, color = DarkTextMuted)
     }
 }
 
