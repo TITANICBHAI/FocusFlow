@@ -26,8 +26,13 @@ Nothing here changes enforcement rules except the count-mode fix (item 1).
 
 ## New and changed behaviour
 
-- **Arrange mode** (long-press or pinch the home screen): compact tiles, drag the handle to reorder,
-  Hide / Show each widget, Done, or "Style & options".
+- **Drag a widget in place**: long-press a widget (clock, status, task card, limits, or the gaps around
+  the pinned apps and app widgets) and it lifts. Drag it up or down, the others slide out of the way,
+  let go and it stays. The home screen scrolls by itself near its top and bottom edge. See
+  `HomeDragMath` and its test.
+- **Arrange mode** (long-press empty space or the dock, or pinch the home screen): compact tiles, drag
+  the handle to reorder, Hide / Show each widget, Done, or "Style & options". Still the place for
+  Hide / Show and for screen-reader Move up / Move down.
 - **Pinned apps grid**: 3x3, 4x4 or 5x5. Add from the drawer's long-press sheet, or through Android's
   "Add to Home screen" (`PinShortcutActivity`, asks before adding).
 - **App widgets**: hosted on the home screen (up to 6), picker, small / medium / large height.
@@ -63,4 +68,11 @@ SDK with only missing third-party libraries reported.
 - Set a wallpaper to Home + lock; if the lock screen does not change, the system-picker offer should appear.
 - Chrome "Add to Home screen" shows the confirm box (FocusFlow must be the default home app).
 - Add a widget; long-press it; remove it.
-- Long-press and pinch both open arrange mode; drag a tile; Hide then Show a widget.
+- Long-press the clock, then drag it below the limits card: the others slide up, it settles, and the order
+  is still there after leaving and reopening the launcher.
+- Drag a tall block (limits, app widgets) with a long home screen: it should auto-scroll near the top and
+  bottom edge, and letting go must not open the drawer or the notification shade.
+- Lift a widget and let go without moving: nothing changes.
+- Long-press empty space or the dock, and pinch: both still open arrange mode; drag a tile; Hide then Show a
+  widget; "Style & options" opens Customize home.
+- Long-press a pinned app and an app widget: their own menus still open (not a drag).

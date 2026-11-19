@@ -54,6 +54,7 @@ import android.text.style.RelativeSizeSpan
 import android.text.TextUtils
 import android.text.TextWatcher
 import android.os.Process
+import android.os.SystemClock
 import android.view.Gravity
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
@@ -1071,6 +1072,7 @@ class LauncherActivity : Activity() {
         }
         stopTaskCollection()
         stopWidgetListening()
+        abortHomeDrag()
         super.onPause()
     }
 
@@ -1154,9 +1156,11 @@ class LauncherActivity : Activity() {
             )
         }
         homeColumn = column
+        // Long-press a widget and it lifts: drag it where you want it, no menu in between.
+        // Long-press empty space or the dock and the arrange bar (Style & options) opens instead.
         val customize = View.OnLongClickListener { v ->
             v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-            enterHomeArrange()
+            if (!beginHomeDrag(lastTouchRawY)) enterHomeArrange()
             true
         }
         homeLongPress = customize
@@ -1213,6 +1217,9 @@ class LauncherActivity : Activity() {
         focusProgressTrack = null
         focusProgressFill = null
         allowanceContainer = null
+        // The views a drag was holding are about to be replaced.
+        abortHomeDrag()
+        homeBlocks = emptyList()
         if (homeArrangeActive) {
             populateArrangeColumn(column)
             return
@@ -1220,17 +1227,24 @@ class LauncherActivity : Activity() {
         if (clockStyleValue() == "off") {
             column.addView(View(this), LinearLayout.LayoutParams(1, dp(28)))
         }
-        // In the order the person arranged them (long-press the home screen to change it).
+        // In the order the person arranged them (long-press a widget and drag it to change it).
+        val blocks = ArrayList<HomeBlock>()
         homeOrder().forEach { id ->
-            when (id) {
-                "clock" -> if (clockStyleValue() != "off") column.addView(buildClockWidget())
-                "status" -> if (statusStyleValue() != "off") column.addView(buildStatusPill())
-                "task" -> if (taskStyleValue() != "off") column.addView(buildFocusSessionCard())
-                "limits" -> if (limitsStyleValue() != "off") column.addView(buildTodaysLimits())
-                "pinned" -> if (pinnedStyleValue() != "off") buildPinnedWidget()?.let { column.addView(it) }
-                "widgets" -> if (widgetsStyleValue() != "off") buildWidgetsBlock()?.let { column.addView(it) }
+            val block: View? = when (id) {
+                "clock" -> if (clockStyleValue() != "off") buildClockWidget() else null
+                "status" -> if (statusStyleValue() != "off") buildStatusPill() else null
+                "task" -> if (taskStyleValue() != "off") buildFocusSessionCard() else null
+                "limits" -> if (limitsStyleValue() != "off") buildTodaysLimits() else null
+                "pinned" -> if (pinnedStyleValue() != "off") buildPinnedWidget() else null
+                "widgets" -> if (widgetsStyleValue() != "off") buildWidgetsBlock() else null
+                else -> null
+            }
+            if (block != null) {
+                column.addView(block)
+                blocks += HomeBlock(id, block)
             }
         }
+        homeBlocks = blocks
     }
 
     /** The saved widget order, with anything missing or unknown put back in its default place. */
@@ -1747,10 +1761,12 @@ class LauncherActivity : Activity() {
 
     // ── Arrange mode ───────────────────────────────────────────────────────────
     //
-    // Long-press the home screen, or pinch it in or out, and the widgets turn into one compact
-    // tile each. Compact tiles are all the same height, so a long limits list or a tall task card
-    // is no harder to move than the clock. Drag ≡ to reorder, Hide or Show to switch one off or on,
-    // Done to go back. "Style & options" opens the full Customize home sheet.
+    // Long-press empty space or the dock, pinch the home screen in or out, or choose "Arrange home"
+    // from a widget's menu, and the widgets turn into one compact tile each. (Long-pressing a widget
+    // itself lifts it for a direct drag instead; see "Dragging widgets in place" below.) Compact
+    // tiles are all the same height, so a long limits list or a tall task card is no harder to move
+    // than the clock. Drag ≡ to reorder, Hide or Show to switch one off or on, Done to go back.
+    // "Style & options" opens the full Customize home sheet.
 
     private var homeArrangeActive = false
     private var arrangeBar: View? = null
@@ -2001,6 +2017,168 @@ class LauncherActivity : Activity() {
                 moveHomeWidget(id, delta)
                 return true
             }
+        }
+    }
+
+    // ── Dragging widgets in place ──────────────────────────────────────────────
+    //
+    // Long-press a widget on the home screen and it lifts off the page. Drag it up or down and the
+    // others slide out of the way; let go and it stays where it is. No menu in between. Widgets are
+    // different heights, so HomeDragMath works from each one's real size, and the home screen
+    // scrolls by itself when the finger nears its top or bottom edge.
+    //
+    // Hide, Show and the styles stay in the arrange bar (long-press empty space, the dock, or pinch)
+    // and in Customize home. A pinned app and an app widget keep their own long-press menus, so the
+    // gaps around them are what start the drag.
+
+    private class HomeBlock(val id: String, val view: View)
+
+    private class HomeDrag(
+        val blocks: List<HomeBlock>,
+        val slots: List<HomeDragMath.Slot>,
+        val from: Int,
+        /** How far below the lifted block's top edge the finger first landed. */
+        val grabOffset: Float,
+    ) {
+        var to = from
+        val shifts = FloatArray(blocks.size)
+    }
+
+    /** The widgets showing on the home screen now, top to bottom. */
+    private var homeBlocks: List<HomeBlock> = emptyList()
+    private var homeDrag: HomeDrag? = null
+    private var lastTouchRawX = 0f
+    private var lastTouchRawY = 0f
+
+    /**
+     * Runs once per frame while a block is lifted: scrolls the home screen when the finger rests
+     * near its top or bottom edge, and keeps the lifted block under the finger as it scrolls.
+     */
+    private val homeDragTick = object : Runnable {
+        override fun run() {
+            if (homeDrag == null) return
+            val scroll = homeScroll ?: return
+            val top = scroll.locationOnScreenY()
+            val edge = dp(96)
+            val y = lastTouchRawY
+            val bottom = top + scroll.height
+            val step = when {
+                y < top + edge -> -((top + edge - y) / edge).coerceIn(0f, 1f) * dp(16)
+                y > bottom - edge -> ((y - (bottom - edge)) / edge).coerceIn(0f, 1f) * dp(16)
+                else -> 0f
+            }
+            if (step != 0f) scroll.scrollBy(0, step.roundToInt())
+            updateHomeDrag()
+            // The glass panels pick up the wallpaper under them by position, so redraw them.
+            invalidateFrosted()
+            scroll.postOnAnimation(this)
+        }
+    }
+
+    /** Lifts the widget under [rawY], or returns false when there is nothing to drag there. */
+    private fun beginHomeDrag(rawY: Float): Boolean {
+        if (homeDrag != null || homeArrangeActive || isDrawerOpen ||
+            sheetOverlay != null || hiddenOverlay != null
+        ) return false
+        val column = homeColumn ?: return false
+        val scroll = homeScroll ?: return false
+        if (!scroll.isShown) return false
+        // A collapsed widget (a task card with no task) takes no room and cannot be dragged.
+        val blocks = homeBlocks.filter { it.view.visibility != View.GONE && it.view.height > 0 }
+        if (blocks.size < 2) return false
+        val scrollTop = scroll.locationOnScreenY()
+        if (rawY < scrollTop || rawY > scrollTop + scroll.height) return false
+        val slots = blocks.map { b ->
+            val lp = b.view.layoutParams as? ViewGroup.MarginLayoutParams
+            HomeDragMath.Slot(b.view.top, b.view.height, lp?.topMargin ?: 0, lp?.bottomMargin ?: 0)
+        }
+        val fingerInColumn = rawY - column.locationOnScreenY()
+        val from = HomeDragMath.indexAt(slots, fingerInColumn)
+        if (from < 0) return false
+        homeDrag = HomeDrag(blocks, slots, from, fingerInColumn - slots[from].top)
+        // The views under the finger saw a press. End it, so the drag owns the rest of the gesture.
+        val now = SystemClock.uptimeMillis()
+        val cancel = MotionEvent.obtain(now, now, MotionEvent.ACTION_CANCEL, lastTouchRawX, lastTouchRawY, 0)
+        window.superDispatchTouchEvent(cancel)
+        cancel.recycle()
+        val lifted = blocks[from].view
+        // The lifted block grows a little and may sit at the very top or bottom: don't clip it.
+        column.clipChildren = false
+        lifted.animate().cancel()
+        lifted.translationZ = dp(16).toFloat()
+        lifted.animate().scaleX(1.03f).scaleY(1.03f).setDuration(120).start()
+        scroll.postOnAnimation(homeDragTick)
+        return true
+    }
+
+    /** Moves the lifted widget to the finger and slides the ones it has passed out of the way. */
+    private fun updateHomeDrag() {
+        val d = homeDrag ?: return
+        val column = homeColumn ?: return
+        val slot = d.slots[d.from]
+        val fingerInColumn = lastTouchRawY - column.locationOnScreenY()
+        val top = HomeDragMath.clampTop(d.slots, d.from, fingerInColumn - d.grabOffset)
+        val lifted = d.blocks[d.from].view
+        lifted.translationY = top - slot.top
+        val to = HomeDragMath.targetIndex(d.slots, d.from, top + slot.height / 2f)
+        if (to == d.to) return
+        d.to = to
+        lifted.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+        val next = HomeDragMath.shifts(d.slots, d.from, to)
+        d.blocks.forEachIndexed { i, b ->
+            if (i != d.from && next[i] != d.shifts[i]) {
+                b.view.animate().translationY(next[i]).setDuration(140).start()
+            }
+            d.shifts[i] = next[i]
+        }
+    }
+
+    /** Lets go of the lifted widget: settles it into its new place and saves, or puts everything back. */
+    private fun endHomeDrag(commit: Boolean) {
+        val d = homeDrag ?: return
+        homeDrag = null
+        homeScroll?.removeCallbacks(homeDragTick)
+        val lifted = d.blocks[d.from].view
+        if (commit && d.to != d.from) {
+            // Save first, so the order holds even if the screen is rebuilt before the settle ends.
+            val saved = HomeDragMath.reorder(homeOrder(), d.blocks.map { it.id }, d.from, d.to)
+            prefs.edit().putString(PREF_HOME_ORDER, saved.joinToString(",")).apply()
+            lifted.animate()
+                .translationY(HomeDragMath.dropOffset(d.slots, d.from, d.to))
+                .scaleX(1f).scaleY(1f)
+                .setDuration(140)
+                .setUpdateListener { invalidateFrosted() }
+                .withEndAction {
+                    lifted.translationZ = 0f
+                    // Rebuild from the saved order, unless the screen was already rebuilt meanwhile.
+                    if (homeBlocks.any { it.view === lifted }) rebuildHomeSections()
+                }
+                .start()
+        } else {
+            d.blocks.forEach { b ->
+                if (b.view !== lifted) b.view.animate().translationY(0f).setDuration(140).start()
+            }
+            lifted.animate()
+                .translationY(0f)
+                .scaleX(1f).scaleY(1f)
+                .setDuration(140)
+                .setUpdateListener { invalidateFrosted() }
+                .withEndAction { lifted.translationZ = 0f }
+                .start()
+        }
+    }
+
+    /** Drops a drag without saving anything and puts every widget straight back. */
+    private fun abortHomeDrag() {
+        val d = homeDrag ?: return
+        homeDrag = null
+        homeScroll?.removeCallbacks(homeDragTick)
+        d.blocks.forEach { b ->
+            b.view.animate().cancel()
+            b.view.translationY = 0f
+            b.view.scaleX = 1f
+            b.view.scaleY = 1f
+            b.view.translationZ = 0f
         }
     }
 
@@ -3707,7 +3885,7 @@ class LauncherActivity : Activity() {
         showSheet(scrimColor = Color.parseColor("#33000000")) { panel ->
             panel.addView(label("Customize home", 20f, TEXT_PRIMARY, bold = true))
             panel.addView(label(
-                "Changes show instantly. Long-press the home screen any time to come back.",
+                "Changes show instantly. Long-press empty space on the home screen any time to come back.",
                 12f,
                 TEXT_MUTED,
             ).apply {
@@ -4780,6 +4958,19 @@ class LauncherActivity : Activity() {
      * The touch is always passed on to the views first, so lists and sheets keep scrolling.
      */
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        lastTouchRawX = ev.rawX
+        lastTouchRawY = ev.rawY
+        // While a widget is lifted the drag owns the whole gesture: nothing underneath it scrolls,
+        // taps or swipes, and letting go never counts as a drawer or notification swipe.
+        if (homeDrag != null) {
+            when (ev.actionMasked) {
+                MotionEvent.ACTION_DOWN -> endHomeDrag(commit = false) // a stale drag: start fresh
+                MotionEvent.ACTION_MOVE -> { updateHomeDrag(); return true }
+                MotionEvent.ACTION_UP -> { endHomeDrag(commit = true); return true }
+                MotionEvent.ACTION_CANCEL -> { endHomeDrag(commit = false); return true }
+                else -> return true
+            }
+        }
         // Pinching the home screen in or out does what a long press does: opens arrange mode.
         if (!homeArrangeActive && !isDrawerOpen && sheetOverlay == null && hiddenOverlay == null) {
             pinchDetector.onTouchEvent(ev)
