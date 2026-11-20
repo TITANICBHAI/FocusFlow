@@ -1077,6 +1077,8 @@ class LauncherActivity : Activity() {
         stopTaskCollection()
         stopWidgetListening()
         abortHomeDrag()
+        abortGridDrag()
+        dismissUndoBar(runExpire = true)
         super.onPause()
     }
 
@@ -1143,7 +1145,13 @@ class LauncherActivity : Activity() {
         // Long-press empty space or the dock and the arrange bar (Style & options) opens instead.
         val customize = View.OnLongClickListener { v ->
             v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-            if (!beginHomeDrag(lastTouchRawY)) enterHomeArrange()
+            val gridChild = gridChildOf(v)
+            if (gridChild != null) {
+                // On the grid, an item under the finger lifts; empty space opens the menu.
+                if (!beginGridDrag(gridChild)) enterHomeArrange()
+            } else if (!beginHomeDrag(lastTouchRawY)) {
+                enterHomeArrange()
+            }
             true
         }
         homeLongPress = customize
@@ -1293,6 +1301,7 @@ class LauncherActivity : Activity() {
         focusProgressFill = null
         allowanceContainer = null
         abortHomeDrag()
+        abortGridDrag()
         homeBlocks = emptyList()
 
         val columns = HomeGrid.DEFAULT_COLUMNS
@@ -1343,6 +1352,7 @@ class LauncherActivity : Activity() {
             ).show()
         }
         gridUnplacedShown = unplaced
+        gridItems = layout.items
 
         val pinnedByKey = pinned.associateBy { it.key }
         val widgetById = widgets.associateBy { it.first.appWidgetId }
@@ -1367,16 +1377,14 @@ class LauncherActivity : Activity() {
                     val host = widgetViews.getOrPut(entry.appWidgetId) {
                         widgetHost.createView(this, entry.appWidgetId, info)
                     }
-                    host.setOnLongClickListener {
-                        it.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-                        showWidgetActions(entry)
-                        true
-                    }
                     host
                 }
             }
             (view.parent as? ViewGroup)?.removeView(view)
             view.layoutParams = HomeGridLayout.Params(item.col, item.row, item.spanX, item.spanY)
+            // Long-press lifts it; releasing without moving opens its menu (see endGridDrag).
+            view.tag = item.id
+            view.setOnLongClickListener(homeLongPress)
             grid.addView(view)
         }
         grid.post {
@@ -2371,6 +2379,400 @@ class LauncherActivity : Activity() {
             b.view.scaleY = 1f
             b.view.translationZ = 0f
         }
+    }
+
+    // ── Dragging on the grid ───────────────────────────────────────────────────
+    //
+    // Long-press an item on the grid home and it lifts: a copy follows the finger, a soft outline
+    // shows the cells it would take, and anything in the way slides aside once the finger has rested
+    // there a moment. Let go and it settles into place. Drag it to the Remove bar at the top and it
+    // is taken off home (with an Undo). Let go without moving and its own menu opens instead.
+
+    private class GridDrag(
+        val item: HomeGrid.Item,
+        val view: View,
+        val copy: ImageView,
+        /** Where inside the item the finger first landed. */
+        val grabX: Float,
+        val grabY: Float,
+        val startX: Float,
+        val startY: Float,
+        /** Everyone's positions when the drag began. */
+        val items: List<HomeGrid.Item>,
+    ) {
+        var moved = false
+        var overBar = false
+        /** The cell the finger is over now, and the one a drop would use. */
+        var candidate: HomeGrid.Cell? = null
+        var target: HomeGrid.Cell? = null
+        /** Where everyone would be if dropped at [target]. */
+        var placed: List<HomeGrid.Item>? = null
+    }
+
+    private var gridDrag: GridDrag? = null
+    private var gridItems: List<HomeGrid.Item> = emptyList()
+    private var gridOutline: View? = null
+    private var gridDropBar: TextView? = null
+    private val gridPushRunnable = Runnable { applyGridPlacement() }
+
+    /** The direct child of the grid that [v] is, or sits inside; null for the grid itself or anything else. */
+    private fun gridChildOf(v: View): View? {
+        val grid = homeGrid ?: return null
+        var cur: View? = v
+        while (cur != null && cur.parent !== grid) cur = cur.parent as? View
+        return if (cur != null && cur.tag is String) cur else null
+    }
+
+    private fun beginGridDrag(child: View): Boolean {
+        val grid = homeGrid ?: return false
+        if (gridDrag != null || homeArrangeActive || isDrawerOpen ||
+            sheetOverlay != null || hiddenOverlay != null
+        ) return false
+        val id = child.tag as? String ?: return false
+        val item = gridItems.firstOrNull { it.id == id } ?: return false
+        if (child.width <= 0 || child.height <= 0) return false
+        val bitmap = try {
+            Bitmap.createBitmap(child.width, child.height, Bitmap.Config.ARGB_8888)
+                .also { child.draw(Canvas(it)) }
+        } catch (_: Exception) {
+            return false
+        }
+        val childLoc = IntArray(2)
+        child.getLocationOnScreen(childLoc)
+        val rootLoc = IntArray(2)
+        rootFrame.getLocationOnScreen(rootLoc)
+
+        val outline = View(this).apply {
+            background = roundedBackground(Color.parseColor("#22FFFFFF"), Color.parseColor("#99FFFFFF"), 16)
+            layoutParams = HomeGridLayout.Params(item.col, item.row, item.spanX, item.spanY)
+        }
+        grid.addView(outline, 0)
+        gridOutline = outline
+
+        val bar = label("Remove", 15f, TEXT_PRIMARY, bold = true).apply {
+            gravity = Gravity.CENTER
+            background = roundedBackground(Color.parseColor("#80000000"), Color.parseColor("#33FFFFFF"), 28)
+            alpha = 0f
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                dp(56),
+            ).also {
+                it.topMargin = barTop + dp(8)
+                it.leftMargin = dp(20)
+                it.rightMargin = dp(20)
+            }
+        }
+        rootFrame.addView(bar)
+        bar.animate().alpha(1f).setDuration(120).start()
+        gridDropBar = bar
+
+        val copy = ImageView(this).apply {
+            setImageBitmap(bitmap)
+            layoutParams = FrameLayout.LayoutParams(child.width, child.height)
+            translationX = (childLoc[0] - rootLoc[0]).toFloat()
+            translationY = (childLoc[1] - rootLoc[1]).toFloat()
+            translationZ = dp(16).toFloat()
+        }
+        rootFrame.addView(copy)
+        copy.animate().scaleX(1.05f).scaleY(1.05f).alpha(0.95f).setDuration(120).start()
+        child.alpha = 0f
+
+        gridDrag = GridDrag(
+            item, child, copy,
+            grabX = lastTouchRawX - childLoc[0],
+            grabY = lastTouchRawY - childLoc[1],
+            startX = lastTouchRawX,
+            startY = lastTouchRawY,
+            items = gridItems,
+        )
+        // The views under the finger saw a press. End it, so the drag owns the rest of the gesture.
+        val now = SystemClock.uptimeMillis()
+        val cancel = MotionEvent.obtain(now, now, MotionEvent.ACTION_CANCEL, lastTouchRawX, lastTouchRawY, 0)
+        window.superDispatchTouchEvent(cancel)
+        cancel.recycle()
+        return true
+    }
+
+    private fun updateGridDrag() {
+        val d = gridDrag ?: return
+        val grid = homeGrid ?: return
+        val x = lastTouchRawX
+        val y = lastTouchRawY
+        if (!d.moved) {
+            val slop = android.view.ViewConfiguration.get(this).scaledTouchSlop
+            if (Math.hypot((x - d.startX).toDouble(), (y - d.startY).toDouble()) > slop) d.moved = true
+        }
+        if (!d.moved) return
+        val rootLoc = IntArray(2)
+        rootFrame.getLocationOnScreen(rootLoc)
+        d.copy.translationX = x - d.grabX - rootLoc[0]
+        d.copy.translationY = y - d.grabY - rootLoc[1]
+
+        val overBar = y < rootLoc[1] + barTop + dp(8) + dp(56) + dp(16)
+        if (overBar != d.overBar) {
+            d.overBar = overBar
+            gridDropBar?.background = roundedBackground(
+                if (overBar) Color.parseColor("#CCDC2626") else Color.parseColor("#80000000"),
+                Color.parseColor("#33FFFFFF"),
+                28,
+            )
+            d.copy.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+            handler.removeCallbacks(gridPushRunnable)
+            d.candidate = null
+            showGridPlacement(d, null, null)
+        }
+        if (overBar) return
+
+        val cw = grid.cellWidth
+        val ch = grid.cellHeight
+        if (cw <= 0 || ch <= 0) return
+        val gridLoc = IntArray(2)
+        grid.getLocationOnScreen(gridLoc)
+        val fx = (x - d.grabX - gridLoc[0] - grid.paddingLeft - grid.insetPx) / cw
+        val fy = (y - d.grabY - gridLoc[1] - grid.paddingTop - grid.insetPx) / ch
+        val cell = HomeGrid.snap(grid.columns, grid.rows, d.item.spanX, d.item.spanY, fx, fy)
+        if (cell == d.candidate) return
+        d.candidate = cell
+        handler.removeCallbacks(gridPushRunnable)
+        val free = HomeGrid.fits(
+            d.items, grid.columns, grid.rows, cell.col, cell.row, d.item.spanX, d.item.spanY,
+            ignoreId = d.item.id,
+        )
+        // A free spot shows at once. Over something else, the others only move aside if the
+        // finger rests here a moment, so a drag that merely passes over them does not shove them.
+        if (free) applyGridPlacement() else handler.postDelayed(gridPushRunnable, 150)
+    }
+
+    private fun applyGridPlacement() {
+        val d = gridDrag ?: return
+        val grid = homeGrid ?: return
+        val cell = d.candidate ?: return
+        val placed = HomeGrid.place(
+            d.items, grid.columns, grid.rows, d.item.id, cell.col, cell.row, d.item.spanX, d.item.spanY,
+        )
+        if (placed == null) showGridPlacement(d, null, null) else showGridPlacement(d, cell, placed)
+    }
+
+    /** Shows the outline and slides the others to where [placed] puts them; a null cell shows no drop spot. */
+    private fun showGridPlacement(d: GridDrag, cell: HomeGrid.Cell?, placed: List<HomeGrid.Item>?) {
+        val grid = homeGrid ?: return
+        if (cell != d.target) d.copy.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+        d.target = cell
+        d.placed = placed
+        val outline = gridOutline
+        if (outline != null) {
+            if (cell == null) {
+                outline.visibility = View.INVISIBLE
+            } else {
+                (outline.layoutParams as HomeGridLayout.Params).also {
+                    it.col = cell.col
+                    it.row = cell.row
+                }
+                outline.visibility = View.VISIBLE
+                outline.requestLayout()
+            }
+        }
+        val byId = placed?.associateBy { it.id }
+        for (i in 0 until grid.childCount) {
+            val child = grid.getChildAt(i)
+            val id = child.tag as? String ?: continue
+            if (id == d.item.id) continue
+            val before = d.items.firstOrNull { it.id == id } ?: continue
+            val after = byId?.get(id) ?: before
+            child.animate()
+                .translationX(((after.col - before.col) * grid.cellWidth).toFloat())
+                .translationY(((after.row - before.row) * grid.cellHeight).toFloat())
+                .setDuration(150)
+                .setUpdateListener { invalidateFrosted() }
+                .start()
+        }
+    }
+
+    private fun endGridDrag(commit: Boolean) {
+        val d = gridDrag ?: return
+        gridDrag = null
+        handler.removeCallbacks(gridPushRunnable)
+        val grid = homeGrid
+        if (commit && !d.moved) {
+            // A long press with no drag: show the item's own menu, as a long press used to.
+            clearGridDrag(d)
+            when (d.item.kind) {
+                HomeGrid.Kind.APP, HomeGrid.Kind.SHORTCUT ->
+                    pinnedEntries().firstOrNull { it.key == d.item.key }?.let { showPinnedActions(it) }
+                HomeGrid.Kind.WIDGET ->
+                    widgetEntries().firstOrNull { it.appWidgetId.toString() == d.item.key }
+                        ?.let { showWidgetActions(it) }
+                HomeGrid.Kind.CARD -> showHomeCustomizeSheet()
+            }
+            return
+        }
+        if (commit && d.overBar) {
+            clearGridDrag(d)
+            removeFromGrid(d.item)
+            return
+        }
+        val target = d.target
+        val placed = d.placed
+        if (commit && grid != null && target != null && placed != null) {
+            // Save first, so the spot holds even if the screen is rebuilt before the settle ends.
+            prefs.edit().putString(HomeGrid.PREF_KEY, HomeGrid.serialize(placed)).apply()
+            val rootLoc = IntArray(2)
+            rootFrame.getLocationOnScreen(rootLoc)
+            val gridLoc = IntArray(2)
+            grid.getLocationOnScreen(gridLoc)
+            val x = gridLoc[0] + grid.paddingLeft + target.col * grid.cellWidth + grid.insetPx - rootLoc[0]
+            val y = gridLoc[1] + grid.paddingTop + target.row * grid.cellHeight + grid.insetPx - rootLoc[1]
+            d.copy.animate().translationX(x.toFloat()).translationY(y.toFloat())
+                .scaleX(1f).scaleY(1f).alpha(1f)
+                .setDuration(140)
+                .withEndAction {
+                    clearGridDrag(d)
+                    // Rebuilds from what was just saved, and refreshes the clock and cards.
+                    rebuildHomeSections()
+                }
+                .start()
+            return
+        }
+        // Nowhere to land (or the drag was cancelled): settle back where it came from.
+        val childLoc = IntArray(2)
+        d.view.getLocationOnScreen(childLoc)
+        val rootLoc = IntArray(2)
+        rootFrame.getLocationOnScreen(rootLoc)
+        d.copy.animate()
+            .translationX((childLoc[0] - rootLoc[0]).toFloat())
+            .translationY((childLoc[1] - rootLoc[1]).toFloat())
+            .scaleX(1f).scaleY(1f).alpha(1f)
+            .setDuration(140)
+            .withEndAction { clearGridDrag(d) }
+            .start()
+        showGridPlacement(d, null, null)
+    }
+
+    /** Takes the lifted copy, the outline and the Remove bar away and puts everything back to rest. */
+    private fun clearGridDrag(d: GridDrag) {
+        d.copy.animate().cancel()
+        (d.copy.parent as? ViewGroup)?.removeView(d.copy)
+        gridDropBar?.let { bar ->
+            bar.animate().cancel()
+            (bar.parent as? ViewGroup)?.removeView(bar)
+        }
+        gridDropBar = null
+        gridOutline?.let { (it.parent as? ViewGroup)?.removeView(it) }
+        gridOutline = null
+        d.view.alpha = 1f
+        homeGrid?.let { grid ->
+            for (i in 0 until grid.childCount) {
+                val child = grid.getChildAt(i)
+                child.animate().cancel()
+                child.translationX = 0f
+                child.translationY = 0f
+            }
+        }
+        invalidateFrosted()
+    }
+
+    /** Drops a grid drag without saving anything. */
+    private fun abortGridDrag() {
+        val d = gridDrag ?: return
+        gridDrag = null
+        handler.removeCallbacks(gridPushRunnable)
+        clearGridDrag(d)
+    }
+
+    /**
+     * Takes an item off the home screen and offers Undo. Nothing is deleted for good until the Undo
+     * has gone: a widget's slot is only given back to Android once the time is up.
+     */
+    private fun removeFromGrid(item: HomeGrid.Item) {
+        val previousGrid = prefs.getString(HomeGrid.PREF_KEY, null)
+        fun restoreGrid() = prefs.edit().putString(HomeGrid.PREF_KEY, previousGrid).apply()
+        when (item.kind) {
+            HomeGrid.Kind.CARD -> {
+                val title = homeWidgetInfo(item.key).title
+                setHomeWidgetVisible(item.key, false)
+                showUndoBar("$title hidden", onUndo = {
+                    restoreGrid()
+                    setHomeWidgetVisible(item.key, true)
+                })
+            }
+            HomeGrid.Kind.APP, HomeGrid.Kind.SHORTCUT -> {
+                val before = pinnedEntries()
+                val entry = before.firstOrNull { it.key == item.key } ?: return
+                unpin(entry)
+                showUndoBar("${entry.label} removed", onUndo = {
+                    restoreGrid()
+                    savePinned(before)
+                    rebuildHomeSections()
+                })
+            }
+            HomeGrid.Kind.WIDGET -> {
+                val before = widgetEntries()
+                val entry = before.firstOrNull { it.appWidgetId.toString() == item.key } ?: return
+                saveWidgets(before.filterNot { it === entry })
+                rebuildHomeSections()
+                showUndoBar("Widget removed", onUndo = {
+                    restoreGrid()
+                    saveWidgets(before)
+                    rebuildHomeSections()
+                }, onExpire = {
+                    try { widgetHost.deleteAppWidgetId(entry.appWidgetId) } catch (_: Exception) {}
+                    widgetViews.remove(entry.appWidgetId)
+                    if (widgetEntries().isEmpty()) stopWidgetListening()
+                })
+            }
+        }
+    }
+
+    private var undoBar: View? = null
+    private var undoExpireAction: (() -> Unit)? = null
+    private val undoExpireRunnable = Runnable { dismissUndoBar(runExpire = true) }
+
+    private fun showUndoBar(message: String, onUndo: () -> Unit, onExpire: () -> Unit = {}) {
+        if (!::rootFrame.isInitialized) {
+            onExpire()
+            return
+        }
+        // A second removal settles the first one for good.
+        dismissUndoBar(runExpire = true)
+        val bar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(18), dp(4), dp(8), dp(4))
+            background = roundedBackground(Color.parseColor("#F2232A3B"), Color.parseColor("#33FFFFFF"), 24)
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                dp(52),
+                Gravity.BOTTOM,
+            ).also {
+                it.leftMargin = dp(20)
+                it.rightMargin = dp(20)
+                it.bottomMargin = barBottom + (dockView?.height ?: dp(120)) + dp(28)
+            }
+        }
+        bar.addView(label(message, 14f, TEXT_PRIMARY).apply {
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        })
+        bar.addView(label("UNDO", 14f, ACCENT_TEXT, bold = true).apply {
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+            isClickable = true
+            setOnClickListener {
+                dismissUndoBar(runExpire = false)
+                onUndo()
+            }
+        })
+        rootFrame.addView(bar)
+        undoBar = bar
+        undoExpireAction = onExpire
+        handler.postDelayed(undoExpireRunnable, 5000)
+    }
+
+    private fun dismissUndoBar(runExpire: Boolean) {
+        handler.removeCallbacks(undoExpireRunnable)
+        undoBar?.let { (it.parent as? ViewGroup)?.removeView(it) }
+        undoBar = null
+        val action = undoExpireAction
+        undoExpireAction = null
+        if (runExpire) action?.invoke()
     }
 
     /** Rebuilds the home widgets and dock in place, so a style change shows instantly under an open sheet. */
@@ -5179,6 +5581,15 @@ class LauncherActivity : Activity() {
         lastTouchRawY = ev.rawY
         // While a widget is lifted the drag owns the whole gesture: nothing underneath it scrolls,
         // taps or swipes, and letting go never counts as a drawer or notification swipe.
+        if (gridDrag != null) {
+            when (ev.actionMasked) {
+                MotionEvent.ACTION_DOWN -> endGridDrag(commit = false) // a stale drag: start fresh
+                MotionEvent.ACTION_MOVE -> { updateGridDrag(); return true }
+                MotionEvent.ACTION_UP -> { endGridDrag(commit = true); return true }
+                MotionEvent.ACTION_CANCEL -> { endGridDrag(commit = false); return true }
+                else -> return true
+            }
+        }
         if (homeDrag != null) {
             when (ev.actionMasked) {
                 MotionEvent.ACTION_DOWN -> endHomeDrag(commit = false) // a stale drag: start fresh

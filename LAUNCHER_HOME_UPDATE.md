@@ -84,8 +84,8 @@ the same things (clock, status, task, limits, pinned apps and shortcuts, app wid
 Positions are saved in `launcher_home_grid`; what exists still comes from the old settings, so switching back
 and forth loses nothing. Anything that does not fit is left off the grid with a message and stays on List.
 
-This step only **draws** the grid. You cannot drag or resize on it yet (those are the next steps), and a
-long-press on empty space opens Customize home. Tapping and the existing long-press menus work.
+Step 1 drew the grid. Step 2 (below) adds dragging. You cannot resize on it yet. Long-press on empty space opens
+Customize home.
 
 Not verified in the sandbox: nothing in the grid view could be compiled or run here, only its pure rules
 (`HomeGrid`, 33 tests). CI compiles it; nobody has seen it on a phone.
@@ -97,3 +97,24 @@ Please test on a phone:
 - The task card and limits card reserve their cells even when empty (so they do not jump around when a task
   starts). If the limits card is missing and a message said so, that is the "does not fit" case.
 - Rotate or open the notification shade and come back: nothing moves.
+
+### Step 2: drag on the grid
+
+Long-press any item on the Grid layout and it lifts: a copy follows your finger, a soft outline shows the cells it
+would take, and anything in the way slides aside once you rest on it for a moment (about 0.15 s). Let go to
+drop. Drag to the **Remove** bar at the top to take it off home; an **Undo** bar shows for 5 seconds (an app
+widget is only given back to Android after that). Long-press and let go without moving opens the item's old
+menu (pinned app menu, widget menu) as before.
+
+Not verified in the sandbox: this was not compiled or run here (CI only) and has not been seen on a phone.
+
+Please test on a phone (Grid layout):
+- Lift an icon, drop it on an empty cell: it lands exactly there and is still there after leaving and returning.
+- Drop an icon onto another icon, resting a moment first: the other slides down; dragging quickly across does
+  not move others.
+- Lift the clock card and the app widget; drop them on empty space and on other items.
+- Drag something to the Remove bar and let go: it goes, and Undo brings it back in the same spot. For a widget,
+  Undo within 5 seconds keeps its settings.
+- Lift and let go without moving: the old menu opens. Lift and drop in the same place: nothing changes.
+- Dropping a big item where nothing can make room: it returns to where it was.
+- While dragging, nothing scrolls and the drawer or notification shade never opens.
