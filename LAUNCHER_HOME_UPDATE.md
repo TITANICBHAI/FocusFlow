@@ -76,3 +76,24 @@ SDK with only missing third-party libraries reported.
 - Long-press empty space or the dock, and pinch: both still open arrange mode; drag a tile; Hide then Show a
   widget; "Style & options" opens Customize home.
 - Long-press a pinned app and an app widget: their own menus still open (not a drag).
+
+## Grid home layout (beta), step 1 of the free-grid plan
+
+Customize home now has **Home layout: List | Grid (beta)**. List is the default and is unchanged. Grid shows
+the same things (clock, status, task, limits, pinned apps and shortcuts, app widgets) on a fixed 4 by 6 grid.
+Positions are saved in `launcher_home_grid`; what exists still comes from the old settings, so switching back
+and forth loses nothing. Anything that does not fit is left off the grid with a message and stays on List.
+
+This step only **draws** the grid. You cannot drag or resize on it yet (those are the next steps), and a
+long-press on empty space opens Customize home. Tapping and the existing long-press menus work.
+
+Not verified in the sandbox: nothing in the grid view could be compiled or run here, only its pure rules
+(`HomeGrid`, 33 tests). CI compiles it; nobody has seen it on a phone.
+
+Please test on a phone:
+- Customize home > Home layout > Grid (beta): the clock, status and pinned apps appear on a grid; switching back
+  to List brings the old home screen back exactly.
+- Add a widget while on Grid: it appears full width, and tapping it works.
+- The task card and limits card reserve their cells even when empty (so they do not jump around when a task
+  starts). If the limits card is missing and a message said so, that is the "does not fit" case.
+- Rotate or open the notification shade and come back: nothing moves.

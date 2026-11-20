@@ -174,8 +174,8 @@ dock or the drawer's own layout, and anything in enforcement, allowance or block
 ## Progress
 | Phase | Status |
 | --- | --- |
-| 0 Grid model | code and tests written (`HomeGrid.kt`, `HomeGridTest.kt`, 33 tests pass locally with a JUnit stand-in); CI result pending |
-| 1 Draw the grid | not started |
+| 0 Grid model | done: pushed in 8733940, 33 tests, CI green (run 44565515145) |
+| 1 Draw the grid | code written (`HomeGridLayout.kt`, `populateHomeGrid`, Home layout switch), CI pending, not seen on a phone |
 | 2 Drag and drop | not started |
 | 3 Resize | not started |
 | 4 Edit menu | not started |
