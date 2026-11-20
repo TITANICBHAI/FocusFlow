@@ -176,7 +176,7 @@ dock or the drawer's own layout, and anything in enforcement, allowance or block
 | --- | --- |
 | 0 Grid model | done: pushed in 8733940, 33 tests, CI green (run 44565515145) |
 | 1 Draw the grid | done: pushed in e0c1d55, CI green (run 44661199928), not seen on a phone |
-| 2 Drag and drop | code written (overlay copy, outline, push-aside with dwell, Remove bar with Undo), CI pending, not seen on a phone |
+| 2 Drag and drop | done: pushed in abd6455, CI green (run 44728847618), not seen on a phone |
 | 3 Resize | not started |
 | 4 Edit menu | not started |
 | 5 Pages | deferred, not in this plan |
