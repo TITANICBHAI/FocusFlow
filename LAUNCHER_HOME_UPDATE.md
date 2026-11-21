@@ -26,16 +26,11 @@ Nothing here changes enforcement rules except the count-mode fix (item 1).
 
 ## New and changed behaviour
 
-- **Drag a widget in place**: long-press a widget (clock, status, task card, limits, or the gaps around
-  the pinned apps and app widgets) and it lifts. Drag it up or down, the others slide out of the way,
-  let go and it stays. The home screen scrolls by itself near its top and bottom edge. See
-  `HomeDragMath` and its test.
-- **Arrange mode** (long-press empty space or the dock, or pinch the home screen): compact tiles, drag
-  the handle to reorder, Hide / Show each widget, Done, or "Style & options". Still the place for
-  Hide / Show and for screen-reader Move up / Move down.
-- **Pinned apps grid**: 3x3, 4x4 or 5x5. Add from the drawer's long-press sheet, or through Android's
-  "Add to Home screen" (`PinShortcutActivity`, asks before adding).
-- **App widgets**: hosted on the home screen (up to 6), picker, small / medium / large height.
+- **Home screen is a free grid** (4 columns by 6 rows, one page): see "Grid home" below. This replaced
+  the earlier stacked list, arrange mode and the up/down widget drag (`HomeDragMath`, now deleted).
+- **Pinned apps**: add from the drawer's long-press sheet, by dragging an app from the drawer onto the
+  grid, or through Android's "Add to Home screen" (`PinShortcutActivity`, asks before adding).
+- **App widgets**: hosted on the home screen (up to 6), picker; size by dragging the edge handles.
 - **Wallpaper screen**: gallery photo is the first tile (+), dismissible notices, "use on phone" bottom
   sheet; the launcher's own wallpaper section offers the same.
 - **Drawer**: sections (All apps, Focus tools, Limited time, Blocked) are removable; one left hides the row.
@@ -50,7 +45,9 @@ Nothing here changes enforcement rules except the count-mode fix (item 1).
 |---|---|
 | `wallpaper_match_card_dismissed`, `wallpaper_phone_note_dismissed` | Closed notices on the Wallpaper screen |
 | `launcher_home_order` | Home widget order |
-| `launcher_home_pinned`, `launcher_home_pinned_size`, `launcher_home_pinned_items` | Pinned grid style, size, items |
+| `launcher_home_pinned`, `launcher_home_pinned_items` | Pinned apps shown or hidden, and the items (`launcher_home_pinned_size` is no longer used) |
+| `launcher_home_grid` | Where each item sits on the grid home |
+| `launcher_home_layout` | No longer used (it held the List | Grid choice during the beta) |
 | `launcher_home_widgets`, `launcher_home_widgets_items` | App widgets style and hosted widgets |
 | `drawer_sections` | Which drawer sections are shown |
 
@@ -77,90 +74,37 @@ SDK with only missing third-party libraries reported.
   widget; "Style & options" opens Customize home.
 - Long-press a pinned app and an app widget: their own menus still open (not a drag).
 
-## Grid home layout (beta), step 1 of the free-grid plan
+## Grid home
 
-Customize home now has **Home layout: List | Grid (beta)**. List is the default and is unchanged. Grid shows
-the same things (clock, status, task, limits, pinned apps and shortcuts, app widgets) on a fixed 4 by 6 grid.
-Positions are saved in `launcher_home_grid`; what exists still comes from the old settings, so switching back
-and forth loses nothing. Anything that does not fit is left off the grid with a message and stays on List.
+The home screen is a fixed 4 by 6 grid on one page, like a stock launcher. It shows the clock, status, task
+and limits cards, pinned apps and shortcuts, and app widgets. Positions are saved in `launcher_home_grid`;
+what exists still comes from the older settings (which cards are on, the pinned list, the hosted widgets).
+The first time it opens, your old stacked layout is laid out on the grid in the same order. Anything that does
+not fit is left off the grid with a message ("Resize or remove something to make room"); nothing is deleted.
 
-Step 1 drew the grid. Step 2 (below) adds dragging and step 3 resizing. Long-press on empty space opens
-Customize home.
+- **Move**: long-press an item and drag. A copy follows your finger and an outline shows where it lands.
+  Resting on another item moves it aside after about 0.15 s. Drag to the **Remove** bar at the top to take it
+  off home (5 second Undo; a widget is only given back to Android after that).
+- **Resize**: long-press a widget or card and let go without moving. Drag a handle on any edge in whole
+  cells; whatever is in the way slides aside. Tap outside to close. A card keeps its natural height at the top
+  of its cells.
+- **Pinned apps**: long-press and let go without moving opens the app's menu (Remove from home, Edit home).
+- **Edit home** (long-press empty space, or pinch): Widgets (add), Manage widgets (remove, including any that did
+  not fit), Wallpaper, Style & options (the Customize home sheet).
+- **Drag from the drawer**: long-press an app in the drawer and move; the drawer fades away and the icon
+  follows you. Let go over a spot to pin it there. Long-press without moving still opens its menu.
+- **Gone**: the stacked list layout, arrange mode, the up/down widget drag, the "Home layout" switch and the
+  "Pinned grid size" option. Swipe up always opens the drawer and swipe down the notifications (the home screen
+  no longer scrolls).
 
-Not verified in the sandbox: nothing in the grid view could be compiled or run here, only its pure rules
-(`HomeGrid`, 33 tests). CI compiles it; nobody has seen it on a phone.
+Not verified in the sandbox: the grid rules are unit tested (`HomeGridTest`, 38 tests). Everything else
+(drawing, gestures, widget sizing) was compiled only by CI and has not been seen on a phone.
 
 Please test on a phone:
-- Customize home > Home layout > Grid (beta): the clock, status and pinned apps appear on a grid; switching back
-  to List brings the old home screen back exactly.
-- Add a widget while on Grid: it appears full width, and tapping it works.
-- The task card and limits card reserve their cells even when empty (so they do not jump around when a task
-  starts). If the limits card is missing and a message said so, that is the "does not fit" case.
-- Rotate or open the notification shade and come back: nothing moves.
-
-### Step 2: drag on the grid
-
-Long-press any item on the Grid layout and it lifts: a copy follows your finger, a soft outline shows the cells it
-would take, and anything in the way slides aside once you rest on it for a moment (about 0.15 s). Let go to
-drop. Drag to the **Remove** bar at the top to take it off home; an **Undo** bar shows for 5 seconds (an app
-widget is only given back to Android after that). Long-press and let go without moving opens a pinned app's old
-menu; on a widget or card it shows resize handles (step 3).
-
-Not verified in the sandbox: this was not compiled or run here (CI only) and has not been seen on a phone.
-
-Please test on a phone (Grid layout):
-- Lift an icon, drop it on an empty cell: it lands exactly there and is still there after leaving and returning.
-- Drop an icon onto another icon, resting a moment first: the other slides down; dragging quickly across does
-  not move others.
-- Lift the clock card and the app widget; drop them on empty space and on other items.
-- Drag something to the Remove bar and let go: it goes, and Undo brings it back in the same spot. For a widget,
-  Undo within 5 seconds keeps its settings.
-- Lift and let go without moving: the old menu opens. Lift and drop in the same place: nothing changes.
-- Dropping a big item where nothing can make room: it returns to where it was.
-- While dragging, nothing scrolls and the drawer or notification shade never opens.
-
-### Step 3: resize on the grid
-
-Long-press a widget or a card and let go without moving: an outline appears with a handle on each edge. Drag a
-handle to grow or shrink it in whole cells (at least 1 by 1, inside the 4 by 6 grid). Items in the way slide
-aside, and if there is no room the item stays at the last size that fit. Tap anywhere outside the outline to
-close it. The size is saved, and an app widget is told its new size in dp.
-
-Not verified in the sandbox: the edge and size rules are unit tested (`HomeGridTest`, 38 tests); the handles,
-live preview and widget resizing were not compiled or run here (CI only) and have not been seen on a phone.
-
-Please test on a phone (Grid layout):
-- Long-press a widget, let go: outline with 4 handles. Drag the bottom handle down and up; drag the left/right
-  handles on a card that is not full width (e.g. the status card).
-- Grow something over other items: they slide away; let go and they stay.
-- Resize an app widget: its content redraws to fit (some widgets have a minimum size and may not shrink fully).
-- Tap outside to close; drag the item away while the outline is shown; open the drawer: the outline closes.
-- Handles at the screen's left or right edge may clash with the system back gesture; tell me if they do.
-- Cards keep their natural height at the top of their cells; making a card taller only reserves space.
-
-### Step 4: edit menu on the grid
-
-Long-press empty space on the Grid layout (or pinch the home screen) opens a small **Edit home** menu:
-**Widgets** (add an app widget), **Wallpaper**, and **Style & options** (the Customize home sheet, which also
-has the List | Grid switch). Arrange mode is not used on the grid. The List layout is unchanged.
-
-Not verified in the sandbox: not compiled or run here (CI only), not seen on a phone.
-
-Please test on a phone (Grid layout): long-press an empty cell and each of the three rows opens what it says;
-add a widget from Widgets and check it lands in the first free spot (or the "don't fit" message shows when
-there is no room); the Customize sheet still switches back to List.
-
-### Step 6: drag an app from the drawer onto the grid
-
-With the Grid layout on, long-press an app in the drawer and move your finger: the drawer fades away and the app's
-icon follows you over the home grid, with the same outline and push-aside as any other drag. Let go over a spot
-and the app is pinned there (the same as "Pin to home"). Let go outside a valid spot, or over the grid with no
-room, and nothing is added. A long-press that does not move still opens the app's menu. If the app is already
-on home, or home has no free cell, the long-press opens the menu (with a short message when it is full). On the
-List layout nothing changed.
-
-Not verified in the sandbox: not compiled or run here (CI only), not seen on a phone.
-
-Please test on a phone (Grid layout): drag an app from the drawer to an empty cell and onto an occupied one;
-check it stays after leaving and returning; long-press an app already on home (menu opens); long-press and let
-go without moving (menu opens); drag, then let the finger leave the screen's grid area and release.
+- Open the launcher after updating: your old home appears on the grid, in the old order. If something is
+  missing there should have been a "don't fit" message; Edit home > Manage widgets lists any hidden widget.
+- Lift, move and drop icons, widgets and cards, onto free cells and onto other items; Remove and Undo; resize
+  a widget; drag an app from the drawer onto the grid; Edit home rows; pinch opens Edit home.
+- Swipe up from the middle of the home screen (over a widget too) opens the drawer; swipe down opens the
+  notification shade; back closes resize mode.
+- Handles at the screen's left or right edge may clash with the system back gesture.

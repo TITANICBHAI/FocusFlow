@@ -181,4 +181,4 @@ dock or the drawer's own layout, and anything in enforcement, allowance or block
 | 4 Edit menu | done: pushed in 95c1d17, CI green (run 44885084770), not seen on a phone |
 | 5 Pages | deferred, not in this plan |
 | 6 Drag from drawer | done: pushed in 1fbf152, CI green (run 44885549782), not seen on a phone |
-| 7 Contract | not started |
+| 7 Contract | code written (grid is the only home; stack, arrange mode, old drag, switch removed), CI pending |

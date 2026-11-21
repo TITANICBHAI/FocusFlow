@@ -90,7 +90,6 @@ import java.util.Date
 import java.util.Locale
 import kotlin.math.max
 import kotlin.math.min
-import kotlin.math.roundToInt
 
 /**
  * LauncherActivity — FocusFlow's full home-screen replacement.
@@ -140,8 +139,6 @@ class LauncherActivity : Activity() {
         private const val PREF_HOME_SEARCH = "launcher_home_search"
         private const val PREF_HOME_ALL_APPS = "launcher_home_all_apps"
         private const val PREF_HOME_ORDER = "launcher_home_order"
-        /** "list" (the stacked home, default) or "grid" (the free grid, beta). */
-        private const val PREF_HOME_LAYOUT = "launcher_home_layout"
         private val HOME_WIDGETS = listOf("clock", "status", "task", "limits", "pinned", "widgets")
         private const val PREF_HOME_WIDGETS = "launcher_home_widgets"
         private const val PREF_HOME_WIDGETS_ITEMS = HomeWidgetEntries.PREF_KEY
@@ -152,12 +149,7 @@ class LauncherActivity : Activity() {
         private const val PREF_HOME_PINNED_SIZE = HomePinnedItems.PREF_SIZE_KEY
         /** Rows shown in the home limits list; the rest are one tap away in the drawer. */
         private const val MAX_HOME_LIMITS = 3
-        /** Screen-reader actions on the reorder handle. Any ids clear of the system's own. */
-        private const val ARRANGE_ROW_DP = 64
-        private const val ARRANGE_GAP_DP = 8
         private const val PREV_STYLE_SUFFIX = "_prev"
-        private const val A11Y_MOVE_UP = 0x0F100001
-        private const val A11Y_MOVE_DOWN = 0x0F100002
         private const val REQ_PICK_WALLPAPER = 4201
         private const val SIZE_DATE = 12f
         private const val SIZE_SEARCH_HINT = 14f
@@ -208,14 +200,12 @@ class LauncherActivity : Activity() {
 
     // Home views
     private var homeContent: LinearLayout? = null
-    private var homeColumn: LinearLayout? = null
-    /** Set instead of [homeColumn] and [homeScroll] while the Grid home layout is on. */
+    /** The home screen: a fixed grid of cells that everything sits on. */
     private var homeGrid: HomeGridLayout? = null
     private var homeLongPress: View.OnLongClickListener? = null
     private var clockStyle = "light"
     private var suppressPrefRebuild = false
     private var drawerLimitInfo: Map<String, Pair<String, Float>> = emptyMap()
-    private var homeScroll: ScrollView? = null
     private var dockView: LinearLayout? = null
     private var dockActionsRow: LinearLayout? = null
     private var homeBackdrop: ImageView? = null
@@ -293,7 +283,7 @@ class LauncherActivity : Activity() {
                         if (ratio < 0.8f || ratio > 1.25f) {
                             pinchFired = true
                             rootFrame.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-                            enterHomeArrange()
+                            openHomeEditMenu()
                         }
                     }
                     return true
@@ -301,9 +291,6 @@ class LauncherActivity : Activity() {
             },
         )
     }
-    private var swipeStartScrollY = 0
-    private var swipeContentCanScrollDown = false
-    private var swipeContentScrolledDown = false
     private var swipeVelocityTracker: VelocityTracker? = null
 
     private val ownPackage: String
@@ -1034,7 +1021,6 @@ class LauncherActivity : Activity() {
         } else if (intent.hasCategory(Intent.CATEGORY_HOME) && ::rootFrame.isInitialized) {
             // Pressing Home while an overlay is open takes you back to the plain home screen.
             closeAllOverlays()
-            homeScroll?.scrollTo(0, 0)
         }
     }
 
@@ -1080,7 +1066,6 @@ class LauncherActivity : Activity() {
         }
         stopTaskCollection()
         stopWidgetListening()
-        abortHomeDrag()
         abortGridDrag()
         pendingDrawerDrag = null
         exitGridResize()
@@ -1103,7 +1088,7 @@ class LauncherActivity : Activity() {
         when {
             sheetOverlay != null -> dismissSheet()
             hiddenOverlay != null -> closeHiddenScreen()
-            homeArrangeActive -> exitHomeArrange()
+            gridResizeId != null -> exitGridResize()
             isDrawerOpen -> if (isEditMode) cancelEditMode() else closeDrawer()
             else -> Unit
         }
@@ -1127,8 +1112,6 @@ class LauncherActivity : Activity() {
         sheetOverlay = null
         isDrawerOpen = false
         isEditMode = false
-        homeArrangeActive = false
-        arrangeBar = null
 
         val backdrop = ImageView(this).apply {
             layoutParams = matchParent()
@@ -1147,17 +1130,12 @@ class LauncherActivity : Activity() {
         }
         homeContent = content
 
-        // Long-press a widget and it lifts: drag it where you want it, no menu in between.
-        // Long-press empty space or the dock and the arrange bar (Style & options) opens instead.
+        // Long-press an item and it lifts: drag it where you want it, no menu in between. Long-press
+        // empty space or the dock and the Edit home menu opens instead.
         val customize = View.OnLongClickListener { v ->
             v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
             val gridChild = gridChildOf(v)
-            if (gridChild != null) {
-                // On the grid, an item under the finger lifts; empty space opens the menu.
-                if (!beginGridDrag(gridChild)) enterHomeArrange()
-            } else if (!beginHomeDrag(lastTouchRawY)) {
-                enterHomeArrange()
-            }
+            if (gridChild == null || !beginGridDrag(gridChild)) openHomeEditMenu()
             true
         }
         homeLongPress = customize
@@ -1165,50 +1143,18 @@ class LauncherActivity : Activity() {
         gridResizeId = null
         gridResizeFrame = null
         gridResizeDrag = null
-        if (gridHomeOn()) {
-            homeScroll = null
-            homeColumn = null
-            val grid = HomeGridLayout(this).apply {
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    0,
-                    1f,
-                )
-                insetPx = dp(4)
-                setOnLongClickListener(customize)
-            }
-            homeGrid = grid
-            populateHomeGrid(grid)
-            content.addView(grid)
-        } else {
-            homeGrid = null
-            val scroll = ScrollView(this).apply {
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    0,
-                    1f,
-                )
-                isVerticalScrollBarEnabled = false
-                overScrollMode = View.OVER_SCROLL_NEVER
-                clipChildren = false
-                clipToPadding = false
-                isFillViewport = true
-            }
-            homeScroll = scroll
-            val column = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                layoutParams = ViewGroup.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT,
-                )
-            }
-            homeColumn = column
-            column.setOnLongClickListener(customize)
-            populateHomeColumn(column)
-            scroll.addView(column)
-            scroll.setOnScrollChangeListener { _, _, _, _, _ -> invalidateFrosted() }
-            content.addView(scroll)
+        val grid = HomeGridLayout(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                0,
+                1f,
+            )
+            insetPx = dp(4)
+            setOnLongClickListener(customize)
         }
+        homeGrid = grid
+        populateHomeGrid(grid)
+        content.addView(grid)
         content.addView(buildDock())
         rootFrame.addView(content)
 
@@ -1243,58 +1189,13 @@ class LauncherActivity : Activity() {
         if (clockStyleValue() == "light" || clockStyleValue() == "off") Gravity.CENTER_HORIZONTAL
         else Gravity.START
 
-    private fun populateHomeColumn(column: LinearLayout) {
-        column.removeAllViews()
-        clockView = null
-        dateView = null
-        statusText = null
-        statusDot = null
-        focusCard = null
-        focusHeaderView = null
-        focusTitleView = null
-        focusSubtitleView = null
-        focusProgressTrack = null
-        focusProgressFill = null
-        allowanceContainer = null
-        // The views a drag was holding are about to be replaced.
-        abortHomeDrag()
-        homeBlocks = emptyList()
-        if (homeArrangeActive) {
-            populateArrangeColumn(column)
-            return
-        }
-        if (clockStyleValue() == "off") {
-            column.addView(View(this), LinearLayout.LayoutParams(1, dp(28)))
-        }
-        // In the order the person arranged them (long-press a widget and drag it to change it).
-        val blocks = ArrayList<HomeBlock>()
-        homeOrder().forEach { id ->
-            val block: View? = when (id) {
-                "clock" -> if (clockStyleValue() != "off") buildClockWidget() else null
-                "status" -> if (statusStyleValue() != "off") buildStatusPill() else null
-                "task" -> if (taskStyleValue() != "off") buildFocusSessionCard() else null
-                "limits" -> if (limitsStyleValue() != "off") buildTodaysLimits() else null
-                "pinned" -> if (pinnedStyleValue() != "off") buildPinnedWidget() else null
-                "widgets" -> if (widgetsStyleValue() != "off") buildWidgetsBlock() else null
-                else -> null
-            }
-            if (block != null) {
-                column.addView(block)
-                blocks += HomeBlock(id, block)
-            }
-        }
-        homeBlocks = blocks
-    }
-
-    private fun gridHomeOn(): Boolean = prefs.getString(PREF_HOME_LAYOUT, "list") == "grid"
-
     /** Items the grid had no room for, as last reported, so the message shows once rather than every redraw. */
     private var gridUnplacedShown: Set<String> = emptySet()
 
     /**
-     * Fills the grid home screen. What is on it still comes from the same settings as the list home
-     * (which cards are on, the pinned apps, the hosted widgets); only the positions are the grid's.
-     * Anything new gets the first free spot and anything with no room is reported, never deleted.
+     * Fills the home screen. What is on it comes from the settings (which cards are on, the pinned
+     * apps, the hosted widgets); the grid only remembers where each one sits. Anything new gets the
+     * first free spot, and anything with no room is reported, never deleted.
      */
     private fun populateHomeGrid(grid: HomeGridLayout) {
         grid.removeAllViews()
@@ -1309,11 +1210,9 @@ class LauncherActivity : Activity() {
         focusProgressTrack = null
         focusProgressFill = null
         allowanceContainer = null
-        abortHomeDrag()
         abortGridDrag()
         gridResizeDrag = null
         gridResizeFrame = null // removeAllViews above took it off the grid
-        homeBlocks = emptyList()
 
         val columns = HomeGrid.DEFAULT_COLUMNS
         val rows = HomeGrid.DEFAULT_ROWS
@@ -1358,7 +1257,7 @@ class LauncherActivity : Activity() {
             Toast.makeText(
                 this,
                 "${unplaced.size} item${if (unplaced.size == 1) "" else "s"} don't fit on the grid yet. " +
-                    "They are still on your List layout.",
+                    "Resize or remove something to make room.",
                 Toast.LENGTH_LONG,
             ).show()
         }
@@ -1467,17 +1366,6 @@ class LauncherActivity : Activity() {
         return saved + HOME_WIDGETS.filter { it !in saved }
     }
 
-    private fun moveHomeWidget(id: String, delta: Int) {
-        val order = homeOrder().toMutableList()
-        val from = order.indexOf(id)
-        val to = from + delta
-        if (from < 0 || to !in order.indices) return
-        order.removeAt(from)
-        order.add(to, id)
-        prefs.edit().putString(PREF_HOME_ORDER, order.joinToString(",")).apply()
-        rebuildHomeSections()
-    }
-
     // ── App widgets ────────────────────────────────────────────────────────────
     //
     // Real Android widgets (weather, calendar, music...) hosted on the home screen. Android draws
@@ -1522,60 +1410,6 @@ class LauncherActivity : Activity() {
     } catch (_: Exception) {
         null
     } ?: entry.provider.substringAfterLast('/').trimStart('.')
-
-    /** Null when no widget has been added, so the block takes up no room. */
-    private fun buildWidgetsBlock(): View? {
-        widgetsRenderedRaw = prefs.getString(PREF_HOME_WIDGETS_ITEMS, null)
-        val entries = widgetEntries()
-        if (entries.isEmpty()) return null
-        val density = resources.displayMetrics.density
-        val widthDp = (resources.displayMetrics.widthPixels / density).toInt() - 40
-        val block = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-            ).also { it.topMargin = dp(12) }
-        }
-        val gone = ArrayList<Int>()
-        entries.forEach { entry ->
-            val info = try {
-                appWidgetManager.getAppWidgetInfo(entry.appWidgetId)
-            } catch (_: Exception) {
-                null
-            }
-            if (info == null) {
-                // Its app was uninstalled or Android dropped it.
-                gone.add(entry.appWidgetId)
-                return@forEach
-            }
-            val view = widgetViews.getOrPut(entry.appWidgetId) {
-                widgetHost.createView(this, entry.appWidgetId, info)
-            }
-            (view.parent as? ViewGroup)?.removeView(view)
-            val needsDp = (info.minHeight / density).toInt().coerceAtMost(320)
-            val heightDp = HomeWidgetEntries.heightDp(entry.size, needsDp)
-            view.layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(heightDp),
-            ).also { it.bottomMargin = dp(10) }
-            view.updateAppWidgetSize(null, widthDp, heightDp, widthDp, heightDp)
-            view.setOnLongClickListener {
-                it.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-                showWidgetActions(entry)
-                true
-            }
-            block.addView(view)
-        }
-        if (gone.isNotEmpty()) {
-            gone.forEach {
-                try { widgetHost.deleteAppWidgetId(it) } catch (_: Exception) {}
-                widgetViews.remove(it)
-            }
-            saveWidgets(entries.filterNot { it.appWidgetId in gone })
-        }
-        return if (block.childCount == 0) null else block
-    }
 
     private fun showWidgetPicker() {
         if (!::rootFrame.isInitialized) return
@@ -1710,48 +1544,21 @@ class LauncherActivity : Activity() {
         rebuildHomeSections()
     }
 
-    private fun showWidgetActions(entry: HomeWidgetEntries.Entry) {
-        showSheet { panel ->
-            panel.addView(label(widgetLabel(entry), 18f, TEXT_PRIMARY, bold = true))
-            panel.addView(label("Height", 13f, TEXT_DIM).apply {
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                ).also { it.topMargin = dp(10) }
-            })
-            val sizes = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                ).also { it.topMargin = dp(6); it.bottomMargin = dp(6) }
-            }
-            HomeWidgetEntries.Size.values().forEach { size ->
-                sizes.addView(chipView(size.label, size == entry.size) {
-                    saveWidgets(HomeWidgetEntries.setSize(widgetEntries(), entry.appWidgetId, size))
-                    dismissSheet()
-                    rebuildHomeSections()
-                })
-            }
-            panel.addView(sizes)
-            panel.addView(sheetRow("Remove widget") {
-                dismissSheet()
-                removeWidget(entry)
-            })
-            panel.addView(sheetRow("Arrange home", "Move or hide the widgets", TEXT_DIM) {
-                dismissSheet()
-                enterHomeArrange()
-            })
-        }
-    }
-
+    /**
+     * Every hosted widget with a way to remove it. On the home screen a widget is removed by dragging
+     * it to the Remove bar, but one that did not fit the grid is not on screen to drag.
+     */
     private fun showManageWidgetsSheet() {
         showSheet { panel ->
             panel.addView(label("Widgets on your home", 18f, TEXT_PRIMARY, bold = true))
             widgetEntries().forEach { entry ->
-                panel.addView(sheetRow(widgetLabel(entry), "Height: ${entry.size.label}") {
+                val onScreen = gridItems.any { it.id == HomeGrid.id(HomeGrid.Kind.WIDGET, entry.appWidgetId.toString()) }
+                panel.addView(sheetRow(
+                    widgetLabel(entry),
+                    if (onScreen) "Tap to remove" else "Not on screen (no room). Tap to remove",
+                ) {
                     dismissSheet()
-                    showWidgetActions(entry)
+                    removeWidget(entry)
                 })
             }
             panel.addView(sheetRow("Done", tint = TEXT_DIM) { dismissSheet() })
@@ -1763,13 +1570,10 @@ class LauncherActivity : Activity() {
     // A grid of icons on the home screen: apps added from the drawer, and shortcuts that other
     // apps hand over through "Add to Home screen" (see PinShortcutActivity). It is empty and
     // invisible until something is pinned, and it is a widget like the others, so it can be moved
-    // or hidden in arrange mode.
+    // or hidden in Customize home.
 
     private var pinnedRenderedRaw: String? = null
     private val shortcutIconCache = HashMap<String, Drawable>()
-
-    private fun pinnedColumns(): Int =
-        HomePinnedItems.columnsFromPref(prefs.getString(PREF_HOME_PINNED_SIZE, null))
 
     private fun pinnedEntries(): List<HomePinnedItems.Entry> =
         HomePinnedItems.parse(prefs.getString(PREF_HOME_PINNED_ITEMS, null))
@@ -1782,7 +1586,7 @@ class LauncherActivity : Activity() {
         val outcome = HomePinnedItems.add(
             pinnedEntries(),
             HomePinnedItems.Entry(HomePinnedItems.Kind.APP, pkg, "", name),
-            HomePinnedItems.capacity(pinnedColumns()),
+            HomePinnedItems.MAX_ITEMS,
         )
         when (outcome.status) {
             HomePinnedItems.Status.ADDED -> {
@@ -1813,45 +1617,6 @@ class LauncherActivity : Activity() {
     private fun pinnedStillThere(entry: HomePinnedItems.Entry): Boolean =
         entry.kind == HomePinnedItems.Kind.SHORTCUT ||
             packageManager.getLaunchIntentForPackage(entry.packageName) != null
-
-    /** Null when nothing is pinned, so an empty grid takes up no room at all. */
-    private fun buildPinnedWidget(): View? {
-        pinnedRenderedRaw = prefs.getString(PREF_HOME_PINNED_ITEMS, null)
-        val all = pinnedEntries()
-        val entries = all.filter { pinnedStillThere(it) }
-        // Apps that were uninstalled quietly drop off.
-        if (entries.size != all.size) savePinned(entries)
-        if (entries.isEmpty()) return null
-        val columns = pinnedColumns()
-        // After choosing a smaller grid the extra icons are kept, just not shown.
-        val shown = entries.take(HomePinnedItems.capacity(columns))
-        val grid = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-            ).also { it.topMargin = dp(12); it.bottomMargin = dp(6) }
-        }
-        shown.chunked(columns).forEach { rowItems ->
-            val row = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                ).also { it.bottomMargin = dp(10) }
-            }
-            rowItems.forEach { row.addView(pinnedCell(it, columns)) }
-            // Empty cells keep the columns lined up on a short last row.
-            repeat(columns - rowItems.size) {
-                row.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
-            }
-            grid.addView(row)
-        }
-        if (shown.size < entries.size) {
-            grid.addView(label("${entries.size - shown.size} more not shown. Choose a bigger grid in Customize home.", 11f, TEXT_DIM))
-        }
-        return grid
-    }
 
     private fun pinnedCell(entry: HomePinnedItems.Entry, columns: Int): View {
         val cell = LinearLayout(this).apply {
@@ -1961,24 +1726,14 @@ class LauncherActivity : Activity() {
                 dismissSheet()
                 unpin(entry)
             })
-            panel.addView(sheetRow("Arrange home", "Move or hide the pinned apps", TEXT_DIM) {
+            panel.addView(sheetRow("Edit home", "Widgets, wallpaper, style", TEXT_DIM) {
                 dismissSheet()
-                enterHomeArrange()
+                showGridEditMenu()
             })
         }
     }
 
-    // ── Arrange mode ───────────────────────────────────────────────────────────
-    //
-    // Long-press empty space or the dock, pinch the home screen in or out, or choose "Arrange home"
-    // from a widget's menu, and the widgets turn into one compact tile each. (Long-pressing a widget
-    // itself lifts it for a direct drag instead; see "Dragging widgets in place" below.) Compact
-    // tiles are all the same height, so a long limits list or a tall task card is no harder to move
-    // than the clock. Drag ≡ to reorder, Hide or Show to switch one off or on, Done to go back.
-    // "Style & options" opens the full Customize home sheet.
-
-    private var homeArrangeActive = false
-    private var arrangeBar: View? = null
+    // ── Style choices ──────────────────────────────────────────────────────────
 
     private class HomeWidgetInfo(val title: String, val prefKey: String, val style: () -> String)
 
@@ -2009,392 +1764,16 @@ class LauncherActivity : Activity() {
         rebuildHomeSections()
     }
 
-    private fun enterHomeArrange() {
-        if (homeArrangeActive || isDrawerOpen || sheetOverlay != null || hiddenOverlay != null) return
-        if (gridHomeOn()) {
-            // Arrange mode is for the stacked home. The grid has a small edit menu instead.
-            showGridEditMenu()
-            return
-        }
-        val content = homeContent ?: return
-        homeArrangeActive = true
-        homeScroll?.scrollTo(0, 0)
-        val bar = buildArrangeBar()
-        arrangeBar = bar
-        content.addView(bar, 1) // between the scrolling area and the dock
-        rebuildHomeSections()
+    /** Long-press on empty space, or a pinch: the Edit home menu (see [showGridEditMenu]). */
+    private fun openHomeEditMenu() {
+        if (isDrawerOpen || sheetOverlay != null || hiddenOverlay != null || gridDrag != null) return
+        exitGridResize()
+        showGridEditMenu()
     }
 
-    private fun exitHomeArrange() {
-        if (!homeArrangeActive) return
-        homeArrangeActive = false
-        arrangeBar?.let { (it.parent as? ViewGroup)?.removeView(it) }
-        arrangeBar = null
-        rebuildHomeSections()
-    }
-
-    private fun buildArrangeBar(): View {
-        val bar = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-            ).also { it.topMargin = dp(8); it.bottomMargin = dp(8) }
-        }
-        fun button(text: String, selected: Boolean, onClick: () -> Unit): View =
-            chipView(text, selected, onClick).apply {
-                layoutParams = LinearLayout.LayoutParams(0, dp(44), 1f)
-                    .also { it.leftMargin = dp(4); it.rightMargin = dp(4) }
-            }
-        bar.addView(button("Style & options", false) {
-            exitHomeArrange()
-            showHomeCustomizeSheet()
-        })
-        bar.addView(button("Done", true) { exitHomeArrange() })
-        return bar
-    }
-
-    private fun populateArrangeColumn(column: LinearLayout) {
-        column.addView(label("Arrange your home", 20f, TEXT_PRIMARY, bold = true).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-            ).also { it.topMargin = dp(12) }
-        })
-        column.addView(label("Hold ≡ and drag to move a widget. Hide or show with the button on the right.", 12f, TEXT_DIM).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-            ).also { it.topMargin = dp(4); it.bottomMargin = dp(14) }
-        })
-        val order = homeOrder().toMutableList()
-        val rows = mutableListOf<View>()
-        val stride = dp(ARRANGE_ROW_DP + ARRANGE_GAP_DP)
-        order.forEach { id ->
-            val info = homeWidgetInfo(id)
-            val style = info.style()
-            val hidden = style == "off"
-            val row = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    dp(ARRANGE_ROW_DP),
-                ).also { it.bottomMargin = dp(ARRANGE_GAP_DP) }
-                alpha = if (hidden) 0.55f else 1f
-            }
-            frost(row, 16)
-            val handle = label("≡", 24f, TEXT_DIM).apply {
-                gravity = Gravity.CENTER
-                layoutParams = LinearLayout.LayoutParams(dp(56), LinearLayout.LayoutParams.MATCH_PARENT)
-                contentDescription = "Reorder ${info.title}"
-            }
-            val texts = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-            }
-            texts.addView(label(info.title, 16f, TEXT_PRIMARY, bold = true))
-            texts.addView(label(
-                when {
-                    hidden -> "Hidden"
-                    id == "pinned" && pinnedEntries().isEmpty() -> "Nothing pinned yet"
-                    id == "widgets" -> widgetEntries().size.let { n ->
-                        if (n == 0) "Nothing added yet" else if (n == 1) "1 widget" else "$n widgets"
-                    }
-                    else -> style.replaceFirstChar { it.uppercase() }
-                },
-                12f,
-                TEXT_DIM,
-            ))
-            val toggle = label(if (hidden) "Show" else "Hide", 13f, if (hidden) ACCENT_TEXT else TEXT_DIM).apply {
-                gravity = Gravity.CENTER
-                layoutParams = LinearLayout.LayoutParams(dp(72), LinearLayout.LayoutParams.MATCH_PARENT)
-                isClickable = true
-                background = rippleForeground(16)
-                contentDescription = (if (hidden) "Show " else "Hide ") + info.title
-                setOnClickListener { setHomeWidgetVisible(id, hidden) }
-            }
-            row.addView(handle)
-            row.addView(texts)
-            row.addView(toggle)
-            attachReorderDrag(handle, row, rows, order, stride, id)
-            rows.add(row)
-            column.addView(row)
-        }
-        val actions = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-            ).also { it.topMargin = dp(4) }
-        }
-        actions.addView(chipView("+ Add a widget", false) {
-            exitHomeArrange()
-            showWidgetPicker()
-        })
-        if (widgetEntries().isNotEmpty()) {
-            actions.addView(chipView("Manage widgets", false) { showManageWidgetsSheet() })
-        }
-        column.addView(actions)
-    }
-
-    /**
-     * Press the handle and drag: the row follows the finger and the others slide out of the way.
-     * Letting go saves the order. Screen readers get "Move up" and "Move down" on the handle
-     * instead, because a drag is not possible there.
-     */
-    private fun attachReorderDrag(
-        handle: View,
-        row: View,
-        rows: List<View>,
-        order: MutableList<String>,
-        stride: Int,
-        id: String,
-    ) {
-        var startY = 0f
-        var from = 0
-        var to = 0
-        handle.setOnTouchListener { v, ev ->
-            when (ev.actionMasked) {
-                MotionEvent.ACTION_DOWN -> {
-                    // The home screen scrolls; keep it from taking the gesture away mid-drag.
-                    v.parent.requestDisallowInterceptTouchEvent(true)
-                    v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-                    startY = ev.rawY
-                    from = rows.indexOf(row)
-                    to = from
-                    row.scaleX = 1.03f
-                    row.scaleY = 1.03f
-                    row.translationZ = dp(8).toFloat()
-                    true
-                }
-                MotionEvent.ACTION_MOVE -> {
-                    val minDy = -from * stride.toFloat()
-                    val maxDy = (rows.lastIndex - from) * stride.toFloat()
-                    val dy = (ev.rawY - startY).coerceIn(minDy, maxDy)
-                    row.translationY = dy
-                    val newTo = (from + (dy / stride).roundToInt()).coerceIn(0, rows.lastIndex)
-                    if (newTo != to) {
-                        to = newTo
-                        rows.forEachIndexed { i, other ->
-                            if (other !== row) {
-                                val shift = when {
-                                    from < to && i in (from + 1)..to -> -stride.toFloat()
-                                    from > to && i in to until from -> stride.toFloat()
-                                    else -> 0f
-                                }
-                                other.animate().translationY(shift).setDuration(120).start()
-                            }
-                        }
-                    }
-                    true
-                }
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    v.parent.requestDisallowInterceptTouchEvent(false)
-                    row.scaleX = 1f
-                    row.scaleY = 1f
-                    row.translationZ = 0f
-                    if (ev.actionMasked == MotionEvent.ACTION_UP && to != from) {
-                        val moved = order.removeAt(from)
-                        order.add(to, moved)
-                        prefs.edit().putString(PREF_HOME_ORDER, order.joinToString(",")).apply()
-                        rebuildHomeSections()
-                    } else {
-                        rows.forEach { it.animate().translationY(0f).setDuration(120).start() }
-                    }
-                    true
-                }
-                else -> false
-            }
-        }
-        handle.accessibilityDelegate = object : View.AccessibilityDelegate() {
-            override fun onInitializeAccessibilityNodeInfo(
-                host: View,
-                info: android.view.accessibility.AccessibilityNodeInfo,
-            ) {
-                super.onInitializeAccessibilityNodeInfo(host, info)
-                info.addAction(
-                    android.view.accessibility.AccessibilityNodeInfo.AccessibilityAction(A11Y_MOVE_UP, "Move up"),
-                )
-                info.addAction(
-                    android.view.accessibility.AccessibilityNodeInfo.AccessibilityAction(A11Y_MOVE_DOWN, "Move down"),
-                )
-            }
-
-            override fun performAccessibilityAction(host: View, action: Int, args: android.os.Bundle?): Boolean {
-                val delta = when (action) {
-                    A11Y_MOVE_UP -> -1
-                    A11Y_MOVE_DOWN -> 1
-                    else -> return super.performAccessibilityAction(host, action, args)
-                }
-                moveHomeWidget(id, delta)
-                return true
-            }
-        }
-    }
-
-    // ── Dragging widgets in place ──────────────────────────────────────────────
-    //
-    // Long-press a widget on the home screen and it lifts off the page. Drag it up or down and the
-    // others slide out of the way; let go and it stays where it is. No menu in between. Widgets are
-    // different heights, so HomeDragMath works from each one's real size, and the home screen
-    // scrolls by itself when the finger nears its top or bottom edge.
-    //
-    // Hide, Show and the styles stay in the arrange bar (long-press empty space, the dock, or pinch)
-    // and in Customize home. A pinned app and an app widget keep their own long-press menus, so the
-    // gaps around them are what start the drag.
-
-    private class HomeBlock(val id: String, val view: View)
-
-    private class HomeDrag(
-        val blocks: List<HomeBlock>,
-        val slots: List<HomeDragMath.Slot>,
-        val from: Int,
-        /** How far below the lifted block's top edge the finger first landed. */
-        val grabOffset: Float,
-    ) {
-        var to = from
-        val shifts = FloatArray(blocks.size)
-    }
-
-    /** The widgets showing on the home screen now, top to bottom. */
-    private var homeBlocks: List<HomeBlock> = emptyList()
-    private var homeDrag: HomeDrag? = null
+    /** Where the finger last was, in screen pixels; drags read it each time they move. */
     private var lastTouchRawX = 0f
     private var lastTouchRawY = 0f
-
-    /**
-     * Runs once per frame while a block is lifted: scrolls the home screen when the finger rests
-     * near its top or bottom edge, and keeps the lifted block under the finger as it scrolls.
-     */
-    private val homeDragTick = object : Runnable {
-        override fun run() {
-            if (homeDrag == null) return
-            val scroll = homeScroll ?: return
-            val top = scroll.locationOnScreenY()
-            val edge = dp(96)
-            val y = lastTouchRawY
-            val bottom = top + scroll.height
-            val step = when {
-                y < top + edge -> -((top + edge - y) / edge).coerceIn(0f, 1f) * dp(16)
-                y > bottom - edge -> ((y - (bottom - edge)) / edge).coerceIn(0f, 1f) * dp(16)
-                else -> 0f
-            }
-            if (step != 0f) scroll.scrollBy(0, step.roundToInt())
-            updateHomeDrag()
-            // The glass panels pick up the wallpaper under them by position, so redraw them.
-            invalidateFrosted()
-            scroll.postOnAnimation(this)
-        }
-    }
-
-    /** Lifts the widget under [rawY], or returns false when there is nothing to drag there. */
-    private fun beginHomeDrag(rawY: Float): Boolean {
-        if (homeDrag != null || homeArrangeActive || isDrawerOpen ||
-            sheetOverlay != null || hiddenOverlay != null
-        ) return false
-        val column = homeColumn ?: return false
-        val scroll = homeScroll ?: return false
-        if (!scroll.isShown) return false
-        // A collapsed widget (a task card with no task) takes no room and cannot be dragged.
-        val blocks = homeBlocks.filter { it.view.visibility != View.GONE && it.view.height > 0 }
-        if (blocks.size < 2) return false
-        val scrollTop = scroll.locationOnScreenY()
-        if (rawY < scrollTop || rawY > scrollTop + scroll.height) return false
-        val slots = blocks.map { b ->
-            val lp = b.view.layoutParams as? ViewGroup.MarginLayoutParams
-            HomeDragMath.Slot(b.view.top, b.view.height, lp?.topMargin ?: 0, lp?.bottomMargin ?: 0)
-        }
-        val fingerInColumn = rawY - column.locationOnScreenY()
-        val from = HomeDragMath.indexAt(slots, fingerInColumn)
-        if (from < 0) return false
-        homeDrag = HomeDrag(blocks, slots, from, fingerInColumn - slots[from].top)
-        // The views under the finger saw a press. End it, so the drag owns the rest of the gesture.
-        val now = SystemClock.uptimeMillis()
-        val cancel = MotionEvent.obtain(now, now, MotionEvent.ACTION_CANCEL, lastTouchRawX, lastTouchRawY, 0)
-        window.superDispatchTouchEvent(cancel)
-        cancel.recycle()
-        val lifted = blocks[from].view
-        // The lifted block grows a little and may sit at the very top or bottom: don't clip it.
-        column.clipChildren = false
-        lifted.animate().cancel()
-        lifted.translationZ = dp(16).toFloat()
-        lifted.animate().scaleX(1.03f).scaleY(1.03f).setDuration(120).start()
-        scroll.postOnAnimation(homeDragTick)
-        return true
-    }
-
-    /** Moves the lifted widget to the finger and slides the ones it has passed out of the way. */
-    private fun updateHomeDrag() {
-        val d = homeDrag ?: return
-        val column = homeColumn ?: return
-        val slot = d.slots[d.from]
-        val fingerInColumn = lastTouchRawY - column.locationOnScreenY()
-        val top = HomeDragMath.clampTop(d.slots, d.from, fingerInColumn - d.grabOffset)
-        val lifted = d.blocks[d.from].view
-        lifted.translationY = top - slot.top
-        val to = HomeDragMath.targetIndex(d.slots, d.from, top + slot.height / 2f)
-        if (to == d.to) return
-        d.to = to
-        lifted.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-        val next = HomeDragMath.shifts(d.slots, d.from, to)
-        d.blocks.forEachIndexed { i, b ->
-            if (i != d.from && next[i] != d.shifts[i]) {
-                b.view.animate().translationY(next[i]).setDuration(140).start()
-            }
-            d.shifts[i] = next[i]
-        }
-    }
-
-    /** Lets go of the lifted widget: settles it into its new place and saves, or puts everything back. */
-    private fun endHomeDrag(commit: Boolean) {
-        val d = homeDrag ?: return
-        homeDrag = null
-        homeScroll?.removeCallbacks(homeDragTick)
-        val lifted = d.blocks[d.from].view
-        if (commit && d.to != d.from) {
-            // Save first, so the order holds even if the screen is rebuilt before the settle ends.
-            val saved = HomeDragMath.reorder(homeOrder(), d.blocks.map { it.id }, d.from, d.to)
-            prefs.edit().putString(PREF_HOME_ORDER, saved.joinToString(",")).apply()
-            lifted.animate()
-                .translationY(HomeDragMath.dropOffset(d.slots, d.from, d.to))
-                .scaleX(1f).scaleY(1f)
-                .setDuration(140)
-                .setUpdateListener { invalidateFrosted() }
-                .withEndAction {
-                    lifted.translationZ = 0f
-                    // Rebuild from the saved order, unless the screen was already rebuilt meanwhile.
-                    if (homeBlocks.any { it.view === lifted }) rebuildHomeSections()
-                }
-                .start()
-        } else {
-            d.blocks.forEach { b ->
-                if (b.view !== lifted) b.view.animate().translationY(0f).setDuration(140).start()
-            }
-            lifted.animate()
-                .translationY(0f)
-                .scaleX(1f).scaleY(1f)
-                .setDuration(140)
-                .setUpdateListener { invalidateFrosted() }
-                .withEndAction { lifted.translationZ = 0f }
-                .start()
-        }
-    }
-
-    /** Drops a drag without saving anything and puts every widget straight back. */
-    private fun abortHomeDrag() {
-        val d = homeDrag ?: return
-        homeDrag = null
-        homeScroll?.removeCallbacks(homeDragTick)
-        d.blocks.forEach { b ->
-            b.view.animate().cancel()
-            b.view.translationY = 0f
-            b.view.scaleX = 1f
-            b.view.scaleY = 1f
-            b.view.translationZ = 0f
-        }
-    }
 
     // ── Dragging on the grid ───────────────────────────────────────────────────
     //
@@ -2442,7 +1821,7 @@ class LauncherActivity : Activity() {
 
     private fun beginGridDrag(child: View): Boolean {
         val grid = homeGrid ?: return false
-        if (gridDrag != null || homeArrangeActive || isDrawerOpen ||
+        if (gridDrag != null || isDrawerOpen ||
             sheetOverlay != null || hiddenOverlay != null
         ) return false
         val id = child.tag as? String ?: return false
@@ -2787,7 +2166,7 @@ class LauncherActivity : Activity() {
     /** False when this is not a drag-to-home case (grid off, already pinned, no room): the caller opens the menu. */
     private fun beginDrawerDrag(pkg: String, name: String): Boolean {
         val grid = homeGrid ?: return false
-        if (!gridHomeOn() || gridDrag != null || pendingDrawerDrag != null) return false
+        if (gridDrag != null || pendingDrawerDrag != null) return false
         val entry = HomePinnedItems.Entry(HomePinnedItems.Kind.APP, pkg, "", name)
         if (pinnedEntries().any { it.key == entry.key }) return false
         val added = HomeGrid.add(
@@ -3007,13 +2386,8 @@ class LauncherActivity : Activity() {
 
     /** Rebuilds the home widgets and dock in place, so a style change shows instantly under an open sheet. */
     private fun rebuildHomeSections() {
-        val grid = homeGrid
-        if (grid != null) {
-            populateHomeGrid(grid)
-        } else {
-            val column = homeColumn ?: return
-            populateHomeColumn(column)
-        }
+        val grid = homeGrid ?: return
+        populateHomeGrid(grid)
         populateDock()
         pruneFrosted()
         refreshHomeContent()
@@ -3648,7 +3022,7 @@ class LauncherActivity : Activity() {
             isFocusable = true
             contentDescription = text
             setOnClickListener { onClick() }
-            // Long-press anywhere on the home screen, dock included, opens arrange mode.
+            // Long-press anywhere on the home screen, dock included, opens the Edit home menu.
             homeLongPress?.let { setOnLongClickListener(it) }
         }
         val circle = FrameLayout(this).apply {
@@ -4728,11 +4102,17 @@ class LauncherActivity : Activity() {
                 dismissSheet()
                 showWidgetPicker()
             })
+            if (widgetEntries().isNotEmpty()) {
+                panel.addView(sheetRow("Manage widgets", "Remove an app widget") {
+                    dismissSheet()
+                    showManageWidgetsSheet()
+                })
+            }
             panel.addView(sheetRow("Wallpaper", wallpaperSummary()) {
                 dismissSheet()
                 showWallpaperSheet()
             })
-            panel.addView(sheetRow("Style & options", "Clock, cards, glass and layout") {
+            panel.addView(sheetRow("Style & options", "Clock, cards and glass") {
                 dismissSheet()
                 showHomeCustomizeSheet()
             })
@@ -4771,26 +4151,6 @@ class LauncherActivity : Activity() {
             })
             body.addView(glassSliderBlock())
             body.addView(optionRow(
-                "Home layout", PREF_HOME_LAYOUT,
-                listOf("list" to "List", "grid" to "Grid (beta)"),
-                "list",
-            ) {
-                // The two layouts are built differently, so redraw the whole home screen.
-                dismissSheet(animate = false)
-                buildHomeLayout()
-                showHomeCustomizeSheet()
-            })
-            body.addView(label(
-                "Grid puts everything on a 4 by 6 grid like a stock launcher. Your List layout is kept, so you can switch back any time.",
-                11f,
-                TEXT_MUTED,
-            ).apply {
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                ).also { it.topMargin = dp(4) }
-            })
-            body.addView(optionRow(
                 "Clock", PREF_HOME_CLOCK,
                 listOf("light" to "Light", "bold" to "Bold", "stacked" to "Stacked", "compact" to "Compact", "off" to "Off"),
                 "light",
@@ -4823,11 +4183,6 @@ class LauncherActivity : Activity() {
                 "App widgets", PREF_HOME_WIDGETS,
                 listOf("show" to "Show", "off" to "Hide"),
                 "show",
-            ))
-            body.addView(optionRow(
-                "Pinned grid size", PREF_HOME_PINNED_SIZE,
-                listOf("3" to "3×3", "4" to "4×4", "5" to "5×5"),
-                "4",
             ))
             body.addView(optionRow(
                 "Search bar", PREF_HOME_SEARCH,
@@ -5873,7 +5228,7 @@ class LauncherActivity : Activity() {
                 }
             }
             if (ev.actionMasked == MotionEvent.ACTION_DOWN) {
-                if (isDrawerOpen || sheetOverlay != null || hiddenOverlay != null || homeArrangeActive) {
+                if (isDrawerOpen || sheetOverlay != null || hiddenOverlay != null) {
                     exitGridResize()
                 } else {
                     val rect = gridResizeRect()
@@ -5904,17 +5259,8 @@ class LauncherActivity : Activity() {
                 else -> return true
             }
         }
-        if (homeDrag != null) {
-            when (ev.actionMasked) {
-                MotionEvent.ACTION_DOWN -> endHomeDrag(commit = false) // a stale drag: start fresh
-                MotionEvent.ACTION_MOVE -> { updateHomeDrag(); return true }
-                MotionEvent.ACTION_UP -> { endHomeDrag(commit = true); return true }
-                MotionEvent.ACTION_CANCEL -> { endHomeDrag(commit = false); return true }
-                else -> return true
-            }
-        }
-        // Pinching the home screen in or out does what a long press does: opens arrange mode.
-        if (!homeArrangeActive && !isDrawerOpen && sheetOverlay == null && hiddenOverlay == null) {
+        // Pinching the home screen in or out does what a long press does: opens the Edit home menu.
+        if (!isDrawerOpen && sheetOverlay == null && hiddenOverlay == null) {
             pinchDetector.onTouchEvent(ev)
         }
         if (ev.actionMasked == MotionEvent.ACTION_POINTER_DOWN) swipeMultiTouch = true
@@ -5927,13 +5273,6 @@ class LauncherActivity : Activity() {
                 val dock = dockView
                 swipeStartedInDock = dock != null && dock.isShown &&
                     ev.rawY >= dock.locationOnScreenY()
-                // Remember what the home content could do when the finger landed. Deciding at
-                // lift-off is what let a swipe that merely scrolled the home screen to its
-                // bottom open the drawer as well.
-                val homeScrollView = homeScroll
-                swipeStartScrollY = homeScrollView?.scrollY ?: 0
-                swipeContentCanScrollDown = homeScrollView?.canScrollVertically(1) == true
-                swipeContentScrolledDown = homeScrollView?.canScrollVertically(-1) == true
                 val recycler = drawerRecycler
                 swipeDrawerAtTop = recycler == null ||
                     !recycler.canScrollVertically(-1) ||
@@ -5954,18 +5293,15 @@ class LauncherActivity : Activity() {
             swipeVelocityTracker = null
             val overlayOpen = sheetOverlay != null || hiddenOverlay != null
             val dy = swipeTouchStartY - ev.rawY
-            // No drawer or notification swipes while arranging, or during a two-finger pinch.
-            if (!overlayOpen && !homeArrangeActive && !swipeMultiTouch) {
+            // No drawer or notification swipes during a two-finger pinch.
+            if (!overlayOpen && !swipeMultiTouch) {
                 if (dy > dp(60) && velocity < -250f && !isDrawerOpen) {
-                    val scrollMoved = (homeScroll?.scrollY ?: 0) != swipeStartScrollY
-                    val ownsTheSwipe = swipeContentCanScrollDown || scrollMoved
-                    if (!ownsTheSwipe || swipeStartedInDock) openDrawer()
+                    openDrawer()
                 } else if (dy < -dp(80) && velocity > 250f) {
                     if (isDrawerOpen) {
                         if (!isEditMode && swipeDrawerAtTop) closeDrawer()
                     } else {
-                        val scrollMoved = (homeScroll?.scrollY ?: 0) != swipeStartScrollY
-                        if (!swipeContentScrolledDown && !scrollMoved) expandNotificationsPanel()
+                        expandNotificationsPanel()
                     }
                 }
             }
