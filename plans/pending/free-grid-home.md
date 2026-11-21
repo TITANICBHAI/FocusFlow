@@ -178,7 +178,7 @@ dock or the drawer's own layout, and anything in enforcement, allowance or block
 | 1 Draw the grid | done: pushed in e0c1d55, CI green (run 44661199928), not seen on a phone |
 | 2 Drag and drop | done: pushed in abd6455, CI green (run 44728847618), not seen on a phone |
 | 3 Resize | done: pushed in d187d24, CI green (run 44855546762), not seen on a phone |
-| 4 Edit menu | code written, CI pending, not seen on a phone |
+| 4 Edit menu | done: pushed in 95c1d17, CI green (run 44885084770), not seen on a phone |
 | 5 Pages | deferred, not in this plan |
 | 6 Drawer drag | not started |
 | 7 Contract | not started |
