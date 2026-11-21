@@ -2007,8 +2007,8 @@ class LauncherActivity : Activity() {
     private fun enterHomeArrange() {
         if (homeArrangeActive || isDrawerOpen || sheetOverlay != null || hiddenOverlay != null) return
         if (gridHomeOn()) {
-            // Arrange mode is for the stacked home. The grid gets its own edit menu in a later step.
-            showHomeCustomizeSheet()
+            // Arrange mode is for the stacked home. The grid has a small edit menu instead.
+            showGridEditMenu()
             return
         }
         val content = homeContent ?: return
@@ -4606,6 +4606,36 @@ class LauncherActivity : Activity() {
     }
 
     /** Long-press the home screen to get here. Every widget has a few styles and an Off. */
+    /** What a long press on empty space opens on the grid home: the three things people look for there. */
+    private fun showGridEditMenu() {
+        if (!::rootFrame.isInitialized) return
+        showSheet(scrimColor = Color.parseColor("#33000000")) { panel ->
+            panel.addView(label("Edit home", 20f, TEXT_PRIMARY, bold = true))
+            panel.addView(label(
+                "Long-press an item to move it, or let go to resize. Drag it to the top to remove it.",
+                12f,
+                TEXT_MUTED,
+            ).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).also { it.topMargin = dp(2); it.bottomMargin = dp(6) }
+            })
+            panel.addView(sheetRow("Widgets", "Add an app widget") {
+                dismissSheet()
+                showWidgetPicker()
+            })
+            panel.addView(sheetRow("Wallpaper", wallpaperSummary()) {
+                dismissSheet()
+                showWallpaperSheet()
+            })
+            panel.addView(sheetRow("Style & options", "Clock, cards, glass and layout") {
+                dismissSheet()
+                showHomeCustomizeSheet()
+            })
+        }
+    }
+
     private fun showHomeCustomizeSheet() {
         if (!::rootFrame.isInitialized) return
         showSheet(scrimColor = Color.parseColor("#33000000")) { panel ->

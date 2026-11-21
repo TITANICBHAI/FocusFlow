@@ -137,3 +137,15 @@ Please test on a phone (Grid layout):
 - Tap outside to close; drag the item away while the outline is shown; open the drawer: the outline closes.
 - Handles at the screen's left or right edge may clash with the system back gesture; tell me if they do.
 - Cards keep their natural height at the top of their cells; making a card taller only reserves space.
+
+### Step 4: edit menu on the grid
+
+Long-press empty space on the Grid layout (or pinch the home screen) opens a small **Edit home** menu:
+**Widgets** (add an app widget), **Wallpaper**, and **Style & options** (the Customize home sheet, which also
+has the List | Grid switch). Arrange mode is not used on the grid. The List layout is unchanged.
+
+Not verified in the sandbox: not compiled or run here (CI only), not seen on a phone.
+
+Please test on a phone (Grid layout): long-press an empty cell and each of the three rows opens what it says;
+add a widget from Widgets and check it lands in the first free spot (or the "don't fit" message shows when
+there is no room); the Customize sheet still switches back to List.
