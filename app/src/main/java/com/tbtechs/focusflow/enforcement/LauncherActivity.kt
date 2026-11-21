@@ -919,7 +919,11 @@ class LauncherActivity : Activity() {
                     updateCustomizeSelection()
                     false // let the drag helper take the long press
                 } else {
-                    showAppActions(item.packageName, item.label)
+                    // On the grid home, a long press that then moves carries the app out onto it;
+                    // letting go without moving still opens the menu (see endDrawerPending).
+                    if (!beginDrawerDrag(item.packageName, item.label)) {
+                        showAppActions(item.packageName, item.label)
+                    }
                     true
                 }
             }
@@ -1078,6 +1082,7 @@ class LauncherActivity : Activity() {
         stopWidgetListening()
         abortHomeDrag()
         abortGridDrag()
+        pendingDrawerDrag = null
         exitGridResize()
         dismissUndoBar(runExpire = true)
         super.onPause()
@@ -2409,6 +2414,8 @@ class LauncherActivity : Activity() {
         val startY: Float,
         /** Everyone's positions when the drag began. */
         val items: List<HomeGrid.Item>,
+        /** Set when the item is an app being dragged in from the drawer rather than one already on home. */
+        val fromDrawer: HomePinnedItems.Entry? = null,
     ) {
         var moved = false
         var overBar = false
@@ -2519,7 +2526,7 @@ class LauncherActivity : Activity() {
         d.copy.translationX = x - d.grabX - rootLoc[0]
         d.copy.translationY = y - d.grabY - rootLoc[1]
 
-        val overBar = y < rootLoc[1] + barTop + dp(8) + dp(56) + dp(16)
+        val overBar = d.fromDrawer == null && y < rootLoc[1] + barTop + dp(8) + dp(56) + dp(16)
         if (overBar != d.overBar) {
             d.overBar = overBar
             gridDropBar?.background = roundedBackground(
@@ -2632,9 +2639,19 @@ class LauncherActivity : Activity() {
         }
         val target = d.target
         val placed = d.placed
+        val pinning = d.fromDrawer
         if (commit && grid != null && target != null && placed != null) {
             // Save first, so the spot holds even if the screen is rebuilt before the settle ends.
             prefs.edit().putString(HomeGrid.PREF_KEY, HomeGrid.serialize(placed)).apply()
+            if (pinning != null) {
+                // The app joins the pinned list too; the grid already has its place saved above.
+                val out = HomePinnedItems.add(pinnedEntries(), pinning, HomePinnedItems.MAX_ITEMS)
+                if (out.status == HomePinnedItems.Status.ADDED) {
+                    savePinned(out.items)
+                    if (pinnedStyleValue() == "off") prefs.edit().remove(PREF_HOME_PINNED).apply()
+                    Toast.makeText(this, "${pinning.label} added to home", Toast.LENGTH_SHORT).show()
+                }
+            }
             val rootLoc = IntArray(2)
             rootFrame.getLocationOnScreen(rootLoc)
             val gridLoc = IntArray(2)
@@ -2650,6 +2667,14 @@ class LauncherActivity : Activity() {
                     rebuildHomeSections()
                 }
                 .start()
+            return
+        }
+        if (pinning != null) {
+            // An app from the drawer with nowhere to land just fades away.
+            d.copy.animate().alpha(0f).scaleX(0.8f).scaleY(0.8f).setDuration(140)
+                .withEndAction { clearGridDrag(d) }
+                .start()
+            showGridPlacement(d, null, null)
             return
         }
         // Nowhere to land (or the drag was cancelled): settle back where it came from.
@@ -2740,6 +2765,84 @@ class LauncherActivity : Activity() {
                 })
             }
         }
+    }
+
+    // ── Dragging an app from the drawer onto the grid ──────────────────────────
+    //
+    // On the Grid layout, long-press an app in the drawer and move: the drawer fades away and the
+    // app's icon follows the finger over the home grid, using the same outline and push-aside as any
+    // other drag. Let go over a spot and the app is pinned there. Let go without moving and the
+    // app's menu opens, as it always did.
+
+    private class PendingDrawerDrag(
+        val entry: HomePinnedItems.Entry,
+        val startX: Float,
+        val startY: Float,
+        /** Everyone's positions with the new icon added, so a drop can be worked out. */
+        val items: List<HomeGrid.Item>,
+    )
+
+    private var pendingDrawerDrag: PendingDrawerDrag? = null
+
+    /** False when this is not a drag-to-home case (grid off, already pinned, no room): the caller opens the menu. */
+    private fun beginDrawerDrag(pkg: String, name: String): Boolean {
+        val grid = homeGrid ?: return false
+        if (!gridHomeOn() || gridDrag != null || pendingDrawerDrag != null) return false
+        val entry = HomePinnedItems.Entry(HomePinnedItems.Kind.APP, pkg, "", name)
+        if (pinnedEntries().any { it.key == entry.key }) return false
+        val added = HomeGrid.add(
+            gridItems, grid.columns, grid.rows,
+            HomeGrid.Wanted(HomeGrid.Kind.APP, entry.key, 1, 1),
+        )
+        if (added.status == HomeGrid.Status.FULL) {
+            Toast.makeText(this, "Home is full. Remove something first.", Toast.LENGTH_SHORT).show()
+            return false
+        }
+        if (added.status != HomeGrid.Status.ADDED) return false
+        pendingDrawerDrag = PendingDrawerDrag(entry, lastTouchRawX, lastTouchRawY, added.items)
+        // The drawer list saw a press. End it, so the drag owns the rest of the gesture.
+        val now = SystemClock.uptimeMillis()
+        val cancel = MotionEvent.obtain(now, now, MotionEvent.ACTION_CANCEL, lastTouchRawX, lastTouchRawY, 0)
+        window.superDispatchTouchEvent(cancel)
+        cancel.recycle()
+        return true
+    }
+
+    /** Once the finger has moved far enough, the drawer gives way and the grid drag takes over. */
+    private fun movePendingDrawerDrag(p: PendingDrawerDrag) {
+        val grid = homeGrid
+        if (grid == null) {
+            pendingDrawerDrag = null
+            return
+        }
+        val slop = android.view.ViewConfiguration.get(this).scaledTouchSlop
+        if (Math.hypot((lastTouchRawX - p.startX).toDouble(), (lastTouchRawY - p.startY).toDouble()) <= slop) return
+        pendingDrawerDrag = null
+        closeDrawer()
+        val size = dp(56)
+        val copy = ImageView(this).apply {
+            setImageDrawable(getRoundIcon(p.entry.packageName))
+            layoutParams = FrameLayout.LayoutParams(size, size)
+            translationZ = dp(16).toFloat()
+        }
+        rootFrame.addView(copy)
+        copy.animate().scaleX(1.1f).scaleY(1.1f).alpha(0.95f).setDuration(120).start()
+        val virtual = p.items.last()
+        val outline = View(this).apply {
+            background = roundedBackground(Color.parseColor("#22FFFFFF"), Color.parseColor("#99FFFFFF"), 16)
+            layoutParams = HomeGridLayout.Params(virtual.col, virtual.row, 1, 1)
+            visibility = View.INVISIBLE
+        }
+        grid.addView(outline, 0)
+        gridOutline = outline
+        gridDrag = GridDrag(
+            item = virtual, view = copy, copy = copy,
+            grabX = size / 2f, grabY = size / 2f,
+            startX = p.startX, startY = p.startY,
+            items = p.items,
+            fromDrawer = p.entry,
+        ).also { it.moved = true }
+        updateGridDrag()
     }
 
     // ── Resizing on the grid ───────────────────────────────────────────────────
@@ -5738,6 +5841,20 @@ class LauncherActivity : Activity() {
         lastTouchRawY = ev.rawY
         // While a widget is lifted the drag owns the whole gesture: nothing underneath it scrolls,
         // taps or swipes, and letting go never counts as a drawer or notification swipe.
+        val pending = pendingDrawerDrag
+        if (pending != null) {
+            when (ev.actionMasked) {
+                MotionEvent.ACTION_MOVE -> { movePendingDrawerDrag(pending); return true }
+                MotionEvent.ACTION_UP -> {
+                    pendingDrawerDrag = null
+                    showAppActions(pending.entry.packageName, pending.entry.label)
+                    return true
+                }
+                MotionEvent.ACTION_CANCEL -> { pendingDrawerDrag = null; return true }
+                MotionEvent.ACTION_DOWN -> pendingDrawerDrag = null // stale: start fresh
+                else -> return true
+            }
+        }
         if (gridResizeId != null && gridDrag == null) {
             if (swallowGesture) {
                 if (ev.actionMasked == MotionEvent.ACTION_UP || ev.actionMasked == MotionEvent.ACTION_CANCEL) {

@@ -149,3 +149,18 @@ Not verified in the sandbox: not compiled or run here (CI only), not seen on a p
 Please test on a phone (Grid layout): long-press an empty cell and each of the three rows opens what it says;
 add a widget from Widgets and check it lands in the first free spot (or the "don't fit" message shows when
 there is no room); the Customize sheet still switches back to List.
+
+### Step 6: drag an app from the drawer onto the grid
+
+With the Grid layout on, long-press an app in the drawer and move your finger: the drawer fades away and the app's
+icon follows you over the home grid, with the same outline and push-aside as any other drag. Let go over a spot
+and the app is pinned there (the same as "Pin to home"). Let go outside a valid spot, or over the grid with no
+room, and nothing is added. A long-press that does not move still opens the app's menu. If the app is already
+on home, or home has no free cell, the long-press opens the menu (with a short message when it is full). On the
+List layout nothing changed.
+
+Not verified in the sandbox: not compiled or run here (CI only), not seen on a phone.
+
+Please test on a phone (Grid layout): drag an app from the drawer to an empty cell and onto an occupied one;
+check it stays after leaving and returning; long-press an app already on home (menu opens); long-press and let
+go without moving (menu opens); drag, then let the finger leave the screen's grid area and release.

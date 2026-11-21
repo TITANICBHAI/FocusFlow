@@ -180,5 +180,5 @@ dock or the drawer's own layout, and anything in enforcement, allowance or block
 | 3 Resize | done: pushed in d187d24, CI green (run 44855546762), not seen on a phone |
 | 4 Edit menu | done: pushed in 95c1d17, CI green (run 44885084770), not seen on a phone |
 | 5 Pages | deferred, not in this plan |
-| 6 Drawer drag | not started |
+| 6 Drag from drawer | code written, CI pending, not seen on a phone |
 | 7 Contract | not started |
