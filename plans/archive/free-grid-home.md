@@ -1,7 +1,7 @@
 # Free-grid home screen (stock-launcher style)
 Ticket: none (request: "I want that kind of" stock-launcher dragging, option C: free grid)
 
-Status: APPROVED. Building one phase per round; see Progress.
+Status: DONE and archived (phases 0-4, 6 and 7 built; phase 5 deferred).
 
 ## What "done" means
 A person can long-press any item on the home screen, lift it, and drop it on any free cell of a
@@ -181,4 +181,31 @@ dock or the drawer's own layout, and anything in enforcement, allowance or block
 | 4 Edit menu | done: pushed in 95c1d17, CI green (run 44885084770), not seen on a phone |
 | 5 Pages | deferred, not in this plan |
 | 6 Drag from drawer | done: pushed in 1fbf152, CI green (run 44885549782), not seen on a phone |
-| 7 Contract | code written (grid is the only home; stack, arrange mode, old drag, switch removed), CI pending |
+| 7 Contract | done: pushed in 79cfe53, CI green (run 44909876561), not seen on a phone |
+
+## Execution record
+
+What shipped (all on `main`, each phase built green in CI with the tbtechsdev debug workflow):
+
+| Phase | Commit | CI run |
+| --- | --- | --- |
+| 0 Grid model (`HomeGrid.kt`, 33 tests) | 8733940 | 44565515145 |
+| 1 Draw the grid behind a Home layout switch | e0c1d55 | 44661199928 |
+| 2 Drag, push-aside, Remove with Undo | abd6455 | 44728847618 |
+| 3 Resize by edge handles (5 more tests, 38 total) | d187d24 | 44855546762 |
+| 4 Edit home menu | 95c1d17 | 44885084770 |
+| 6 Drag an app from the drawer | 1fbf152 | 44885549782 |
+| 7 Grid is the only home; stack, arrange mode, old drag and the switch removed | 79cfe53 | 44909876561 |
+
+Deviations from the plan:
+- The model is `HomeGrid.kt` / `HomeGridTest.kt` (not `HomeGridModel`), and the drag layer is inside
+  `LauncherActivity` (an overlay copy in `rootFrame`) rather than a separate `HomeDragLayer.kt`.
+- Resize (phase 3) is by edge handles shown after a long press without moving, not corner handles.
+- Phase 7 was given the go-ahead before the user reported trying the grid on a phone; the user chose it
+  explicitly in a question round. The List layout fallback is gone.
+- Phase 5 (pages and edge paging) was not built, as planned.
+- `launcher_home_layout` and `launcher_home_pinned_size` are now unused preferences (left in place, harmless).
+
+Verification: the grid rules have 38 unit tests (run locally against a JUnit stand-in and in CI). Views and
+gestures were compiled by CI only. Nothing was seen or run on a device. Open risks are listed in
+`LAUNCHER_HOME_UPDATE.md` under "Grid home".
