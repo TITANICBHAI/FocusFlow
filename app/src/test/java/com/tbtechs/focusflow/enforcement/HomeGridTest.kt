@@ -240,6 +240,64 @@ class HomeGridTest {
         assertEquals(items[2], out[2])
     }
 
+    // ── resizing by an edge ───────────────────────────────────────────────────
+
+    @Test
+    fun draggingTheRightEdgeChangesOnlyTheWidth() {
+        val item = card("task", 1, 2, 2, 2)
+        assertEquals(item.copy(spanX = 3), HomeGrid.resizedBlock(item, HomeGrid.Edge.RIGHT, 4.2f, 9f, cols, rows))
+        assertEquals(item.copy(spanX = 1), HomeGrid.resizedBlock(item, HomeGrid.Edge.RIGHT, -3f, 0f, cols, rows))
+        assertEquals(item.copy(spanX = 3), HomeGrid.resizedBlock(item, HomeGrid.Edge.RIGHT, 99f, 0f, cols, rows)) // stops at the grid edge
+    }
+
+    @Test
+    fun draggingTheLeftEdgeKeepsTheRightEdgeFixed() {
+        val item = card("task", 1, 2, 2, 2) // columns 1..3, so right = 3
+        val left0 = HomeGrid.resizedBlock(item, HomeGrid.Edge.LEFT, 0f, 0f, cols, rows)
+        assertEquals(0, left0.col)
+        assertEquals(3, left0.right)
+        val tooFar = HomeGrid.resizedBlock(item, HomeGrid.Edge.LEFT, 9f, 0f, cols, rows)
+        assertEquals(2, tooFar.col) // one cell wide at most-shrunk
+        assertEquals(3, tooFar.right)
+    }
+
+    @Test
+    fun draggingTopAndBottomEdgesWorkTheSameWayVertically() {
+        val item = card("limits", 0, 2, 4, 2) // rows 2..3, bottom = 4
+        assertEquals(item.copy(spanY = 4), HomeGrid.resizedBlock(item, HomeGrid.Edge.BOTTOM, 0f, 6f, cols, rows))
+        assertEquals(item.copy(spanY = 1), HomeGrid.resizedBlock(item, HomeGrid.Edge.BOTTOM, 0f, 0f, cols, rows))
+        val up = HomeGrid.resizedBlock(item, HomeGrid.Edge.TOP, 0f, 0.4f, cols, rows)
+        assertEquals(0, up.row)
+        assertEquals(4, up.bottom)
+        val down = HomeGrid.resizedBlock(item, HomeGrid.Edge.TOP, 0f, 99f, cols, rows)
+        assertEquals(3, down.row)
+        assertEquals(4, down.bottom)
+    }
+
+    @Test
+    fun edgeHitFindsTheNearestEdgeWithinTheBand() {
+        // A rectangle from (100,100) to (300,200), band 20.
+        fun hit(x: Float, y: Float) = HomeGrid.edgeHit(100f, 100f, 300f, 200f, x, y, 20f)
+        assertEquals(HomeGrid.Edge.LEFT, hit(105f, 150f))
+        assertEquals(HomeGrid.Edge.LEFT, hit(90f, 150f)) // just outside still counts
+        assertEquals(HomeGrid.Edge.RIGHT, hit(295f, 150f))
+        assertEquals(HomeGrid.Edge.TOP, hit(200f, 102f))
+        assertEquals(HomeGrid.Edge.BOTTOM, hit(200f, 210f))
+        assertNull(hit(200f, 150f)) // the middle is not an edge
+        assertNull(hit(60f, 150f)) // too far out
+        assertEquals(HomeGrid.Edge.LEFT, hit(103f, 108f)) // corner: closer edge (x) wins
+        assertEquals(HomeGrid.Edge.TOP, hit(108f, 103f))
+    }
+
+    @Test
+    fun aResizeThatPushesOthersIsSafeToPreview() {
+        val items = listOf(card("status", 0, 0, 2, 1), app("a", 0, 1), app("b", 1, 1))
+        val grown = HomeGrid.resizedBlock(items[0], HomeGrid.Edge.BOTTOM, 0f, 2f, cols, rows)
+        val out = HomeGrid.place(items, cols, rows, items[0].id, grown.col, grown.row, grown.spanX, grown.spanY)!!
+        noOverlapAndInBounds(out)
+        assertEquals(2, out[0].spanY)
+    }
+
     // ── reconcile ─────────────────────────────────────────────────────────────
 
     @Test

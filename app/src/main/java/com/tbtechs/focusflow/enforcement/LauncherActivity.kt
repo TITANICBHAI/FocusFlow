@@ -1078,6 +1078,7 @@ class LauncherActivity : Activity() {
         stopWidgetListening()
         abortHomeDrag()
         abortGridDrag()
+        exitGridResize()
         dismissUndoBar(runExpire = true)
         super.onPause()
     }
@@ -1156,6 +1157,9 @@ class LauncherActivity : Activity() {
         }
         homeLongPress = customize
         content.setOnLongClickListener(customize)
+        gridResizeId = null
+        gridResizeFrame = null
+        gridResizeDrag = null
         if (gridHomeOn()) {
             homeScroll = null
             homeColumn = null
@@ -1302,6 +1306,8 @@ class LauncherActivity : Activity() {
         allowanceContainer = null
         abortHomeDrag()
         abortGridDrag()
+        gridResizeDrag = null
+        gridResizeFrame = null // removeAllViews above took it off the grid
         homeBlocks = emptyList()
 
         val columns = HomeGrid.DEFAULT_COLUMNS
@@ -1386,6 +1392,10 @@ class LauncherActivity : Activity() {
             view.tag = item.id
             view.setOnLongClickListener(homeLongPress)
             grid.addView(view)
+        }
+        // A rebuild (after a resize, say) keeps the item that was being resized in resize mode.
+        gridResizeId?.let { id ->
+            if (layout.items.any { it.id == id }) enterGridResize(id) else gridResizeId = null
         }
         grid.post {
             // Each widget needs to be told how big its cells turned out, in dp.
@@ -2431,6 +2441,7 @@ class LauncherActivity : Activity() {
         val id = child.tag as? String ?: return false
         val item = gridItems.firstOrNull { it.id == id } ?: return false
         if (child.width <= 0 || child.height <= 0) return false
+        exitGridResize()
         val bitmap = try {
             Bitmap.createBitmap(child.width, child.height, Bitmap.Config.ARGB_8888)
                 .also { child.draw(Canvas(it)) }
@@ -2572,16 +2583,25 @@ class LauncherActivity : Activity() {
                 outline.requestLayout()
             }
         }
+        slideGridItems(d.items, placed, d.item.id)
+    }
+
+    /**
+     * Slides every item except [exceptId] to where [placed] puts it, relative to where it is saved
+     * in [before]; a null [placed] slides them all back.
+     */
+    private fun slideGridItems(before: List<HomeGrid.Item>, placed: List<HomeGrid.Item>?, exceptId: String) {
+        val grid = homeGrid ?: return
         val byId = placed?.associateBy { it.id }
         for (i in 0 until grid.childCount) {
             val child = grid.getChildAt(i)
             val id = child.tag as? String ?: continue
-            if (id == d.item.id) continue
-            val before = d.items.firstOrNull { it.id == id } ?: continue
-            val after = byId?.get(id) ?: before
+            if (id == exceptId) continue
+            val was = before.firstOrNull { it.id == id } ?: continue
+            val now = byId?.get(id) ?: was
             child.animate()
-                .translationX(((after.col - before.col) * grid.cellWidth).toFloat())
-                .translationY(((after.row - before.row) * grid.cellHeight).toFloat())
+                .translationX(((now.col - was.col) * grid.cellWidth).toFloat())
+                .translationY(((now.row - was.row) * grid.cellHeight).toFloat())
                 .setDuration(150)
                 .setUpdateListener { invalidateFrosted() }
                 .start()
@@ -2599,10 +2619,9 @@ class LauncherActivity : Activity() {
             when (d.item.kind) {
                 HomeGrid.Kind.APP, HomeGrid.Kind.SHORTCUT ->
                     pinnedEntries().firstOrNull { it.key == d.item.key }?.let { showPinnedActions(it) }
-                HomeGrid.Kind.WIDGET ->
-                    widgetEntries().firstOrNull { it.appWidgetId.toString() == d.item.key }
-                        ?.let { showWidgetActions(it) }
-                HomeGrid.Kind.CARD -> showHomeCustomizeSheet()
+                // Widgets and cards get resize handles; their old menus only had height and remove,
+                // which the grid does by handles and the Remove bar.
+                HomeGrid.Kind.WIDGET, HomeGrid.Kind.CARD -> enterGridResize(d.item.id)
             }
             return
         }
@@ -2720,6 +2739,114 @@ class LauncherActivity : Activity() {
                     if (widgetEntries().isEmpty()) stopWidgetListening()
                 })
             }
+        }
+    }
+
+    // ── Resizing on the grid ───────────────────────────────────────────────────
+    //
+    // Letting go of a long press without moving, on a widget or a card, shows an outline with a
+    // handle on each edge. Drag a handle to grow or shrink it in whole cells; whatever is in the way
+    // slides aside. A tap outside the outline closes it.
+
+    private class GridResize(
+        val item: HomeGrid.Item,
+        val edge: HomeGrid.Edge,
+        val items: List<HomeGrid.Item>,
+    ) {
+        var current: HomeGrid.Item = item
+        var placed: List<HomeGrid.Item>? = null
+    }
+
+    private var gridResizeId: String? = null
+    private var gridResizeFrame: HomeResizeFrame? = null
+    private var gridResizeDrag: GridResize? = null
+    private var swallowGesture = false
+
+    private fun enterGridResize(id: String) {
+        val grid = homeGrid ?: return
+        val item = gridItems.firstOrNull { it.id == id } ?: return
+        exitGridResize()
+        gridResizeId = id
+        val frame = HomeResizeFrame(this, ACCENT_TEXT).apply {
+            layoutParams = HomeGridLayout.Params(item.col, item.row, item.spanX, item.spanY)
+        }
+        grid.addView(frame)
+        gridResizeFrame = frame
+    }
+
+    private fun exitGridResize() {
+        gridResizeDrag = null
+        gridResizeFrame?.let { (it.parent as? ViewGroup)?.removeView(it) }
+        gridResizeFrame = null
+        gridResizeId = null
+    }
+
+    /** The frame's rectangle on screen, in pixels, or null when there is none. */
+    private fun gridResizeRect(): RectF? {
+        val grid = homeGrid ?: return null
+        val item = gridItems.firstOrNull { it.id == gridResizeId } ?: return null
+        val loc = IntArray(2)
+        grid.getLocationOnScreen(loc)
+        val left = loc[0] + grid.paddingLeft + item.col * grid.cellWidth + grid.insetPx
+        val top = loc[1] + grid.paddingTop + item.row * grid.cellHeight + grid.insetPx
+        return RectF(
+            left.toFloat(),
+            top.toFloat(),
+            (left + item.spanX * grid.cellWidth - 2 * grid.insetPx).toFloat(),
+            (top + item.spanY * grid.cellHeight - 2 * grid.insetPx).toFloat(),
+        )
+    }
+
+    private fun beginGridResize(edge: HomeGrid.Edge) {
+        val item = gridItems.firstOrNull { it.id == gridResizeId } ?: return
+        gridResizeDrag = GridResize(item, edge, gridItems)
+        homeGrid?.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+    }
+
+    private fun updateGridResize() {
+        val d = gridResizeDrag ?: return
+        val grid = homeGrid ?: return
+        if (grid.cellWidth <= 0 || grid.cellHeight <= 0) return
+        val loc = IntArray(2)
+        grid.getLocationOnScreen(loc)
+        val fx = (lastTouchRawX - loc[0] - grid.paddingLeft) / grid.cellWidth
+        val fy = (lastTouchRawY - loc[1] - grid.paddingTop) / grid.cellHeight
+        val resized = HomeGrid.resizedBlock(d.item, d.edge, fx, fy, grid.columns, grid.rows)
+        if (resized == d.current) return
+        val placed = HomeGrid.place(
+            d.items, grid.columns, grid.rows, d.item.id,
+            resized.col, resized.row, resized.spanX, resized.spanY,
+        ) ?: return // nowhere for the others to go: stay at the last size that worked
+        d.current = resized
+        d.placed = placed
+        grid.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+        // Show it live: the item and its frame take the new cells, the others slide.
+        for (i in 0 until grid.childCount) {
+            val child = grid.getChildAt(i)
+            if (child === gridResizeFrame || child.tag == d.item.id) {
+                (child.layoutParams as HomeGridLayout.Params).also {
+                    it.col = resized.col
+                    it.row = resized.row
+                    it.spanX = resized.spanX
+                    it.spanY = resized.spanY
+                }
+                child.requestLayout()
+            }
+        }
+        slideGridItems(d.items, placed, d.item.id)
+    }
+
+    private fun endGridResize(commit: Boolean) {
+        val d = gridResizeDrag ?: return
+        gridResizeDrag = null
+        val placed = d.placed
+        if (commit && placed != null && d.current != d.item) {
+            // Save, then rebuild from what was saved; resize mode carries over to the rebuilt item.
+            prefs.edit().putString(HomeGrid.PREF_KEY, HomeGrid.serialize(placed)).apply()
+            rebuildHomeSections()
+        } else if (placed != null) {
+            // Cancelled: rebuild to put everything back.
+            rebuildHomeSections()
         }
     }
 
@@ -5581,6 +5708,46 @@ class LauncherActivity : Activity() {
         lastTouchRawY = ev.rawY
         // While a widget is lifted the drag owns the whole gesture: nothing underneath it scrolls,
         // taps or swipes, and letting go never counts as a drawer or notification swipe.
+        if (gridResizeId != null && gridDrag == null) {
+            if (swallowGesture) {
+                if (ev.actionMasked == MotionEvent.ACTION_UP || ev.actionMasked == MotionEvent.ACTION_CANCEL) {
+                    swallowGesture = false
+                }
+                return true
+            }
+            val resizing = gridResizeDrag
+            if (resizing != null) {
+                when (ev.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> endGridResize(commit = false) // a stale one: start fresh
+                    MotionEvent.ACTION_MOVE -> { updateGridResize(); return true }
+                    MotionEvent.ACTION_UP -> { endGridResize(commit = true); return true }
+                    MotionEvent.ACTION_CANCEL -> { endGridResize(commit = false); return true }
+                    else -> return true
+                }
+            }
+            if (ev.actionMasked == MotionEvent.ACTION_DOWN) {
+                if (isDrawerOpen || sheetOverlay != null || hiddenOverlay != null || homeArrangeActive) {
+                    exitGridResize()
+                } else {
+                    val rect = gridResizeRect()
+                    if (rect != null) {
+                        val edge = HomeGrid.edgeHit(
+                            rect.left, rect.top, rect.right, rect.bottom, ev.rawX, ev.rawY, dp(28).toFloat(),
+                        )
+                        if (edge != null) {
+                            beginGridResize(edge)
+                            return true
+                        }
+                        if (!rect.contains(ev.rawX, ev.rawY)) {
+                            // A tap outside closes resize mode and does nothing else.
+                            exitGridResize()
+                            swallowGesture = true
+                            return true
+                        }
+                    }
+                }
+            }
+        }
         if (gridDrag != null) {
             when (ev.actionMasked) {
                 MotionEvent.ACTION_DOWN -> endGridDrag(commit = false) // a stale drag: start fresh

@@ -220,6 +220,52 @@ object HomeGrid {
     private fun overlapsBlock(item: Item, col: Int, row: Int, spanX: Int, spanY: Int): Boolean =
         item.col < col + spanX && col < item.right && item.row < row + spanY && row < item.bottom
 
+    // ── Resizing by an edge ────────────────────────────────────────────────────
+
+    enum class Edge { LEFT, TOP, RIGHT, BOTTOM }
+
+    /**
+     * The block that results from dragging one [edge] of [item] to ([x], [y]), given in cells
+     * (so 2.0 is the line between the second and third column). Only the dragged edge moves, in
+     * whole cells; the opposite edge stays put, and the block never gets smaller than one cell or
+     * leaves the grid.
+     */
+    fun resizedBlock(item: Item, edge: Edge, x: Float, y: Float, columns: Int, rows: Int): Item =
+        when (edge) {
+            Edge.RIGHT -> item.copy(spanX = (Math.round(x) - item.col).coerceIn(1, (columns - item.col).coerceAtLeast(1)))
+            Edge.BOTTOM -> item.copy(spanY = (Math.round(y) - item.row).coerceIn(1, (rows - item.row).coerceAtLeast(1)))
+            Edge.LEFT -> {
+                val left = Math.round(x).coerceIn(0, (item.right - 1).coerceAtLeast(0))
+                item.copy(col = left, spanX = item.right - left)
+            }
+            Edge.TOP -> {
+                val top = Math.round(y).coerceIn(0, (item.bottom - 1).coerceAtLeast(0))
+                item.copy(row = top, spanY = item.bottom - top)
+            }
+        }
+
+    /**
+     * Which edge of the rectangle a touch at ([x], [y]) is grabbing, or null if it is not near one.
+     * "Near" is within [band] of the edge, on either side of it, along the edge's length. In a
+     * corner the closer edge wins.
+     */
+    fun edgeHit(left: Float, top: Float, right: Float, bottom: Float, x: Float, y: Float, band: Float): Edge? {
+        if (x < left - band || x > right + band || y < top - band || y > bottom + band) return null
+        var best: Edge? = null
+        var bestDistance = band + 0.001f
+        fun consider(edge: Edge, distance: Float) {
+            if (distance < bestDistance) {
+                best = edge
+                bestDistance = distance
+            }
+        }
+        consider(Edge.LEFT, Math.abs(x - left))
+        consider(Edge.RIGHT, Math.abs(x - right))
+        consider(Edge.TOP, Math.abs(y - top))
+        consider(Edge.BOTTOM, Math.abs(y - bottom))
+        return best
+    }
+
     // ── Lining the grid up with what is wanted ─────────────────────────────────
 
     /**

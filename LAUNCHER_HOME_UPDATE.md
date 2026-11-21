@@ -84,7 +84,7 @@ the same things (clock, status, task, limits, pinned apps and shortcuts, app wid
 Positions are saved in `launcher_home_grid`; what exists still comes from the old settings, so switching back
 and forth loses nothing. Anything that does not fit is left off the grid with a message and stays on List.
 
-Step 1 drew the grid. Step 2 (below) adds dragging. You cannot resize on it yet. Long-press on empty space opens
+Step 1 drew the grid. Step 2 (below) adds dragging and step 3 resizing. Long-press on empty space opens
 Customize home.
 
 Not verified in the sandbox: nothing in the grid view could be compiled or run here, only its pure rules
@@ -103,8 +103,8 @@ Please test on a phone:
 Long-press any item on the Grid layout and it lifts: a copy follows your finger, a soft outline shows the cells it
 would take, and anything in the way slides aside once you rest on it for a moment (about 0.15 s). Let go to
 drop. Drag to the **Remove** bar at the top to take it off home; an **Undo** bar shows for 5 seconds (an app
-widget is only given back to Android after that). Long-press and let go without moving opens the item's old
-menu (pinned app menu, widget menu) as before.
+widget is only given back to Android after that). Long-press and let go without moving opens a pinned app's old
+menu; on a widget or card it shows resize handles (step 3).
 
 Not verified in the sandbox: this was not compiled or run here (CI only) and has not been seen on a phone.
 
@@ -118,3 +118,22 @@ Please test on a phone (Grid layout):
 - Lift and let go without moving: the old menu opens. Lift and drop in the same place: nothing changes.
 - Dropping a big item where nothing can make room: it returns to where it was.
 - While dragging, nothing scrolls and the drawer or notification shade never opens.
+
+### Step 3: resize on the grid
+
+Long-press a widget or a card and let go without moving: an outline appears with a handle on each edge. Drag a
+handle to grow or shrink it in whole cells (at least 1 by 1, inside the 4 by 6 grid). Items in the way slide
+aside, and if there is no room the item stays at the last size that fit. Tap anywhere outside the outline to
+close it. The size is saved, and an app widget is told its new size in dp.
+
+Not verified in the sandbox: the edge and size rules are unit tested (`HomeGridTest`, 38 tests); the handles,
+live preview and widget resizing were not compiled or run here (CI only) and have not been seen on a phone.
+
+Please test on a phone (Grid layout):
+- Long-press a widget, let go: outline with 4 handles. Drag the bottom handle down and up; drag the left/right
+  handles on a card that is not full width (e.g. the status card).
+- Grow something over other items: they slide away; let go and they stay.
+- Resize an app widget: its content redraws to fit (some widgets have a minimum size and may not shrink fully).
+- Tap outside to close; drag the item away while the outline is shown; open the drawer: the outline closes.
+- Handles at the screen's left or right edge may clash with the system back gesture; tell me if they do.
+- Cards keep their natural height at the top of their cells; making a card taller only reserves space.
