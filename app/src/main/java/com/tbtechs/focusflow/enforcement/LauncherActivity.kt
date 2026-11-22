@@ -1770,7 +1770,7 @@ class LauncherActivity : Activity() {
                 dismissSheet()
                 removeWidget(entry)
             })
-            panel.addView(sheetRow("Arrange home", "Move or hide the widgets", TEXT_DIM) {
+            panel.addView(sheetRow("Edit home", "Widgets, wallpaper, style", TEXT_DIM) {
                 dismissSheet()
                 enterHomeArrange()
             })
@@ -1993,7 +1993,7 @@ class LauncherActivity : Activity() {
                 dismissSheet()
                 unpin(entry)
             })
-            panel.addView(sheetRow("Arrange home", "Move or hide the pinned apps", TEXT_DIM) {
+            panel.addView(sheetRow("Edit home", "Widgets, wallpaper, style", TEXT_DIM) {
                 dismissSheet()
                 enterHomeArrange()
             })
@@ -2042,19 +2042,11 @@ class LauncherActivity : Activity() {
     }
 
     private fun enterHomeArrange() {
-        if (homeArrangeActive || isDrawerOpen || sheetOverlay != null || hiddenOverlay != null) return
-        if (gridHomeOn()) {
-            // Arrange mode is for the stacked home. The grid has a small edit menu instead.
-            showGridEditMenu()
-            return
-        }
-        val content = homeContent ?: return
-        homeArrangeActive = true
-        homeScroll?.scrollTo(0, 0)
-        val bar = buildArrangeBar()
-        arrangeBar = bar
-        content.addView(bar, 1) // between the scrolling area and the dock
-        rebuildHomeSections()
+        if (homeArrangeActive || isDrawerOpen || sheetOverlay != null || hiddenOverlay != null || gridDrag != null) return
+        // Long-press on empty space, or a pinch, opens the small Edit home menu (Widgets, Wallpaper,
+        // Style & options) on both layouts. The cramped arrange screen is no longer opened.
+        exitGridResize()
+        showGridEditMenu()
     }
 
     private fun exitHomeArrange() {
@@ -4755,7 +4747,8 @@ class LauncherActivity : Activity() {
         showSheet(scrimColor = Color.parseColor("#33000000")) { panel ->
             panel.addView(label("Edit home", 20f, TEXT_PRIMARY, bold = true))
             panel.addView(label(
-                "Long-press an item to move it, or let go to resize. Drag it to the top to remove it.",
+                if (gridHomeOn()) "Long-press an item to move it, or let go to resize. Drag it to the top to remove it."
+                else "Long-press a widget to drag it up or down. Turn cards on or off under Style & options.",
                 12f,
                 TEXT_MUTED,
             ).apply {
@@ -4768,6 +4761,12 @@ class LauncherActivity : Activity() {
                 dismissSheet()
                 showWidgetPicker()
             })
+            if (widgetEntries().isNotEmpty()) {
+                panel.addView(sheetRow("Manage widgets", "Resize or remove an app widget") {
+                    dismissSheet()
+                    showManageWidgetsSheet()
+                })
+            }
             panel.addView(sheetRow("Wallpaper", wallpaperSummary()) {
                 dismissSheet()
                 showWallpaperSheet()

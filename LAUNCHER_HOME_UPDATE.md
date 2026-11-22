@@ -30,9 +30,8 @@ Nothing here changes enforcement rules except the count-mode fix (item 1).
   the pinned apps and app widgets) and it lifts. Drag it up or down, the others slide out of the way,
   let go and it stays. The home screen scrolls by itself near its top and bottom edge. See
   `HomeDragMath` and its test.
-- **Arrange mode** (long-press empty space or the dock, or pinch the home screen): compact tiles, drag
-  the handle to reorder, Hide / Show each widget, Done, or "Style & options". Still the place for
-  Hide / Show and for screen-reader Move up / Move down.
+- **Arrange mode** (old): compact tiles with drag handles, Hide / Show, Move up / Move down. It is no longer
+  opened from the home screen; see "Edit home menu on both layouts" at the end.
 - **Pinned apps grid**: 3x3, 4x4 or 5x5. Add from the drawer's long-press sheet, or through Android's
   "Add to Home screen" (`PinShortcutActivity`, asks before adding).
 - **App widgets**: hosted on the home screen (up to 6), picker, small / medium / large height.
@@ -73,8 +72,7 @@ SDK with only missing third-party libraries reported.
 - Drag a tall block (limits, app widgets) with a long home screen: it should auto-scroll near the top and
   bottom edge, and letting go must not open the drawer or the notification shade.
 - Lift a widget and let go without moving: nothing changes.
-- Long-press empty space or the dock, and pinch: both still open arrange mode; drag a tile; Hide then Show a
-  widget; "Style & options" opens Customize home.
+- Long-press empty space or the dock, and pinch: both open the small Edit home menu (see the end of this file).
 - Long-press a pinned app and an app widget: their own menus still open (not a drag).
 
 ## Grid home layout (beta), step 1 of the free-grid plan
@@ -179,3 +177,12 @@ Causes and fixes:
 `HomeGridTest` has 42 tests (4 new for squeezing and dormant cards). Not verified in the sandbox: the redraw when
 a card starts or stops having content, and the row estimate; both are CI-built only and not seen on a phone.
 The List layout stays the default until the grid is confirmed on a phone.
+
+## Edit home menu on both layouts
+Pinching the home screen, or long-pressing empty space or the dock, used to open the cramped arrange screen on the
+List layout. It now opens the same small "Edit home" menu the Grid layout has: Widgets (add one), Manage widgets
+(only when an app widget exists: resize or remove), Wallpaper, and Style & options. The "Arrange home" rows in the
+widget and pinned-app menus are now "Edit home" and open the same menu. The menu is ignored while a drag is active
+or another sheet is open. The old arrange code is still in the file but nothing opens it any more (not removed
+yet). Side effect: Hide / Show per widget and the screen-reader Move up / Move down were only in arrange mode;
+cards can still be switched Card / Compact / Off under Style & options. CI-built only, not seen on a phone.
