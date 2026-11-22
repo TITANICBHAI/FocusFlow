@@ -427,7 +427,7 @@ class HomeGridTest {
     }
 
     @Test
-    fun aTypicalListHomeMigratesWithNothingLostAndTheOverflowReported() {
+    fun aTypicalListHomeMigratesWithEverythingCardsShownAndSqueezedToFit() {
         val wanted = HomeGrid.wantedInListOrder(
             order = listOf("clock", "status", "task", "limits", "pinned", "widgets"),
             cards = setOf("clock", "status", "task", "limits"),
@@ -441,14 +441,57 @@ class HomeGridTest {
         assertEquals(Cell(0, 0), cell(layout, "CARD:clock"))
         assertEquals(Cell(0, 2), cell(layout, "CARD:status"))
         assertEquals(Cell(0, 3), cell(layout, "CARD:task"))
-        // The 4x3 limits card has no room left, so it is reported rather than lost.
-        assertEquals(listOf("CARD:limits"), layout.unplaced.map { it.id })
-        // Icons take the gap beside the status card, then the next free row.
+        // The limits card wants 2 rows but only one full-width row is left, so it is squeezed
+        // into it rather than left off.
+        assertEquals(Item(Kind.CARD, "limits", 0, 5, 4, 1), layout.items.first { it.id == "CARD:limits" })
+        // Icons take the gap beside the status card; the rest have no room and are reported.
         assertEquals(Cell(2, 2), cell(layout, "APP:APP|p1|"))
         assertEquals(Cell(3, 2), cell(layout, "APP:APP|p2|"))
-        assertEquals(Cell(0, 5), cell(layout, "APP:APP|p3|"))
+        assertEquals(4, layout.unplaced.size)
         // Everything wanted is either placed or reported.
         assertEquals(wanted.size, layout.items.size + layout.unplaced.size)
+    }
+
+    @Test
+    fun aNewItemIsSqueezedToFewerRowsBeforeBeingLeftOut() {
+        val saved = listOf(card("clock", 0, 0, 4, 2), card("task", 0, 2, 4, 2))
+        val wanted = listOf(
+            Wanted(Kind.CARD, "clock", 4, 2),
+            Wanted(Kind.CARD, "task", 4, 2),
+            Wanted(Kind.WIDGET, "5", 4, 3), // wants 3 rows, only 2 are left
+        )
+        val layout = HomeGrid.reconcile(saved, wanted, cols, rows)
+        assertEquals(Item(Kind.WIDGET, "5", 0, 4, 4, 2), layout.items.last())
+        assertTrue(layout.unplaced.isEmpty())
+    }
+
+    @Test
+    fun anItemThatCannotFitEvenOneRowHighIsReported() {
+        val saved = listOf(card("limits", 0, 0, 4, 6))
+        val wanted = listOf(Wanted(Kind.CARD, "limits", 4, 2), Wanted(Kind.WIDGET, "5", 4, 3))
+        val layout = HomeGrid.reconcile(saved, wanted, cols, rows)
+        assertEquals(listOf("WIDGET:5"), layout.unplaced.map { it.id })
+    }
+
+    @Test
+    fun aDormantCardKeepsItsSavedPlaceWithoutTakingRoom() {
+        val saved = listOf(card("task", 0, 2, 4, 2), app("a", 0, 0))
+        val wanted = listOf(Wanted(Kind.APP, "APP|a|", 1, 1), Wanted(Kind.APP, "APP|b|", 1, 1))
+        val layout = HomeGrid.reconcile(saved, wanted, cols, rows, dormant = setOf("CARD:task"))
+        // b does not land in the task card's old place; the card is parked, not placed.
+        assertEquals(listOf("APP:APP|a|", "APP:APP|b|"), layout.items.map { it.id })
+        assertEquals(listOf(card("task", 0, 2, 4, 2)), layout.parked)
+        // When the card is wanted again it returns to its place.
+        val back = HomeGrid.reconcile(layout.items + layout.parked, wanted + Wanted(Kind.CARD, "task", 4, 2), cols, rows)
+        assertEquals(Cell(0, 2), cell(back, "CARD:task"))
+    }
+
+    @Test
+    fun aCardThatIsNotWantedAndNotDormantIsForgotten() {
+        val saved = listOf(card("task", 0, 2, 4, 2))
+        val layout = HomeGrid.reconcile(saved, emptyList(), cols, rows)
+        assertTrue(layout.items.isEmpty())
+        assertTrue(layout.parked.isEmpty())
     }
 
     private fun cell(layout: HomeGrid.Layout, id: String): Cell {

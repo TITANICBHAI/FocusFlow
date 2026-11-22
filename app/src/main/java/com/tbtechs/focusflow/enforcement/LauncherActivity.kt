@@ -1288,6 +1288,29 @@ class LauncherActivity : Activity() {
 
     private fun gridHomeOn(): Boolean = prefs.getString(PREF_HOME_LAYOUT, "list") == "grid"
 
+    /** Roughly how much height the grid gets, in dp: the screen less the bars, padding and dock. */
+    private fun gridHeightDpEstimate(): Float =
+        resources.displayMetrics.heightPixels / resources.displayMetrics.density - 240f
+
+    /**
+     * How many rows the grid has: about one per 84 dp of height, never fewer than six. Based only on
+     * the screen size, so it does not change from one launch to the next.
+     */
+    private fun gridRowsEstimate(): Int =
+        (gridHeightDpEstimate() / 84f).toInt().coerceIn(HomeGrid.DEFAULT_ROWS, 9)
+
+    private fun focusCardShowing(): Boolean {
+        val snapshot = currentSnapshot(System.currentTimeMillis()) ?: return false
+        return snapshot.mode == WidgetMode.ACTIVE || (snapshot.mode == WidgetMode.NEXT && snapshot.startsToday)
+    }
+
+    private fun gridTaskWanted(): Boolean = taskStyleValue() != "off" && focusCardShowing()
+
+    private fun gridLimitsWanted(): Boolean = limitsStyleValue() != "off" && loadAllowanceCardData().isNotEmpty()
+
+    /** Which cards had something to show when the grid was last filled; a change means refilling it. */
+    private var gridCardSignature = ""
+
     /** Items the grid had no room for, as last reported, so the message shows once rather than every redraw. */
     private var gridUnplacedShown: Set<String> = emptySet()
 
@@ -1316,15 +1339,25 @@ class LauncherActivity : Activity() {
         homeBlocks = emptyList()
 
         val columns = HomeGrid.DEFAULT_COLUMNS
-        val rows = HomeGrid.DEFAULT_ROWS
+        val rows = gridRowsEstimate()
         grid.columns = columns
         grid.rows = rows
 
+        // The task and limits cards only take cells while they have something to show; the rest
+        // of the time they keep their saved place without using any room (a "dormant" card).
+        val taskNow = gridTaskWanted()
+        val limitsNow = gridLimitsWanted()
+        gridCardSignature = "$taskNow|$limitsNow"
         val cards = HashSet<String>()
+        val dormant = HashSet<String>()
         if (clockStyleValue() != "off") cards += "clock"
         if (statusStyleValue() != "off") cards += "status"
-        if (taskStyleValue() != "off") cards += "task"
-        if (limitsStyleValue() != "off") cards += "limits"
+        if (taskStyleValue() != "off") {
+            if (taskNow) cards += "task" else dormant += HomeGrid.id(HomeGrid.Kind.CARD, "task")
+        }
+        if (limitsStyleValue() != "off") {
+            if (limitsNow) cards += "limits" else dormant += HomeGrid.id(HomeGrid.Kind.CARD, "limits")
+        }
 
         val pinnedAll = pinnedEntries()
         val pinned = if (pinnedStyleValue() == "off") emptyList() else pinnedAll.filter { pinnedStillThere(it) }
@@ -1333,9 +1366,8 @@ class LauncherActivity : Activity() {
         pinnedRenderedRaw = prefs.getString(PREF_HOME_PINNED_ITEMS, null)
 
         val density = resources.displayMetrics.density
-        val screenDp = resources.displayMetrics.heightPixels / density
         // A guess at the cell height, only used to pick a widget's first size on the grid.
-        val cellDpGuess = ((screenDp - (barTop + barBottom) / density - 28f - 140f) / rows).toInt().coerceIn(60, 140)
+        val cellDpGuess = (gridHeightDpEstimate() / rows).toInt().coerceIn(60, 140)
         val widgets = liveWidgetsForGrid()
         val wanted = HomeGrid.wantedInListOrder(
             order = homeOrder(),
@@ -1349,8 +1381,8 @@ class LauncherActivity : Activity() {
             cellHeightDp = cellDpGuess,
         )
         val savedRaw = prefs.getString(HomeGrid.PREF_KEY, null)
-        val layout = HomeGrid.reconcile(HomeGrid.parse(savedRaw), wanted, columns, rows)
-        val raw = HomeGrid.serialize(layout.items)
+        val layout = HomeGrid.reconcile(HomeGrid.parse(savedRaw), wanted, columns, rows, dormant)
+        val raw = HomeGrid.serialize(layout.items + layout.parked)
         if (raw != (savedRaw ?: "")) prefs.edit().putString(HomeGrid.PREF_KEY, raw).apply()
 
         val unplaced = layout.unplaced.map { it.id }.toSet()
@@ -3026,6 +3058,14 @@ class LauncherActivity : Activity() {
         refreshFocusCard()
         refreshTodaysLimits()
         updateClockText()
+        // On the grid, a card that starts or stops having something to show takes or gives back its
+        // cells. Not while something is being dragged: the drag would be cancelled by the redraw,
+        // and the next refresh catches up.
+        if (homeGrid != null && gridDrag == null && gridResizeDrag == null && pendingDrawerDrag == null &&
+            gridCardSignature != "${gridTaskWanted()}|${gridLimitsWanted()}"
+        ) {
+            rebuildHomeSections()
+        }
     }
 
     private fun buildClockWidget(): LinearLayout {

@@ -55,8 +55,11 @@ object HomeGrid {
     /** A cell, named by its column and row. */
     data class Cell(val col: Int, val row: Int)
 
-    /** What [reconcile] made: the placed items, and the wanted ones that had no room. */
-    class Layout(val items: List<Item>, val unplaced: List<Wanted>)
+    /**
+     * What [reconcile] made: the placed items, the wanted ones that had no room, and the saved
+     * positions of dormant items (see [reconcile]) which should be written back with [items].
+     */
+    class Layout(val items: List<Item>, val unplaced: List<Wanted>, val parked: List<Item> = emptyList())
 
     enum class Status { ADDED, DUPLICATE, FULL }
 
@@ -270,17 +273,30 @@ object HomeGrid {
 
     /**
      * Makes the saved positions match [wanted]. An item that is still wanted keeps its place and
-     * size (cut down to fit if the grid got smaller). One that is no longer wanted is dropped. A
-     * wanted item with no saved place, or whose saved place is now taken or outside the grid, goes
-     * in the first free spot, in the order given. Anything with no room is returned in
-     * [Layout.unplaced] and never silently lost.
+     * size (cut down to fit if the grid got smaller). One that is no longer wanted is dropped, unless
+     * its id is in [dormant]: a card that has nothing to show right now keeps its saved place in
+     * [Layout.parked] without taking any room, so it comes back where it was. A wanted item with no
+     * saved place, or whose saved place is now taken or outside the grid, goes in the first free
+     * spot, in the order given; if there is no room at its full height it is squeezed to fewer rows
+     * before giving up. Anything with no room at all is returned in [Layout.unplaced] and never
+     * silently lost.
      */
-    fun reconcile(saved: List<Item>, wanted: List<Wanted>, columns: Int, rows: Int): Layout {
+    fun reconcile(
+        saved: List<Item>,
+        wanted: List<Wanted>,
+        columns: Int,
+        rows: Int,
+        dormant: Set<String> = emptySet(),
+    ): Layout {
         val wantedById = LinkedHashMap<String, Wanted>()
         for (w in wanted) wantedById.putIfAbsent(w.id, w)
         val kept = ArrayList<Item>()
+        val parked = ArrayList<Item>()
         for (item in saved) {
-            val want = wantedById[item.id] ?: continue
+            if (wantedById[item.id] == null) {
+                if (item.id in dormant && parked.none { it.id == item.id }) parked += item
+                continue
+            }
             if (kept.any { it.id == item.id }) continue
             val sx = item.spanX.coerceIn(1, columns.coerceAtLeast(1))
             val sy = item.spanY.coerceIn(1, rows.coerceAtLeast(1))
@@ -292,12 +308,16 @@ object HomeGrid {
         for (want in wantedById.values) {
             if (want.id in keptIds) continue
             val sx = want.spanX.coerceIn(1, columns.coerceAtLeast(1))
-            val sy = want.spanY.coerceIn(1, rows.coerceAtLeast(1))
-            val spot = firstFree(kept, columns, rows, sx, sy)
+            var sy = want.spanY.coerceIn(1, rows.coerceAtLeast(1))
+            var spot = firstFree(kept, columns, rows, sx, sy)
+            while (spot == null && sy > 1) {
+                sy--
+                spot = firstFree(kept, columns, rows, sx, sy)
+            }
             if (spot == null) unplaced += want
             else kept += Item(want.kind, want.key, spot.col, spot.row, sx, sy)
         }
-        return Layout(kept, unplaced)
+        return Layout(kept, unplaced, parked)
     }
 
     // ── Moving over from the list home screen ──────────────────────────────────
@@ -307,7 +327,7 @@ object HomeGrid {
         "clock" -> columns to 2
         "status" -> minOf(2, columns) to 1
         "task" -> columns to 2
-        "limits" -> columns to 3
+        "limits" -> columns to 2
         else -> columns to 1
     }
 

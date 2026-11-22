@@ -164,3 +164,18 @@ Not verified in the sandbox: not compiled or run here (CI only), not seen on a p
 Please test on a phone (Grid layout): drag an app from the drawer to an empty cell and onto an occupied one;
 check it stays after leaving and returning; long-press an app already on home (menu opens); long-press and let
 go without moving (menu opens); drag, then let the finger leave the screen's grid area and release.
+
+### Grid fit fixes (after the first phone test)
+
+The first phone test of the grid-only build showed "1 item doesn't fit" on first open and no room for widgets.
+Causes and fixes:
+- The default card sizes added up to 8 rows on a 6-row grid. The grid now has about one row per 84 dp of
+  screen height (6 to 9 rows), and the limits card defaults to 4 by 2 instead of 4 by 3.
+- The task and limits cards took cells even when they had nothing to show. Now they only take cells while they
+  have something to show, and keep their saved spot while they do not (the grid redraws when that changes).
+- A new item that does not fit at its full height is squeezed to fewer rows before being left off, so a widget
+  or card shows smaller instead of missing. Resize it bigger once there is room.
+
+`HomeGridTest` has 42 tests (4 new for squeezing and dormant cards). Not verified in the sandbox: the redraw when
+a card starts or stops having content, and the row estimate; both are CI-built only and not seen on a phone.
+The List layout stays the default until the grid is confirmed on a phone.
