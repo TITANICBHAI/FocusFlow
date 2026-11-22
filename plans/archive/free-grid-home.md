@@ -1,7 +1,7 @@
 # Free-grid home screen (stock-launcher style)
 Ticket: none (request: "I want that kind of" stock-launcher dragging, option C: free grid)
 
-Status: DONE and archived (phases 0-4, 6 and 7 built; phase 5 deferred).
+Status: Phase 7 was built (79cfe53) and then reverted (see Execution record). Phases 0-4 and 6 stand; phase 5 deferred.
 
 ## What "done" means
 A person can long-press any item on the home screen, lift it, and drop it on any free cell of a
@@ -209,3 +209,12 @@ Deviations from the plan:
 Verification: the grid rules have 38 unit tests (run locally against a JUnit stand-in and in CI). Views and
 gestures were compiled by CI only. Nothing was seen or run on a device. Open risks are listed in
 `LAUNCHER_HOME_UPDATE.md` under "Grid home".
+
+## After phase 7: reverted
+
+The user opened the phase 7 build on a phone and it was unusable: "2 items don't fit on the grid yet" on first
+open, and widgets could not be used. Cause (from the code, not yet seen on the device): the default sizes
+(clock 4x2, status 2x1, task 4x2, limits 4x3 = 8 rows) exceed the 6-row grid, the task and limits cards reserve
+their cells even when they have nothing to show, and app widgets (full width, several rows) come last so they
+are the ones left over. Phase 7 was reverted so the List layout is the default again, with Grid (beta) behind
+the switch, until the grid is fixed and checked on the phone.
