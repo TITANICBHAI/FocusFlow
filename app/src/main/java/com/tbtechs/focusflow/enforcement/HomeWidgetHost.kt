@@ -37,10 +37,8 @@ internal class LongPressHostView(context: Context) : AppWidgetHostView(context) 
     private var downY = 0f
     private var fired = false
     private val check = Runnable {
-        if (hasOnLongClickListeners()) {
-            fired = true
-            performLongClick()
-        }
+        // performLongClick is true only when a listener handled it; otherwise leave the widget alone.
+        if (performLongClick()) fired = true
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
