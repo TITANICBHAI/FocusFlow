@@ -3175,9 +3175,8 @@ class LauncherActivity : Activity() {
     private fun refreshStatusPill() {
         val text = statusText ?: return
         val label = statusLabel()
-        // "Ready" says nothing the person needs, so the status only appears when something is
-        // actually going on: Focus Mode, Always-On, a task, or what is coming up next.
-        (text.parent as? View)?.visibility = if (label == STATUS_READY) View.GONE else View.VISIBLE
+        // Always shown while Status is on, so it never looks missing. "Ready" means nothing is going on.
+        (text.parent as? View)?.visibility = View.VISIBLE
         text.text = "${getBlockedPackages().size} blocked • $label"
         val color = when {
             prefs.getBoolean(PREF_ALWAYS_BLOCK, false) -> RED_BLOCK
@@ -4761,6 +4760,36 @@ class LauncherActivity : Activity() {
                 dismissSheet()
                 showWidgetPicker()
             })
+            panel.addView(label("Show on home", 13f, TEXT_DIM).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).also { it.topMargin = dp(12) }
+            })
+            val shown = HorizontalScrollView(this).apply {
+                isHorizontalScrollBarEnabled = false
+                overScrollMode = View.OVER_SCROLL_NEVER
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).also { it.topMargin = dp(6); it.bottomMargin = dp(6) }
+            }
+            val shownRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            shown.addView(shownRow)
+            val toggles = if (gridHomeOn()) listOf("clock", "status", "task", "limits")
+            else listOf("clock", "status", "task", "limits", "pinned", "widgets")
+            toggles.forEach { id ->
+                val info = homeWidgetInfo(id)
+                val on = info.style() != "off"
+                // Tapping turns it off (style becomes Off, same as in Style & options) or back on
+                // with the look it had before.
+                shownRow.addView(chipView(info.title, on) {
+                    setHomeWidgetVisible(id, !on)
+                    dismissSheet()
+                    showGridEditMenu()
+                })
+            }
+            panel.addView(shown)
             if (widgetEntries().isNotEmpty()) {
                 panel.addView(sheetRow("Manage widgets", "Resize or remove an app widget") {
                     dismissSheet()

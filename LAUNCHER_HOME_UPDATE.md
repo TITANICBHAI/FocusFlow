@@ -186,3 +186,16 @@ widget and pinned-app menus are now "Edit home" and open the same menu. The menu
 or another sheet is open. The old arrange code is still in the file but nothing opens it any more (not removed
 yet). Side effect: Hide / Show per widget and the screen-reader Move up / Move down were only in arrange mode;
 cards can still be switched Card / Compact / Off under Style & options. CI-built only, not seen on a phone.
+
+## Widget long-press, hide toggles, status always visible
+Found from the first phone test of the Edit home menu:
+- **App widgets ignored long-press** (the system clock, for one). Their clickable inner areas take the touch, so a
+  listener on the widget never fired. Widgets are now hosted in `LongPressHostView` (`HomeWidgetHost.kt`), which times
+  the press itself: still finger for the long-press time runs the long-click and takes the touch from the widget.
+  Moving more than the touch slop, lifting, or a parent taking over (scrolling) cancels it.
+- **Hiding our own cards**: the Edit home menu has a "Show on home" row of chips (Clock, Status, Current task,
+  Today's limits, plus Pinned apps and App widgets on List). Tapping one sets its style to Off in Style & options and
+  remembers the old look; tapping again restores it. This replaces the Hide / Show that lived in arrange mode.
+- **Status pill**: it hid itself whenever the status was "Ready", so it looked like it never appeared. It now stays
+  visible while Status is on ("N blocked • Ready"). To go back to the old behaviour, turn Status Off.
+CI-built only, not seen on a phone.
