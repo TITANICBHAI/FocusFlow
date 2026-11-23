@@ -256,15 +256,35 @@ object CustomScreenRules {
         return out.toList()
     }
 
+    /** True for something that looks like rules: a FocusFlow export, one rule, or a list with an object in it. */
+    private fun looksLikeRules(root: Any): Boolean = when (root) {
+        is JSONObject -> root.has("format") || root.has("matchers") || root.has("packageName")
+        is JSONArray -> (0 until root.length()).any { root.optJSONObject(it) != null }
+        else -> false
+    }
+
+    /**
+     * The JSON parser on Android is forgiving: it reads text with curly quotes as a valid object
+     * with odd keys. So a candidate that parses is only taken when it looks like rules; if none does,
+     * the first one that parsed is returned so the caller can say what is wrong with it.
+     */
     private fun readRoot(raw: String): Any? {
+        var firstParsed: Any? = null
         for (candidate in importCandidates(raw)) {
-            if (candidate.startsWith("{")) {
-                try { return JSONObject(candidate) } catch (e: Exception) { /* try the next form */ }
-            } else if (candidate.startsWith("[")) {
-                try { return JSONArray(candidate) } catch (e: Exception) { /* try the next form */ }
+            val parsed: Any? = try {
+                when {
+                    candidate.startsWith("{") -> JSONObject(candidate)
+                    candidate.startsWith("[") -> JSONArray(candidate)
+                    else -> null
+                }
+            } catch (e: Exception) {
+                null
             }
+            if (parsed == null) continue
+            if (looksLikeRules(parsed)) return parsed
+            if (firstParsed == null) firstParsed = parsed
         }
-        return null
+        return firstParsed
     }
 
     private val MATCHER_KEYS = setOf("viewIdSuffix", "className", "textContains", "descContains", "selectedOnly")
