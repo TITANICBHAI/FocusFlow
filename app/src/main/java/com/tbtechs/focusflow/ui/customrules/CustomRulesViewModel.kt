@@ -116,30 +116,35 @@ class CustomRulesViewModel(private val appContext: Context) : ViewModel() {
 
     fun exportJson(): String = CustomScreenRules.exportEnvelope(_rules.value)
 
-    /** Reads import text without saving anything. */
-    fun previewImport(text: String): ImportResult =
-        CustomScreenRules.parseImport(text, appContext.packageName)
+    /**
+     * Reads import text without saving anything, against the rules saved right now. What it
+     * returns is exactly what [import] will add: rules the same as one you already have are
+     * skipped, and the list is cut at [CustomScreenRules.MAX_RULES] counting your existing rules.
+     */
+    fun previewImport(text: String): ImportResult {
+        val current = CustomRuleStore.read(prefs)
+        val parsed = CustomScreenRules.parseImport(text, appContext.packageName, current)
+        val room = (CustomScreenRules.MAX_RULES - current.size).coerceAtLeast(0)
+        if (parsed.accepted.size <= room) return parsed
+        val overflow = parsed.accepted.size - room
+        return ImportResult(
+            accepted = parsed.accepted.take(room),
+            rejected = parsed.rejected + "$overflow rule(s) not added: the limit is ${CustomScreenRules.MAX_RULES} rules.",
+            duplicates = parsed.duplicates,
+        )
+    }
 
     /**
-     * Adds the valid rules from [text] after the existing ones (existing rules are kept).
-     * Stops at [CustomScreenRules.MAX_RULES]. Imported rules are disabled. The result lists
-     * the rules actually added and everything that was refused, including those over the limit.
+     * Adds the rules [previewImport] accepts after the existing ones (existing rules are kept).
+     * Imported rules are disabled. Importing the same text again adds nothing.
      */
     fun import(text: String): ImportResult {
-        val parsed = previewImport(text)
-        val current = CustomRuleStore.read(prefs)
-        val room = (CustomScreenRules.MAX_RULES - current.size).coerceAtLeast(0)
-        val added = parsed.accepted.take(room)
-        val rejected = parsed.rejected.toMutableList()
-        val overflow = parsed.accepted.size - added.size
-        if (overflow > 0) {
-            rejected += "$overflow rule(s) not added: the limit is ${CustomScreenRules.MAX_RULES} rules."
-        }
-        if (added.isNotEmpty()) {
-            CustomRuleStore.write(prefs, current + added)
+        val result = previewImport(text)
+        if (result.accepted.isNotEmpty()) {
+            CustomRuleStore.write(prefs, CustomRuleStore.read(prefs) + result.accepted)
             refresh()
         }
-        return ImportResult(added, rejected)
+        return result
     }
 
     companion object {

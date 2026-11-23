@@ -127,7 +127,7 @@ fun CustomRulesTransferScreen(
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "Only import rules from people you trust. Imported rules are switched off until you turn them on.",
+                    text = "Only import rules from people you trust. Imported rules are switched off until you turn them on. A rule you already have is skipped.",
                     fontSize = 12.scaledSp,
                     lineHeight = 18.scaledSp,
                     color = DarkTextSecondary,
@@ -174,6 +174,22 @@ fun CustomRulesTransferScreen(
                             )
                         }
                     }
+                    if (result.duplicates.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "Already added, skipped:",
+                            fontSize = 13.scaledSp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = DarkTextPrimary,
+                        )
+                        result.duplicates.forEach { reason ->
+                            Text(
+                                text = "• $reason",
+                                fontSize = 12.scaledSp,
+                                color = DarkTextSecondary,
+                            )
+                        }
+                    }
                     if (result.rejected.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
@@ -197,10 +213,12 @@ fun CustomRulesTransferScreen(
                             onClick = {
                                 val done = viewModel.import(importText)
                                 val n = done.accepted.size
+                                val skipped = done.duplicates.size
+                                val skippedNote = if (skipped > 0) " Skipped $skipped already added." else ""
                                 message = if (n == 0) {
-                                    "Nothing was imported."
+                                    if (skipped > 0) "Nothing new: these rules are already added." else "Nothing was imported."
                                 } else {
-                                    "Imported $n rule${if (n == 1) "" else "s"}. Turn them on in the Defense tab."
+                                    "Imported $n rule${if (n == 1) "" else "s"}.$skippedNote Turn them on in the Defense tab."
                                 }
                                 preview = null
                                 importText = ""

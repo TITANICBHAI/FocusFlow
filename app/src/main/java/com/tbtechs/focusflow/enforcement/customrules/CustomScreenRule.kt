@@ -2,6 +2,7 @@ package com.tbtechs.focusflow.enforcement.customrules
 
 import org.json.JSONArray
 import org.json.JSONObject
+import java.util.Locale
 import java.util.UUID
 
 /** One thing to look for on screen. A node matches when EVERY non-blank field matches. */
@@ -34,10 +35,14 @@ data class CustomScreenRule(
     val matchers: List<NodeMatcher>,
 )
 
-/** Result of reading an import file: rules that can be added and the reasons others were refused. */
+/**
+ * Result of reading an import file: rules that can be added, the reasons others were refused,
+ * and the rules skipped because the same rule already exists (in your rules or earlier in the file).
+ */
 data class ImportResult(
     val accepted: List<CustomScreenRule>,
     val rejected: List<String>,
+    val duplicates: List<String> = emptyList(),
 )
 
 object CustomScreenRules {
@@ -83,6 +88,39 @@ object CustomScreenRules {
         }.maxOf { it.length }
         if (longest > MAX_FIELD_LEN) return "A field is longer than $MAX_FIELD_LEN characters."
         return null
+    }
+
+    // ----- Duplicates -----
+
+    private fun key(value: String?, trim: Boolean): String? {
+        val v = if (trim) value?.trim() else value
+        return v?.takeIf { it.isNotBlank() }?.lowercase(Locale.ROOT)
+    }
+
+    /**
+     * What a matcher looks for, written so two matchers that match the same things compare equal.
+     * Case never matters to matching. The view id and class name are trimmed when a rule is read,
+     * but text and description are not, so a trailing space in those still counts.
+     */
+    private fun matcherKey(m: NodeMatcher): List<Any?> = listOf(
+        key(m.viewIdSuffix, trim = true),
+        key(m.className, trim = true),
+        key(m.textContains, trim = false),
+        key(m.descContains, trim = false),
+        m.selectedOnly,
+    )
+
+    /**
+     * True when two rules would block exactly the same screens: same app, same set of matchers
+     * and the same match mode. The name, id and on/off state are ignored, and so is the order
+     * or repetition of matchers. With one matcher, "all" and "any" mean the same thing.
+     */
+    fun isSameRule(a: CustomScreenRule, b: CustomScreenRule): Boolean {
+        if (!a.packageName.trim().equals(b.packageName.trim(), ignoreCase = true)) return false
+        val am = a.matchers.map { matcherKey(it) }.toSet()
+        val bm = b.matchers.map { matcherKey(it) }.toSet()
+        if (am != bm) return false
+        return am.size <= 1 || a.matchMode == b.matchMode
     }
 
     // ----- JSON -----
@@ -185,9 +223,15 @@ object CustomScreenRules {
 
     /**
      * Reads an export file. Every accepted rule gets a new random id and starts disabled,
-     * whatever the file says. Rules that fail [validate] are listed in `rejected`.
+     * whatever the file says. Rules that fail [validate] are listed in `rejected`. A rule that is
+     * the same as one in [existing], or as an earlier rule in the file, is listed in `duplicates`
+     * and not accepted. Invalid rules are reported as invalid first, never as duplicates.
      */
-    fun parseImport(text: String, ownPackage: String): ImportResult {
+    fun parseImport(
+        text: String,
+        ownPackage: String,
+        existing: List<CustomScreenRule> = emptyList(),
+    ): ImportResult {
         if (text.length > MAX_IMPORT_CHARS) {
             return ImportResult(emptyList(), listOf("The text is too long to be a rule file."))
         }
@@ -207,6 +251,7 @@ object CustomScreenRules {
 
         val accepted = mutableListOf<CustomScreenRule>()
         val rejected = mutableListOf<String>()
+        val duplicates = mutableListOf<String>()
         for (i in 0 until arr.length()) {
             if (accepted.size >= MAX_RULES) {
                 rejected += "${arr.length() - i} more rule(s) skipped: the limit is $MAX_RULES rules."
@@ -228,10 +273,16 @@ object CustomScreenRules {
             val error = validate(fresh, ownPackage)
             if (error != null) {
                 rejected += "${fresh.name.ifBlank { "Entry ${i + 1}" }}: $error"
-            } else {
-                accepted += fresh
+                continue
+            }
+            val same = existing.firstOrNull { isSameRule(it, fresh) }
+            val earlier = accepted.firstOrNull { isSameRule(it, fresh) }
+            when {
+                same != null -> duplicates += "${fresh.name}: already in your rules as \"${same.name}\"."
+                earlier != null -> duplicates += "${fresh.name}: the same as \"${earlier.name}\" in this file."
+                else -> accepted += fresh
             }
         }
-        return ImportResult(accepted, rejected)
+        return ImportResult(accepted, rejected, duplicates)
     }
 }

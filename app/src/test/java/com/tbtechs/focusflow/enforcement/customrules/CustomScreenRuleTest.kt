@@ -134,7 +134,12 @@ class CustomScreenRuleTest {
 
     @Test
     fun importGivesEachRuleADifferentId() {
-        val text = CustomScreenRules.exportEnvelope(listOf(rule(id = "same"), rule(id = "same", name = "Other")))
+        val text = CustomScreenRules.exportEnvelope(
+            listOf(
+                rule(id = "same"),
+                rule(id = "same", name = "Other", matchers = listOf(NodeMatcher(viewIdSuffix = "other_view"))),
+            ),
+        )
         val ids = CustomScreenRules.parseImport(text, own).accepted.map { it.id }
         assertEquals(2, ids.toSet().size)
     }
@@ -161,7 +166,9 @@ class CustomScreenRuleTest {
 
     @Test
     fun importCapsAtMaxRules() {
-        val many = List(CustomScreenRules.MAX_RULES + 5) { rule(id = "i$it", name = "Rule $it") }
+        val many = List(CustomScreenRules.MAX_RULES + 5) {
+            rule(id = "i$it", name = "Rule $it", matchers = listOf(NodeMatcher(viewIdSuffix = "view_$it")))
+        }
         val result = CustomScreenRules.parseImport(CustomScreenRules.exportEnvelope(many), own)
         assertEquals(CustomScreenRules.MAX_RULES, result.accepted.size)
         assertEquals(1, result.rejected.size)
@@ -201,5 +208,105 @@ class CustomScreenRuleTest {
         assertFalse(CustomScreenRules.fromJson(old).single().matchers.single().selectedOnly)
         val written = CustomScreenRules.toJson(listOf(rule()))
         assertFalse(written.contains("selectedOnly"))
+    }
+
+    // ----- duplicates -----
+
+    private fun m(
+        id: String? = null,
+        text: String? = null,
+        desc: String? = null,
+        cls: String? = null,
+        selected: Boolean = false,
+    ) = NodeMatcher(viewIdSuffix = id, className = cls, textContains = text, descContains = desc, selectedOnly = selected)
+
+    @Test
+    fun sameRuleIgnoresNameIdEnabledCaseAndMatcherOrder() {
+        val a = rule(name = "One", id = "a", enabled = true, matchers = listOf(m(id = "Reel_Tab"), m(desc = "Reels")))
+        val b = rule(
+            name = "Two", id = "b", enabled = false, packageName = " COM.Instagram.Android ",
+            matchers = listOf(m(desc = "REELS"), m(id = " reel_tab ")),
+        )
+        assertTrue(CustomScreenRules.isSameRule(a, b))
+        assertTrue(CustomScreenRules.isSameRule(b, a))
+    }
+
+    @Test
+    fun sameRuleNeedsTheSameAppMatchersSelectedFlagAndMode() {
+        val base = rule(matchers = listOf(m(id = "a"), m(text = "b")))
+        assertFalse(CustomScreenRules.isSameRule(base, base.copy(packageName = "com.other")))
+        assertFalse(CustomScreenRules.isSameRule(base, base.copy(matchers = listOf(m(id = "a"), m(text = "c")))))
+        assertFalse(CustomScreenRules.isSameRule(base, base.copy(matchers = listOf(m(id = "a")))))
+        assertFalse(
+            CustomScreenRules.isSameRule(base, base.copy(matchers = listOf(m(id = "a", selected = true), m(text = "b")))),
+        )
+        assertFalse(CustomScreenRules.isSameRule(base, base.copy(matchMode = MatchMode.ANY)))
+    }
+
+    @Test
+    fun sameRuleTreatsAllAndAnyAsEqualForOneMatcherAndRepeatedMatchersAsOne() {
+        val one = rule(matchers = listOf(m(id = "a")), matchMode = MatchMode.ALL)
+        assertTrue(CustomScreenRules.isSameRule(one, one.copy(matchMode = MatchMode.ANY)))
+        assertTrue(CustomScreenRules.isSameRule(one, one.copy(matchers = listOf(m(id = "a"), m(id = "A")))))
+    }
+
+    @Test
+    fun sameRuleKeepsSpacesInTextAndDescription() {
+        val a = rule(matchers = listOf(m(text = "Reels")))
+        assertFalse(CustomScreenRules.isSameRule(a, rule(matchers = listOf(m(text = "Reels ")))))
+        assertFalse(CustomScreenRules.isSameRule(a, rule(matchers = listOf(m(desc = "Reels")))))
+    }
+
+    @Test
+    fun importSkipsRulesYouAlreadyHaveEvenWithAnotherName() {
+        val mine = rule(name = "Mine", id = "mine", enabled = true)
+        val text = CustomScreenRules.exportEnvelope(listOf(rule(name = "Theirs", id = "t")))
+        val result = CustomScreenRules.parseImport(text, own, listOf(mine))
+        assertTrue(result.accepted.isEmpty())
+        assertTrue(result.rejected.isEmpty())
+        assertEquals(1, result.duplicates.size)
+        assertTrue(result.duplicates[0].startsWith("Theirs: "))
+        assertTrue(result.duplicates[0].contains("\"Mine\""))
+    }
+
+    @Test
+    fun importingTheSameFileTwiceAddsNothingSecondTime() {
+        val text = CustomScreenRules.exportEnvelope(
+            listOf(rule(name = "A"), rule(name = "B", matchers = listOf(m(id = "other")))),
+        )
+        val first = CustomScreenRules.parseImport(text, own)
+        assertEquals(2, first.accepted.size)
+        val second = CustomScreenRules.parseImport(text, own, first.accepted)
+        assertTrue(second.accepted.isEmpty())
+        assertEquals(2, second.duplicates.size)
+    }
+
+    @Test
+    fun importSkipsARepeatedRuleInsideTheFileAndKeepsTheFirst() {
+        val text = CustomScreenRules.exportEnvelope(
+            listOf(rule(name = "First", id = "1"), rule(name = "Second", id = "2"), rule(name = "Third", id = "3", packageName = "com.other")),
+        )
+        val result = CustomScreenRules.parseImport(text, own)
+        assertEquals(listOf("First", "Third"), result.accepted.map { it.name })
+        assertEquals(1, result.duplicates.size)
+        assertTrue(result.duplicates[0].contains("\"First\""))
+    }
+
+    @Test
+    fun invalidRulesAreReportedAsInvalidNotAsDuplicates() {
+        val bad = rule(name = "Sneaky", packageName = "com.android.settings")
+        val text = CustomScreenRules.exportEnvelope(listOf(bad, bad.copy(name = "Sneaky again")))
+        val result = CustomScreenRules.parseImport(text, own, listOf(bad))
+        assertTrue(result.accepted.isEmpty())
+        assertTrue(result.duplicates.isEmpty())
+        assertEquals(2, result.rejected.size)
+    }
+
+    @Test
+    fun importWithoutExistingRulesBehavesAsBefore() {
+        val text = CustomScreenRules.exportEnvelope(listOf(rule(name = "Good")))
+        val result = CustomScreenRules.parseImport(text, own)
+        assertEquals(1, result.accepted.size)
+        assertTrue(result.duplicates.isEmpty())
     }
 }
