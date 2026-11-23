@@ -1,5 +1,8 @@
 package com.tbtechs.focusflow.ui.customrules
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,6 +33,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.tbtechs.focusflow.enforcement.customrules.CustomScreenRule
@@ -37,7 +42,10 @@ import com.tbtechs.focusflow.enforcement.customrules.CustomScreenRules
 import com.tbtechs.focusflow.enforcement.customrules.MatchMode
 import com.tbtechs.focusflow.enforcement.customrules.NodeMatcher
 import com.tbtechs.focusflow.ui.SettingsViewModel
+import com.tbtechs.focusflow.ui.common.FocusFlowSwitch
 import com.tbtechs.focusflow.ui.home.FocusFlowInternalHeader
+import com.tbtechs.focusflow.ui.theme.BrandPrimary
+import com.tbtechs.focusflow.ui.theme.DarkBorder
 import com.tbtechs.focusflow.ui.theme.DarkBackground
 import com.tbtechs.focusflow.ui.theme.DarkCard
 import com.tbtechs.focusflow.ui.theme.DarkTextMuted
@@ -229,15 +237,9 @@ fun CustomRuleEditScreen(
                             onValueChange = { v -> updateMatcher(index) { it.copy(descContains = v.ifEmpty { null }) } },
                         )
                         Spacer(modifier = Modifier.height(8.dp))
-                        FilterChip(
-                            selected = matcher.selectedOnly,
-                            onClick = { updateMatcher(index) { it.copy(selectedOnly = !it.selectedOnly) } },
-                            label = { Text("Only when selected") },
-                        )
-                        Text(
-                            text = "Turn on for a tab or button: it then counts only while it is the highlighted one.",
-                            fontSize = 11.scaledSp,
-                            color = DarkTextMuted,
+                        SelectedOnlyRow(
+                            checked = matcher.selectedOnly,
+                            onCheckedChange = { on -> updateMatcher(index) { it.copy(selectedOnly = on) } },
                         )
                     }
                 }
@@ -321,5 +323,44 @@ fun CustomRuleEditScreen(
                 }
             },
         )
+    }
+}
+
+/**
+ * "Only when selected" as a full-width row with a switch and a plain On / Off line, so it reads as
+ * a setting and not as a stray chip. The whole row is tappable.
+ */
+@Composable
+private fun SelectedOnlyRow(checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    val shape = RoundedCornerShape(12.dp)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(if (checked) BrandPrimary.copy(alpha = 0.14f) else DarkBackground)
+            .border(1.dp, if (checked) BrandPrimary else DarkBorder, shape)
+            .clickable { onCheckedChange(!checked) }
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "Only when selected",
+                fontSize = 14.scaledSp,
+                fontWeight = FontWeight.Bold,
+                color = DarkTextPrimary,
+            )
+            Text(
+                text = if (checked) {
+                    "On: counts only while this tab or button is the highlighted one."
+                } else {
+                    "Off: counts whenever it is on screen, highlighted or not."
+                },
+                fontSize = 11.scaledSp,
+                color = DarkTextSecondary,
+            )
+        }
+        FocusFlowSwitch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
