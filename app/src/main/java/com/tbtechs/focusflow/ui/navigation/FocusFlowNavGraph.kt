@@ -719,6 +719,7 @@ fun FocusFlowNavGraph(
                         CustomRulesTransferScreen(
                             viewModel = customRulesViewModel,
                             onBack = ::back,
+                            onOpenRules = { navigate(Routes.CUSTOM_RULES_LIST) },
                         )
                     }
                 }

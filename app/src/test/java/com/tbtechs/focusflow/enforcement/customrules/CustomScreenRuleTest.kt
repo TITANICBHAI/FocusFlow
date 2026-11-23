@@ -309,4 +309,171 @@ class CustomScreenRuleTest {
         assertEquals(1, result.accepted.size)
         assertTrue(result.duplicates.isEmpty())
     }
+
+    // ----- pasted text, strict reading and size -----
+
+    private val goodRuleJson =
+        """{"name":"Reels","packageName":"com.instagram.android","matchMode":"ALL","matchers":[{"descContains":"Reels","selectedOnly":true}]}"""
+    private val goodEnvelope = """{"format":"focusflow.screenrules","version":1,"rules":[$goodRuleJson]}"""
+
+    private fun assertImports(text: String, name: String = "Reels") {
+        val result = CustomScreenRules.parseImport(text, own)
+        assertTrue(text + " -> " + result.rejected, result.rejected.isEmpty())
+        assertEquals(name, result.accepted.single().name)
+        assertTrue(result.accepted.single().matchers.single().selectedOnly)
+    }
+
+    @Test
+    fun importReadsAnExportWrappedInACodeBlock() {
+        assertImports("```json\n$goodEnvelope\n```")
+        assertImports("```\n$goodEnvelope\n```")
+        assertImports("Here is the rule:\n```JSON\n$goodEnvelope\n```\nPaste it into FocusFlow.")
+    }
+
+    @Test
+    fun importReadsJsonWithSentencesAroundIt() {
+        assertImports("Sure! $goodEnvelope Let me know if it works.")
+    }
+
+    @Test
+    fun importIgnoresByteOrderMarkNonBreakingSpacesAndZeroWidthCharacters() {
+        assertImports("\uFEFF$goodEnvelope")
+        assertImports(goodEnvelope.replace("{\"format\"", "{\u00A0\"format\""))
+        assertImports(goodEnvelope.replace("\"rules\"", "\u200B\"rules\""))
+    }
+
+    @Test
+    fun importFixesCurlyQuotesAddedByChatApps() {
+        assertImports(goodEnvelope.replace('"', '\u201D'))
+        val curly = goodEnvelope.replace("\"format\"", "\u201Cformat\u201D").replace("\"focusflow.screenrules\"", "\u201Cfocusflow.screenrules\u201D")
+        assertImports(curly)
+    }
+
+    @Test
+    fun importDoesNotChangeAFileThatIsAlreadyValid() {
+        // Real curly quotes inside the values, with every structural quote straight: valid as it is.
+        val text = "{\"format\":\"focusflow.screenrules\",\"version\":1,\"rules\":[{\"name\":\"Say \u201Chi\u201D\"," +
+            "\"packageName\":\"com.a\",\"matchers\":[{\"textContains\":\"it\u2019s\"}]}]}"
+        val r = CustomScreenRules.parseImport(text, own).accepted.single()
+        assertEquals("Say \u201Chi\u201D", r.name)
+        assertEquals("it\u2019s", r.matchers.single().textContains)
+    }
+
+    @Test
+    fun importAcceptsABareListAndASingleRule() {
+        assertImports("[$goodRuleJson]")
+        assertImports(goodRuleJson)
+        assertImports("```json\n[$goodRuleJson]\n```")
+    }
+
+    @Test
+    fun importStillRefusesThingsThatAreNotRules() {
+        for (text in listOf("hello", "{}", """{"a":1}""", "[]", "[1,2]", "```\nnot json\n```", """{"format":"focusflow.screenrules","version":1,"rules":[]}""")) {
+            val result = CustomScreenRules.parseImport(text, own)
+            assertTrue(text, result.accepted.isEmpty())
+            assertTrue(text, result.rejected.isNotEmpty())
+        }
+    }
+
+    @Test
+    fun importTellsYouWhenTheFileIsFromANewerApp() {
+        val newer = goodEnvelope.replace("\"version\":1", "\"version\":2")
+        val result = CustomScreenRules.parseImport(newer, own)
+        assertTrue(result.accepted.isEmpty())
+        assertTrue(result.rejected.single().contains("newer version"))
+    }
+
+    @Test
+    fun matchModeIsReadIgnoringCaseAndUnknownModesAreRefused() {
+        val any = goodEnvelope.replace("\"ALL\"", "\"any\"")
+        assertEquals(MatchMode.ANY, CustomScreenRules.parseImport(any, own).accepted.single().matchMode)
+        val bad = goodEnvelope.replace("\"ALL\"", "\"SOME\"")
+        val result = CustomScreenRules.parseImport(bad, own)
+        assertTrue(result.accepted.isEmpty())
+        assertTrue(result.rejected.single().startsWith("Reels: Match mode must be ALL or ANY"))
+    }
+
+    @Test
+    fun aMatcherWithAMisspelledFieldRefusesTheWholeRuleInsteadOfBlockingMore() {
+        val typo = """{"format":"focusflow.screenrules","version":1,"rules":[
+            {"name":"Typo","packageName":"com.a","matchers":[{"viewIdSuffix":"tab","txt":"Reels"}]},
+            {"name":"Fine","packageName":"com.b","matchers":[{"viewIdSuffix":"tab"}]}]}"""
+        val result = CustomScreenRules.parseImport(typo, own)
+        assertEquals(listOf("Fine"), result.accepted.map { it.name })
+        assertEquals(1, result.rejected.size)
+        assertTrue(result.rejected[0].startsWith("Typo: Matcher 1 has an unknown field \"txt\""))
+    }
+
+    @Test
+    fun aMatcherThatIsNotAnObjectRefusesTheRuleInsteadOfBeingDropped() {
+        val text = """{"format":"focusflow.screenrules","version":1,"rules":[
+            {"name":"Half","packageName":"com.a","matchers":[{"viewIdSuffix":"a"},"oops"]},
+            {"name":"NotAList","packageName":"com.a","matchers":{"viewIdSuffix":"a"}}]}"""
+        val result = CustomScreenRules.parseImport(text, own)
+        assertTrue(result.accepted.isEmpty())
+        assertEquals(2, result.rejected.size)
+        assertTrue(result.rejected[0].contains("Matcher 2 is not an object"))
+        assertTrue(result.rejected[1].contains("must be a list"))
+    }
+
+    @Test
+    fun selectedOnlyMustBeABooleanSoATabRuleIsNeverSilentlyBroadened() {
+        fun withSelected(value: String) =
+            """[{"name":"R","packageName":"com.a","matchers":[{"descContains":"Reels","selectedOnly":$value}]}]"""
+        assertTrue(CustomScreenRules.parseImport(withSelected("true"), own).accepted.single().matchers.single().selectedOnly)
+        assertTrue(CustomScreenRules.parseImport(withSelected("\"true\""), own).accepted.single().matchers.single().selectedOnly)
+        assertFalse(CustomScreenRules.parseImport(withSelected("false"), own).accepted.single().matchers.single().selectedOnly)
+        for (bad in listOf("\"yes\"", "1", "\"\"", "[true]")) {
+            val result = CustomScreenRules.parseImport(withSelected(bad), own)
+            assertTrue(bad, result.accepted.isEmpty())
+            assertTrue(bad, result.rejected.single().contains("selectedOnly must be true or false"))
+        }
+    }
+
+    @Test
+    fun extraFieldsOnTheRuleItselfAreIgnoredButExtraFieldsOnAMatcherAreNot() {
+        val text = """[{"name":"R","packageName":"com.a","note":"made by AI","matchers":[{"viewIdSuffix":"a"}]}]"""
+        assertEquals(1, CustomScreenRules.parseImport(text, own).accepted.size)
+    }
+
+    @Test
+    fun exportIsReadableAndGoesBackInUnchanged() {
+        val rules = listOf(
+            rule(name = "Reels", matchers = listOf(NodeMatcher(descContains = "Reels", selectedOnly = true))),
+            rule(name = "Shorts", packageName = "com.google.android.youtube", matchMode = MatchMode.ANY,
+                matchers = listOf(NodeMatcher(viewIdSuffix = "shorts"), NodeMatcher(textContains = "Shorts"))),
+        )
+        val text = CustomScreenRules.exportEnvelope(rules)
+        assertTrue(text.contains("\n"))
+        val back = CustomScreenRules.parseImport(text, own)
+        assertTrue(back.rejected.isEmpty())
+        assertEquals(rules.map { it.copy(id = "", enabled = false) }, back.accepted.map { it.copy(id = "", enabled = false) })
+    }
+
+    @Test
+    fun aFullExportOfMaximumSizeRulesStillFitsTheImportLimit() {
+        val long = { tag: String, n: Int -> (tag + n).padEnd(CustomScreenRules.MAX_FIELD_LEN, 'x') }
+        val rules = List(CustomScreenRules.MAX_RULES) { n ->
+            rule(
+                name = long("name", n),
+                packageName = long("com.p", n),
+                matchMode = MatchMode.ALL,
+                matchers = List(CustomScreenRules.MAX_MATCHERS) { k ->
+                    NodeMatcher(
+                        viewIdSuffix = long("id$k-", n),
+                        className = long("cls$k-", n),
+                        textContains = long("text$k-", n),
+                        descContains = long("desc$k-", n),
+                        selectedOnly = true,
+                    )
+                },
+            )
+        }
+        assertTrue(rules.all { CustomScreenRules.validate(it, own) == null })
+        val text = CustomScreenRules.exportEnvelope(rules)
+        assertTrue("export is ${text.length} characters", text.length <= CustomScreenRules.MAX_IMPORT_CHARS)
+        val result = CustomScreenRules.parseImport(text, own)
+        assertTrue(result.rejected.toString(), result.rejected.isEmpty())
+        assertEquals(CustomScreenRules.MAX_RULES, result.accepted.size)
+    }
 }

@@ -37,13 +37,17 @@ import com.tbtechs.focusflow.ui.theme.scaledSp
 fun CustomRulesTransferScreen(
     viewModel: CustomRulesViewModel,
     onBack: () -> Unit,
+    onOpenRules: () -> Unit = {},
 ) {
     val rules by viewModel.rules.collectAsState()
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
     val exportText = remember(rules) { viewModel.exportJson() }
 
-    var importText by rememberSaveable { mutableStateOf("") }
+    // A very long paste is not kept across a screen rotation or app switch: the saved state of a
+    // screen is small, and losing a huge paste is better than crashing when the app is backgrounded.
+    var importText by rememberSaveable(stateSaver = ImportTextSaver) { mutableStateOf("") }
+    var imported by remember { mutableStateOf(false) }
     var preview by remember { mutableStateOf<ImportResult?>(null) }
     var message by remember { mutableStateOf<String?>(null) }
     var copied by remember { mutableStateOf(false) }
@@ -84,6 +88,13 @@ fun CustomRulesTransferScreen(
                         color = DarkTextSecondary,
                     )
                 } else {
+                    Text(
+                        text = "${rules.size} rule${if (rules.size == 1) "" else "s"}. On or off, they all export, and whoever imports them gets them switched off.",
+                        fontSize = 12.scaledSp,
+                        lineHeight = 18.scaledSp,
+                        color = DarkTextSecondary,
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
                     RuleTextField(
                         value = exportText,
                         label = "Rules (JSON)",
@@ -143,6 +154,24 @@ fun CustomRulesTransferScreen(
                         importText = it
                         preview = null
                         message = null
+                        imported = false
+                    },
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                RuleButton(
+                    text = "Paste from clipboard",
+                    filled = false,
+                    onClick = {
+                        val pasted = clipboard.getText()?.text.orEmpty()
+                        if (pasted.isBlank()) {
+                            message = "The clipboard is empty."
+                        } else {
+                            importText = pasted
+                            message = null
+                            imported = false
+                            // Show what would happen straight away, so pasting is one tap.
+                            preview = viewModel.previewImport(pasted)
+                        }
                     },
                 )
                 Spacer(modifier = Modifier.height(8.dp))
@@ -218,10 +247,11 @@ fun CustomRulesTransferScreen(
                                 message = if (n == 0) {
                                     if (skipped > 0) "Nothing new: these rules are already added." else "Nothing was imported."
                                 } else {
-                                    "Imported $n rule${if (n == 1) "" else "s"}.$skippedNote Turn them on in the Defense tab."
+                                    "Imported $n rule${if (n == 1) "" else "s"}.$skippedNote Turn them on in My rules."
                                 }
                                 preview = null
                                 importText = ""
+                                imported = n > 0
                             },
                         )
                     }
@@ -230,9 +260,18 @@ fun CustomRulesTransferScreen(
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(text = it, fontSize = 13.scaledSp, color = DarkTextPrimary)
                 }
+                if (imported) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    RuleButton(text = "Open My rules", onClick = onOpenRules)
+                }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }
+
+private val ImportTextSaver = androidx.compose.runtime.saveable.Saver<String, String>(
+    save = { if (it.length <= 50_000) it else "" },
+    restore = { it },
+)

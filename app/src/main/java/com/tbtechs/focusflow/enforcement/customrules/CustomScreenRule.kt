@@ -49,7 +49,8 @@ object CustomScreenRules {
     const val MAX_RULES = 30
     const val MAX_MATCHERS = 5
     const val MAX_FIELD_LEN = 200
-    const val MAX_IMPORT_CHARS = 65_536
+    // Big enough for a full export of 30 maximum-size rules (about 170,000 characters pretty-printed).
+    const val MAX_IMPORT_CHARS = 262_144
 
     const val EXPORT_FORMAT = "focusflow.screenrules"
     const val EXPORT_VERSION = 1
@@ -171,7 +172,7 @@ object CustomScreenRules {
     /** Parses one rule object. The id may be blank here; callers decide what that means. */
     private fun ruleFromJson(o: JSONObject): CustomScreenRule {
         val modeName = o.stringOrNull("matchMode")
-        val mode = MatchMode.values().firstOrNull { it.name == modeName } ?: MatchMode.ALL
+        val mode = MatchMode.values().firstOrNull { it.name.equals(modeName?.trim(), ignoreCase = true) } ?: MatchMode.ALL
         val matchers = mutableListOf<NodeMatcher>()
         val arr = o.optJSONArray("matchers")
         if (arr != null) {
@@ -218,7 +219,80 @@ object CustomScreenRules {
         o.put("format", EXPORT_FORMAT)
         o.put("version", EXPORT_VERSION)
         o.put("rules", rulesToJsonArray(rules))
-        return o.toString()
+        // Indented so a person can read it, and an AI assistant or a reviewer can follow it.
+        return o.toString(2)
+    }
+
+    // ----- Reading pasted text -----
+
+    private val FENCE = Regex("```[A-Za-z]*[ \\t]*\\r?\\n?([\\s\\S]*?)```")
+
+    /** Characters that chat apps and editors add around pasted text and that are not part of the JSON. */
+    private fun stripInvisible(text: String): String =
+        text.replace("\uFEFF", "")
+            .replace(Regex("[\u200B\u200C\u200D\u2060]"), "")
+            .replace('\u00A0', ' ')
+
+    private fun straightenQuotes(text: String): String =
+        text.replace('\u201C', '"').replace('\u201D', '"').replace('\u2018', '\'').replace('\u2019', '\'')
+
+    /**
+     * What is worth trying to read as JSON, best guess first: the text as pasted; the inside of a
+     * ``` code block (assistants often wrap JSON in one); and the part from the first bracket to the
+     * last one (when there is a sentence before or after). Each is also tried with curly quotes
+     * turned straight, because some chat apps replace the quotes.
+     */
+    internal fun importCandidates(raw: String): List<String> {
+        // The text exactly as pasted comes first, so a file that is already valid is never altered.
+        val out = LinkedHashSet<String>()
+        for (source in listOf(raw.trim(), stripInvisible(raw).trim())) {
+            val base = mutableListOf(source)
+            FENCE.find(source)?.groupValues?.get(1)?.trim()?.takeIf { it.isNotEmpty() }?.let { base += it }
+            val first = source.indexOfFirst { it == '{' || it == '[' }
+            val last = source.indexOfLast { it == '}' || it == ']' }
+            if (first >= 0 && last > first) base += source.substring(first, last + 1)
+            base.forEach { out += it; out += straightenQuotes(it) }
+        }
+        return out.toList()
+    }
+
+    private fun readRoot(raw: String): Any? {
+        for (candidate in importCandidates(raw)) {
+            if (candidate.startsWith("{")) {
+                try { return JSONObject(candidate) } catch (e: Exception) { /* try the next form */ }
+            } else if (candidate.startsWith("[")) {
+                try { return JSONArray(candidate) } catch (e: Exception) { /* try the next form */ }
+            }
+        }
+        return null
+    }
+
+    private val MATCHER_KEYS = setOf("viewIdSuffix", "className", "textContains", "descContains", "selectedOnly")
+
+    /**
+     * Problems that would quietly change what a rule blocks if they were ignored, so the rule is
+     * refused instead. A matcher that is dropped or loses a field under "all" matches MORE screens
+     * than the writer meant, which is how a typo such as "txt" would over-block. Returns null when fine.
+     */
+    private fun strictProblem(o: JSONObject): String? {
+        val mode = o.stringOrNull("matchMode")?.trim()
+        if (mode != null && MatchMode.values().none { it.name.equals(mode, ignoreCase = true) }) {
+            return "Match mode must be ALL or ANY, not \"$mode\"."
+        }
+        if (!o.has("matchers") || o.isNull("matchers")) return null // validate() asks for a matcher
+        val arr = o.optJSONArray("matchers") ?: return "\"matchers\" must be a list."
+        for (i in 0 until arr.length()) {
+            val m = arr.optJSONObject(i) ?: return "Matcher ${i + 1} is not an object."
+            val unknown = m.keys().asSequence().firstOrNull { it !in MATCHER_KEYS }
+            if (unknown != null) {
+                return "Matcher ${i + 1} has an unknown field \"$unknown\". Allowed: viewIdSuffix, className, textContains, descContains, selectedOnly."
+            }
+            val sel = m.opt("selectedOnly")
+            val okSel = sel == null || sel == JSONObject.NULL || sel is Boolean ||
+                (sel is String && (sel.equals("true", true) || sel.equals("false", true)))
+            if (!okSel) return "Matcher ${i + 1}: selectedOnly must be true or false."
+        }
+        return null
     }
 
     /**
@@ -235,19 +309,39 @@ object CustomScreenRules {
         if (text.length > MAX_IMPORT_CHARS) {
             return ImportResult(emptyList(), listOf("The text is too long to be a rule file."))
         }
-        val root = try {
-            JSONObject(text.trim())
-        } catch (e: Exception) {
-            return ImportResult(emptyList(), listOf("This is not valid JSON."))
+        val root = readRoot(text)
+            ?: return ImportResult(emptyList(), listOf("This is not valid JSON."))
+        // A FocusFlow export is an object with format, version and rules. A bare list of rules, or
+        // one rule on its own, is also accepted: assistants often return those. Every rule is
+        // checked the same way whichever form it came in.
+        val arr: JSONArray = when (root) {
+            is JSONArray -> root
+            is JSONObject -> when {
+                root.has("format") -> {
+                    if (root.optString("format", "") != EXPORT_FORMAT) {
+                        return ImportResult(emptyList(), listOf("This is not a FocusFlow screen rules file."))
+                    }
+                    val version = root.optInt("version", -1)
+                    if (version > EXPORT_VERSION) {
+                        return ImportResult(
+                            emptyList(),
+                            listOf("This file is from a newer version of FocusFlow. Update the app to import it."),
+                        )
+                    }
+                    if (version != EXPORT_VERSION) {
+                        return ImportResult(emptyList(), listOf("Unsupported rules file version."))
+                    }
+                    root.optJSONArray("rules")
+                        ?: return ImportResult(emptyList(), listOf("The file has no rules."))
+                }
+                root.has("matchers") || root.has("packageName") -> JSONArray().put(root)
+                else -> return ImportResult(emptyList(), listOf("This is not a FocusFlow screen rules file."))
+            }
+            else -> return ImportResult(emptyList(), listOf("This is not valid JSON."))
         }
-        if (root.optString("format", "") != EXPORT_FORMAT) {
-            return ImportResult(emptyList(), listOf("This is not a FocusFlow screen rules file."))
+        if (arr.length() == 0) {
+            return ImportResult(emptyList(), listOf("The file has no rules."))
         }
-        if (root.optInt("version", -1) != EXPORT_VERSION) {
-            return ImportResult(emptyList(), listOf("Unsupported rules file version."))
-        }
-        val arr = root.optJSONArray("rules")
-            ?: return ImportResult(emptyList(), listOf("The file has no rules."))
 
         val accepted = mutableListOf<CustomScreenRule>()
         val rejected = mutableListOf<String>()
@@ -257,13 +351,19 @@ object CustomScreenRules {
                 rejected += "${arr.length() - i} more rule(s) skipped: the limit is $MAX_RULES rules."
                 break
             }
+            val obj = arr.optJSONObject(i)
             val parsed = try {
-                arr.optJSONObject(i)?.let { ruleFromJson(it) }
+                obj?.let { ruleFromJson(it) }
             } catch (e: Exception) {
                 null
             }
-            if (parsed == null) {
+            if (obj == null || parsed == null) {
                 rejected += "Entry ${i + 1}: not a valid rule."
+                continue
+            }
+            val problem = strictProblem(obj)
+            if (problem != null) {
+                rejected += "${parsed.name.ifBlank { "Entry ${i + 1}" }}: $problem"
                 continue
             }
             val fresh = parsed.copy(
