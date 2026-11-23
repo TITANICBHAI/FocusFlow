@@ -41,6 +41,16 @@
         "items": [
           "WhatsApp (and WhatsApp Business) is no longer a hard-protected app that silently ignored blocks. It now works like the SMS apps: the app picker warns first, and once you confirm, the block really applies."
         ]
+      },
+      {
+        "heading": "Home screen",
+        "items": [
+          "New home screen menu: pinch the home screen, or long-press empty space or the dock, to open a small Edit home menu with Widgets, Manage widgets, Wallpaper and Style & options. The crowded arrange screen is gone.",
+          "Show on home: turn the clock, status, current task, today's limits, pinned apps and app widgets on or off from the Edit home menu. Turning one off sets it to Off in Style & options, and turning it back on restores the look it had.",
+          "Long-press now works on Android's own widgets, such as the system clock. Before, the widget swallowed the press.",
+          "The status pill now stays on the home screen while Status is on, and says Ready when nothing is going on. Turn Status Off to hide it.",
+          "Home layout (beta): Customize home has a List | Grid switch. Grid lets you place and resize icons, app widgets and FocusFlow cards on a fixed grid, with drag from the app drawer. List stays the default."
+        ]
       }
     ]
   },

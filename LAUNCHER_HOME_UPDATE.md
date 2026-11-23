@@ -183,8 +183,7 @@ Pinching the home screen, or long-pressing empty space or the dock, used to open
 List layout. It now opens the same small "Edit home" menu the Grid layout has: Widgets (add one), Manage widgets
 (only when an app widget exists: resize or remove), Wallpaper, and Style & options. The "Arrange home" rows in the
 widget and pinned-app menus are now "Edit home" and open the same menu. The menu is ignored while a drag is active
-or another sheet is open. The old arrange code is still in the file but nothing opens it any more (not removed
-yet). Side effect: Hide / Show per widget and the screen-reader Move up / Move down were only in arrange mode;
+or another sheet is open. The old arrange code has since been removed from `LauncherActivity.kt` (about 240 lines). Side effect: Hide / Show per widget and the screen-reader Move up / Move down were only in arrange mode;
 cards can still be switched Card / Compact / Off under Style & options. CI-built only, not seen on a phone.
 
 ## Widget long-press, hide toggles, status always visible
@@ -199,3 +198,8 @@ Found from the first phone test of the Edit home menu:
 - **Status pill**: it hid itself whenever the status was "Ready", so it looked like it never appeared. It now stays
   visible while Status is on ("N blocked • Ready"). To go back to the old behaviour, turn Status Off.
 CI-built only, not seen on a phone.
+
+## Arrange mode removed
+The arrange screen, its reorder handles and the screen-reader Move up / Move down actions were deleted from
+`LauncherActivity.kt` (nothing opened them any more). Dragging a widget in place and the Edit home menu are the
+ways to rearrange and hide. The v1.1.6 changelog (`changelog.json`) has a new "Home screen" section.
