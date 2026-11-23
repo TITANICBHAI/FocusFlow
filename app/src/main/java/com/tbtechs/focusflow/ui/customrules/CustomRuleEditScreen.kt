@@ -8,6 +8,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -42,9 +49,8 @@ import com.tbtechs.focusflow.enforcement.customrules.CustomScreenRules
 import com.tbtechs.focusflow.enforcement.customrules.MatchMode
 import com.tbtechs.focusflow.enforcement.customrules.NodeMatcher
 import com.tbtechs.focusflow.ui.SettingsViewModel
-import com.tbtechs.focusflow.ui.common.FocusFlowSwitch
 import com.tbtechs.focusflow.ui.home.FocusFlowInternalHeader
-import com.tbtechs.focusflow.ui.theme.BrandPrimary
+import com.tbtechs.focusflow.ui.theme.StatusReady
 import com.tbtechs.focusflow.ui.theme.DarkBorder
 import com.tbtechs.focusflow.ui.theme.DarkBackground
 import com.tbtechs.focusflow.ui.theme.DarkCard
@@ -337,8 +343,8 @@ private fun SelectedOnlyRow(checked: Boolean, onCheckedChange: (Boolean) -> Unit
         modifier = Modifier
             .fillMaxWidth()
             .clip(shape)
-            .background(if (checked) BrandPrimary.copy(alpha = 0.14f) else DarkBackground)
-            .border(1.dp, if (checked) BrandPrimary else DarkBorder, shape)
+            .background(if (checked) StatusReady.copy(alpha = 0.14f) else DarkBackground)
+            .border(1.dp, if (checked) StatusReady else DarkBorder, shape)
             .clickable { onCheckedChange(!checked) }
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -361,6 +367,51 @@ private fun SelectedOnlyRow(checked: Boolean, onCheckedChange: (Boolean) -> Unit
                 color = DarkTextSecondary,
             )
         }
-        FocusFlowSwitch(checked = checked, onCheckedChange = onCheckedChange)
+        OnOffToggle(checked = checked, onCheckedChange = onCheckedChange)
+    }
+}
+
+/**
+ * A switch with the state written inside it: green with ON when it is on, grey with OFF when it is
+ * off. The thumb slides to the right for ON and to the left for OFF.
+ */
+@Composable
+private fun OnOffToggle(checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    val trackWidth = 64.dp
+    val thumb = 24.dp
+    val pad = 3.dp
+    val thumbX by animateDpAsState(
+        targetValue = if (checked) trackWidth - thumb - pad * 2 else 0.dp,
+        label = "onOffToggle",
+    )
+    Box(
+        modifier = Modifier
+            .size(trackWidth, 30.dp)
+            .clip(CircleShape)
+            .background(if (checked) StatusReady else Color(0xFF475569))
+            .toggleable(
+                value = checked,
+                role = Role.Switch,
+                onValueChange = onCheckedChange,
+            )
+            .padding(pad),
+    ) {
+        Text(
+            text = if (checked) "ON" else "OFF",
+            fontSize = 11.scaledSp,
+            fontWeight = FontWeight.Bold,
+            color = if (checked) Color.White else Color(0xFFE2E8F0),
+            modifier = Modifier
+                .align(if (checked) Alignment.CenterStart else Alignment.CenterEnd)
+                .padding(horizontal = 8.dp),
+        )
+        Box(
+            modifier = Modifier
+                .offset(x = thumbX)
+                .size(thumb)
+                .clip(CircleShape)
+                .background(Color.White)
+                .align(Alignment.CenterStart),
+        )
     }
 }
