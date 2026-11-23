@@ -50,7 +50,7 @@ import com.tbtechs.focusflow.enforcement.customrules.MatchMode
 import com.tbtechs.focusflow.enforcement.customrules.NodeMatcher
 import com.tbtechs.focusflow.ui.SettingsViewModel
 import com.tbtechs.focusflow.ui.home.FocusFlowInternalHeader
-import com.tbtechs.focusflow.ui.theme.StatusReady
+import com.tbtechs.focusflow.ui.theme.BrandPrimary
 import com.tbtechs.focusflow.ui.theme.DarkBorder
 import com.tbtechs.focusflow.ui.theme.DarkBackground
 import com.tbtechs.focusflow.ui.theme.DarkCard
@@ -343,8 +343,8 @@ private fun SelectedOnlyRow(checked: Boolean, onCheckedChange: (Boolean) -> Unit
         modifier = Modifier
             .fillMaxWidth()
             .clip(shape)
-            .background(if (checked) StatusReady.copy(alpha = 0.14f) else DarkBackground)
-            .border(1.dp, if (checked) StatusReady else DarkBorder, shape)
+            .background(if (checked) BrandPrimary.copy(alpha = 0.14f) else DarkBackground)
+            .border(1.dp, if (checked) BrandPrimary else DarkBorder, shape)
             .clickable { onCheckedChange(!checked) }
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -372,8 +372,8 @@ private fun SelectedOnlyRow(checked: Boolean, onCheckedChange: (Boolean) -> Unit
 }
 
 /**
- * A switch with the state written inside it: green with ON when it is on, grey with OFF when it is
- * off. The thumb slides to the right for ON and to the left for OFF.
+ * A switch with the state written inside it: the app's indigo with ON when it is on, grey with OFF
+ * when it is off. The thumb slides to the right for ON and to the left for OFF.
  */
 @Composable
 private fun OnOffToggle(checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
@@ -388,7 +388,7 @@ private fun OnOffToggle(checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
         modifier = Modifier
             .size(trackWidth, 30.dp)
             .clip(CircleShape)
-            .background(if (checked) StatusReady else Color(0xFF475569))
+            .background(if (checked) BrandPrimary else Color(0xFF475569))
             .toggleable(
                 value = checked,
                 role = Role.Switch,
