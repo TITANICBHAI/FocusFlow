@@ -54,7 +54,8 @@ class AppUsageAndSessionTracker(
     @Volatile private var screenOn = true
 
     fun onWindowStateChanged(pkg: String, nowMs: Long, nowElapsed: Long) {
-        if (!screenOn || pkg in IGNORED_PACKAGES || pkg == context.packageName || pkg == currentPackage) {
+        if (!screenOn || pkg in IGNORED_PACKAGES || HomeLauncherPackages.isHomeScreenPackage(pkg) ||
+            pkg == context.packageName || pkg == currentPackage) {
             return
         }
         closeCurrentSession(nowElapsed)

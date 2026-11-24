@@ -17,6 +17,7 @@ import com.tbtechs.focusflow.analytics.WEEK_MODE_DYNAMIC
 import com.tbtechs.focusflow.analytics.WEEK_MODE_FIXED
 import com.tbtechs.focusflow.analytics.phone.insights.PhoneInsightInputResult
 import com.tbtechs.focusflow.data.local.dao.SessionOverrideCountRow
+import com.tbtechs.focusflow.data.local.entity.PhoneFirstAppDayEntity
 import com.tbtechs.focusflow.data.local.entity.UsageRollupAppDayEntity
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -375,6 +376,28 @@ class PhoneBehaviourRepositoryTest {
         env.store.days += completeRow(d(2))
         env.store.days += PhoneDay.empty(d(3).toString(), PhoneDayStatus.PARTIAL).toEntity(now, null)
         assertEquals(PhoneInsightInputResult.Building(2), runBlocking { repo(env).loadInsightInput() })
+    }
+
+    @Test
+    fun storedHomeScreenRowsNeverReachTheReportOrTheInsights() {
+        val env = Env()
+        for (back in 1..5) env.store.days += completeRow(d(back), unlocks = 6)
+        for (back in 1..5) {
+            env.store.appDayRows += appRow(d(back), "com.android.launcher3", 20 * min)
+            env.store.appDayRows += appRow(d(back), "com.app.a", 10 * min)
+            env.store.firstAppRows += PhoneFirstAppDayEntity(d(back).toString(), "com.android.launcher3", "System launcher", 5)
+            env.store.firstAppRows += PhoneFirstAppDayEntity(d(back).toString(), "com.app.a", "App A", 1)
+        }
+
+        val report = ready(load(env))
+        assertEquals(listOf("com.app.a"), report.apps.apps.map { it.packageName })
+
+        val result = runBlocking { repo(env).loadInsightInput() }
+        assertTrue("was $result", result is PhoneInsightInputResult.Ready)
+        val input = (result as PhoneInsightInputResult.Ready).input
+        assertTrue(input.appDays.none { it.packageName == "com.android.launcher3" })
+        assertTrue(input.days.all { day -> day.firstApps.keys.none { it == "com.android.launcher3" } })
+        assertTrue(input.days.any { it.firstApps.containsKey("com.app.a") })
     }
 
     @Test

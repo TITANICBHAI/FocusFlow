@@ -187,6 +187,21 @@ class ForegroundSpanTrackerTest {
         assertEquals(100L, sessions.single().durationMs)
     }
 
+    @Test
+    fun theDefaultTrackerDropsAnyHomeScreenNotJustSevenKnownOnes() {
+        val sessions = ForegroundSpanTracker().sessions(
+            listOf(
+                resumed(100, "com.android.launcher3", "Home"),
+                resumed(200, "app.a", "A"),
+                paused(300, "app.a", "A"),
+                resumed(300, "com.mi.android.globallauncher", "Home"),
+                paused(400, "com.mi.android.globallauncher", "Home"),
+            ),
+            0, 10 * HOUR, 10 * HOUR,
+        )
+        assertEquals(listOf("app.a"), sessions.map { it.packageName })
+    }
+
     private fun read(
         vararg events: ForegroundUsageEvent,
         windowStart: Long = 0,

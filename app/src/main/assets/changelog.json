@@ -29,7 +29,8 @@
           "How usage data is calculated now lives on one page in Settings - About, instead of on each card.",
           "Stats and Extra headers now follow your screen and text size like the other tabs, instead of a fixed height.",
           "The How was today / yesterday prompt scrolls with the page and goes away once you answer it.",
-          "Achievements were removed from Overview and All-time stats."
+          "Achievements were removed from Overview and All-time stats.",
+          "Your phone's home screen is no longer counted as an app. Stats used to say you often reach for the system launcher first, because only seven launchers were recognised; now any launcher is skipped, including old saved days, so those insights and top-app lists no longer show it."
         ]
       },
       {

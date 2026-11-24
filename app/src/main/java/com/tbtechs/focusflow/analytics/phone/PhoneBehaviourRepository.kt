@@ -4,6 +4,7 @@ import com.tbtechs.focusflow.analytics.ANALYTICS_ALL_TIME
 import com.tbtechs.focusflow.analytics.ANALYTICS_THREE_MONTHS
 import com.tbtechs.focusflow.analytics.ANALYTICS_WEEK
 import com.tbtechs.focusflow.analytics.ForegroundSpanTracker
+import com.tbtechs.focusflow.analytics.HomeLauncherPackages
 import com.tbtechs.focusflow.analytics.UsageCalendarAggregator
 import com.tbtechs.focusflow.analytics.UsageEventRead
 import com.tbtechs.focusflow.analytics.UsageEventsSource
@@ -231,8 +232,30 @@ class PhoneBehaviourRepository(
                 }
             }
         }
-        return Loaded(phoneDays, appDays, appSessions, firstApps)
+        return withoutHomeScreens(Loaded(phoneDays, appDays, appSessions, firstApps))
     }
+
+    private fun isNotAnApp(packageName: String) =
+        packageName in excludedPackages || HomeLauncherPackages.isHomeScreenPackage(packageName)
+
+    /**
+     * Rows stored by older versions can still name a home screen. They are dropped on every read,
+     * so a stored "first app: launcher" stops showing without waiting for the days to age out.
+     */
+    private fun withoutHomeScreens(loaded: Loaded): Loaded = Loaded(
+        phoneDays = loaded.phoneDays.map { day ->
+            if (day.firstApps.keys.none(::isNotAnApp)) {
+                day
+            } else {
+                day.copy(
+                    firstApps = LinkedHashMap(day.firstApps.filterKeys { !isNotAnApp(it) }),
+                )
+            }
+        },
+        appDays = loaded.appDays.filterNot { isNotAnApp(it.packageName) },
+        appSessions = loaded.appSessions.filterNot { isNotAnApp(it.packageName) },
+        firstApps = loaded.firstApps.filterNot { isNotAnApp(it.packageName) },
+    )
 
     private suspend fun focusSessions(start: LocalDate, end: LocalDate): List<FocusSessionRow> {
         val startIso = start.atStartOfDay(zoneId).toInstant().toString()

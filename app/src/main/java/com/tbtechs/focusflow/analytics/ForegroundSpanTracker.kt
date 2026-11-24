@@ -35,7 +35,10 @@ class ForegroundSpanTracker(
             val open = active ?: return
             active = null
             val endedAtMs = atMs.coerceAtLeast(open.startedAtMs)
-            if (endedAtMs > open.startedAtMs && open.packageName !in excludedPackages) {
+            if (endedAtMs > open.startedAtMs &&
+                open.packageName !in excludedPackages &&
+                !HomeLauncherPackages.isHomeScreenPackage(open.packageName)
+            ) {
                 result += ForegroundSession(
                     packageName = open.packageName,
                     startedAtMs = open.startedAtMs,
