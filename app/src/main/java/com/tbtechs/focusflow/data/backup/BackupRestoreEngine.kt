@@ -11,6 +11,9 @@ import com.tbtechs.focusflow.data.repository.SettingsRepository
 import com.tbtechs.focusflow.data.repository.TaskAlarmReconciler
 import com.tbtechs.focusflow.data.repository.TaskRepository
 import com.tbtechs.focusflow.data.restore.RestoreGate
+import com.tbtechs.focusflow.enforcement.customrules.CustomRuleStore
+import com.tbtechs.focusflow.enforcement.customrules.CustomScreenRule
+import com.tbtechs.focusflow.enforcement.customrules.CustomScreenRules
 import java.time.Instant
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
@@ -46,6 +49,11 @@ internal interface BackupRestoreAccess {
     suspend fun sweepSubtaskImages(): Int
     suspend fun hasActiveFocusSession(): Boolean
     suspend fun reconcileAlarms(reason: String)
+
+    /** Package name of this app; screen rules can never target it. */
+    val ownPackage: String get() = ""
+    suspend fun readCustomRules(): List<CustomScreenRule> = emptyList()
+    suspend fun writeCustomRules(rules: List<CustomScreenRule>) {}
 }
 
 internal interface BackupRestoreWriteGate {
@@ -174,6 +182,18 @@ class BackupRestoreEngine internal constructor(
                         "Cannot replace tasks while a Focus Session is running. " +
                             "Stop the current session first.",
                     )
+                }
+
+                if (CustomRulesBackup.SETTINGS_KEY in envelope.settings) {
+                    writeGate.write("BackupRestoreEngine.customRules") {
+                        val plan = CustomRulesBackup.plan(
+                            envelope.settings,
+                            access.readCustomRules(),
+                            access.ownPackage,
+                        )
+                        if (plan.added > 0) access.writeCustomRules(plan.merged.orEmpty())
+                        settingsWarnings += plan.warnings
+                    }
                 }
 
                 writeGate.write("BackupRestoreEngine.settings") {
@@ -508,5 +528,14 @@ private class RepositoryBackupRestoreAccess(
 
     override suspend fun reconcileAlarms(reason: String) {
         alarmReconciler.reconcile(reason)
+    }
+
+    override val ownPackage: String get() = settingsRepository.appPackageName
+
+    override suspend fun readCustomRules(): List<CustomScreenRule> =
+        CustomScreenRules.fromJson(settingsRepository.getString(CustomRuleStore.PREF_KEY) ?: "[]")
+
+    override suspend fun writeCustomRules(rules: List<CustomScreenRule>) {
+        settingsRepository.putString(CustomRuleStore.PREF_KEY, CustomScreenRules.toJson(rules))
     }
 }

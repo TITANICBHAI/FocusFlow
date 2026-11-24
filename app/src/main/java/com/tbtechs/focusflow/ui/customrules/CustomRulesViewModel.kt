@@ -1,6 +1,7 @@
 package com.tbtechs.focusflow.ui.customrules
 
 import android.content.Context
+import android.content.SharedPreferences
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -35,6 +36,21 @@ class CustomRulesViewModel(private val appContext: Context) : ViewModel() {
 
     private val _rules = MutableStateFlow(CustomRuleStore.read(prefs))
     val rules: StateFlow<List<CustomScreenRule>> = _rules.asStateFlow()
+
+    // Rules can change behind this screen's back (restoring a backup). The listener is kept in a
+    // field because SharedPreferences only holds it weakly.
+    private val prefsListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == CustomRuleStore.PREF_KEY) refresh()
+    }
+
+    init {
+        prefs.registerOnSharedPreferenceChangeListener(prefsListener)
+    }
+
+    override fun onCleared() {
+        prefs.unregisterOnSharedPreferenceChangeListener(prefsListener)
+        super.onCleared()
+    }
 
     /** The rule being edited. Shared by the edit and pick-node screens. */
     private val _draft = MutableStateFlow<CustomScreenRule?>(null)

@@ -36,6 +36,7 @@ object BackupSerializer {
         tasks: List<Task>,
         appVersion: String?,
         assets: Map<String, BackupAsset> = emptyMap(),
+        customScreenRules: JsonArray? = null,
     ): BackupEnvelope {
         require(tasks.size <= BackupJsonLimits.MAX_TASKS) {
             "Backup contains too many tasks."
@@ -65,7 +66,7 @@ object BackupSerializer {
             exportedAtHuman = exportedAtHuman,
             appVersion = appVersion,
             platform = BackupPlatform(os = "android"),
-            settings = PortableSettingsPolicy.toPortableJson(settings),
+            settings = withCustomRules(PortableSettingsPolicy.toPortableJson(settings), customScreenRules),
             tasks = tasks,
             presetSections = buildPresetSections(settings, allowances),
             summary = BackupSummary(
@@ -77,6 +78,13 @@ object BackupSerializer {
             assets = assets,
         )
     }
+
+    private fun withCustomRules(settings: JsonObject, rules: JsonArray?): JsonObject =
+        if (rules == null || rules.isEmpty()) {
+            settings
+        } else {
+            JsonObject(settings + (CustomRulesBackup.SETTINGS_KEY to rules))
+        }
 
     fun serializeToJson(envelope: BackupEnvelope): String =
         json.encodeToString(envelope)

@@ -20,6 +20,7 @@ import com.tbtechs.focusflow.data.backup.BackupSerializer
 import com.tbtechs.focusflow.data.backup.BundleExportPreparation
 import com.tbtechs.focusflow.data.backup.BundleExportPlan
 import com.tbtechs.focusflow.data.backup.CombinedAssetByteSource
+import com.tbtechs.focusflow.data.backup.CustomRulesBackup
 import com.tbtechs.focusflow.data.backup.EmptyAssetByteSource
 import com.tbtechs.focusflow.data.backup.InlineAssetByteSource
 import com.tbtechs.focusflow.data.backup.SubtaskAssetExporter
@@ -31,6 +32,8 @@ import com.tbtechs.focusflow.data.model.Task
 import com.tbtechs.focusflow.data.repository.SettingsRepository
 import com.tbtechs.focusflow.data.repository.TaskRepository
 import com.tbtechs.focusflow.di.AppModule
+import com.tbtechs.focusflow.enforcement.customrules.CustomRuleStore
+import com.tbtechs.focusflow.enforcement.customrules.CustomScreenRules
 import com.tbtechs.focusflow.ui.SettingsViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -81,6 +84,9 @@ sealed interface ImportState {
 internal interface BackupViewModelOperations {
     suspend fun readSettings(): AppSettings
     suspend fun readTasks(): List<Task>
+
+    /** The custom screen rules as a backup list, or null when there are none. */
+    suspend fun readCustomScreenRules(): kotlinx.serialization.json.JsonArray? = null
     suspend fun restore(
         envelope: BackupEnvelope,
         currentSettings: AppSettings,
@@ -152,6 +158,7 @@ class BackupViewModel internal constructor(
             try {
                 val settings = operations.readSettings()
                 val tasks = operations.readTasks()
+                val customScreenRules = operations.readCustomScreenRules()
                 val referencedIds = if (stripImages) {
                     emptySet()
                 } else {
@@ -186,7 +193,10 @@ class BackupViewModel internal constructor(
                 if (imageIds.isEmpty()) {
                     val exportTasks = if (stripImages) backupTasks.withoutImages() else backupTasks
                     val json = BackupSerializer.serializeToJson(
-                        BackupSerializer.buildEnvelope(settings, exportTasks, appVersion),
+                        BackupSerializer.buildEnvelope(
+                            settings, exportTasks, appVersion,
+                            customScreenRules = customScreenRules,
+                        ),
                     )
                     require(json.toByteArray(Charsets.UTF_8).size <=
                         com.tbtechs.focusflow.data.backup.BackupJsonLimits.MAX_FILE_BYTES
@@ -217,6 +227,7 @@ class BackupViewModel internal constructor(
                         tasks = backupTasks,
                         appVersion = appVersion,
                         assets = bundleAssets,
+                        customScreenRules = customScreenRules,
                     )
                     val manifest = BackupSerializer.serializeToJson(envelope)
                     when (val preparation = writer.prepare(
@@ -501,6 +512,11 @@ private class RepositoryBackupViewModelOperations(
     override suspend fun readSettings(): AppSettings = settingsRepository.readAppSettings()
 
     override suspend fun readTasks(): List<Task> = taskRepository.getAllTasks()
+
+    override suspend fun readCustomScreenRules(): kotlinx.serialization.json.JsonArray? =
+        CustomRulesBackup.toJson(
+            CustomScreenRules.fromJson(settingsRepository.getString(CustomRuleStore.PREF_KEY) ?: "[]"),
+        )
 
     override suspend fun restore(
         envelope: BackupEnvelope,

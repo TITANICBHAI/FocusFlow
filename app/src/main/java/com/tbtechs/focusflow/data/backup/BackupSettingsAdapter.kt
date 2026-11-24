@@ -22,6 +22,7 @@ import kotlinx.serialization.json.intOrNull
 internal object BackupSettingsAdapter {
     fun hasRestorableSettings(settings: JsonObject): Boolean {
         if (additionalPreferenceWrites(settings).isNotEmpty()) return true
+        if ((settings[CustomRulesBackup.SETTINGS_KEY] as? JsonArray)?.isNotEmpty() == true) return true
         return try {
             LegacySettingsAdapter.toSharedPreferencesValues(settings).isNotEmpty()
         } catch (_: Exception) {

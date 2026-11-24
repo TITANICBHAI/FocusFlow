@@ -578,6 +578,43 @@ class BackupSerializerTest {
         pomodoroBreakMinutes = 10,
     )
 
+    @Test
+    fun customScreenRulesTravelInsideSettingsAndSurviveParsing() {
+        val rules = JsonArray(
+            listOf(
+                JsonObject(
+                    mapOf(
+                        "name" to JsonPrimitive("Reels"),
+                        "packageName" to JsonPrimitive("com.instagram.android"),
+                    ),
+                ),
+            ),
+        )
+        val envelope = BackupSerializer.buildEnvelope(
+            settings = AppSettings(),
+            tasks = listOf(sampleTask()),
+            appVersion = "test",
+            customScreenRules = rules,
+        )
+        assertEquals(rules, envelope.settings[CustomRulesBackup.SETTINGS_KEY])
+
+        val parsed = BackupSerializer.parseAndValidate(BackupSerializer.serializeToJson(envelope))
+        assertTrue(parsed is BackupParseResult.Success)
+        val success = parsed as BackupParseResult.Success
+        assertEquals(rules, success.envelope.settings[CustomRulesBackup.SETTINGS_KEY])
+        assertFalse(success.warnings.joinToString(), success.warnings.any { it.contains("unknown") })
+    }
+
+    @Test
+    fun noCustomRulesMeansNoKeyInSettings() {
+        val envelope = BackupSerializer.buildEnvelope(
+            settings = AppSettings(),
+            tasks = listOf(sampleTask()),
+            appVersion = "test",
+        )
+        assertFalse(envelope.settings.containsKey(CustomRulesBackup.SETTINGS_KEY))
+    }
+
     private fun sampleTask() = Task(
         id = "task-1",
         title = "Plan the week",

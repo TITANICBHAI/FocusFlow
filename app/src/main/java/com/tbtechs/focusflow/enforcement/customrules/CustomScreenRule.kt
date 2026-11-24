@@ -317,7 +317,7 @@ object CustomScreenRules {
 
     /**
      * Reads an export file. Every accepted rule gets a new random id and starts disabled,
-     * whatever the file says. Rules that fail [validate] are listed in `rejected`. A rule that is
+     * whatever the file says, unless [keepEnabled] is set (restoring your own backup). Rules that fail [validate] are listed in `rejected`. A rule that is
      * the same as one in [existing], or as an earlier rule in the file, is listed in `duplicates`
      * and not accepted. Invalid rules are reported as invalid first, never as duplicates.
      */
@@ -325,6 +325,7 @@ object CustomScreenRules {
         text: String,
         ownPackage: String,
         existing: List<CustomScreenRule> = emptyList(),
+        keepEnabled: Boolean = false,
     ): ImportResult {
         if (text.length > MAX_IMPORT_CHARS) {
             return ImportResult(emptyList(), listOf("The text is too long to be a rule file."))
@@ -388,7 +389,8 @@ object CustomScreenRules {
             }
             val fresh = parsed.copy(
                 id = UUID.randomUUID().toString(),
-                enabled = false,
+                // A pasted rule always starts off. A backup of your own rules keeps what you had.
+                enabled = keepEnabled && parsed.enabled,
             )
             val error = validate(fresh, ownPackage)
             if (error != null) {

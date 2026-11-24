@@ -228,6 +228,9 @@ class SettingsRepository(
     }
 
     private val appContext = context.applicationContext
+
+    /** This app's package name. */
+    val appPackageName: String get() = appContext.packageName
     private val allowanceLedger by lazy { AllowanceLedgerProvider.get(appContext) }
 
     private val prefs: SharedPreferences

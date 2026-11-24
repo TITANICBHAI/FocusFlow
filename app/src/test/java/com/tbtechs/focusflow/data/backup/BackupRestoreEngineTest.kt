@@ -1,6 +1,9 @@
 package com.tbtechs.focusflow.data.backup
 
 import com.tbtechs.focusflow.data.model.AppSettings
+import com.tbtechs.focusflow.enforcement.customrules.CustomScreenRule
+import com.tbtechs.focusflow.enforcement.customrules.MatchMode
+import com.tbtechs.focusflow.enforcement.customrules.NodeMatcher
 import com.tbtechs.focusflow.data.model.CanonicalTimestamp
 import com.tbtechs.focusflow.data.model.PhotoSlot
 import com.tbtechs.focusflow.data.model.Subtask
@@ -861,6 +864,114 @@ class BackupRestoreEngineTest {
         }
     }
 
+    @Test
+    fun restoreAddsCustomRulesUnderTheGateAndKeepsExistingOnes() = runTest {
+        val gate = RecordingGate()
+        val access = FakeAccess(gate = gate)
+        access.customRules += customRule("Mine", "mine", enabled = true)
+        val settings = JsonObject(
+            mapOf(
+                CustomRulesBackup.SETTINGS_KEY to CustomRulesBackup.toJson(
+                    listOf(customRule("Theirs", "theirs", enabled = true)),
+                )!!,
+            ),
+        )
+
+        val result = engine(access, gate).restore(
+            envelope(settings = settings),
+            currentSettings = AppSettings(),
+            replaceTasks = false,
+        )
+
+        success(result)
+        assertEquals(listOf("Mine", "Theirs"), access.customRules.map { it.name })
+        assertEquals(listOf(true, true), access.customRules.map { it.enabled })
+        assertEquals(1, access.customRuleWrites)
+    }
+
+    @Test
+    fun backupWithoutCustomRulesNeverWritesThem() = runTest {
+        val gate = RecordingGate()
+        val access = FakeAccess(gate = gate)
+        access.customRules += customRule("Mine", "mine")
+
+        success(
+            engine(access, gate).restore(
+                envelope(), currentSettings = AppSettings(), replaceTasks = false,
+            ),
+        )
+
+        assertEquals(0, access.customRuleWrites)
+        assertEquals(listOf("Mine"), access.customRules.map { it.name })
+    }
+
+    @Test
+    fun replaceTasksDoesNotWipeCustomRules() = runTest {
+        val gate = RecordingGate()
+        val access = FakeAccess(gate = gate)
+        access.customRules += customRule("Mine", "mine")
+        val settings = JsonObject(
+            mapOf(
+                CustomRulesBackup.SETTINGS_KEY to CustomRulesBackup.toJson(
+                    listOf(customRule("Theirs", "theirs")),
+                )!!,
+            ),
+        )
+
+        success(
+            engine(access, gate).restore(
+                envelope(settings = settings), currentSettings = AppSettings(), replaceTasks = true,
+            ),
+        )
+
+        assertEquals(listOf("Mine", "Theirs"), access.customRules.map { it.name })
+    }
+
+    @Test
+    fun restoreReportsWhatHappenedToCustomRules() = runTest {
+        val gate = RecordingGate()
+        val access = FakeAccess(gate = gate)
+        access.customRules += customRule("Mine", "dup")
+        val settings = JsonObject(
+            mapOf(
+                CustomRulesBackup.SETTINGS_KEY to CustomRulesBackup.toJson(
+                    listOf(customRule("Copy", "dup"), customRule("New", "new")),
+                )!!,
+            ),
+        )
+
+        val result = success(
+            engine(access, gate).restore(
+                envelope(settings = settings), currentSettings = AppSettings(), replaceTasks = false,
+            ),
+        )
+
+        assertTrue(result.warnings.joinToString("\n"), result.warnings.any {
+            it.contains("1 screen rule added") && it.contains("1 already")
+        })
+    }
+
+    @Test
+    fun customRulesAreNotCountedAsUnsupportedSettings() {
+        val settings = JsonObject(
+            mapOf(
+                CustomRulesBackup.SETTINGS_KEY to CustomRulesBackup.toJson(
+                    listOf(customRule("A", "a")),
+                )!!,
+            ),
+        )
+        assertTrue(BackupSettingsAdapter.hasRestorableSettings(settings))
+    }
+
+    private fun customRule(name: String, viewId: String, enabled: Boolean = false) = CustomScreenRule(
+        id = "id-$name",
+        name = name,
+        packageName = "com.instagram.android",
+        enabled = enabled,
+        matchMode = MatchMode.ALL,
+        matchers = listOf(NodeMatcher(viewIdSuffix = viewId)),
+    )
+
     private fun engine(access: FakeAccess, gate: RecordingGate) =
         BackupRestoreEngine(
             access = access,
@@ -959,6 +1070,23 @@ class BackupRestoreEngineTest {
         var replaceSubtaskCalls = 0
         var imageSweepCalls = 0
         var insertFailure: Throwable? = null
+        val customRules = mutableListOf<CustomScreenRule>()
+        var customRuleWrites = 0
+
+        override val ownPackage: String = "com.tbtechs.focusflow"
+
+        override suspend fun readCustomRules(): List<CustomScreenRule> {
+            check(gate.depth > 0) { "Custom rules were read outside RestoreGate." }
+            return customRules.toList()
+        }
+
+        override suspend fun writeCustomRules(rules: List<CustomScreenRule>) {
+            check(gate.depth > 0) { "Custom rules write bypassed RestoreGate." }
+            customRuleWrites++
+            customRules.clear()
+            customRules += rules
+            events += "customRules"
+        }
 
         override suspend fun writePreference(key: String, value: LegacyPreferenceValue) {
             check(gate.depth > 0) { "Preference write bypassed RestoreGate." }

@@ -17,7 +17,8 @@
     "FocusFlow now only offers to open .focusflow files. Before, it showed up for every kind of file. If your file manager hides the file name from other apps, use Settings - Import instead.",
           "Importing rules skips any rule you already have (same app and same matchers, whatever the name), and the preview lists what was skipped.",
           "Importing rules is easier: a Paste from clipboard button, and it reads rules wrapped in a code block, with text around them, or with curly quotes. A rule with a misspelled matcher field, a wrong match mode or a matcher it cannot read is refused with a clear reason, instead of being imported with that part missing. Exports are now laid out readably, and a full export of 30 large rules can always be imported again.",
-          "Picking an element that has no id, text or label (a plain icon) no longer adds a rule that can't be saved. FocusFlow explains why in plain words and offers the named element next to it, such as the tab that holds the icon. The editor also marks the matcher that is too generic."
+          "Picking an element that has no id, text or label (a plain icon) no longer adds a rule that can't be saved. FocusFlow explains why in plain words and offers the named element next to it, such as the tab that holds the icon. The editor also marks the matcher that is too generic.",
+          "Your custom screen rules are now part of a .focusflow backup. Restoring adds them to the rules already on the phone: your own rules are left as they are, a rule you already have is not added twice, and rules that are not safe are skipped. Rules keep their on or off state, and the restore message says how many were added."
         ]
       },
       {
