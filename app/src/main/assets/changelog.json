@@ -43,7 +43,9 @@
       {
         "heading": "Blocking",
         "items": [
-          "WhatsApp (and WhatsApp Business) is no longer a hard-protected app that silently ignored blocks. It now works like the SMS apps: the app picker warns first, and once you confirm, the block really applies."
+          "WhatsApp (and WhatsApp Business) is no longer a hard-protected app that silently ignored blocks. It now works like the SMS apps: the app picker warns first, and once you confirm, the block really applies.",
+          "Nuclear Mode now works with FocusFlow's own protection on. Before, System Protection and the uninstall protections could close the very uninstall screen Nuclear Mode opened, so nothing seemed to happen. Now that one screen is let through for a short while after you tap Uninstall (never one for FocusFlow itself).",
+          "Nuclear Mode now knows system apps. For a preinstalled app that was updated, the button says Remove updates and explains that the app stays; for one that was never updated, it says App info so you can disable it. After the Android screen closes, you see whether the app was removed, cancelled, or could not be removed."
         ]
       },
       {

@@ -1,63 +1,72 @@
 package com.tbtechs.focusflow.data.repository
 
-import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import kotlinx.coroutines.delay
-import org.json.JSONArray
+import android.provider.Settings
+import com.tbtechs.focusflow.enforcement.AppBlockerAccessibilityService
+import com.tbtechs.focusflow.enforcement.NuclearUninstallPolicy
 
 /**
  * NuclearModeRepository
  *
- * Converted from NuclearModeModule.
- * Opens Android's package uninstall confirmation UI; the system dialog still
- * requires the user to confirm each uninstall.
+ * Builds the requests for Android's own uninstall screen; the user still confirms each one.
+ * The uninstall intent asks for a result, so Nuclear Mode can tell removed, cancelled and failed
+ * apart. It must be started for a result and without FLAG_ACTIVITY_NEW_TASK, or Android reports
+ * "cancelled" immediately.
  */
-class NuclearModeRepository(private val context: Context) {
+class NuclearModeRepository(context: Context) {
 
     private val appContext = context.applicationContext
+    private val prefs = appContext.getSharedPreferences(
+        AppBlockerAccessibilityService.PREFS_NAME,
+        Context.MODE_PRIVATE,
+    )
 
-    suspend fun requestUninstallApp(packageName: String) {
-        launchUninstallDialog(packageName)
-    }
+    fun uninstallIntent(packageName: String): Intent =
+        Intent(Intent.ACTION_UNINSTALL_PACKAGE).apply {
+            data = Uri.parse("package:$packageName")
+            putExtra(Intent.EXTRA_RETURN_RESULT, true)
+        }
+
+    /** The app's page in Settings, where a system app can be disabled. */
+    fun appInfoIntent(packageName: String): Intent =
+        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            data = Uri.parse("package:$packageName")
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
 
     /**
-     * Opens each uninstall dialog with the legacy 500 ms stagger. The suspend
-     * boundary replaces the bridge Handler without creating a new thread.
+     * Lets FocusFlow's own guards leave the uninstall screen alone for a short while. Written
+     * synchronously so the accessibility service sees it before the screen appears.
      */
-    suspend fun requestUninstallApps(packagesJson: String) {
-        val array = JSONArray(packagesJson)
-        val packages = (0 until array.length()).map { array.getString(it) }
-
-        packages.forEachIndexed { index, packageName ->
-            if (index > 0) delay(500L)
-            try {
-                launchUninstallDialog(packageName)
-            } catch (_: Exception) {
-                // The bridge swallowed failures inside each delayed callback.
-            }
-        }
+    fun openGuardWindow() {
+        prefs.edit()
+            .putLong(
+                NuclearUninstallPolicy.KEY_WINDOW_UNTIL_MS,
+                System.currentTimeMillis() + NuclearUninstallPolicy.WINDOW_MS,
+            )
+            .commit()
     }
 
-    suspend fun isAppInstalled(packageName: String): Boolean =
+    fun closeGuardWindow() {
+        prefs.edit().remove(NuclearUninstallPolicy.KEY_WINDOW_UNTIL_MS).commit()
+    }
+
+    fun kindOf(packageName: String): NuclearUninstallPolicy.Kind =
+        try {
+            NuclearUninstallPolicy.kindOf(
+                appContext.packageManager.getApplicationInfo(packageName, 0).flags,
+            )
+        } catch (_: Exception) {
+            NuclearUninstallPolicy.Kind.NORMAL
+        }
+
+    fun isAppInstalled(packageName: String): Boolean =
         try {
             appContext.packageManager.getPackageInfo(packageName, 0)
             true
         } catch (_: Exception) {
             false
         }
-
-    private fun launchUninstallDialog(packageName: String) {
-        val intent = Intent(Intent.ACTION_DELETE).apply {
-            data = Uri.parse("package:$packageName")
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        val activity = context as? Activity
-        if (activity != null && !activity.isFinishing) {
-            activity.startActivity(intent)
-        } else {
-            appContext.startActivity(intent)
-        }
-    }
 }

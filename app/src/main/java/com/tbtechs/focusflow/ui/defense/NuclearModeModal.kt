@@ -3,6 +3,8 @@ package com.tbtechs.focusflow.ui.defense
 import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Context
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -46,7 +48,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -65,6 +66,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.tbtechs.focusflow.data.repository.InstalledAppInfo
 import com.tbtechs.focusflow.data.repository.InstalledAppsRepository
 import com.tbtechs.focusflow.data.repository.NuclearModeRepository
+import com.tbtechs.focusflow.enforcement.NuclearUninstallPolicy
 import com.tbtechs.focusflow.enforcement.receivers.FocusDayDeviceAdminReceiver
 import com.tbtechs.focusflow.ui.common.rememberInstalledApps
 import com.tbtechs.focusflow.ui.launcher.AppIcon
@@ -77,7 +79,6 @@ import com.tbtechs.focusflow.ui.theme.DarkTextPrimary
 import com.tbtechs.focusflow.ui.theme.DarkTextSecondary
 import com.tbtechs.focusflow.ui.theme.LocalFocusFlowDimensions
 import com.tbtechs.focusflow.ui.theme.scaledSp
-import kotlinx.coroutines.launch
 
 /**
  * Nuclear Mode modal for uninstallation of distracting apps.
@@ -109,7 +110,38 @@ fun NuclearModeModal(
     val loading = installedAppsState.loading
     var pending by remember { mutableStateOf<InstalledAppInfo?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
-    val scope = rememberCoroutineScope()
+    var resultNote by remember { mutableStateOf<String?>(null) }
+    val repository = remember(context) { NuclearModeRepository(context) }
+    // The app being uninstalled and what kind of app it was before Android touched it (a system
+    // app that loses its updates is still installed, which is not a failure).
+    var inFlight by remember { mutableStateOf<Pair<InstalledAppInfo, NuclearUninstallPolicy.Kind>?>(null) }
+    val uninstallLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        repository.closeGuardWindow()
+        val started = inFlight
+        inFlight = null
+        if (started != null) {
+            val (app, kind) = started
+            val outcome = NuclearUninstallPolicy.outcome(
+                result.resultCode,
+                stillInstalled = repository.isAppInstalled(app.packageName),
+                kind = kind,
+            )
+            val text = NuclearUninstallPolicy.message(outcome, app.appName)
+            if (outcome == NuclearUninstallPolicy.Outcome.REMOVED ||
+                outcome == NuclearUninstallPolicy.Outcome.UPDATES_REMOVED ||
+                outcome == NuclearUninstallPolicy.Outcome.CANCELLED
+            ) {
+                error = null
+                resultNote = text
+            } else {
+                resultNote = null
+                error = text
+            }
+            appCatalogRefreshToken += 1
+        }
+    }
     val lifecycleOwner = LocalLifecycleOwner.current
     val devicePolicyManager = remember(context) {
         context.getSystemService(Context.DEVICE_POLICY_SERVICE) as? DevicePolicyManager
@@ -338,6 +370,9 @@ fun NuclearModeModal(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                             ) {
+                                val kind = remember(app.packageName, appCatalogRefreshToken) {
+                                    repository.kindOf(app.packageName)
+                                }
                                 AppIcon(app.icon)
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
@@ -349,15 +384,31 @@ fun NuclearModeModal(
                                         overflow = TextOverflow.Ellipsis,
                                     )
                                     Text(
-                                        text = app.packageName,
+                                        text = when (kind) {
+                                            NuclearUninstallPolicy.Kind.NORMAL -> app.packageName
+                                            NuclearUninstallPolicy.Kind.UPDATED_SYSTEM ->
+                                                "System app: only its updates can be removed"
+                                            NuclearUninstallPolicy.Kind.SYSTEM ->
+                                                "System app: Android won't uninstall it. You can disable it."
+                                        },
                                         fontSize = 11.scaledSp,
                                         color = DarkTextSecondary,
-                                        maxLines = 1,
+                                        maxLines = 2,
                                         overflow = TextOverflow.Ellipsis,
                                     )
                                 }
                                 Button(
-                                    onClick = { pending = app },
+                                    onClick = {
+                                        if (kind == NuclearUninstallPolicy.Kind.SYSTEM) {
+                                            runCatching {
+                                                context.startActivity(repository.appInfoIntent(app.packageName))
+                                            }.onFailure {
+                                                error = "Android could not open the app's settings page."
+                                            }
+                                        } else {
+                                            pending = app
+                                        }
+                                    },
                                     shape = RoundedCornerShape(12.dp),
                                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
                                     modifier = Modifier.defaultMinSize(minHeight = 38.dp),
@@ -365,7 +416,16 @@ fun NuclearModeModal(
                                 ) {
                                     Icon(Icons.Outlined.Delete, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.White)
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Uninstall", fontSize = 12.scaledSp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    Text(
+                                        when (kind) {
+                                            NuclearUninstallPolicy.Kind.NORMAL -> "Uninstall"
+                                            NuclearUninstallPolicy.Kind.UPDATED_SYSTEM -> "Remove updates"
+                                            NuclearUninstallPolicy.Kind.SYSTEM -> "App info"
+                                        },
+                                        fontSize = 12.scaledSp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White,
+                                    )
                                 }
                             }
                         }
@@ -373,6 +433,9 @@ fun NuclearModeModal(
                 }
             }
 
+            resultNote?.let { message ->
+                Text(message, color = DarkTextSecondary, fontSize = 12.scaledSp)
+            }
             error?.let { message ->
                 Text(message, color = Color(0xFFEF4444), fontSize = 12.scaledSp)
             }
@@ -398,25 +461,48 @@ fun NuclearModeModal(
     }
 
     pending?.let { app ->
+        val pendingKind = repository.kindOf(app.packageName)
         AlertDialog(
             onDismissRequest = { pending = null },
             shape = RoundedCornerShape(24.dp),
             containerColor = DarkCard,
             titleContentColor = DarkTextPrimary,
             textContentColor = DarkTextSecondary,
-            title = { Text("Uninstall ${app.appName}?", fontWeight = FontWeight.Bold) },
-            text = { Text("Android will open its system uninstallation prompt for confirmation.", fontSize = 13.scaledSp, lineHeight = 18.scaledSp) },
+            title = {
+                Text(
+                    if (pendingKind == NuclearUninstallPolicy.Kind.UPDATED_SYSTEM) {
+                        "Remove updates of ${app.appName}?"
+                    } else {
+                        "Uninstall ${app.appName}?"
+                    },
+                    fontWeight = FontWeight.Bold,
+                )
+            },
+            text = {
+                Text(
+                    if (pendingKind == NuclearUninstallPolicy.Kind.UPDATED_SYSTEM) {
+                        "This is a system app, so Android can only remove its updates and go back to the original version. The app stays on the phone."
+                    } else {
+                        "Android will open its system uninstallation prompt for confirmation."
+                    },
+                    fontSize = 13.scaledSp,
+                    lineHeight = 18.scaledSp,
+                )
+            },
             confirmButton = {
                 Button(
                     onClick = {
                         pending = null
-                        val repository = NuclearModeRepository(context)
-                        scope.launch {
-                            runCatching { repository.requestUninstallApp(app.packageName) }
-                                .onFailure {
-                                    error = it.message ?: "Android could not open the uninstall dialog."
-                                }
-                        }
+                        error = null
+                        resultNote = null
+                        inFlight = app to pendingKind
+                        repository.openGuardWindow()
+                        runCatching { uninstallLauncher.launch(repository.uninstallIntent(app.packageName)) }
+                            .onFailure {
+                                repository.closeGuardWindow()
+                                inFlight = null
+                                error = it.message ?: "Android could not open the uninstall dialog."
+                            }
                     },
                     shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),

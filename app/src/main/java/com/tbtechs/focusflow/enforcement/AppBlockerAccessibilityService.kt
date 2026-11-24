@@ -1363,13 +1363,13 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                 // context popup (App info / Uninstall / Remove from Home) inside its
                 // own process — isUninstallDialog() catches "uninstall"/"remove app"
                 // in that popup's node tree and blocks it before it can be tapped.
-                if (isLauncherPkg && isUninstallDialog(ev)) {
+                if (isLauncherPkg && isUninstallDialog(ev) && !nuclearAllows(ev)) {
                     handleBlockedApp(pkg, "System Protection blocked an uninstall or app-removal action")
                     return
                 }
 
                 // Block uninstall dialogs — show overlay so user sees why they're blocked.
-                if (isUninstallDialog(ev)) {
+                if (isUninstallDialog(ev) && !nuclearAllows(ev)) {
                     handleBlockedApp(pkg, "System Protection blocked an uninstall or app-removal action")
                     return
                 }
@@ -1448,7 +1448,8 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         if (systemGuardEnabled &&
             (focusActive || saActive || alwaysBlockActive) &&
             INSTALLER_PACKAGES.any { pkg.equals(it, ignoreCase = true) } &&
-            isUninstallDialog(ev)
+            isUninstallDialog(ev) &&
+            !nuclearAllows(ev)
         ) {
             handleBlockedApp(pkg, "System Protection blocked an uninstall or app-removal action")
             return
@@ -1461,7 +1462,8 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         // than the full block overlay so the home screen stays visible.
         if (prefs.getBoolean(PREF_LAUNCHER_BLOCK_UNINSTALL, false) &&
             (focusActive || saActive || alwaysBlockActive) &&
-            isUninstallDialog(ev)
+            isUninstallDialog(ev) &&
+            !nuclearAllows(ev)
         ) {
             handler.post { performGlobalAction(GLOBAL_ACTION_HOME) }
             return
@@ -1476,7 +1478,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         //                            update, and uninstall confirmation dialogs.
         //   • blockYoutubeShorts   — YouTube Shorts player (rest of YouTube OK).
         //   • blockInstagramReels  — Instagram Reels / clips viewer (rest of IG OK).
-        if (blockInstallActions && isInstallActionContext(ev, pkg)) {
+        if (blockInstallActions && isInstallActionContext(ev, pkg) && !nuclearAllows(ev)) {
             handleBlockedApp(pkg, "Install and uninstall protection is active")
             return
         }
@@ -1919,6 +1921,38 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     }
 
     // ─── Uninstall dialog detection ───────────────────────────────────────────
+
+    /** True while Nuclear Mode has just asked Android to uninstall one of the user's apps. */
+    private fun nuclearWindowOpen(): Boolean =
+        NuclearUninstallPolicy.isOpen(
+            prefs.getLong(NuclearUninstallPolicy.KEY_WINDOW_UNTIL_MS, 0L),
+            System.currentTimeMillis(),
+        )
+
+    /**
+     * Lets the uninstall screen that Nuclear Mode opened through the guards. Never true for a
+     * screen that mentions FocusFlow itself, and never outside the short window.
+     */
+    private fun nuclearAllows(event: AccessibilityEvent): Boolean {
+        if (!nuclearWindowOpen()) return false
+        val text = buildString {
+            event.text.forEach { append(it); append(' ') }
+            event.contentDescription?.let { append(it); append(' ') }
+            val root = event.source
+            if (root != null) {
+                try {
+                    append(collectNodeText(root))
+                } finally {
+                    root.recycle()
+                }
+            }
+        }
+        return NuclearUninstallPolicy.allowsDialog(
+            prefs.getLong(NuclearUninstallPolicy.KEY_WINDOW_UNTIL_MS, 0L),
+            System.currentTimeMillis(),
+            text,
+        )
+    }
 
     private fun isUninstallDialog(event: AccessibilityEvent): Boolean {
         val keywords = listOf("uninstall", "remove app", "delete app")
@@ -2700,7 +2734,11 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         if (prefs.getBoolean(PREF_SYSTEM_GUARD_ENABLED, false) &&
             (focusActive || saActive || alwaysBlockActive)
         ) {
-            if (INSTALLER_PACKAGES.any { pkg.equals(it, ignoreCase = true) }) return true
+            if (INSTALLER_PACKAGES.any { pkg.equals(it, ignoreCase = true) } &&
+                !nuclearWindowOpen()
+            ) {
+                return true
+            }
         }
 
         if (focusActive) {
