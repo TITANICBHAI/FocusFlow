@@ -75,7 +75,7 @@ object CustomScreenRules {
         if (rule.matchers.size > MAX_MATCHERS) return "Use at most $MAX_MATCHERS matchers."
         if (rule.matchers.any { it.isEmpty() }) return "A matcher is empty. Fill in a field or remove it."
         if (rule.matchers.any { it.isTooBroad() }) {
-            return "A matcher with only a class name is too broad. Add a view id, text or description."
+            return "One element has no id, text or description, so it is too broad: it would match every element of that type on the screen. Add one of those to it, or remove it."
         }
         val longest = buildList {
             add(rule.name)

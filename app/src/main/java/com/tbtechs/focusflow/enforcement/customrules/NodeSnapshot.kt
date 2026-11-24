@@ -50,6 +50,47 @@ fun NodeSnapshot.toMatcher(): NodeMatcher {
     }
 }
 
+/** The element's box as left, top, right, bottom, or null when the captured text is not four numbers. */
+fun NodeSnapshot.boxOrNull(): IntArray? {
+    val parts = bounds.split(',').map { it.trim().toIntOrNull() ?: return null }
+    if (parts.size != 4 || parts[2] <= parts[0] || parts[3] <= parts[1]) return null
+    return intArrayOf(parts[0], parts[1], parts[2], parts[3])
+}
+
+private fun IntArray.area(): Long = (this[2] - this[0]).toLong() * (this[3] - this[1])
+
+private fun IntArray.contains(inner: IntArray): Boolean =
+    this[0] <= inner[0] && this[1] <= inner[1] && this[2] >= inner[2] && this[3] >= inner[3]
+
+/**
+ * For an element with nothing to recognise it by (no id, text or description, so a rule on it would
+ * match every element of its type), the closest element that does have something. First choice is the
+ * smallest named element around it (the tab that holds an icon); next a named element inside it; last
+ * a named element right beside it. A named element that covers more than 40% of the screen is never
+ * suggested, because a rule on it would match nearly every screen. Null when nothing fits.
+ */
+fun nearbyWithHandle(nodes: List<NodeSnapshot>, target: NodeSnapshot): NodeSnapshot? {
+    val box = target.boxOrNull() ?: return null
+    val screenArea = nodes.mapNotNull { it.boxOrNull() }.let { boxes ->
+        if (boxes.isEmpty()) return null
+        (boxes.maxOf { it[2] }.toLong()) * (boxes.maxOf { it[3] }.toLong())
+    }
+    if (screenArea <= 0L) return null
+    val named = nodes.mapNotNull { n ->
+        if (n === target || !n.hasStableHandle()) return@mapNotNull null
+        val b = n.boxOrNull() ?: return@mapNotNull null
+        if (b.area() * 10 > screenArea * 4) return@mapNotNull null
+        n to b
+    }
+    named.filter { (_, b) -> b.contains(box) }.minByOrNull { (_, b) -> b.area() }?.let { return it.first }
+    val cx = (box[0] + box[2]) / 2.0
+    val cy = (box[1] + box[3]) / 2.0
+    fun distance(b: IntArray) = Math.hypot((b[0] + b[2]) / 2.0 - cx, (b[1] + b[3]) / 2.0 - cy)
+    named.filter { (_, b) -> box.contains(b) }.minByOrNull { (_, b) -> distance(b) }?.let { return it.first }
+    val reach = maxOf(box[2] - box[0], box[3] - box[1]) * 1.5
+    return named.filter { (_, b) -> distance(b) <= reach }.minByOrNull { (_, b) -> distance(b) }?.first
+}
+
 object CaptureHolder {
     val snapshot = MutableStateFlow<CaptureResult?>(null)
 }

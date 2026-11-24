@@ -51,7 +51,7 @@ internal val RULES_GUIDE_GOOD_ELEMENTS = listOf(
     FocusFlowGuideItem(RULES_GUIDE_SELECT_FIRST_TITLE, RULES_GUIDE_SELECT_FIRST_BODY),
     FocusFlowGuideItem(
         "Prefer elements with an id",
-        "An id such as reel_recycler survives most changes. Elements drawn faintly on the Screen view have no id or text and are weaker.",
+        "An id such as reel_recycler survives most changes. Elements drawn faintly on the Screen view have no id, text or label, so they can't be used on their own. Tap one and FocusFlow suggests a named element next to it.",
     ),
     FocusFlowGuideItem(
         "Be careful with text",

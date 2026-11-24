@@ -42,6 +42,7 @@ import com.tbtechs.focusflow.enforcement.customrules.CustomScreenRules
 import com.tbtechs.focusflow.enforcement.customrules.NodeSnapshot
 import com.tbtechs.focusflow.enforcement.customrules.hasStableHandle
 import com.tbtechs.focusflow.enforcement.customrules.idSuffix
+import com.tbtechs.focusflow.enforcement.customrules.nearbyWithHandle
 import com.tbtechs.focusflow.enforcement.customrules.toMatcher
 import com.tbtechs.focusflow.ui.home.FocusFlowInternalHeader
 import com.tbtechs.focusflow.ui.theme.DarkBackground
@@ -81,6 +82,7 @@ fun CustomRulePickNodeScreen(
         runCatching { context.startActivity(Intent.createChooser(send, "Export scan")) }
     }
     var note by remember { mutableStateOf<String?>(null) }
+    var suggestion by remember { mutableStateOf<NodeSnapshot?>(null) }
 
     val filtered = remember(nodes, search) {
         val q = search.trim().lowercase()
@@ -95,6 +97,20 @@ fun CustomRulePickNodeScreen(
     }
 
     fun pick(node: NodeSnapshot) {
+        suggestion = null
+        if (!node.hasStableHandle()) {
+            // With no id, text or description a rule on this would match every element of its type.
+            // Nothing is added; point at a named element next to it instead.
+            val kind = node.className?.substringAfterLast('.') ?: "element"
+            val near = nearbyWithHandle(nodes, node)
+            suggestion = near
+            note = if (near != null) {
+                "That $kind has no id, text or label of its own, so it can't be used alone. Use the named element next to it instead?"
+            } else {
+                "That $kind has no id, text or label of its own, so it can't be used alone. Tap a nearby element that shows a name, or text."
+            }
+            return
+        }
         if (viewModel.draft.value == null) viewModel.startDraft(null)
         val matcher = node.toMatcher()
         val pkg = capture?.packageName.orEmpty()
@@ -142,6 +158,17 @@ fun CustomRulePickNodeScreen(
             ) {
                 note?.let {
                     Text(text = it, fontSize = 12.scaledSp, color = DarkTextSecondary)
+                }
+                suggestion?.let { near ->
+                    val label = near.text?.takeIf { it.isNotBlank() }
+                        ?: near.desc?.takeIf { it.isNotBlank() }
+                        ?: near.idSuffix()
+                        ?: "named element"
+                    RuleButton(
+                        text = "Use \"${label.take(30)}\" instead",
+                        filled = false,
+                        onClick = { pick(near) },
+                    )
                 }
                 RuleButton(
                     text = "Done ($picked selected)",
@@ -208,7 +235,7 @@ fun CustomRulePickNodeScreen(
                         RuleButton(text = "Add this element", onClick = { pick(node) })
                     } else {
                         Text(
-                            text = "Nothing selected. Elements drawn faintly have no stable id or text.",
+                            text = "Nothing selected. Faint elements have no name or text and can't be used alone; tap one and FocusFlow suggests a named one nearby.",
                             fontSize = 12.scaledSp,
                             color = DarkTextMuted,
                         )
@@ -271,7 +298,7 @@ private fun NodeRow(node: NodeSnapshot, onClick: () -> Unit) {
             }
             if (!stable) {
                 Text(
-                    text = "no stable id — may break after app updates",
+                    text = "no id, text or label: can't be used alone",
                     fontSize = 11.scaledSp,
                     color = DarkTextMuted,
                 )

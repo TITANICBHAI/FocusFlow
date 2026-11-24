@@ -237,6 +237,16 @@ fun CustomRuleEditScreen(
                             onValueChange = { v -> updateMatcher(index) { it.copy(descContains = v.ifEmpty { null }) } },
                         )
                         Spacer(modifier = Modifier.height(8.dp))
+                        if (!matcher.isEmpty() && matcher.isTooBroad()) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Only a class name: this would match every element of that type, so it can't be saved. Fill in a view id, text or description, or remove this matcher.",
+                                fontSize = 12.scaledSp,
+                                lineHeight = 17.scaledSp,
+                                color = RuleDanger,
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
                         SelectedOnlyRow(
                             checked = matcher.selectedOnly,
                             onCheckedChange = { on -> updateMatcher(index) { it.copy(selectedOnly = on) } },
@@ -254,7 +264,7 @@ fun CustomRuleEditScreen(
                     },
                 )
                 Text(
-                    text = "A matcher needs a view id, text or description. A class name alone is too broad.",
+                    text = "Each matcher needs a view id, some text or a description. A class name alone is not enough: it would match everything of that type.",
                     fontSize = 11.scaledSp,
                     color = DarkTextMuted,
                 )
