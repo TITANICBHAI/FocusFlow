@@ -1,5 +1,6 @@
 package com.tbtechs.focusflow.ui.splash
 
+import androidx.compose.ui.res.stringResource
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -109,7 +110,7 @@ fun FocusFlowSplashOverlay(
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "Your discipline operating system",
+                            text = stringResource(R.string.splash_tagline),
                             color = Color.White.copy(alpha = 0.68f),
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Medium,

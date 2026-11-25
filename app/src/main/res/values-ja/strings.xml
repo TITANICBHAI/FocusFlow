@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="accessibility_service_description">FocusFlow は集中セッション中にフォアグラウンドのアプリを監視し、設定したブロックルールを適用します。</string>
+    <string name="widget_description">FocusFlow の集中セッションと今日の進捗</string>
+    <string name="device_admin_description">集中セッション中、システムの強制的なクリーンアップから FocusFlow の保護機能を守ります。</string>
+    <string name="tab_focus">集中</string>
+    <string name="tab_schedule">スケジュール</string>
+    <string name="tab_defense">防御</string>
+    <string name="tab_stats">統計</string>
+    <string name="tab_settings">設定</string>
+    <string name="not_found_title">画面が見つかりません</string>
+    <string name="not_found_message">FocusFlow のこの画面は利用できません。</string>
+    <string name="go_back">戻る</string>
+    <string name="splash_tagline">あなたの自己管理オペレーティングシステム</string>
+    <string name="onboarding_core_title">基本アクセスを設定</string>
+    <string name="onboarding_optional_title">オプションの保護</string>
+    <string name="onboarding_core_subtitle">これらの権限により、FocusFlow が確実にブロックできます。</string>
+    <string name="onboarding_optional_subtitle">追加の保護を今設定するか、後で戻ってきてください。</string>
+    <string name="onboarding_why_title">なぜこれらの権限が必要？</string>
+    <string name="onboarding_why_body">FocusFlow は通知だけでなく、システムレベルで集中を守ります。アプリを実際にブロックしてセッションを維持するには、通常のアプリには不要な特別なアクセス権が Android で必要になります。</string>
+    <string name="onboarding_required_ready">必須のアクセスは準備完了</string>
+    <string name="onboarding_core_section">基本アクセス</string>
+    <string name="onboarding_tap_card">カードをタップしてアクセスを許可します。</string>
+    <string name="onboarding_fix_later">使用状況へのアクセス、ユーザー補助サービス、通知は、設定 → 権限 でいつでも修正できます。</string>
+    <string name="onboarding_back_core">基本設定に戻る</string>
+    <string name="onboarding_optional_section">オプションのアクセス</string>
+    <string name="onboarding_optional_note">これらの機能は必須ではなく、後から設定できます。</string>
+    <string name="onboarding_continue_optional">オプション設定へ進む →</string>
+    <string name="onboarding_start_skip">オプション設定をスキップして始める</string>
+    <string name="onboarding_start_all">オプションのアクセスはすべて準備完了。始めましょう</string>
+    <string name="onboarding_start_one">オプション権限を 1 件有効にしました。始めましょう</string>
+    <string name="onboarding_footer_core">権限は設定からいつでも管理できます。</string>
+    <string name="onboarding_footer_optional">オプション機能は後から設定で有効にできます。</string>
+    <string name="onboarding_start_many">オプション権限を %1$d 件有効にしました。始めましょう</string>
+</resources>

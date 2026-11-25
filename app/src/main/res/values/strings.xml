@@ -1,7 +1,36 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">FocusFlow</string>
+    <string name="app_name" translatable="false">FocusFlow</string>
     <string name="accessibility_service_description">FocusFlow monitors the foreground app during an active focus session and applies the configured blocking rules.</string>
     <string name="widget_description">FocusFlow focus session and daily progress</string>
     <string name="device_admin_description">Protects FocusFlow enforcement services from aggressive system cleanup during active focus sessions.</string>
+    <string name="tab_focus">Focus</string>
+    <string name="tab_schedule">Schedule</string>
+    <string name="tab_defense">Defense</string>
+    <string name="tab_stats">Stats</string>
+    <string name="tab_settings">Settings</string>
+    <string name="not_found_title">Screen not found</string>
+    <string name="not_found_message">This FocusFlow destination is not available.</string>
+    <string name="go_back">Go back</string>
+    <string name="splash_tagline">Your discipline operating system</string>
+    <string name="onboarding_core_title">Set up core access</string>
+    <string name="onboarding_optional_title">Optional protection</string>
+    <string name="onboarding_core_subtitle">These permissions help FocusFlow block reliably.</string>
+    <string name="onboarding_optional_subtitle">Add extra protection now or come back later.</string>
+    <string name="onboarding_why_title">Why these permissions?</string>
+    <string name="onboarding_why_body">FocusFlow enforces focus at the system level — not just reminders. To actually block apps and keep your session running, Android requires special access that regular apps don\'t need.</string>
+    <string name="onboarding_required_ready">Required access ready</string>
+    <string name="onboarding_core_section">Core access</string>
+    <string name="onboarding_tap_card">Tap a card to grant access.</string>
+    <string name="onboarding_fix_later">Usage Access, Accessibility Service, and Notifications can be fixed anytime in Settings → Permissions.</string>
+    <string name="onboarding_back_core">Back to core setup</string>
+    <string name="onboarding_optional_section">Optional access</string>
+    <string name="onboarding_optional_note">These features are not required and can be configured later.</string>
+    <string name="onboarding_continue_optional">Continue to optional setup →</string>
+    <string name="onboarding_start_skip">Skip optional setup — let\'s start</string>
+    <string name="onboarding_start_all">All optional access ready — let\'s start</string>
+    <string name="onboarding_start_one">1 optional permission enabled — let\'s start</string>
+    <string name="onboarding_footer_core">You can manage permissions in Settings at any time.</string>
+    <string name="onboarding_footer_optional">Optional features can be enabled later from Settings.</string>
+    <string name="onboarding_start_many">%1$d optional permissions enabled — let\'s start</string>
 </resources>

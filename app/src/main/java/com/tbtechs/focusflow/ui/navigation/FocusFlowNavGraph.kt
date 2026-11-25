@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.navigation
 
+import androidx.compose.ui.res.stringResource
+import com.tbtechs.focusflow.R
 import android.app.Activity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -1007,11 +1009,11 @@ fun MainScaffold(
 ) {
     val dimensions = LocalFocusFlowDimensions.current
     val tabs = listOf(
-        MainTab(Routes.FOCUS, "Focus", MainTabIcon.FOCUS_TIMER),
-        MainTab(Routes.HOME, "Schedule", MainTabIcon.SCHEDULE),
-        MainTab(Routes.DEFENSE, "Defense", MainTabIcon.DEFENSE),
-        MainTab(Routes.STATS, "Stats", MainTabIcon.STATS),
-        MainTab(Routes.SETTINGS, "Settings", MainTabIcon.SETTINGS),
+        MainTab(Routes.FOCUS, stringResource(R.string.tab_focus), MainTabIcon.FOCUS_TIMER),
+        MainTab(Routes.HOME, stringResource(R.string.tab_schedule), MainTabIcon.SCHEDULE),
+        MainTab(Routes.DEFENSE, stringResource(R.string.tab_defense), MainTabIcon.DEFENSE),
+        MainTab(Routes.STATS, stringResource(R.string.tab_stats), MainTabIcon.STATS),
+        MainTab(Routes.SETTINGS, stringResource(R.string.tab_settings), MainTabIcon.SETTINGS),
     )
     Scaffold(
         containerColor = com.tbtechs.focusflow.ui.theme.DarkBackground,
@@ -1144,8 +1146,8 @@ private fun NotFoundScreen(onBack: () -> Unit) {
         modifier = Modifier.fillMaxSize().padding(24.dp),
         verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
     ) {
-        Text("Screen not found", style = androidx.compose.material3.MaterialTheme.typography.headlineSmall)
-        androidx.compose.material3.Text("This FocusFlow destination is not available.")
-        androidx.compose.material3.Button(onClick = onBack) { Text("Go back") }
+        Text(stringResource(R.string.not_found_title), style = androidx.compose.material3.MaterialTheme.typography.headlineSmall)
+        androidx.compose.material3.Text(stringResource(R.string.not_found_message))
+        androidx.compose.material3.Button(onClick = onBack) { Text(stringResource(R.string.go_back)) }
     }
 }

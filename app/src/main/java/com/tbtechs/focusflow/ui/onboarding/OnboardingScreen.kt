@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.onboarding
 
+import androidx.compose.ui.res.stringResource
+import com.tbtechs.focusflow.R
 import android.Manifest
 import android.net.VpnService
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -187,14 +189,14 @@ fun OnboardingScreen(
                 // Title and Subtitle Header matching 1a.jpg / 1c.jpg
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(
-                        text = if (step == OnboardingStep.CORE) "Set up core access" else "Optional protection",
+                        text = if (step == OnboardingStep.CORE) stringResource(R.string.onboarding_core_title) else stringResource(R.string.onboarding_optional_title),
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Bold,
                         color = DarkTextPrimary,
                     )
                     Text(
-                        text = if (step == OnboardingStep.CORE) "These permissions help FocusFlow block reliably."
-                        else "Add extra protection now or come back later.",
+                        text = if (step == OnboardingStep.CORE) stringResource(R.string.onboarding_core_subtitle)
+                        else stringResource(R.string.onboarding_optional_subtitle),
                         fontSize = 14.sp,
                         color = DarkTextSecondary,
                     )
@@ -224,14 +226,14 @@ fun OnboardingScreen(
                                     modifier = Modifier.size(20.dp),
                                 )
                                 Text(
-                                    text = "Why these permissions?",
+                                    text = stringResource(R.string.onboarding_why_title),
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = InfoText,
                                 )
                             }
                             Text(
-                                text = "FocusFlow enforces focus at the system level — not just reminders. To actually block apps and keep your session running, Android requires special access that regular apps don't need.",
+                                text = stringResource(R.string.onboarding_why_body),
                                  fontSize = 13.sp,
                                  lineHeight = 20.sp,
                                  color = InfoBodyText,
@@ -249,7 +251,7 @@ fun OnboardingScreen(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
-                                text = "Required access ready",
+                                text = stringResource(R.string.onboarding_required_ready),
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Medium,
                                 color = DarkTextSecondary,
@@ -276,14 +278,14 @@ fun OnboardingScreen(
                 // Section Label
                 item {
                     Text(
-                        text = "Core access",
+                        text = stringResource(R.string.onboarding_core_section),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = BrandPrimary,
                         modifier = Modifier.padding(top = 4.dp),
                     )
                     Text(
-                        text = "Tap a card to grant access.",
+                        text = stringResource(R.string.onboarding_tap_card),
                         fontSize = 13.sp,
                         color = DarkTextSecondary,
                     )
@@ -325,7 +327,7 @@ fun OnboardingScreen(
                                 modifier = Modifier.size(20.dp),
                             )
                             Text(
-                                text = "Usage Access, Accessibility Service, and Notifications can be fixed anytime in Settings → Permissions.",
+                                text = stringResource(R.string.onboarding_fix_later),
                                 fontSize = 13.sp,
                                 lineHeight = 18.sp,
                                 color = InfoBodyText,
@@ -351,7 +353,7 @@ fun OnboardingScreen(
                             modifier = Modifier.size(16.dp),
                         )
                         Text(
-                            text = "Back to core setup",
+                            text = stringResource(R.string.onboarding_back_core),
                             fontSize = 14.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = BrandPrimary,
@@ -362,13 +364,13 @@ fun OnboardingScreen(
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(
-                        text = "Optional access",
+                        text = stringResource(R.string.onboarding_optional_section),
                             fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = BrandPrimary,
                         )
                         Text(
-                        text = "These features are not required and can be configured later.",
+                        text = stringResource(R.string.onboarding_optional_note),
                             fontSize = 13.sp,
                             color = DarkTextSecondary,
                         )
@@ -424,13 +426,13 @@ fun OnboardingScreen(
                 ) {
                     Text(
                         text = if (step == OnboardingStep.CORE) {
-                            "Continue to optional setup →"
+                            stringResource(R.string.onboarding_continue_optional)
                         } else {
                             when {
-                                optionalReady == 0 -> "Skip optional setup — let's start"
-                                optionalReady == optional.size -> "All optional access ready — let's start"
-                                optionalReady == 1 -> "1 optional permission enabled — let's start"
-                                else -> "$optionalReady optional permissions enabled — let's start"
+                                optionalReady == 0 -> stringResource(R.string.onboarding_start_skip)
+                                optionalReady == optional.size -> stringResource(R.string.onboarding_start_all)
+                                optionalReady == 1 -> stringResource(R.string.onboarding_start_one)
+                                else -> stringResource(R.string.onboarding_start_many, optionalReady)
                             }
                         },
                         fontSize = 15.5.sp,
@@ -442,8 +444,8 @@ fun OnboardingScreen(
             // Footer Subtitle Caption
             item {
                 Text(
-                    text = if (step == OnboardingStep.CORE) "You can manage permissions in Settings at any time."
-                    else "Optional features can be enabled later from Settings.",
+                    text = if (step == OnboardingStep.CORE) stringResource(R.string.onboarding_footer_core)
+                    else stringResource(R.string.onboarding_footer_optional),
                     fontSize = 12.sp,
                     color = DarkTextMuted,
                     textAlign = TextAlign.Center,

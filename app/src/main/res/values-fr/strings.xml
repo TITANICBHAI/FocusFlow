@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="accessibility_service_description">FocusFlow surveille l’application au premier plan pendant une session de concentration active et applique les règles de blocage configurées.</string>
+    <string name="widget_description">Session de concentration et progression quotidienne de FocusFlow</string>
+    <string name="device_admin_description">Protège les services de FocusFlow contre le nettoyage agressif du système pendant les sessions de concentration actives.</string>
+    <string name="tab_focus">Focus</string>
+    <string name="tab_schedule">Planning</string>
+    <string name="tab_defense">Défense</string>
+    <string name="tab_stats">Statistiques</string>
+    <string name="tab_settings">Réglages</string>
+    <string name="not_found_title">Écran introuvable</string>
+    <string name="not_found_message">Cette destination de FocusFlow n’est pas disponible.</string>
+    <string name="go_back">Retour</string>
+    <string name="splash_tagline">Votre système d’exploitation de la discipline</string>
+    <string name="onboarding_core_title">Configurer les accès essentiels</string>
+    <string name="onboarding_optional_title">Protection facultative</string>
+    <string name="onboarding_core_subtitle">Ces autorisations aident FocusFlow à bloquer de façon fiable.</string>
+    <string name="onboarding_optional_subtitle">Ajoutez une protection supplémentaire maintenant ou revenez plus tard.</string>
+    <string name="onboarding_why_title">Pourquoi ces autorisations ?</string>
+    <string name="onboarding_why_body">FocusFlow impose la concentration au niveau du système, pas seulement avec des rappels. Pour bloquer réellement les applications et maintenir votre session, Android exige des accès spéciaux dont les applications ordinaires n’ont pas besoin.</string>
+    <string name="onboarding_required_ready">Accès requis prêts</string>
+    <string name="onboarding_core_section">Accès essentiels</string>
+    <string name="onboarding_tap_card">Touchez une carte pour accorder l’accès.</string>
+    <string name="onboarding_fix_later">L’accès à l’utilisation, le service d’accessibilité et les notifications peuvent être corrigés à tout moment dans Réglages → Autorisations.</string>
+    <string name="onboarding_back_core">Retour à la configuration essentielle</string>
+    <string name="onboarding_optional_section">Accès facultatifs</string>
+    <string name="onboarding_optional_note">Ces fonctions ne sont pas obligatoires et peuvent être configurées plus tard.</string>
+    <string name="onboarding_continue_optional">Continuer vers la configuration facultative →</string>
+    <string name="onboarding_start_skip">Ignorer la configuration facultative – c’est parti</string>
+    <string name="onboarding_start_all">Tous les accès facultatifs sont prêts – c’est parti</string>
+    <string name="onboarding_start_one">1 autorisation facultative activée – c’est parti</string>
+    <string name="onboarding_footer_core">Vous pouvez gérer les autorisations à tout moment dans les Réglages.</string>
+    <string name="onboarding_footer_optional">Les fonctions facultatives peuvent être activées plus tard depuis les Réglages.</string>
+    <string name="onboarding_start_many">%1$d autorisations facultatives activées – c’est parti</string>
+</resources>

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="accessibility_service_description">FocusFlow überwacht die App im Vordergrund während einer aktiven Fokussitzung und wendet die eingestellten Blockierregeln an.</string>
+    <string name="widget_description">Fokussitzung und Tagesfortschritt von FocusFlow</string>
+    <string name="device_admin_description">Schützt die FocusFlow-Dienste vor aggressiver Systembereinigung während aktiver Fokussitzungen.</string>
+    <string name="tab_focus">Fokus</string>
+    <string name="tab_schedule">Zeitplan</string>
+    <string name="tab_defense">Schutz</string>
+    <string name="tab_stats">Statistiken</string>
+    <string name="tab_settings">Einstellungen</string>
+    <string name="not_found_title">Bildschirm nicht gefunden</string>
+    <string name="not_found_message">Dieses Ziel in FocusFlow ist nicht verfügbar.</string>
+    <string name="go_back">Zurück</string>
+    <string name="splash_tagline">Dein Betriebssystem für Disziplin</string>
+    <string name="onboarding_core_title">Grundzugriffe einrichten</string>
+    <string name="onboarding_optional_title">Zusätzlicher Schutz</string>
+    <string name="onboarding_core_subtitle">Diese Berechtigungen helfen FocusFlow, zuverlässig zu blockieren.</string>
+    <string name="onboarding_optional_subtitle">Aktiviere jetzt zusätzlichen Schutz oder hole das später nach.</string>
+    <string name="onboarding_why_title">Wozu diese Berechtigungen?</string>
+    <string name="onboarding_why_body">FocusFlow setzt Fokus auf Systemebene durch – nicht nur mit Erinnerungen. Um Apps wirklich zu blockieren und deine Sitzung am Laufen zu halten, braucht Android Sonderzugriffe, die normale Apps nicht benötigen.</string>
+    <string name="onboarding_required_ready">Erforderliche Zugriffe bereit</string>
+    <string name="onboarding_core_section">Grundzugriffe</string>
+    <string name="onboarding_tap_card">Tippe auf eine Karte, um den Zugriff zu erlauben.</string>
+    <string name="onboarding_fix_later">Nutzungszugriff, Bedienungshilfen-Dienst und Benachrichtigungen kannst du jederzeit unter Einstellungen → Berechtigungen korrigieren.</string>
+    <string name="onboarding_back_core">Zurück zur Grundeinrichtung</string>
+    <string name="onboarding_optional_section">Optionale Zugriffe</string>
+    <string name="onboarding_optional_note">Diese Funktionen sind nicht erforderlich und können später eingerichtet werden.</string>
+    <string name="onboarding_continue_optional">Weiter zur optionalen Einrichtung →</string>
+    <string name="onboarding_start_skip">Optionale Einrichtung überspringen – los geht’s</string>
+    <string name="onboarding_start_all">Alle optionalen Zugriffe bereit – los geht’s</string>
+    <string name="onboarding_start_one">1 optionale Berechtigung aktiviert – los geht’s</string>
+    <string name="onboarding_footer_core">Du kannst Berechtigungen jederzeit in den Einstellungen verwalten.</string>
+    <string name="onboarding_footer_optional">Optionale Funktionen kannst du später in den Einstellungen aktivieren.</string>
+    <string name="onboarding_start_many">%1$d optionale Berechtigungen aktiviert – los geht’s</string>
+</resources>

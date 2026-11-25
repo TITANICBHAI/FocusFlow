@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="accessibility_service_description">FocusFlow supervisa la aplicación en primer plano durante una sesión de concentración activa y aplica las reglas de bloqueo configuradas.</string>
+    <string name="widget_description">Sesión de concentración y progreso diario de FocusFlow</string>
+    <string name="device_admin_description">Protege los servicios de FocusFlow de la limpieza agresiva del sistema durante las sesiones de concentración activas.</string>
+    <string name="tab_focus">Enfoque</string>
+    <string name="tab_schedule">Horario</string>
+    <string name="tab_defense">Defensa</string>
+    <string name="tab_stats">Estadísticas</string>
+    <string name="tab_settings">Ajustes</string>
+    <string name="not_found_title">Pantalla no encontrada</string>
+    <string name="not_found_message">Este destino de FocusFlow no está disponible.</string>
+    <string name="go_back">Volver</string>
+    <string name="splash_tagline">Tu sistema operativo de la disciplina</string>
+    <string name="onboarding_core_title">Configura los accesos básicos</string>
+    <string name="onboarding_optional_title">Protección opcional</string>
+    <string name="onboarding_core_subtitle">Estos permisos ayudan a FocusFlow a bloquear de forma fiable.</string>
+    <string name="onboarding_optional_subtitle">Añade protección extra ahora o vuelve más tarde.</string>
+    <string name="onboarding_why_title">¿Por qué estos permisos?</string>
+    <string name="onboarding_why_body">FocusFlow aplica la concentración a nivel del sistema, no solo con recordatorios. Para bloquear apps de verdad y mantener tu sesión activa, Android exige accesos especiales que las apps normales no necesitan.</string>
+    <string name="onboarding_required_ready">Accesos obligatorios listos</string>
+    <string name="onboarding_core_section">Accesos básicos</string>
+    <string name="onboarding_tap_card">Toca una tarjeta para conceder el acceso.</string>
+    <string name="onboarding_fix_later">El acceso de uso, el servicio de accesibilidad y las notificaciones se pueden corregir en cualquier momento en Ajustes → Permisos.</string>
+    <string name="onboarding_back_core">Volver a la configuración básica</string>
+    <string name="onboarding_optional_section">Accesos opcionales</string>
+    <string name="onboarding_optional_note">Estas funciones no son obligatorias y se pueden configurar más tarde.</string>
+    <string name="onboarding_continue_optional">Continuar con la configuración opcional →</string>
+    <string name="onboarding_start_skip">Omitir la configuración opcional: ¡empecemos!</string>
+    <string name="onboarding_start_all">Todos los accesos opcionales listos: ¡empecemos!</string>
+    <string name="onboarding_start_one">1 permiso opcional activado: ¡empecemos!</string>
+    <string name="onboarding_footer_core">Puedes gestionar los permisos en Ajustes en cualquier momento.</string>
+    <string name="onboarding_footer_optional">Las funciones opcionales se pueden activar más tarde desde Ajustes.</string>
+    <string name="onboarding_start_many">%1$d permisos opcionales activados: ¡empecemos!</string>
+</resources>

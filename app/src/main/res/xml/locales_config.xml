@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Languages FocusFlow is translated into. Android 13+ lists them under Settings - Apps - FocusFlow - Language. -->
+<locale-config xmlns:android="http://schemas.android.com/apk/res/android">
+    <locale android:name="en" />
+    <locale android:name="de" />
+    <locale android:name="es" />
+    <locale android:name="fr" />
+    <locale android:name="ja" />
+    <locale android:name="ko" />
+    <locale android:name="zh" />
+</locale-config>
