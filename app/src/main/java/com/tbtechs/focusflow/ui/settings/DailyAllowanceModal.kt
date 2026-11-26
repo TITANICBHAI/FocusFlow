@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.settings
 
+import androidx.compose.ui.res.stringResource
+import com.tbtechs.focusflow.R
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -156,7 +158,7 @@ fun DailyAllowanceModal(
 
     fun requestRemoval(packageName: String) {
         if (locked && packageName in originalPackages) {
-            message = AllowanceMessage("Allowances locked", "A block is active, so allowances cannot be removed until it expires.")
+            message = AllowanceMessage(context.getString(R.string.settings_allowances_locked), context.getString(R.string.settings_allowances_locked_body))
         } else if (requireDefensePin) {
             pendingRemoval = PendingAllowanceRemoval.Package(packageName)
             pin = ""
@@ -203,9 +205,9 @@ fun DailyAllowanceModal(
                 missingInstalledAppInfo(
                     packageName = packageName,
                     label = when {
-                        appsLoading -> "Checking app"
-                        installedAppsState.error != null -> "App details unavailable"
-                        else -> "App not installed"
+                        appsLoading -> context.getString(R.string.settings_checking_app)
+                        installedAppsState.error != null -> context.getString(R.string.settings_app_details_unavailable)
+                        else -> context.getString(R.string.settings_app_not_installed)
                     },
                 )
             }
@@ -238,7 +240,7 @@ fun DailyAllowanceModal(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 TextButton(onClick = onClose) {
-                    Text("Cancel", color = DarkTextSecondary, fontSize = 13.scaledSp)
+                    Text(stringResource(R.string.home_cancel), color = DarkTextSecondary, fontSize = 13.scaledSp)
                 }
                 Row(
                     modifier = Modifier.weight(1f),
@@ -247,10 +249,10 @@ fun DailyAllowanceModal(
                 ) {
                     Icon(Icons.Outlined.WbSunny, contentDescription = null, tint = SunAmber, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text("Daily Allowance", fontSize = 15.scaledSp, fontWeight = FontWeight.Bold, color = DarkTextPrimary)
+                    Text(stringResource(R.string.settings_daily_allowance), fontSize = 15.scaledSp, fontWeight = FontWeight.Bold, color = DarkTextPrimary)
                 }
                 TextButton(onClick = ::save) {
-                    Text("Save", color = BrandPrimary, fontWeight = FontWeight.Bold, fontSize = 13.scaledSp)
+                    Text(stringResource(R.string.home_save), color = BrandPrimary, fontWeight = FontWeight.Bold, fontSize = 13.scaledSp)
                 }
             }
         },
@@ -283,7 +285,7 @@ fun DailyAllowanceModal(
                         ) {
                             Icon(Icons.Outlined.Security, contentDescription = null, tint = SunAmber, modifier = Modifier.size(14.dp))
                             Text(
-                                "Block is active — existing allowances are locked. You can add new apps but cannot remove them until the block expires.",
+                                stringResource(R.string.settings_block_active_allowances_locked),
                                 modifier = Modifier.weight(1f),
                                 fontSize = 11.scaledSp,
                                 lineHeight = 16.scaledSp,
@@ -308,7 +310,7 @@ fun DailyAllowanceModal(
                         ) {
                             Icon(Icons.Outlined.Security, contentDescription = null, tint = BrandPrimary, modifier = Modifier.size(14.dp))
                             Text(
-                                "Removing apps from the allowance list requires your defense password.",
+                                stringResource(R.string.settings_removing_requires_password),
                                 modifier = Modifier.weight(1f),
                                 fontSize = 11.scaledSp,
                                 lineHeight = 16.scaledSp,
@@ -332,7 +334,7 @@ fun DailyAllowanceModal(
                     ) {
                         Icon(Icons.Outlined.Info, contentDescription = null, tint = SunAmber, modifier = Modifier.size(14.dp))
                         Text(
-                            "Allowances count all usage today, not just during blocks. Tap an app to enable its allowance, tap again to expand its settings, or long-press to remove it.",
+                            stringResource(R.string.settings_allowances_help),
                             fontSize = 11.scaledSp,
                             lineHeight = 16.scaledSp,
                             color = SunAmber,
@@ -354,14 +356,14 @@ fun DailyAllowanceModal(
                             .fillMaxWidth()
                             .heightIn(min = 44.dp),
                         singleLine = true,
-                        placeholder = { Text("Search apps...", color = DarkTextMuted, fontSize = 13.scaledSp) },
+                        placeholder = { Text(stringResource(R.string.settings_search_apps), color = DarkTextMuted, fontSize = 13.scaledSp) },
                         leadingIcon = {
                              Icon(Icons.Outlined.Search, contentDescription = null, tint = DarkTextSecondary, modifier = Modifier.size(16.dp))
                         },
                         trailingIcon = {
                             if (search.isNotBlank()) {
                                 IconButton(onClick = { search = "" }) {
-                                    Icon(Icons.Outlined.Clear, contentDescription = "Clear", tint = DarkTextSecondary, modifier = Modifier.size(18.dp))
+                                    Icon(Icons.Outlined.Clear, contentDescription = stringResource(R.string.settings_clear), tint = DarkTextSecondary, modifier = Modifier.size(18.dp))
                                 }
                             }
                         },
@@ -381,7 +383,7 @@ fun DailyAllowanceModal(
             item {
                 CollapsibleManualPackageSection(
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                    helperText = "Add it to the list below, then tap it to configure an allowance. You can save with none enabled.",
+                    helperText = stringResource(R.string.settings_allowance_add_helper),
                     onAddPackage = { packageName ->
                         manualPackages = manualPackages + packageName
                         if (drafts.any { it.packageName == packageName }) {
@@ -401,8 +403,11 @@ fun DailyAllowanceModal(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        text = if (drafts.isEmpty()) "No allowances configured"
-                        else "${drafts.size} app${if (drafts.size == 1) "" else "s"} with daily allowance",
+                        text = when (drafts.size) {
+                            0 -> stringResource(R.string.settings_no_allowances_configured)
+                            1 -> stringResource(R.string.settings_apps_with_allowance_one)
+                            else -> stringResource(R.string.settings_apps_with_allowance_many, drafts.size)
+                        },
                         fontSize = 13.scaledSp,
                         fontWeight = FontWeight.Medium,
                         color = DarkTextSecondary,
@@ -418,7 +423,7 @@ fun DailyAllowanceModal(
                     ) {
                         CircularProgressIndicator(color = BrandPrimary, modifier = Modifier.size(32.dp))
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text("Loading apps…", color = DarkTextSecondary, fontSize = 13.scaledSp)
+                        Text(stringResource(R.string.settings_loading_apps), color = DarkTextSecondary, fontSize = 13.scaledSp)
                     }
                 }
             }
@@ -430,7 +435,7 @@ fun DailyAllowanceModal(
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Text(
-                            if (search.isBlank()) "No apps found" else "No apps match \"$search\"",
+                            if (search.isBlank()) stringResource(R.string.settings_no_apps_found) else stringResource(R.string.settings_no_apps_match, search),
                             color = DarkTextSecondary,
                             fontSize = 14.scaledSp,
                         )
@@ -512,7 +517,7 @@ fun DailyAllowanceModal(
                                         modifier = Modifier.size(13.dp),
                                     )
                                     Text(
-                                        text = draft.summary(),
+                                        text = draft.summary(context),
                                  fontSize = 11.scaledSp,
                                         fontWeight = FontWeight.Medium,
                                         color = SunAmber,
@@ -525,7 +530,7 @@ fun DailyAllowanceModal(
                             IconButton(onClick = { expandedPackage = if (isExpanded) null else app.packageName }) {
                                 Icon(
                                     if (isExpanded) Icons.Outlined.KeyboardArrowUp else Icons.Outlined.KeyboardArrowDown,
-                                    contentDescription = if (isExpanded) "Collapse" else "Expand",
+                                    contentDescription = stringResource(if (isExpanded) R.string.settings_collapse else R.string.settings_expand),
                                     tint = DarkTextSecondary,
                                 )
                             }
@@ -539,7 +544,7 @@ fun DailyAllowanceModal(
                         ) {
                             Icon(
                                 Icons.Outlined.WbSunny,
-                                contentDescription = if (isActive) "Allowance enabled" else "Enable allowance",
+                                contentDescription = stringResource(if (isActive) R.string.settings_allowance_enabled else R.string.settings_enable_allowance),
                                 tint = if (isActive) SunAmber else DarkTextMuted,
                                  modifier = Modifier.size(16.dp),
                             )
@@ -578,7 +583,7 @@ fun DailyAllowanceModal(
                             strokeWidth = 2.dp,
                         )
                         Spacer(Modifier.width(8.dp))
-                        Text("Loading more apps…", color = DarkTextMuted, fontSize = 11.scaledSp)
+                        Text(stringResource(R.string.settings_loading_more_apps), color = DarkTextMuted, fontSize = 11.scaledSp)
                     }
                 }
             }
@@ -593,7 +598,7 @@ fun DailyAllowanceModal(
                         border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.4f)),
                     ) {
                         Text(
-                            if (locked) "Clear new allowances" else "Clear all daily allowances",
+                            stringResource(if (locked) R.string.settings_clear_new_allowances else R.string.settings_clear_all_allowances),
                              fontSize = 13.scaledSp,
                             fontWeight = FontWeight.Medium,
                         )
@@ -615,13 +620,13 @@ fun DailyAllowanceModal(
                 radius = 16.dp,
                 contentPadding = 16.dp,
             ) {
-                Text("Defense password required", fontSize = 18.scaledSp, fontWeight = FontWeight.Bold, color = DarkTextPrimary)
+                Text(stringResource(R.string.settings_defense_password_required), fontSize = 18.scaledSp, fontWeight = FontWeight.Bold, color = DarkTextPrimary)
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
                         if (pending is PendingAllowanceRemoval.All) {
-                            "Enter your defense password to remove all apps from the daily allowance list."
+                            stringResource(R.string.settings_enter_password_remove_all)
                         } else {
-                            "Enter your defense password to remove this app from the daily allowance list."
+                            stringResource(R.string.settings_enter_password_remove_one)
                         },
                         fontSize = 11.scaledSp,
                         color = DarkTextSecondary,
@@ -629,7 +634,7 @@ fun DailyAllowanceModal(
                     FocusFlowModalField(
                         value = pin,
                         onValueChange = { pin = it },
-                        placeholder = "Defense password",
+                        placeholder = stringResource(R.string.settings_defense_password),
                         minHeight = 44.dp,
                         secure = true,
                         modifier = Modifier.fillMaxWidth(),
@@ -640,15 +645,15 @@ fun DailyAllowanceModal(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     FocusFlowSecondaryButton(
-                        text = "Cancel",
+                        text = stringResource(R.string.home_cancel),
                         onClick = { pendingRemoval = null; pin = "" },
                         modifier = Modifier.weight(1f),
                     )
                     FocusFlowPrimaryButton(
-                        text = "Remove",
+                        text = stringResource(R.string.home_remove),
                     onClick = {
                         if (!onVerifyDefensePin(pin)) {
-                            message = AllowanceMessage("Incorrect password", "The defense password did not match.")
+                            message = AllowanceMessage(context.getString(R.string.settings_incorrect_password), context.getString(R.string.settings_incorrect_password_body))
                         } else {
                             when (pending) {
                                 is PendingAllowanceRemoval.Package -> remove(pending.packageName)
@@ -703,7 +708,7 @@ private fun AllowanceConfiguration(
     ) {
         if (locked) {
             Text(
-                "Values locked while block is active",
+                stringResource(R.string.settings_values_locked),
                 fontSize = 12.scaledSp,
                 color = SunAmber,
             )
@@ -711,7 +716,7 @@ private fun AllowanceConfiguration(
 
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
-                "ALLOWANCE MODE",
+                stringResource(R.string.settings_allowance_mode),
                 fontSize = 11.scaledSp,
                 fontWeight = FontWeight.SemiBold,
                 color = DarkTextMuted,
@@ -756,7 +761,7 @@ private fun AllowanceConfiguration(
                                 modifier = Modifier.size(16.dp),
                             )
                             Text(
-                                text = mode.label,
+                                text = allowanceModeLabel(mode),
                                 fontSize = 11.scaledSp,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                 color = if (isSelected) SunAmber else DarkTextSecondary,
@@ -771,7 +776,7 @@ private fun AllowanceConfiguration(
         when (draft.mode) {
             AllowanceMode.Count -> {
                 StepperRow(
-                    label = "Opens per day",
+                    label = stringResource(R.string.settings_opens_per_day),
                     value = draft.countPerDay.toString(),
                     locked = locked,
                     onDecrease = { onUpdate(draft.copy(countPerDay = (draft.countPerDay - 1).coerceAtLeast(1))) },
@@ -780,8 +785,8 @@ private fun AllowanceConfiguration(
             }
             AllowanceMode.TimeBudget -> {
                 StepperRow(
-                    label = "Total minutes per day",
-                    value = "${draft.budgetMinutes} min",
+                    label = stringResource(R.string.settings_total_minutes_per_day),
+                    value = stringResource(R.string.settings_n_min, draft.budgetMinutes),
                     locked = locked,
                     onDecrease = { onUpdate(draft.copy(budgetMinutes = (draft.budgetMinutes - 5).coerceAtLeast(1))) },
                     onIncrease = { onUpdate(draft.copy(budgetMinutes = (draft.budgetMinutes + 5).coerceAtMost(480))) },
@@ -789,21 +794,22 @@ private fun AllowanceConfiguration(
             }
             AllowanceMode.Interval -> {
                 StepperRow(
-                    label = "Minutes allowed per window",
-                    value = "${draft.intervalMinutes} min",
+                    label = stringResource(R.string.settings_minutes_allowed_per_window),
+                    value = stringResource(R.string.settings_n_min, draft.intervalMinutes),
                     locked = locked,
                     onDecrease = { onUpdate(draft.copy(intervalMinutes = (draft.intervalMinutes - 1).coerceAtLeast(1))) },
                     onIncrease = { onUpdate(draft.copy(intervalMinutes = (draft.intervalMinutes + 1).coerceAtMost(120))) },
                 )
                 StepperRow(
-                    label = "Window size (hours)",
-                    value = "${draft.intervalHours} hr",
+                    label = stringResource(R.string.settings_window_size_hours),
+                    value = stringResource(R.string.settings_n_hr, draft.intervalHours),
                     locked = locked,
                     onDecrease = { onUpdate(draft.copy(intervalHours = (draft.intervalHours - 1).coerceAtLeast(1))) },
                     onIncrease = { onUpdate(draft.copy(intervalHours = (draft.intervalHours + 1).coerceAtMost(24))) },
                 )
                 Text(
-                    "App is allowed for ${draft.intervalMinutes} min every ${draft.intervalHours} hour${if (draft.intervalHours == 1) "" else "s"}.",
+                    if (draft.intervalHours == 1) stringResource(R.string.settings_interval_summary_one, draft.intervalMinutes)
+                    else stringResource(R.string.settings_interval_summary_many, draft.intervalMinutes, draft.intervalHours),
                     fontSize = 12.scaledSp,
                     color = DarkTextSecondary,
                 )
@@ -845,7 +851,7 @@ private fun StepperRow(
                     .combinedClickable(enabled = !locked, onClick = onDecrease),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.Outlined.Remove, contentDescription = "Decrease", tint = if (locked) DarkTextMuted else DarkTextPrimary, modifier = Modifier.size(16.dp))
+                Icon(Icons.Outlined.Remove, contentDescription = stringResource(R.string.settings_decrease), tint = if (locked) DarkTextMuted else DarkTextPrimary, modifier = Modifier.size(16.dp))
             }
             Text(
                 text = value,
@@ -864,17 +870,26 @@ private fun StepperRow(
                     .combinedClickable(enabled = !locked, onClick = onIncrease),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.Outlined.Add, contentDescription = "Increase", tint = if (locked) DarkTextMuted else DarkTextPrimary, modifier = Modifier.size(16.dp))
+                Icon(Icons.Outlined.Add, contentDescription = stringResource(R.string.settings_increase), tint = if (locked) DarkTextMuted else DarkTextPrimary, modifier = Modifier.size(16.dp))
             }
         }
     }
 }
 
-internal enum class AllowanceMode(val label: String) {
-    Count("Count"),
-    TimeBudget("Time Budget"),
-    Interval("Interval"),
+internal enum class AllowanceMode {
+    Count,
+    TimeBudget,
+    Interval,
 }
+
+@Composable
+internal fun allowanceModeLabel(mode: AllowanceMode): String = stringResource(
+    when (mode) {
+        AllowanceMode.Count -> R.string.settings_mode_count
+        AllowanceMode.TimeBudget -> R.string.settings_mode_time_budget
+        AllowanceMode.Interval -> R.string.settings_mode_interval
+    },
+)
 
 internal data class DailyAllowanceDraft(
     val packageName: String,
@@ -884,10 +899,12 @@ internal data class DailyAllowanceDraft(
     val intervalMinutes: Int = 5,
     val intervalHours: Int = 1,
 ) {
-    fun summary(): String = when (mode) {
-        AllowanceMode.Count -> "$countPerDay open${if (countPerDay == 1) "" else "s"}/day"
-        AllowanceMode.TimeBudget -> "$budgetMinutes min/day"
-        AllowanceMode.Interval -> "$intervalMinutes min every ${intervalHours}hr"
+    fun summary(context: android.content.Context): String = when (mode) {
+        AllowanceMode.Count ->
+            if (countPerDay == 1) context.getString(R.string.settings_summary_opens_one)
+            else context.getString(R.string.settings_summary_opens_many, countPerDay)
+        AllowanceMode.TimeBudget -> context.getString(R.string.settings_summary_budget, budgetMinutes)
+        AllowanceMode.Interval -> context.getString(R.string.settings_summary_interval, intervalMinutes, intervalHours)
     }
 }
 

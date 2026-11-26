@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.settings
 
+import androidx.compose.ui.res.stringResource
+import com.tbtechs.focusflow.R
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -83,7 +85,7 @@ internal fun TextSizeSection(
     var expandedTab by remember { mutableStateOf<String?>(null) }
     val tabScales = listOf(
         TabTextScale(
-            title = "Focus",
+            title = stringResource(R.string.tab_focus),
             route = Routes.FOCUS,
             icon = FocusTabIcons.Active,
             scale = settings.focusTextScale,
@@ -98,7 +100,7 @@ internal fun TextSizeSection(
             onUpdate(settings.copy(focusTextScale = value))
         },
         TabTextScale(
-            title = "Schedule",
+            title = stringResource(R.string.tab_schedule),
             route = Routes.HOME,
             icon = Icons.Outlined.CalendarMonth,
             scale = settings.homeTextScale,
@@ -119,7 +121,7 @@ internal fun TextSizeSection(
             onUpdate(settings.copy(homeTextScale = value))
         },
         TabTextScale(
-            title = "Defense",
+            title = stringResource(R.string.tab_defense),
             route = Routes.DEFENSE,
             icon = DefenseIcons.ActiveFilled,
             scale = settings.defenseTextScale,
@@ -140,7 +142,7 @@ internal fun TextSizeSection(
             onUpdate(settings.copy(defenseTextScale = value))
         },
         TabTextScale(
-            title = "Stats",
+            title = stringResource(R.string.tab_stats),
             route = Routes.STATS,
             icon = Icons.Outlined.BarChart,
             scale = settings.statsTextScale,
@@ -155,7 +157,7 @@ internal fun TextSizeSection(
             onUpdate(settings.copy(statsTextScale = value))
         },
         TabTextScale(
-            title = "Settings",
+            title = stringResource(R.string.tab_settings),
             route = Routes.SETTINGS,
             icon = Icons.Outlined.Settings,
             scale = settings.settingsTextScale,
@@ -189,9 +191,9 @@ internal fun TextSizeSection(
             val inheritedScale = tab.scale ?: settings.generalTextScale
             val updatedScales = settings.screenTextScales.toMutableMap()
             SettingsSliderRow(
-                title = "Text size",
-                description = screenScale?.let { "Custom size · ${scaleToPercent(it)}%" }
-                    ?: "Matches ${tab.title} · ${scaleToPercent(inheritedScale)}%",
+                title = stringResource(R.string.settings_text_size_2),
+                description = screenScale?.let { stringResource(R.string.settings_custom_size_pct, scaleToPercent(it)) }
+                    ?: stringResource(R.string.settings_matches_target_pct, tab.title, scaleToPercent(inheritedScale)),
                 valuePercent = scaleToPercent(screenScale ?: inheritedScale),
                 onValueChange = { percent ->
                     updatedScales[selectedScreen.scaleKey] = percentToScale(percent)
@@ -204,12 +206,12 @@ internal fun TextSizeSection(
                         onUpdate(settings.copy(screenTextScales = updatedScales))
                     }
                 },
-                resetLabel = "Use ${tab.title}",
+                resetLabel = stringResource(R.string.settings_use_target, tab.title),
             )
         } else {
             SettingsSliderRow(
-                title = "General",
-                description = "Default size for tabs without a custom size.",
+                title = stringResource(R.string.settings_general),
+                description = stringResource(R.string.settings_default_size_for_tabs_without),
                 valuePercent = generalPercent,
                 onValueChange = { percent ->
                     onUpdate(settings.copy(generalTextScale = percentToScale(percent)))
@@ -218,7 +220,7 @@ internal fun TextSizeSection(
             )
             HorizontalDivider(color = DarkBorder, thickness = 1.dp)
             Text(
-                text = "TAB SIZES",
+                text = stringResource(R.string.settings_tab_sizes),
                 fontSize = 11.scaledSp,
                 fontWeight = FontWeight.SemiBold,
                 color = DarkTextSecondary,
@@ -249,8 +251,8 @@ internal fun TextSizeSection(
                             color = DarkTextPrimary,
                         )
                         Text(
-                            text = customPercent?.let { "Custom size · $it%" }
-                                ?: "Matches General · $generalPercent%",
+                            text = customPercent?.let { stringResource(R.string.settings_custom_size_pct, it) }
+                                ?: stringResource(R.string.settings_matches_target_pct, stringResource(R.string.settings_general), generalPercent),
                             fontSize = 12.scaledSp,
                             color = DarkTextSecondary,
                         )
@@ -261,15 +263,15 @@ internal fun TextSizeSection(
                         } else {
                             Icons.Outlined.KeyboardArrowDown
                         },
-                        contentDescription = if (expanded) "Collapse ${tab.title}" else "Expand ${tab.title}",
+                        contentDescription = stringResource(if (expanded) R.string.settings_collapse_target else R.string.settings_expand_target, tab.title),
                         tint = DarkTextSecondary,
                         modifier = Modifier.size(24.dp),
                     )
                 }
                 if (expanded) {
                 SettingsSliderRow(
-                    title = "${tab.title} text size",
-                    description = if (tab.scale == null) "Matches General" else "Custom size",
+                    title = stringResource(R.string.settings_text_size_3, tab.title),
+                    description = stringResource(if (tab.scale == null) R.string.settings_matches_general else R.string.settings_custom_size),
                     valuePercent = customPercent ?: generalPercent,
                     onValueChange = { percent -> tab.update(percentToScale(percent)) },
                     onValueChangeFinished = {},
@@ -316,15 +318,15 @@ private fun TextSizeScreenRow(
                 color = DarkTextPrimary,
             )
             Text(
-                text = scale?.let { "Custom size · ${scaleToPercent(it)}%" }
-                    ?: "Matches tab · ${scaleToPercent(inheritedScale)}%",
+                text = scale?.let { stringResource(R.string.settings_custom_size_pct, scaleToPercent(it)) }
+                    ?: stringResource(R.string.settings_matches_tab_pct, scaleToPercent(inheritedScale)),
                 fontSize = 11.scaledSp,
                 color = DarkTextSecondary,
             )
         }
         Icon(
             imageVector = Icons.Outlined.KeyboardArrowRight,
-            contentDescription = "Customize ${target.title}",
+            contentDescription = stringResource(R.string.settings_customize, target.title),
             tint = DarkTextSecondary,
             modifier = Modifier.size(22.dp),
         )
@@ -339,7 +341,7 @@ private fun SettingsSliderRow(
     onValueChange: (Int) -> Unit,
     onValueChangeFinished: () -> Unit,
     onReset: (() -> Unit)? = null,
-    resetLabel: String = "Use General",
+    resetLabel: String = stringResource(R.string.settings_use_target, stringResource(R.string.settings_general)),
 ) {
     var sliderValue by remember(valuePercent) { mutableStateOf(valuePercent) }
 
@@ -380,6 +382,7 @@ private fun SettingsSliderRow(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            val sliderDescription = stringResource(R.string.settings_text_size_3, title)
             Slider(
                 value = sliderValue.toFloat(),
                 onValueChange = { newValue ->
@@ -400,7 +403,7 @@ private fun SettingsSliderRow(
                 ),
                 modifier = Modifier
                     .weight(1f)
-                    .semantics { contentDescription = "$title text size" },
+                    .semantics { contentDescription = sliderDescription },
             )
             Spacer(Modifier.width(8.dp))
             Text(

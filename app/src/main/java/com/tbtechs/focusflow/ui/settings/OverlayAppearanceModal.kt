@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.settings
 
+import androidx.compose.ui.res.stringResource
+import com.tbtechs.focusflow.R
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
@@ -102,8 +104,8 @@ fun OverlayAppearanceModal(
             }
             .onFailure {
                 message = OverlayMessage(
-                    title = "Overlay settings unavailable",
-                    body = "FocusFlow could not read the current block-overlay settings.",
+                    title = context.getString(R.string.settings_overlay_settings_unavailable),
+                    body = context.getString(R.string.settings_overlay_settings_unavailable_body),
                 )
             }
         loading = false
@@ -128,7 +130,7 @@ fun OverlayAppearanceModal(
                 quotes = next
                 onSaved()
             }.onFailure {
-                message = OverlayMessage("Could not save quotes", "Your overlay quote changes were not saved.")
+                message = OverlayMessage(context.getString(R.string.settings_could_not_save_quotes), context.getString(R.string.settings_could_not_save_quotes_body))
             }
         }
     }
@@ -138,7 +140,7 @@ fun OverlayAppearanceModal(
             runCatching { AppModule.blockOverlayController.clearOverlayWallpaper() }
                 .onSuccess { wallpaperPath = "" }
                 .onFailure {
-                    message = OverlayMessage("Could not remove image", "The overlay background image could not be removed.")
+                    message = OverlayMessage(context.getString(R.string.settings_could_not_remove_image), context.getString(R.string.settings_could_not_remove_image_body))
                 }
         }
     }
@@ -150,7 +152,7 @@ fun OverlayAppearanceModal(
                     val target = withContext(Dispatchers.IO) {
                         File(context.filesDir, "focusflow_overlay_${System.currentTimeMillis()}").also { file ->
                             val input = context.contentResolver.openInputStream(uri)
-                                ?: error("The selected image cannot be read")
+                                ?: error(context.getString(R.string.settings_image_cannot_be_read))
                             input.use { source -> file.outputStream().use { destination -> source.copyTo(destination) } }
                         }
                     }
@@ -160,8 +162,8 @@ fun OverlayAppearanceModal(
                     wallpaperPath = path
                 }.onFailure {
                     message = OverlayMessage(
-                        title = "Could not pick image",
-                        body = "The selected image could not be imported. Try choosing it again from your gallery.",
+                        title = context.getString(R.string.settings_could_not_pick_image),
+                        body = context.getString(R.string.settings_could_not_pick_image_body),
                         showSettings = false,
                     )
                 }
@@ -180,8 +182,8 @@ fun OverlayAppearanceModal(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("Overlay Appearance", modifier = Modifier.weight(1f), color = RefText, fontSize = 18.scaledSp, fontWeight = FontWeight.Bold)
-                TextButton(onClick = onClose) { Text("Close", color = RefSecondary, fontSize = 13.scaledSp) }
+                Text(stringResource(R.string.settings_overlay_appearance), modifier = Modifier.weight(1f), color = RefText, fontSize = 18.scaledSp, fontWeight = FontWeight.Bold)
+                TextButton(onClick = onClose) { Text(stringResource(R.string.home_close), color = RefSecondary, fontSize = 13.scaledSp) }
             }
             if (loading) {
                 Column(
@@ -190,7 +192,7 @@ fun OverlayAppearanceModal(
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     CircularProgressIndicator(color = RefText, modifier = Modifier.size(24.dp))
-                    Text("Loading overlay settings", color = RefSecondary, fontSize = 13.scaledSp)
+                    Text(stringResource(R.string.settings_loading_overlay_settings), color = RefSecondary, fontSize = 13.scaledSp)
                 }
             } else {
                 LazyColumn(
@@ -200,8 +202,8 @@ fun OverlayAppearanceModal(
                 ) {
                     item {
                         OverlaySection(
-                            title = "BACKGROUND IMAGE",
-                            description = "Pick an image from your gallery for the block overlay. Leave it empty to use the built-in dark gradient.",
+                            title = stringResource(R.string.settings_background_image),
+                            description = stringResource(R.string.settings_pick_an_image_from_your),
                         ) {
                             Row(
                                 modifier = Modifier.fillMaxWidth().padding(12.dp),
@@ -209,7 +211,7 @@ fun OverlayAppearanceModal(
                             ) {
                                 Icon(Icons.Outlined.Image, contentDescription = null, tint = RefSecondary, modifier = Modifier.size(20.dp))
                                 Text(
-                                    if (wallpaperPath.isBlank()) "Using built-in gradient background" else wallpaperPath,
+                                    if (wallpaperPath.isBlank()) stringResource(R.string.settings_using_builtin_gradient) else wallpaperPath,
                                     modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
                                     color = RefSecondary,
                                     fontSize = 13.scaledSp,
@@ -217,11 +219,11 @@ fun OverlayAppearanceModal(
                                     overflow = TextOverflow.Ellipsis,
                                 )
                                 if (wallpaperPath.isNotBlank()) {
-                                    TextButton(onClick = ::removeWallpaper) { Text("Remove", color = Color(0xFFF87171), fontSize = 13.scaledSp) }
+                                    TextButton(onClick = ::removeWallpaper) { Text(stringResource(R.string.home_remove), color = Color(0xFFF87171), fontSize = 13.scaledSp) }
                                 }
                             }
                             FocusFlowPrimaryButton(
-                                text = if (wallpaperPath.isBlank()) "Pick from gallery" else "Change image",
+                                text = stringResource(if (wallpaperPath.isBlank()) R.string.settings_pick_from_gallery else R.string.settings_change_image),
                                 icon = Icons.Outlined.Image,
                                 onClick = { pickImage.launch("image/*") },
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
@@ -230,8 +232,8 @@ fun OverlayAppearanceModal(
                     }
                     item {
                         OverlaySection(
-                            title = "CUSTOM QUOTES",
-                            description = "These rotate randomly on the overlay. Leave this list empty to use the built-in focus quotes.",
+                            title = stringResource(R.string.settings_custom_quotes),
+                            description = stringResource(R.string.settings_these_rotate_randomly_on_the),
                         ) {
                             Row(
                                 modifier = Modifier.fillMaxWidth().padding(12.dp),
@@ -251,7 +253,7 @@ fun OverlayAppearanceModal(
                                                 .border(1.dp, RefBorder, RoundedCornerShape(10.dp))
                                                 .padding(horizontal = 12.dp, vertical = 8.dp),
                                         ) {
-                                            if (draftQuote.isBlank()) Text("Type a motivating quote", color = RefMuted, fontSize = 13.scaledSp)
+                                            if (draftQuote.isBlank()) Text(stringResource(R.string.settings_type_a_motivating_quote), color = RefMuted, fontSize = 13.scaledSp)
                                             inner()
                                         }
                                     },
@@ -262,17 +264,17 @@ fun OverlayAppearanceModal(
                                         .clickable(enabled = draftQuote.trim().isNotEmpty()) {
                                             val quote = draftQuote.trim()
                                             when {
-                                                quote in quotes -> message = OverlayMessage("Duplicate quote", "This quote is already in your list.")
+                                                quote in quotes -> message = OverlayMessage(context.getString(R.string.settings_duplicate_quote), context.getString(R.string.settings_duplicate_quote_body))
                                                 else -> syncQuotes(quotes + quote) { draftQuote = "" }
                                             }
                                         },
                                     contentAlignment = Alignment.Center,
                                 ) {
-                                    Icon(Icons.Outlined.Add, contentDescription = "Add quote", tint = Color.White, modifier = Modifier.size(20.dp))
+                                    Icon(Icons.Outlined.Add, contentDescription = stringResource(R.string.settings_add_quote), tint = Color.White, modifier = Modifier.size(20.dp))
                                 }
                             }
                             if (quotes.isEmpty()) {
-                                Text("No custom quotes — built-in pool active", modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp), color = RefSecondary, fontSize = 11.scaledSp)
+                                Text(stringResource(R.string.settings_no_custom_quotes_built_in), modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp), color = RefSecondary, fontSize = 11.scaledSp)
                             }
                         }
                     }
@@ -284,14 +286,14 @@ fun OverlayAppearanceModal(
                             Text("“$quote”", modifier = Modifier.weight(1f), color = RefText, fontSize = 13.scaledSp, lineHeight = 20.scaledSp, fontStyle = FontStyle.Italic)
                             Icon(
                                 Icons.Outlined.Delete,
-                                contentDescription = "Delete quote",
+                                contentDescription = stringResource(R.string.settings_delete_quote),
                                 tint = RefSecondary,
                                 modifier = Modifier.size(20.dp).clickable { syncQuotes(quotes.filterIndexed { itemIndex, _ -> itemIndex != index }) },
                             )
                         }
                     }
                     item {
-                        Text("Changes apply immediately. The next block overlay will use these settings.", modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp), color = RefSecondary, fontSize = 11.scaledSp, lineHeight = 16.scaledSp)
+                        Text(stringResource(R.string.settings_changes_apply_immediately_the_next), modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp), color = RefSecondary, fontSize = 11.scaledSp, lineHeight = 16.scaledSp)
                     }
                 }
             }
@@ -308,8 +310,8 @@ fun OverlayAppearanceModal(
                 Text(notice.body, color = RefSecondary, fontSize = 11.scaledSp, lineHeight = 17.scaledSp, modifier = Modifier.padding(top = 8.dp))
                 Row(modifier = Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (notice.showSettings) {
-                        FocusFlowSecondaryButton(text = "Cancel", onClick = { message = null }, modifier = Modifier.weight(1f))
-                        FocusFlowPrimaryButton(text = "Open settings", onClick = { message = null; openAppSettings() }, modifier = Modifier.weight(1f))
+                        FocusFlowSecondaryButton(text = stringResource(R.string.home_cancel), onClick = { message = null }, modifier = Modifier.weight(1f))
+                        FocusFlowPrimaryButton(text = stringResource(R.string.settings_open_settings), onClick = { message = null; openAppSettings() }, modifier = Modifier.weight(1f))
                     } else {
                         FocusFlowPrimaryButton(text = "OK", onClick = { message = null })
                     }

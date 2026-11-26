@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.settings
 
+import androidx.compose.ui.res.stringResource
+import com.tbtechs.focusflow.R
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
@@ -98,7 +100,7 @@ fun DarkModeToggle(
         ) {
             Icon(
                 imageVector = activeIcon,
-                contentDescription = if (isDark) "Dark mode enabled" else "Light mode enabled",
+                contentDescription = stringResource(if (isDark) R.string.settings_dark_mode_enabled else R.string.settings_light_mode_enabled),
                 tint = if (isDark) Color(0xFF6366F1) else Color(0xFF64748B),
                 modifier = Modifier.size(13.dp),
             )

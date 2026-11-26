@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.settings
 
+import androidx.compose.ui.res.stringResource
+import com.tbtechs.focusflow.R
 import android.Manifest
 import android.content.Intent
 import android.net.Uri
@@ -50,6 +52,7 @@ import androidx.compose.material.icons.outlined.Policy
 import androidx.compose.material.icons.outlined.RocketLaunch
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material.icons.outlined.Smartphone
+import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -178,12 +181,8 @@ fun SettingsScreen(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
         notice = SettingsNotice(
-            title = if (granted) "Notifications enabled" else "Permission denied",
-            body = if (granted) {
-                "You can now receive task reminders."
-            } else {
-                "Enable notifications in your device Settings to receive task reminders."
-            },
+            title = context.getString(if (granted) R.string.settings_notifications_enabled else R.string.settings_permission_denied),
+            body = context.getString(if (granted) R.string.settings_notifications_enabled_body else R.string.settings_notifications_denied_body),
         )
     }
 
@@ -247,7 +246,7 @@ fun SettingsScreen(
             Uri.parse("mailto:tbtechsdev@gmail.com?subject=FocusFlow%20Support"),
         )
         if (emailIntent.resolveActivity(context.packageManager) == null) {
-            unavailable("Email unavailable", "No email app is available to contact FocusFlow support.")
+            unavailable(context.getString(R.string.settings_email_unavailable), context.getString(R.string.settings_email_unavailable_body))
         } else {
             context.startActivity(emailIntent)
         }
@@ -271,7 +270,7 @@ fun SettingsScreen(
             containerColor = DarkBackground,
             topBar = {
                 TopAppBar(
-                    title = { Text("Settings", color = DarkTextPrimary, fontWeight = FontWeight.Bold) },
+                    title = { Text(stringResource(R.string.tab_settings), color = DarkTextPrimary, fontWeight = FontWeight.Bold) },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = DarkBackground),
                 )
             },
@@ -295,7 +294,7 @@ fun SettingsScreen(
             TopAppBar(
                 title = {
                     Text(
-                        "Settings",
+                        stringResource(R.string.tab_settings),
                         fontSize = 28.scaledSp,
                         fontWeight = FontWeight.Bold,
                         color = DarkTextPrimary,
@@ -321,22 +320,22 @@ fun SettingsScreen(
         ) {
             // 1. PROFILE
             item {
-                SettingsSectionHeader("PROFILE")
+                SettingsSectionHeader(stringResource(R.string.settings_section_profile))
                 SettingsCard {
                     SettingsActionRow(
                         icon = Icons.Outlined.AccountCircle,
-                        title = profile?.optString("name").orEmpty().ifBlank { "Set up your profile" },
+                        title = profile?.optString("name").orEmpty().ifBlank { context.getString(R.string.settings_set_up_profile) },
                         description = profile?.let {
                             listOf(
                                 it.optString("occupation").takeIf(String::isNotBlank),
                                 it.optInt("dailyGoalHours", 0)
                                     .takeIf { hours -> hours > 0 }
-                                    ?.let { hours -> "${hours}h daily goal" },
+                                    ?.let { hours -> context.getString(R.string.settings_daily_goal_hours, hours) },
                                 it.optString("wakeUpTime").takeIf(String::isNotBlank)
-                                    ?.let { time -> "Wakes at $time" },
+                                    ?.let { time -> context.getString(R.string.settings_wakes_at, time) },
                             ).filterNotNull().joinToString(" · ")
-                                .ifBlank { "Tap to personalise your experience" }
-                        } ?: "Name, occupation, daily goal and more",
+                                .ifBlank { context.getString(R.string.settings_tap_to_personalise) }
+                        } ?: context.getString(R.string.settings_profile_hint),
                         onClick = onOpenProfile,
                     )
                 }
@@ -344,11 +343,11 @@ fun SettingsScreen(
 
             // 2. APPEARANCE
             item {
-                SettingsSectionHeader("APPEARANCE")
+                SettingsSectionHeader(stringResource(R.string.settings_section_appearance))
                 SettingsCard {
                     SettingsToggleRow(
-                        title = "Dark Mode",
-                        description = "Use a darker color palette throughout FocusFlow",
+                        title = stringResource(R.string.settings_dark_mode),
+                        description = stringResource(R.string.settings_use_a_darker_color_palette),
                     ) {
                         DarkModeToggle(
                             isDark = settings.darkModeEnabled,
@@ -362,20 +361,39 @@ fun SettingsScreen(
                     HorizontalDivider(color = DarkBorder, thickness = 1.dp)
                     SettingsActionRow(
                         icon = Icons.Outlined.Tune,
-                        title = "Text Size",
-                        description = "Adjust text size across FocusFlow",
+                        title = stringResource(R.string.settings_text_size),
+                        description = stringResource(R.string.settings_adjust_text_size_across_focusflow),
                         onClick = onOpenTextSize,
                     )
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                        HorizontalDivider(color = DarkBorder, thickness = 1.dp)
+                        SettingsActionRow(
+                            icon = Icons.Outlined.Language,
+                            title = stringResource(R.string.settings_language),
+                            description = stringResource(R.string.settings_language_desc),
+                            onClick = {
+                                try {
+                                    context.startActivity(
+                                        Intent(android.provider.Settings.ACTION_APP_LOCALE_SETTINGS)
+                                            .setData(Uri.fromParts("package", context.packageName, null))
+                                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                                    )
+                                } catch (_: Exception) {
+                                    // No locale page on this device; nothing to open.
+                                }
+                            },
+                        )
+                    }
                 }
             }
 
             // 3. NOTIFICATIONS
             item {
-                SettingsSectionHeader("NOTIFICATIONS")
+                SettingsSectionHeader(stringResource(R.string.settings_section_notifications))
                 SettingsCard {
                     SettingsToggleRow(
-                        title = "Scheduled task reminders",
-                        description = "Before, at, and during tasks",
+                        title = stringResource(R.string.settings_scheduled_task_reminders),
+                        description = stringResource(R.string.settings_before_at_and_during_tasks),
                     ) {
                         FocusFlowSwitch(
                             checked = settings.taskRemindersEnabled,
@@ -427,8 +445,8 @@ fun SettingsScreen(
                     )
                     HorizontalDivider(color = DarkBorder, thickness = 1.dp)
                     SettingsToggleRow(
-                        title = "Daily reflection prompts",
-                        description = "Show the questionnaire and day-rating prompts",
+                        title = stringResource(R.string.settings_daily_reflection_prompts),
+                        description = stringResource(R.string.settings_show_the_questionnaire_and_day),
                     ) {
                         FocusFlowSwitch(
                             checked = settings.reflectionPromptsEnabled,
@@ -442,7 +460,7 @@ fun SettingsScreen(
                     HorizontalDivider(color = DarkBorder, thickness = 1.dp)
                     SettingsActionRow(
                         icon = Icons.Outlined.Notifications,
-                        title = "Request Notification Permission",
+                        title = stringResource(R.string.settings_request_notification_permission),
                         onClick = { requestNotifications.launch(Manifest.permission.POST_NOTIFICATIONS) },
                     )
                 }
@@ -450,7 +468,7 @@ fun SettingsScreen(
 
             // 4. SCHEDULING
             item {
-                SettingsSectionHeader("SCHEDULING")
+                SettingsSectionHeader(stringResource(R.string.settings_section_scheduling))
                 SettingsCard {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Row(
@@ -459,7 +477,7 @@ fun SettingsScreen(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
-                                "Default Task Duration",
+                                stringResource(R.string.settings_default_task_duration),
                                 fontSize = 15.scaledSp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = DarkTextPrimary,
@@ -523,11 +541,11 @@ fun SettingsScreen(
 
             // 5. FOCUS MODE
             item {
-                SettingsSectionHeader("FOCUS MODE")
+                SettingsSectionHeader(stringResource(R.string.settings_section_focus_mode))
                 SettingsCard {
                     SettingsToggleRow(
-                        title = "Auto-enable Focus Mode",
-                        description = "Start with focus tasks",
+                        title = stringResource(R.string.settings_auto_enable_focus_mode),
+                        description = stringResource(R.string.settings_start_with_focus_tasks),
                     ) {
                         FocusFlowSwitch(
                             checked = settings.autoFocusEnabled,
@@ -538,13 +556,15 @@ fun SettingsScreen(
                     }
                     HorizontalDivider(color = DarkBorder, thickness = 1.dp)
                     val allowedSummary = if (settings.allowedFocusPackages.isEmpty()) {
-                        "All apps will be blocked during Focus Mode"
+                        stringResource(R.string.settings_focus_all_blocked)
+                    } else if (settings.allowedFocusPackages.size == 1) {
+                        stringResource(R.string.settings_focus_one_allowed)
                     } else {
-                        "${settings.allowedFocusPackages.size} apps allowed during Focus Mode"
+                        stringResource(R.string.settings_focus_many_allowed, settings.allowedFocusPackages.size)
                     }
                     SettingsActionRow(
                         icon = Icons.Outlined.Apps,
-                        title = "Manage Allowed Apps",
+                        title = stringResource(R.string.settings_manage_allowed_apps),
                         description = allowedSummary,
                         onClick = { allowedAppsVisible = true },
                     )
@@ -553,12 +573,12 @@ fun SettingsScreen(
 
             // 6. BLOCK OVERLAY
             item {
-                SettingsSectionHeader("BLOCK OVERLAY")
+                SettingsSectionHeader(stringResource(R.string.settings_section_block_overlay))
                 SettingsCard {
                     SettingsActionRow(
                         icon = Icons.Outlined.Smartphone,
-                        title = "Overlay Appearance",
-                        description = "Customize the block screen",
+                        title = stringResource(R.string.settings_overlay_appearance),
+                        description = stringResource(R.string.settings_customize_the_block_screen),
                         onClick = { overlayAppearanceVisible = true },
                     )
                 }
@@ -566,11 +586,11 @@ fun SettingsScreen(
 
             // 7. POMODORO MODE
             item {
-                SettingsSectionHeader("POMODORO MODE")
+                SettingsSectionHeader(stringResource(R.string.settings_section_pomodoro_mode))
                 SettingsCard {
                     SettingsToggleRow(
-                        title = "Enable Pomodoro",
-                        description = "Cycle work and breaks",
+                        title = stringResource(R.string.settings_enable_pomodoro),
+                        description = stringResource(R.string.settings_cycle_work_and_breaks),
                     ) {
                         FocusFlowSwitch(
                             checked = settings.pomodoroEnabled,
@@ -587,7 +607,7 @@ fun SettingsScreen(
                                 .padding(horizontal = 16.dp, vertical = 12.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                         ) {
-                            Text("Work Duration", fontSize = 14.scaledSp, color = DarkTextSecondary)
+                            Text(stringResource(R.string.settings_work_duration), fontSize = 14.scaledSp, color = DarkTextSecondary)
                             Text("${settings.pomodoroWorkMinutes}m", fontSize = 14.scaledSp, fontWeight = FontWeight.Bold, color = BrandPrimary)
                         }
                         Row(
@@ -596,7 +616,7 @@ fun SettingsScreen(
                                 .padding(horizontal = 16.dp, vertical = 12.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                         ) {
-                            Text("Break Duration", fontSize = 14.scaledSp, color = DarkTextSecondary)
+                            Text(stringResource(R.string.settings_break_duration), fontSize = 14.scaledSp, color = DarkTextSecondary)
                             Text("${settings.pomodoroBreakMinutes}m", fontSize = 14.scaledSp, fontWeight = FontWeight.Bold, color = BrandPrimary)
                         }
                     }
@@ -605,12 +625,12 @@ fun SettingsScreen(
 
             // 8. BACKUP & DATA — keep the safety-net actions before device permissions.
             item {
-                SettingsSectionHeader("BACKUP & DATA")
+                SettingsSectionHeader(stringResource(R.string.settings_section_backup_data))
                 SettingsCard {
                     SettingsActionRow(
                         icon = Icons.Outlined.CloudUpload,
-                        title = "Export backup",
-                        description = "Choose a location to save a .focusflow backup file",
+                        title = stringResource(R.string.settings_export_backup),
+                        description = stringResource(R.string.settings_choose_a_location_to_save),
                         enabled = exportState != ExportState.Building,
                         onClick = {
                             createBackupDocument.launch(BackupSerializer.buildSuggestedFilename())
@@ -619,8 +639,8 @@ fun SettingsScreen(
                     HorizontalDivider(color = DarkBorder, thickness = 1.dp)
                     SettingsActionRow(
                         icon = Icons.Outlined.CloudDownload,
-                        title = "Import backup",
-                        description = "Choose a .focusflow file to review before restoring",
+                        title = stringResource(R.string.settings_import_backup),
+                        description = stringResource(R.string.settings_choose_a_focusflow_file_to),
                         enabled = importState != ImportState.Reading &&
                             importState != ImportState.Restoring,
                         onClick = { openBackupDocument.launch(arrayOf("*/*")) },
@@ -630,12 +650,12 @@ fun SettingsScreen(
 
             // 9. PERMISSIONS
             item {
-                SettingsSectionHeader("PERMISSIONS")
+                SettingsSectionHeader(stringResource(R.string.settings_section_permissions))
                 SettingsCard {
                     SettingsActionRow(
                         icon = Icons.Outlined.Shield,
-                        title = "Manage Permissions",
-                        description = "Accessibility, Usage Access, Battery, Notifications",
+                        title = stringResource(R.string.settings_manage_permissions),
+                        description = stringResource(R.string.settings_accessibility_usage_access_battery_notifications),
                         onClick = onOpenPermissions,
                     )
                 }
@@ -643,12 +663,12 @@ fun SettingsScreen(
 
             // 9b. SCREEN RULES
             item {
-                SettingsSectionHeader("SCREEN RULES")
+                SettingsSectionHeader(stringResource(R.string.settings_section_screen_rules))
                 SettingsCard {
                     SettingsActionRow(
                         icon = Icons.Outlined.Tune,
-                        title = "Custom Screen Rules",
-                        description = "Block a specific screen inside an app. Each rule becomes a Defense toggle.",
+                        title = stringResource(R.string.settings_custom_screen_rules),
+                        description = stringResource(R.string.settings_block_a_specific_screen_inside),
                         onClick = onOpenCustomRules,
                     )
                 }
@@ -656,12 +676,12 @@ fun SettingsScreen(
 
             // 10. DIAGNOSTICS
             item {
-                SettingsSectionHeader("DIAGNOSTICS")
+                SettingsSectionHeader(stringResource(R.string.settings_section_diagnostics))
                 SettingsCard {
                     SettingsActionRow(
                         icon = Icons.Outlined.BugReport,
-                        title = "Report an Issue",
-                        description = "Review and email a bug report, feedback, or app review",
+                        title = stringResource(R.string.settings_report_an_issue),
+                        description = stringResource(R.string.settings_review_and_email_a_bug),
                         onClick = {
                             if (onReportIssue == null) {
                                 reportIssueVisible = true
@@ -675,12 +695,12 @@ fun SettingsScreen(
 
             // 11. DATA
             item {
-                SettingsSectionHeader("DATA")
+                SettingsSectionHeader(stringResource(R.string.settings_section_data))
                 SettingsCard {
                     SettingsActionRow(
                         icon = Icons.Outlined.Delete,
-                        title = "Clear All Tasks",
-                        description = "Permanently delete all scheduled tasks",
+                        title = stringResource(R.string.settings_clear_all_tasks),
+                        description = stringResource(R.string.settings_permanently_delete_all_scheduled_tasks),
                         destructive = true,
                         onClick = { clearAllConfirmationVisible = true },
                     )
@@ -689,48 +709,48 @@ fun SettingsScreen(
 
             // 12. ABOUT
             item {
-                SettingsSectionHeader("ABOUT")
+                SettingsSectionHeader(stringResource(R.string.settings_section_about))
                 SettingsCard {
                     SettingsActionRow(
                         icon = Icons.Outlined.Help,
-                        title = "How to Use",
-                        description = "Learn the modes, protections, and settings",
+                        title = stringResource(R.string.settings_how_to_use),
+                        description = stringResource(R.string.settings_learn_the_modes_protections_and),
                         onClick = onOpenHowToUse,
                     )
                     HorizontalDivider(color = DarkBorder, thickness = 1.dp)
                     SettingsActionRow(
                         icon = Icons.Outlined.Analytics,
-                        title = "How usage data is calculated",
-                        description = "Where the numbers on Stats and Extra come from",
+                        title = stringResource(R.string.settings_how_usage_data_is_calculated),
+                        description = stringResource(R.string.settings_where_the_numbers_on_stats),
                         onClick = onOpenUsageDataGuide,
                     )
                     HorizontalDivider(color = DarkBorder, thickness = 1.dp)
                     SettingsActionRow(
                         icon = Icons.Outlined.CloudUpload,
-                        title = "FocusFlow File Guide",
-                        description = "Learn about .focusflow backups and task-only AI prompts",
+                        title = stringResource(R.string.settings_focusflow_file_guide),
+                        description = stringResource(R.string.settings_learn_about_focusflow_backups_and),
                         onClick = onOpenFileGuide,
                     )
                     HorizontalDivider(color = DarkBorder, thickness = 1.dp)
                     SettingsActionRow(
                         icon = Icons.Outlined.RocketLaunch,
-                        title = "What's New",
-                        description = "Changelog — features, fixes, and improvements",
+                        title = stringResource(R.string.settings_what_s_new),
+                        description = stringResource(R.string.settings_changelog_features_fixes_and_improvements),
                         iconContainer = true,
                         onClick = onOpenChangelog,
                     )
                     HorizontalDivider(color = DarkBorder, thickness = 1.dp)
                     SettingsActionRow(
                         icon = Icons.Outlined.Policy,
-                        title = "Privacy & Terms",
-                        description = "How FocusFlow handles your data and the rules of use",
+                        title = stringResource(R.string.settings_privacy_terms),
+                        description = stringResource(R.string.settings_how_focusflow_handles_your_data),
                         onClick = onOpenPrivacyTerms,
                     )
                     HorizontalDivider(color = DarkBorder, thickness = 1.dp)
                     SettingsActionRow(
                         icon = Icons.Outlined.Email,
-                        title = "Contact Support",
-                        description = "Email us at tbtechsdev@gmail.com",
+                        title = stringResource(R.string.settings_contact_support),
+                        description = stringResource(R.string.settings_email_us_at_tbtechsdev_gmail),
                         onClick = ::contactSupport,
                     )
                 }
@@ -745,13 +765,13 @@ fun SettingsScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Text(
-                        "FocusFlow v${BuildConfig.VERSION_NAME} (build ${BuildConfig.VERSION_CODE})",
+                        stringResource(R.string.settings_version_build, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE),
                         fontSize = 12.5.scaledSp,
                         color = DarkTextMuted,
                         textAlign = TextAlign.Center,
                     )
                     Text(
-                        "All data stored locally on device",
+                        stringResource(R.string.settings_all_data_local),
                         fontSize = 12.scaledSp,
                         color = DarkTextMuted,
                         textAlign = TextAlign.Center,
@@ -804,8 +824,13 @@ fun SettingsScreen(
             containerColor = DarkCard,
             titleContentColor = DarkTextPrimary,
             textContentColor = DarkTextSecondary,
-            title = { Text("Clear All Tasks", fontWeight = FontWeight.Bold) },
-            text = { Text("This will delete all ${tasks.size} scheduled task${if (tasks.size == 1) "" else "s"}. Are you sure?") },
+            title = { Text(stringResource(R.string.settings_clear_all_tasks), fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    if (tasks.size == 1) stringResource(R.string.settings_delete_all_tasks_one)
+                    else stringResource(R.string.settings_delete_all_tasks_many, tasks.size),
+                )
+            },
             confirmButton = {
                 Button(
                     onClick = {
@@ -819,11 +844,11 @@ fun SettingsScreen(
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
                     shape = RoundedCornerShape(8.dp),
-                ) { Text("Clear all") }
+                ) { Text(stringResource(R.string.settings_clear_all)) }
             },
             dismissButton = {
                 TextButton(onClick = { clearAllConfirmationVisible = false }) {
-                    Text("Cancel", color = DarkTextSecondary)
+                    Text(stringResource(R.string.home_cancel), color = DarkTextSecondary)
                 }
             },
         )
@@ -832,8 +857,8 @@ fun SettingsScreen(
     PinVerifyModal(
         visible = focusPinVisible,
         pinType = PinType.FOCUS,
-        title = "Focus Session Password Required",
-        description = "Enter your focus session password before clearing tasks and ending the active focus session.",
+        title = stringResource(R.string.settings_focus_session_password_required),
+        description = stringResource(R.string.settings_enter_your_focus_session_password),
         verify = settingsViewModel::verifyFocusPin,
         onVerified = { hash ->
             focusPinVisible = false
@@ -879,7 +904,7 @@ fun SettingsScreen(
             containerColor = DarkCard,
             titleContentColor = DarkTextPrimary,
             textContentColor = DarkTextSecondary,
-            title = { Text("Saving backup", fontWeight = FontWeight.Bold) },
+            title = { Text(stringResource(R.string.settings_saving_backup), fontWeight = FontWeight.Bold) },
             text = {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -890,7 +915,7 @@ fun SettingsScreen(
                         modifier = Modifier.size(22.dp),
                         strokeWidth = 2.dp,
                     )
-                    Text("Writing the backup file…")
+                    Text(stringResource(R.string.settings_writing_the_backup_file))
                 }
             },
             confirmButton = {},
@@ -903,7 +928,7 @@ fun SettingsScreen(
             containerColor = DarkCard,
             titleContentColor = DarkTextPrimary,
             textContentColor = DarkTextSecondary,
-            title = { Text("Reading backup", fontWeight = FontWeight.Bold) },
+            title = { Text(stringResource(R.string.settings_reading_backup), fontWeight = FontWeight.Bold) },
             text = {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -914,13 +939,13 @@ fun SettingsScreen(
                         modifier = Modifier.size(22.dp),
                         strokeWidth = 2.dp,
                     )
-                    Text("Checking the selected backup…")
+                    Text(stringResource(R.string.settings_checking_the_selected_backup))
                 }
             },
             confirmButton = {},
             dismissButton = {
                 TextButton(onClick = backupViewModel::cancelImport) {
-                    Text("Cancel", color = DarkTextSecondary)
+                    Text(stringResource(R.string.home_cancel), color = DarkTextSecondary)
                 }
             },
         )
@@ -946,7 +971,7 @@ fun SettingsScreen(
             containerColor = DarkCard,
             titleContentColor = DarkTextPrimary,
             textContentColor = DarkTextSecondary,
-            title = { Text("Import failed", fontWeight = FontWeight.Bold) },
+            title = { Text(stringResource(R.string.settings_import_failed), fontWeight = FontWeight.Bold) },
             text = {
                 Text(
                     text = message,
@@ -1123,11 +1148,12 @@ private fun TaskReminderOptions(
 ) {
     var expanded by remember { mutableStateOf(false) }
     val summary = when {
-        !remindersEnabled -> "Reminders are off"
-        enabledCount == 0 -> "No reminder types selected"
-        enabledCount == 4 -> "All 4 reminder types on"
-        else -> "$enabledCount of 4 reminder types on"
+        !remindersEnabled -> stringResource(R.string.settings_reminders_off)
+        enabledCount == 0 -> stringResource(R.string.settings_reminders_none)
+        enabledCount == 4 -> stringResource(R.string.settings_reminders_all)
+        else -> stringResource(R.string.settings_reminders_some, enabledCount)
     }
+    val expandedState = stringResource(if (expanded) R.string.settings_expanded else R.string.settings_collapsed)
 
     Column {
         Row(
@@ -1136,14 +1162,14 @@ private fun TaskReminderOptions(
                 .clip(RoundedCornerShape(10.dp))
                 .clickable(role = Role.Button) { expanded = !expanded }
                 .semantics {
-                    stateDescription = if (expanded) "Expanded" else "Collapsed"
+                    stateDescription = expandedState
                 }
                 .padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Reminder timing",
+                    text = stringResource(R.string.settings_reminder_timing),
                     fontSize = 15.scaledSp,
                     fontWeight = FontWeight.SemiBold,
                     color = DarkTextPrimary,
@@ -1168,8 +1194,8 @@ private fun TaskReminderOptions(
         ) {
             Column(modifier = Modifier.padding(start = 8.dp)) {
                 SettingsToggleRow(
-                    title = "Before task starts",
-                    description = "10, 5, and 1 minute before",
+                    title = stringResource(R.string.settings_before_task_starts),
+                    description = stringResource(R.string.settings_10_5_and_1_minute),
                     enabled = remindersEnabled,
                 ) {
                     FocusFlowSwitch(
@@ -1179,7 +1205,7 @@ private fun TaskReminderOptions(
                     )
                 }
                 SettingsToggleRow(
-                    title = "At task start",
+                    title = stringResource(R.string.settings_at_task_start),
                     enabled = remindersEnabled,
                 ) {
                     FocusFlowSwitch(
@@ -1189,8 +1215,8 @@ private fun TaskReminderOptions(
                     )
                 }
                 SettingsToggleRow(
-                    title = "Mid-task check-ins",
-                    description = "15- and 30-minute reminders",
+                    title = stringResource(R.string.settings_mid_task_check_ins),
+                    description = stringResource(R.string.settings_15_and_30_minute_reminders),
                     enabled = remindersEnabled,
                 ) {
                     FocusFlowSwitch(
@@ -1200,8 +1226,8 @@ private fun TaskReminderOptions(
                     )
                 }
                 SettingsToggleRow(
-                    title = "Wrapping up",
-                    description = "One minute before a task ends",
+                    title = stringResource(R.string.settings_wrapping_up),
+                    description = stringResource(R.string.settings_one_minute_before_a_task),
                     enabled = remindersEnabled,
                 ) {
                     FocusFlowSwitch(
@@ -1221,12 +1247,10 @@ private fun TaskEndAlertSelector(
     onSelect: (Boolean) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
-    val selectedTitle = if (ringingAlarm) "Ringing alarm" else "Notification only"
-    val selectedDescription = if (ringingAlarm) {
-        "Sound + full-screen task controls"
-    } else {
-        "Quiet alert with task actions"
-    }
+    val selectedTitle = stringResource(if (ringingAlarm) R.string.settings_ringing_alarm else R.string.settings_notification_only)
+    val selectedDescription = stringResource(
+        if (ringingAlarm) R.string.settings_alarm_short_desc else R.string.settings_quiet_short_desc,
+    )
 
     Box {
         Row(
@@ -1239,7 +1263,7 @@ private fun TaskEndAlertSelector(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Task end alert",
+                    text = stringResource(R.string.settings_task_end_alert),
                     fontSize = 15.scaledSp,
                     fontWeight = FontWeight.SemiBold,
                     color = DarkTextPrimary,
@@ -1258,7 +1282,7 @@ private fun TaskEndAlertSelector(
             }
             Icon(
                 imageVector = Icons.Outlined.ExpandMore,
-                contentDescription = "Choose task end alert",
+                contentDescription = stringResource(R.string.settings_choose_task_end_alert),
                 tint = DarkTextMuted,
             )
         }
@@ -1270,9 +1294,9 @@ private fun TaskEndAlertSelector(
             DropdownMenuItem(
                 text = {
                     Column {
-                        Text("Ringing alarm", color = DarkTextPrimary)
+                        Text(stringResource(R.string.settings_ringing_alarm), color = DarkTextPrimary)
                         Text(
-                            "Play sound and show full-screen controls",
+                            stringResource(R.string.settings_alarm_long_desc),
                             fontSize = 12.scaledSp,
                             color = DarkTextSecondary,
                         )
@@ -1284,16 +1308,16 @@ private fun TaskEndAlertSelector(
                 },
                 trailingIcon = {
                     if (ringingAlarm) {
-                        Icon(Icons.Outlined.Check, contentDescription = "Selected", tint = BrandPrimary)
+                        Icon(Icons.Outlined.Check, contentDescription = stringResource(R.string.settings_selected), tint = BrandPrimary)
                     }
                 },
             )
             DropdownMenuItem(
                 text = {
                     Column {
-                        Text("Notification only", color = DarkTextPrimary)
+                        Text(stringResource(R.string.settings_notification_only), color = DarkTextPrimary)
                         Text(
-                            "Quiet alert; tap to open task actions",
+                            stringResource(R.string.settings_quiet_long_desc),
                             fontSize = 12.scaledSp,
                             color = DarkTextSecondary,
                         )
@@ -1305,7 +1329,7 @@ private fun TaskEndAlertSelector(
                 },
                 trailingIcon = {
                     if (!ringingAlarm) {
-                        Icon(Icons.Outlined.Check, contentDescription = "Selected", tint = BrandPrimary)
+                        Icon(Icons.Outlined.Check, contentDescription = stringResource(R.string.settings_selected), tint = BrandPrimary)
                     }
                 },
             )

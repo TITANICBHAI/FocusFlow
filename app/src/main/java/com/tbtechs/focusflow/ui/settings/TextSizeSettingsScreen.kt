@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.settings
 
+import androidx.compose.ui.res.stringResource
+import com.tbtechs.focusflow.R
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
@@ -62,7 +64,7 @@ internal fun TextSizeSettingsScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = selectedScreen?.title ?: "Text Size",
+                        text = selectedScreen?.title ?: stringResource(R.string.settings_text_size),
                         fontSize = 20.scaledSp,
                         fontWeight = FontWeight.Bold,
                         color = DarkTextPrimary,
@@ -77,9 +79,9 @@ internal fun TextSizeSettingsScreen(
                         Icon(
                             imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
                             contentDescription = if (selectedScreen != null) {
-                                "Back to text size settings"
+                                stringResource(R.string.settings_back_to_text_size)
                             } else {
-                                "Back to Settings"
+                                stringResource(R.string.settings_back_to_settings)
                             },
                             tint = DarkTextPrimary,
                         )
@@ -98,7 +100,7 @@ internal fun TextSizeSettingsScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
-                text = "Choose a general size, then adjust individual tabs if needed.",
+                text = stringResource(R.string.settings_choose_a_general_size_then),
                 fontSize = 14.scaledSp,
                 color = DarkTextSecondary,
                 modifier = Modifier

@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.settings
 
+import androidx.compose.ui.res.stringResource
+import com.tbtechs.focusflow.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -61,7 +63,7 @@ internal fun UsageDataGuideScreen(onBack: () -> Unit) {
                 title = {},
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back", tint = DarkTextPrimary)
+                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = stringResource(R.string.home_back), tint = DarkTextPrimary)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = DarkBackground),
@@ -86,7 +88,7 @@ internal fun UsageDataGuideScreen(onBack: () -> Unit) {
                 )
             }
             Text(
-                "Everything here is worked out on this phone.",
+                stringResource(R.string.settings_everything_computed_on_phone),
                 fontSize = 12.scaledSp,
                 color = DarkTextMuted,
                 modifier = Modifier.padding(vertical = 12.dp),
@@ -121,7 +123,7 @@ private fun GuideSectionCard(section: UsageGuideSection, expanded: Boolean, onTo
             )
             Icon(
                 if (expanded) Icons.Outlined.KeyboardArrowUp else Icons.Outlined.KeyboardArrowDown,
-                contentDescription = if (expanded) "Collapse" else "Expand",
+                contentDescription = stringResource(if (expanded) R.string.settings_collapse else R.string.settings_expand),
                 tint = DarkTextMuted,
             )
         }
