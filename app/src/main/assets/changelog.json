@@ -4,13 +4,6 @@
     "date": "November 2026",
     "sections": [
       {
-        "heading": "Languages",
-        "items": [
-          "FocusFlow is now translated into German, Spanish, French, Japanese, Korean and Chinese (Simplified). The app follows your phone language; on Android 13 and newer you can also set it per app from Settings - Appearance - Language.",
-          "Translated so far: Home, Settings dialogs and the Language setting. The long guides, Stats, Defense, Support and Launcher screens are still in English and will follow. The Privacy and Terms text stays in English."
-        ]
-      },
-      {
         "heading": "Custom Screen Rules (beta)",
         "items": [
           "Rules now react like the Block YouTube Shorts and Block Instagram Reels switches: they only fire while their screen is actually showing. Hidden or off-screen elements are ignored, and a tab captured while it was highlighted only counts while it is highlighted.",
@@ -64,6 +57,13 @@
           "Long-press now works on Android's own widgets, such as the system clock. Before, the widget swallowed the press.",
           "The status pill now stays on the home screen while Status is on, and says Ready when nothing is going on. Turn Status Off to hide it.",
           "Home layout (beta): Customize home has a List | Grid switch. Grid lets you place and resize icons, app widgets and FocusFlow cards on a fixed grid, with drag from the app drawer. List stays the default."
+        ]
+      },
+      {
+        "heading": "Languages",
+        "items": [
+          "FocusFlow is now translated into German, Spanish, French, Japanese, Korean and Chinese (Simplified). The app follows your phone language; on Android 13 and newer you can also set it per app from Settings - Appearance - Language.",
+          "Translated so far: Home, Settings dialogs and the Language setting. The long guides, Stats, Defense, Support and Launcher screens are still in English and will follow. The Privacy and Terms text stays in English."
         ]
       }
     ]
