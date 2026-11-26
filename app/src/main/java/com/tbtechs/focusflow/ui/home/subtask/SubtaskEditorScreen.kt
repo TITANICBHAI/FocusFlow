@@ -1,5 +1,10 @@
 package com.tbtechs.focusflow.ui.home.subtask
 
+import android.content.Context
+import androidx.annotation.StringRes
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import com.tbtechs.focusflow.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -47,13 +52,19 @@ import com.tbtechs.focusflow.ui.home.RefSecondary
 import com.tbtechs.focusflow.ui.home.RefText
 import com.tbtechs.focusflow.ui.theme.scaledSp
 
-private val goalKinds = listOf(
-    "none" to "No goal",
-    "sets" to "Sets",
-    "reps" to "Reps",
-    "duration" to "Duration",
-    "distance" to "Distance",
-    "text" to "Text goal",
+/** Stored goal kinds. The codes are data; their display names come from [goalKindLabel]. */
+private val goalKindCodes = listOf("none", "sets", "reps", "duration", "distance", "text")
+
+@Composable
+private fun goalKindLabel(kind: String): String = stringResource(
+    when (kind) {
+        "sets" -> R.string.home_goal_kind_sets
+        "reps" -> R.string.home_goal_kind_reps
+        "duration" -> R.string.home_goal_kind_duration
+        "distance" -> R.string.home_goal_kind_distance
+        "text" -> R.string.home_goal_kind_text
+        else -> R.string.home_goal_kind_none
+    },
 )
 
 @Composable
@@ -66,7 +77,7 @@ internal fun SubtaskEditorScreen(
     var subtitle by remember(initial) { mutableStateOf(initial.subtitle.orEmpty()) }
     var explanation by remember(initial) { mutableStateOf(initial.explanation.orEmpty()) }
     var goalKind by remember(initial) {
-        mutableStateOf(initial.goal?.kind?.takeIf { kind -> goalKinds.any { it.first == kind } } ?: "none")
+        mutableStateOf(initial.goal?.kind?.takeIf { kind -> kind in goalKindCodes } ?: "none")
     }
     var sets by remember(initial) { mutableStateOf(initial.goal?.sets?.toString().orEmpty()) }
     var reps by remember(initial) { mutableStateOf(initial.goal?.reps?.toString().orEmpty()) }
@@ -82,6 +93,7 @@ internal fun SubtaskEditorScreen(
     var steps by remember(initial) { mutableStateOf(initial.steps) }
     var goalMenuExpanded by remember(initial) { mutableStateOf(false) }
     var error by remember(initial) { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
 
     Column(modifier = Modifier.fillMaxSize().imePadding()) {
         Column(
@@ -93,23 +105,23 @@ internal fun SubtaskEditorScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             AuthoringInput(
-                label = "Title",
+                label = stringResource(R.string.home_title),
                 value = title,
                 onValueChange = { title = it; error = null },
                 maxChars = SubtaskLimits.MAX_TITLE_CHARS,
             )
             AuthoringInput(
-                label = "Subtitle (optional)",
+                label = stringResource(R.string.home_subtitle_optional),
                 value = subtitle,
                 onValueChange = { subtitle = it },
                 maxChars = SubtaskLimits.MAX_SUBTITLE_CHARS,
             )
 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Goal", color = RefText, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.home_goal), color = RefText, fontWeight = FontWeight.SemiBold)
                 androidx.compose.foundation.layout.Box {
                     OutlinedButton(onClick = { goalMenuExpanded = true }) {
-                        Text(goalKinds.first { it.first == goalKind }.second)
+                        Text(goalKindLabel(goalKind))
                         Icon(
                             Icons.Outlined.KeyboardArrowDown,
                             contentDescription = null,
@@ -120,9 +132,9 @@ internal fun SubtaskEditorScreen(
                         expanded = goalMenuExpanded,
                         onDismissRequest = { goalMenuExpanded = false },
                     ) {
-                        goalKinds.forEach { (kind, label) ->
+                        goalKindCodes.forEach { kind ->
                             DropdownMenuItem(
-                                text = { Text(label) },
+                                text = { Text(goalKindLabel(kind)) },
                                 onClick = {
                                     goalKind = kind
                                     goalMenuExpanded = false
@@ -134,30 +146,30 @@ internal fun SubtaskEditorScreen(
                 }
                 when (goalKind) {
                     "sets" -> {
-                        AuthoringInput("Sets (1–99)", sets, { sets = it }, numeric = true)
-                        AuthoringInput("Reps (optional)", reps, { reps = it }, numeric = true)
-                        AuthoringInput("Maximum reps (optional)", repsMax, { repsMax = it }, numeric = true)
-                        AuthoringInput("Seconds per set (optional)", seconds, { seconds = it }, numeric = true)
-                        AuthoringInput("Rest seconds (optional)", restSeconds, { restSeconds = it }, numeric = true)
-                        AuthoringInput("Weight in kg (optional)", weightKg, { weightKg = it }, numeric = true)
-                        AuthoringInput("Note (optional)", goalLabel, { goalLabel = it }, maxChars = SubtaskLimits.MAX_GOAL_LABEL_CHARS)
+                        AuthoringInput(stringResource(R.string.home_sets_1_99), sets, { sets = it }, numeric = true)
+                        AuthoringInput(stringResource(R.string.home_reps_optional), reps, { reps = it }, numeric = true)
+                        AuthoringInput(stringResource(R.string.home_maximum_reps_optional), repsMax, { repsMax = it }, numeric = true)
+                        AuthoringInput(stringResource(R.string.home_seconds_per_set_optional), seconds, { seconds = it }, numeric = true)
+                        AuthoringInput(stringResource(R.string.home_rest_seconds_optional), restSeconds, { restSeconds = it }, numeric = true)
+                        AuthoringInput(stringResource(R.string.home_weight_in_kg_optional), weightKg, { weightKg = it }, numeric = true)
+                        AuthoringInput(stringResource(R.string.home_note_optional), goalLabel, { goalLabel = it }, maxChars = SubtaskLimits.MAX_GOAL_LABEL_CHARS)
                     }
                     "reps" -> {
-                        AuthoringInput("Reps", reps, { reps = it }, numeric = true)
-                        AuthoringInput("Maximum reps (optional)", repsMax, { repsMax = it }, numeric = true)
-                        AuthoringInput("Weight in kg (optional)", weightKg, { weightKg = it }, numeric = true)
-                        AuthoringInput("Note (optional)", goalLabel, { goalLabel = it }, maxChars = SubtaskLimits.MAX_GOAL_LABEL_CHARS)
+                        AuthoringInput(stringResource(R.string.home_reps), reps, { reps = it }, numeric = true)
+                        AuthoringInput(stringResource(R.string.home_maximum_reps_optional), repsMax, { repsMax = it }, numeric = true)
+                        AuthoringInput(stringResource(R.string.home_weight_in_kg_optional), weightKg, { weightKg = it }, numeric = true)
+                        AuthoringInput(stringResource(R.string.home_note_optional), goalLabel, { goalLabel = it }, maxChars = SubtaskLimits.MAX_GOAL_LABEL_CHARS)
                     }
                     "duration" -> {
-                        AuthoringInput("Seconds", seconds, { seconds = it }, numeric = true)
-                        AuthoringInput("Note (optional)", goalLabel, { goalLabel = it }, maxChars = SubtaskLimits.MAX_GOAL_LABEL_CHARS)
+                        AuthoringInput(stringResource(R.string.home_seconds), seconds, { seconds = it }, numeric = true)
+                        AuthoringInput(stringResource(R.string.home_note_optional), goalLabel, { goalLabel = it }, maxChars = SubtaskLimits.MAX_GOAL_LABEL_CHARS)
                     }
                     "distance" -> {
-                        AuthoringInput("Meters", meters, { meters = it }, numeric = true)
-                        AuthoringInput("Note (optional)", goalLabel, { goalLabel = it }, maxChars = SubtaskLimits.MAX_GOAL_LABEL_CHARS)
+                        AuthoringInput(stringResource(R.string.home_meters), meters, { meters = it }, numeric = true)
+                        AuthoringInput(stringResource(R.string.home_note_optional), goalLabel, { goalLabel = it }, maxChars = SubtaskLimits.MAX_GOAL_LABEL_CHARS)
                     }
                     "text" -> AuthoringInput(
-                        "Goal label",
+                        stringResource(R.string.home_goal_label),
                         goalLabel,
                         { goalLabel = it },
                         maxChars = SubtaskLimits.MAX_GOAL_LABEL_CHARS,
@@ -166,9 +178,12 @@ internal fun SubtaskEditorScreen(
             }
 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Display layout", color = RefText, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.home_display_layout), color = RefText, fontWeight = FontWeight.SemiBold)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("steps" to "Steps", "overview" to "Overview").forEach { (value, label) ->
+                    listOf(
+                        "steps" to stringResource(R.string.home_layout_steps),
+                        "overview" to stringResource(R.string.home_layout_overview),
+                    ).forEach { (value, label) ->
                         if (layout == value) {
                             Button(onClick = { layout = value }, modifier = Modifier.weight(1f)) {
                                 Text(label)
@@ -181,14 +196,14 @@ internal fun SubtaskEditorScreen(
                     }
                 }
                 Text(
-                    "Steps remain available in either layout.",
+                    stringResource(R.string.home_steps_remain_available),
                     color = RefSecondary,
                     fontSize = 12.scaledSp,
                 )
             }
 
             AuthoringInput(
-                label = "Explanation (optional)",
+                label = stringResource(R.string.home_explanation_optional),
                 value = explanation,
                 onValueChange = { explanation = it },
                 multiline = true,
@@ -200,9 +215,9 @@ internal fun SubtaskEditorScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Steps", color = RefText, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.home_steps_2), color = RefText, fontWeight = FontWeight.SemiBold)
                     Text(
-                        "${steps.size} of ${SubtaskLimits.MAX_STEPS}",
+                        stringResource(R.string.home_of_steps, steps.size, SubtaskLimits.MAX_STEPS),
                         color = RefSecondary,
                         fontSize = 12.scaledSp,
                     )
@@ -215,7 +230,7 @@ internal fun SubtaskEditorScreen(
                     enabled = steps.size < SubtaskLimits.MAX_STEPS,
                 ) {
                     Icon(Icons.Outlined.Add, contentDescription = null)
-                    Text("Add step")
+                    Text(stringResource(R.string.home_add_step))
                 }
             }
             steps.forEachIndexed { index, step ->
@@ -255,19 +270,20 @@ internal fun SubtaskEditorScreen(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             OutlinedButton(onClick = onCancel, modifier = Modifier.weight(1f)) {
-                Text("Cancel")
+                Text(stringResource(R.string.home_cancel))
             }
             Button(
                 onClick = {
                     if (title.isBlank()) {
-                        error = "Enter a title for this subtask."
+                        error = context.getString(R.string.home_error_title_required)
                         return@Button
                     }
                     if (steps.any { it.text.isBlank() }) {
-                        error = "Every step needs text, or remove the blank step."
+                        error = context.getString(R.string.home_error_step_text_required)
                         return@Button
                     }
                     val goalResult = parseGoalForm(
+                        context = context,
                         kind = goalKind,
                         setsText = sets,
                         repsText = reps,
@@ -306,7 +322,7 @@ internal fun SubtaskEditorScreen(
                 },
                 modifier = Modifier.weight(1f),
             ) {
-                Text("Save item")
+                Text(stringResource(R.string.home_save_item))
             }
         }
     }
@@ -330,7 +346,7 @@ private fun SubtaskStepEditor(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                "Step ${index + 1}",
+                stringResource(R.string.home_step_n, index + 1),
                 modifier = Modifier.weight(1f),
                 color = RefText,
                 fontWeight = FontWeight.SemiBold,
@@ -340,31 +356,31 @@ private fun SubtaskStepEditor(
                 enabled = index > 0,
                 modifier = Modifier.size(40.dp),
             ) {
-                Icon(Icons.Outlined.KeyboardArrowUp, contentDescription = "Move step up")
+                Icon(Icons.Outlined.KeyboardArrowUp, contentDescription = stringResource(R.string.home_move_step_up))
             }
             IconButton(
                 onClick = { onMove(1) },
                 enabled = index < count - 1,
                 modifier = Modifier.size(40.dp),
             ) {
-                Icon(Icons.Outlined.KeyboardArrowDown, contentDescription = "Move step down")
+                Icon(Icons.Outlined.KeyboardArrowDown, contentDescription = stringResource(R.string.home_move_step_down))
             }
             IconButton(onClick = onDelete, modifier = Modifier.size(40.dp)) {
                 Icon(
                     Icons.Outlined.Delete,
-                    contentDescription = "Remove step",
+                    contentDescription = stringResource(R.string.home_remove_step),
                     tint = MaterialTheme.colorScheme.error,
                 )
             }
         }
         AuthoringInput(
-            label = "Step title (optional)",
+            label = stringResource(R.string.home_step_title_optional),
             value = step.title.orEmpty(),
             onValueChange = { onChange(step.copy(title = it)) },
             maxChars = SubtaskLimits.MAX_STEP_TITLE_CHARS,
         )
         AuthoringInput(
-            label = "Step instructions",
+            label = stringResource(R.string.home_step_instructions),
             value = step.text,
             onValueChange = { onChange(step.copy(text = it)) },
             multiline = true,
@@ -372,7 +388,7 @@ private fun SubtaskStepEditor(
         )
         if (step.image != null) {
             Text(
-                "This step’s attached image will be kept.",
+                stringResource(R.string.home_step_image_kept),
                 color = RefSecondary,
                 fontSize = 12.scaledSp,
             )
@@ -413,6 +429,7 @@ private data class GoalFormResult(
 )
 
 private fun parseGoalForm(
+    context: Context,
     kind: String,
     setsText: String,
     repsText: String,
@@ -425,6 +442,7 @@ private fun parseGoalForm(
 ): GoalFormResult {
     if (kind == "none") return GoalFormResult()
     var error: String? = null
+    fun fieldName(@StringRes id: Int) = context.getString(id)
 
     fun parseInt(
         raw: String,
@@ -433,41 +451,41 @@ private fun parseGoalForm(
         required: Boolean = false,
     ): Int? {
         if (raw.isBlank()) {
-            if (required) error = "$label is required."
+            if (required) error = context.getString(R.string.home_error_field_required, label)
             return null
         }
         val value = raw.toIntOrNull()
         if (value == null) {
-            error = "$label must be a whole number."
+            error = context.getString(R.string.home_error_field_whole_number, label)
             return null
         }
         if (value !in range) {
-            error = "$label must be between ${range.first} and ${range.last}."
+            error = context.getString(R.string.home_error_field_range, label, range.first, range.last)
             return null
         }
         return value
     }
 
-    val goalSets = if (kind == "sets") parseInt(setsText, "Sets", 1..99, required = true) else null
+    val goalSets = if (kind == "sets") parseInt(setsText, fieldName(R.string.home_field_sets), 1..99, required = true) else null
     val goalReps = if (kind in setOf("sets", "reps")) {
-        parseInt(repsText, "Reps", 1..9_999, required = kind == "reps")
+        parseInt(repsText, fieldName(R.string.home_reps), 1..9_999, required = kind == "reps")
     } else null
     val goalRepsMax = if (kind in setOf("sets", "reps")) {
-        parseInt(repsMaxText, "Maximum reps", 1..9_999)
+        parseInt(repsMaxText, fieldName(R.string.home_field_max_reps), 1..9_999)
     } else null
     val goalSeconds = if (kind in setOf("sets", "duration")) {
-        parseInt(secondsText, "Seconds", 1..86_400, required = kind == "duration")
+        parseInt(secondsText, fieldName(R.string.home_seconds), 1..86_400, required = kind == "duration")
     } else null
     val goalRest = if (kind == "sets") {
-        parseInt(restSecondsText, "Rest seconds", 0..3_600)
+        parseInt(restSecondsText, fieldName(R.string.home_field_rest_seconds), 0..3_600)
     } else null
     val goalMeters = if (kind == "distance") {
-        parseInt(metersText, "Meters", 1..1_000_000, required = true)
+        parseInt(metersText, fieldName(R.string.home_meters), 1..1_000_000, required = true)
     } else null
     val goalWeight = if (kind in setOf("sets", "reps") && weightKgText.isNotBlank()) {
         weightKgText.toDoubleOrNull()?.takeIf { it.isFinite() && it in 0.0..1_000.0 }
             ?: run {
-                error = "Weight must be a number from 0 to 1000 kg."
+                error = context.getString(R.string.home_error_weight)
                 null
             }
     } else null
@@ -475,16 +493,16 @@ private fun parseGoalForm(
 
     if (error != null) return GoalFormResult(error = error)
     if (kind == "sets" && goalReps == null && goalSeconds == null) {
-        return GoalFormResult(error = "Enter reps or seconds for the sets goal.")
+        return GoalFormResult(error = context.getString(R.string.home_error_sets_need_reps_or_seconds))
     }
     if (goalRepsMax != null && (goalReps == null || goalRepsMax < goalReps)) {
-        return GoalFormResult(error = "Maximum reps must be at least the reps value.")
+        return GoalFormResult(error = context.getString(R.string.home_error_max_reps))
     }
     if (kind == "text" && cleanLabel == null) {
-        return GoalFormResult(error = "Enter a label for the text goal.")
+        return GoalFormResult(error = context.getString(R.string.home_error_text_goal_label))
     }
     if (cleanLabel != null && cleanLabel.length > SubtaskLimits.MAX_GOAL_LABEL_CHARS) {
-        return GoalFormResult(error = "The goal note is too long.")
+        return GoalFormResult(error = context.getString(R.string.home_error_goal_note_long))
     }
 
     return GoalFormResult(

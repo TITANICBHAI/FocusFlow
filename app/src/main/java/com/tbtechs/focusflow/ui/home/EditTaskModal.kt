@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.home
 
+import androidx.compose.ui.res.stringResource
+import com.tbtechs.focusflow.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -64,6 +66,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.tbtechs.focusflow.ui.common.priorityLabel
 import com.tbtechs.focusflow.ui.theme.scaledSp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -135,14 +138,18 @@ fun EditTaskModal(
     val globalAllowedCount = settings.allowedFocusPackages.size
     val allowedAppsDescription = if (usesGlobalApps && allowedPackages.isBlank()) {
         if (globalAllowedCount > 0) {
-            "Using global list ($globalAllowedCount app${if (globalAllowedCount == 1) "" else "s"})"
+            if (globalAllowedCount == 1) stringResource(R.string.home_global_list_one)
+            else stringResource(R.string.home_global_list_many, globalAllowedCount)
         } else {
-            "Using global list (all apps allowed)"
+            stringResource(R.string.home_global_list_all)
         }
     } else {
         val count = allowedPackages.toPackageList().size
-        if (count == 0) "All apps allowed for this task"
-        else "$count custom app${if (count == 1) "" else "s"} allowed"
+        when (count) {
+            0 -> stringResource(R.string.home_task_apps_all)
+            1 -> stringResource(R.string.home_task_apps_one)
+            else -> stringResource(R.string.home_task_apps_many, count)
+        }
     }
     val savedTaskColor = task.color
     val currentTime = runCatching { LocalTime.parse(time) }.getOrDefault(initialTime)
@@ -220,13 +227,13 @@ fun EditTaskModal(
                  ) {
                      Icon(
                          Icons.AutoMirrored.Outlined.ArrowBack,
-                         contentDescription = "Cancel editing",
+                         contentDescription = stringResource(R.string.home_cancel_editing),
                          tint = RefSecondary,
                          modifier = Modifier.size(20.dp),
                      )
                 }
                 Text(
-                    "Edit Task",
+                    stringResource(R.string.home_edit_task),
                     modifier = Modifier.weight(1f),
                     textAlign = TextAlign.Center,
                     fontSize = 20.scaledSp,
@@ -242,7 +249,7 @@ fun EditTaskModal(
                  ) {
                      Icon(
                          Icons.Outlined.CheckCircle,
-                         contentDescription = "Save task",
+                         contentDescription = stringResource(R.string.home_save_task),
                          tint = BrandPrimary,
                          modifier = Modifier.size(22.dp),
                      )
@@ -256,7 +263,7 @@ fun EditTaskModal(
                     .padding(horizontal = 20.dp, vertical = 14.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-            HomeTextField(title, { title = it; showError = false }, "Task title")
+            HomeTextField(title, { title = it; showError = false }, stringResource(R.string.home_task_title))
 
             // Notes
             Row(
@@ -268,14 +275,14 @@ fun EditTaskModal(
                     .padding(horizontal = 12.dp, vertical = 11.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                 Icon(Icons.Outlined.Description, contentDescription = "Notes", tint = RefSecondary, modifier = Modifier.size(22.dp))
+                 Icon(Icons.Outlined.Description, contentDescription = stringResource(R.string.home_notes), tint = RefSecondary, modifier = Modifier.size(22.dp))
                  Spacer(Modifier.width(10.dp))
-                 Text("Notes", fontSize = 14.scaledSp, fontWeight = FontWeight.SemiBold, color = RefText)
+                 Text(stringResource(R.string.home_notes), fontSize = 14.scaledSp, fontWeight = FontWeight.SemiBold, color = RefText)
                  Spacer(Modifier.width(6.dp))
-                 Text("Optional", fontSize = 12.scaledSp, color = RefSecondary, modifier = Modifier.weight(1f))
+                 Text(stringResource(R.string.home_optional), fontSize = 12.scaledSp, color = RefSecondary, modifier = Modifier.weight(1f))
                 Icon(
                     if (notesExpanded) Icons.Outlined.KeyboardArrowUp else Icons.Outlined.KeyboardArrowDown,
-                    contentDescription = if (notesExpanded) "Collapse notes" else "Expand notes",
+                    contentDescription = stringResource(if (notesExpanded) R.string.home_collapse_notes else R.string.home_expand_notes),
                     tint = RefSecondary,
                      modifier = Modifier.size(22.dp),
                 )
@@ -284,7 +291,7 @@ fun EditTaskModal(
                 HomeTextField(
                     notes,
                     { notes = it },
-                    "Add details...",
+                    stringResource(R.string.home_add_details),
                     singleLine = false,
                      multilineMinHeight = 96.dp,
                 )
@@ -304,30 +311,31 @@ fun EditTaskModal(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(Icons.Outlined.Schedule, contentDescription = "Start time", tint = RefSecondary, modifier = Modifier.size(20.dp))
+                    Icon(Icons.Outlined.Schedule, contentDescription = stringResource(R.string.home_start_time), tint = RefSecondary, modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(10.dp))
                     Column(modifier = Modifier.weight(1f)) {
                          Text(time.asDisplayTime(), fontSize = 16.scaledSp, color = RefText)
                     }
-                     Text("Change", fontSize = 12.scaledSp, color = BrandPrimary, fontWeight = FontWeight.SemiBold)
+                     Text(stringResource(R.string.home_change), fontSize = 12.scaledSp, color = BrandPrimary, fontWeight = FontWeight.SemiBold)
                 }
             }
 
             // Duration
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                ReferenceSectionLabel("Duration")
+                ReferenceSectionLabel(stringResource(R.string.home_duration))
                 FlowRow(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    (editDurationOptions.map(Int::asDurationLabel) + "Custom").forEach { choice ->
-                        val isSelected = if (customDuration) choice == "Custom" else duration.asDurationLabel() == choice
+                    val customLabel = stringResource(R.string.home_custom)
+                    (editDurationOptions.map(Int::asDurationLabel) + customLabel).forEach { choice ->
+                        val isSelected = if (customDuration) choice == customLabel else duration.asDurationLabel() == choice
                         ReferencePill(
                             text = choice,
                             selected = isSelected,
                             onClick = {
-                                    customDuration = choice == "Custom"
+                                    customDuration = choice == customLabel
                                     if (!customDuration) {
                                         duration = editDurationOptions.first { it.asDurationLabel() == choice }
                                         customDurationValue = duration.toString()
@@ -338,13 +346,13 @@ fun EditTaskModal(
                 }
                 if (customDuration) {
                     Spacer(Modifier.height(4.dp))
-                    HomeTextField(customDurationValue, { customDurationValue = it }, "Custom minutes")
+                    HomeTextField(customDurationValue, { customDurationValue = it }, stringResource(R.string.home_custom_minutes_field))
                 }
             }
 
             // Priority
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                ReferenceSectionLabel("Priority")
+                ReferenceSectionLabel(stringResource(R.string.home_priority))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -352,7 +360,7 @@ fun EditTaskModal(
                     priorityOptions.forEach { opt ->
                         val isSelected = priority.lowercase() == opt
                         ReferencePill(
-                            text = opt.replaceFirstChar(Char::titlecase),
+                            text = priorityLabel(opt),
                             selected = isSelected,
                             modifier = Modifier.weight(1f),
                             fontSize = 12.scaledSp,
@@ -373,8 +381,8 @@ fun EditTaskModal(
 
             // Focus Mode Toggle
             ReferenceToggleCard(
-                title = "Focus Mode",
-                description = "Block distracting apps during this task",
+                title = stringResource(R.string.home_focus_mode),
+                description = stringResource(R.string.home_block_distracting_apps_during_this),
                 checked = focusMode,
                 onCheckedChange = { focusMode = it },
             )
@@ -396,17 +404,17 @@ fun EditTaskModal(
                         Icon(Icons.Outlined.Shield, contentDescription = null, tint = BrandPrimary, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(10.dp))
                         Column(modifier = Modifier.weight(1f)) {
-                             Text("Allowed Apps", fontSize = 14.scaledSp, fontWeight = FontWeight.SemiBold, color = RefText)
+                             Text(stringResource(R.string.home_allowed_apps_2), fontSize = 14.scaledSp, fontWeight = FontWeight.SemiBold, color = RefText)
                              Text(allowedAppsDescription, fontSize = 12.scaledSp, color = RefSecondary)
                         }
-                         Text("Customize", fontSize = 12.scaledSp, color = BrandPrimary, fontWeight = FontWeight.SemiBold)
+                         Text(stringResource(R.string.home_customize), fontSize = 12.scaledSp, color = BrandPrimary, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
 
             if (showError) {
                 Text(
-                    "Enter a title, valid time, and a duration of at least 5 minutes.",
+                    stringResource(R.string.home_enter_a_title_valid_time),
                     color = MaterialTheme.colorScheme.error,
                     fontSize = 13.scaledSp,
                 )
@@ -422,9 +430,9 @@ fun EditTaskModal(
                 contentAlignment = Alignment.Center,
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Outlined.Delete, contentDescription = "Delete task", tint = RefRed, modifier = Modifier.size(24.dp))
+                    Icon(Icons.Outlined.Delete, contentDescription = stringResource(R.string.home_delete_task), tint = RefRed, modifier = Modifier.size(24.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text("Delete Task", fontSize = 18.scaledSp, fontWeight = FontWeight.SemiBold, color = RefRed)
+                    Text(stringResource(R.string.home_delete_task_2), fontSize = 18.scaledSp, fontWeight = FontWeight.SemiBold, color = RefRed)
                 }
             }
 
@@ -445,7 +453,7 @@ fun EditTaskModal(
             containerColor = DarkCard,
             titleContentColor = DarkTextPrimary,
             textContentColor = DarkTextSecondary,
-            title = { Text("Select start time", fontWeight = FontWeight.Bold) },
+            title = { Text(stringResource(R.string.home_select_start_time), fontWeight = FontWeight.Bold) },
             text = {
                 TimePicker(
                     state = pickerState,
@@ -480,7 +488,7 @@ fun EditTaskModal(
                     onClick = { showTimePicker = false },
                     shape = RoundedCornerShape(14.dp),
                     modifier = Modifier.defaultMinSize(minHeight = 44.dp),
-                ) { Text("Cancel", color = DarkTextSecondary) }
+                ) { Text(stringResource(R.string.home_cancel), color = DarkTextSecondary) }
             },
         )
     }
@@ -509,8 +517,8 @@ fun EditTaskModal(
             containerColor = DarkCard,
             titleContentColor = DarkTextPrimary,
             textContentColor = DarkTextSecondary,
-            title = { Text("Delete Task", fontWeight = FontWeight.Bold) },
-            text = { Text("Delete “${task.title}”? This cannot be undone.") },
+            title = { Text(stringResource(R.string.home_delete_task_2), fontWeight = FontWeight.Bold) },
+            text = { Text(stringResource(R.string.home_delete_this_cannot_be_undone, task.title)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -520,7 +528,7 @@ fun EditTaskModal(
                     shape = RoundedCornerShape(14.dp),
                     modifier = Modifier.defaultMinSize(minHeight = 44.dp),
                 ) {
-                    Text("Delete", color = Color(0xFFEF4444), fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.home_delete), color = Color(0xFFEF4444), fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -528,7 +536,7 @@ fun EditTaskModal(
                     onClick = { showDeleteConfirmation = false },
                     shape = RoundedCornerShape(14.dp),
                     modifier = Modifier.defaultMinSize(minHeight = 44.dp),
-                ) { Text("Cancel", color = DarkTextSecondary) }
+                ) { Text(stringResource(R.string.home_cancel), color = DarkTextSecondary) }
             },
         )
     }

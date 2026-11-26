@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.home.subtask
 
+import androidx.compose.ui.res.stringResource
+import com.tbtechs.focusflow.R
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -33,7 +35,7 @@ internal fun SubtaskTimerPanel(
     val restSeconds = goal.restSeconds?.takeIf { goal.kind == "sets" && it > 0 }
     val durationSeconds = goal.seconds?.takeIf { it > 0 }
         ?.takeIf { goal.kind == "duration" || goal.kind == "sets" }
-    if (restSeconds == null && durationSeconds == null && state.announcement.isBlank()) return
+    if (restSeconds == null && durationSeconds == null && state.announcement == null) return
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -46,16 +48,17 @@ internal fun SubtaskTimerPanel(
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Rest timer", color = BrandPrimary, fontSize = 14.scaledSp, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.home_rest_timer), color = BrandPrimary, fontSize = 14.scaledSp, fontWeight = FontWeight.SemiBold)
                     Text(
-                        "Start after each set · ${formatTimer(restSeconds)}",
+                        stringResource(R.string.home_start_after_each_set, formatTimer(restSeconds)),
                         fontSize = 12.scaledSp,
                     )
                 }
+                val a11yDescription0 = stringResource(R.string.home_rest_timer)
                 Switch(
                     checked = restTimerEnabled,
                     onCheckedChange = onRestTimerEnabledChange,
-                    modifier = Modifier.semantics { contentDescription = "Rest timer" },
+                    modifier = Modifier.semantics { contentDescription = a11yDescription0 },
                 )
             }
         }
@@ -66,19 +69,17 @@ internal fun SubtaskTimerPanel(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Text("Timed goal · ${formatTimer(durationSeconds)}", fontSize = 13.scaledSp)
+                Text(stringResource(R.string.home_timed_goal, formatTimer(durationSeconds)), fontSize = 13.scaledSp)
+                val durationButtonDescription = stringResource(
+                    if (state.mode == SubtaskTimerMode.DURATION) R.string.home_restart_duration_timer
+                    else R.string.home_start_duration_timer,
+                )
                 TextButton(
                     onClick = { onStartDurationTimer(durationSeconds) },
-                    modifier = Modifier.semantics {
-                        contentDescription = if (state.mode == SubtaskTimerMode.DURATION) {
-                            "Restart duration timer"
-                        } else {
-                            "Start duration timer"
-                        }
-                    },
+                    modifier = Modifier.semantics { contentDescription = durationButtonDescription },
                 ) {
                     Text(
-                        if (state.mode == SubtaskTimerMode.DURATION) "Restart timer" else "Start timer",
+                        stringResource(if (state.mode == SubtaskTimerMode.DURATION) R.string.home_restart_timer else R.string.home_start_timer),
                         fontSize = 13.scaledSp,
                     )
                 }
@@ -92,11 +93,17 @@ internal fun SubtaskTimerPanel(
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 Column(modifier = Modifier.weight(1f)) {
+                    val modeTitle = timerTitle(mode)
                     Text(
-                        "${mode.label} timer",
+                        modeTitle,
                         color = BrandPrimary,
                         fontSize = 12.scaledSp,
                         fontWeight = FontWeight.SemiBold,
+                    )
+                    val remainingDescription = stringResource(
+                        R.string.home_timer_remaining,
+                        modeTitle,
+                        formatSpokenTimer(state.remainingSeconds),
                     )
                     Text(
                         formatTimer(state.remainingSeconds),
@@ -105,19 +112,16 @@ internal fun SubtaskTimerPanel(
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
                         overflow = TextOverflow.Clip,
-                        modifier = Modifier.semantics {
-                            contentDescription =
-                                "${mode.label} timer, ${formatSpokenTimer(state.remainingSeconds)} remaining"
-                        },
+                        modifier = Modifier.semantics { contentDescription = remainingDescription },
                     )
                 }
-                TextButton(onClick = onStopTimer) { Text("Stop timer", fontSize = 13.scaledSp) }
+                TextButton(onClick = onStopTimer) { Text(stringResource(R.string.home_stop_timer), fontSize = 13.scaledSp) }
             }
         }
 
-        if (state.announcement.isNotBlank()) {
+        state.announcement?.let { announcement ->
             Text(
-                text = state.announcement,
+                text = announcementText(announcement),
                 modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
                 fontSize = 12.scaledSp,
             )
@@ -132,13 +136,35 @@ internal fun formatTimer(seconds: Int): String {
     return if (minutes > 0) "$minutes:${remainder.toString().padStart(2, '0')}" else "${remainder}s"
 }
 
+@Composable
+private fun timerTitle(mode: SubtaskTimerMode): String = stringResource(
+    if (mode == SubtaskTimerMode.REST) R.string.home_rest_timer else R.string.home_duration_timer,
+)
+
+@Composable
+private fun announcementText(announcement: SubtaskTimerAnnouncement): String = stringResource(
+    when (announcement.mode) {
+        SubtaskTimerMode.REST -> when (announcement.event) {
+            SubtaskTimerEvent.STARTED -> R.string.home_rest_timer_started
+            SubtaskTimerEvent.FINISHED -> R.string.home_rest_timer_finished
+            SubtaskTimerEvent.STOPPED -> R.string.home_rest_timer_stopped
+        }
+        SubtaskTimerMode.DURATION -> when (announcement.event) {
+            SubtaskTimerEvent.STARTED -> R.string.home_duration_timer_started
+            SubtaskTimerEvent.FINISHED -> R.string.home_duration_timer_finished
+            SubtaskTimerEvent.STOPPED -> R.string.home_duration_timer_stopped
+        }
+    },
+)
+
+@Composable
 private fun formatSpokenTimer(seconds: Int): String {
     val safeSeconds = seconds.coerceAtLeast(0)
     val minutes = safeSeconds / 60
     val remainder = safeSeconds % 60
     return when {
-        minutes > 0 && remainder > 0 -> "$minutes minutes and $remainder seconds"
-        minutes > 0 -> "$minutes minutes"
-        else -> "$remainder seconds"
+        minutes > 0 && remainder > 0 -> stringResource(R.string.home_spoken_minutes_seconds, minutes, remainder)
+        minutes > 0 -> stringResource(R.string.home_spoken_minutes, minutes)
+        else -> stringResource(R.string.home_spoken_seconds, remainder)
     }
 }

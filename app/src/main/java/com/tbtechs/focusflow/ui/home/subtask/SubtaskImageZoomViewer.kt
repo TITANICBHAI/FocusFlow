@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.home.subtask
 
+import androidx.compose.ui.res.stringResource
+import com.tbtechs.focusflow.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -49,7 +51,7 @@ internal fun SubtaskImageZoomViewer(
     var imageOffset by remember(image.asset) { mutableStateOf(Offset.Zero) }
     var swipeDown by remember(image.asset) { mutableFloatStateOf(0f) }
     var closing by remember(image.asset) { mutableStateOf(false) }
-    val description = image.alt?.takeIf(String::isNotBlank) ?: "Subtask photo"
+    val description = image.alt?.takeIf(String::isNotBlank) ?: stringResource(R.string.home_subtask_photo)
     val configuration = LocalConfiguration.current
     val density = LocalDensity.current
     val targetWidthPx = with(density) { configuration.screenWidthDp.dp.roundToPx() }
@@ -69,6 +71,7 @@ internal fun SubtaskImageZoomViewer(
                     }
                 },
         ) {
+            val a11yDescription0 = stringResource(R.string.home_zoomable_photo, description)
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -79,7 +82,7 @@ internal fun SubtaskImageZoomViewer(
                         translationY = imageOffset.y + swipeDown
                     }
                     .semantics(mergeDescendants = true) {
-                        contentDescription = "Zoomable photo: $description"
+                        contentDescription = a11yDescription0
                     }
                     .pointerInput(image.asset) {
                         detectTransformGestures { _, pan, zoom, _ ->
@@ -131,17 +134,18 @@ internal fun SubtaskImageZoomViewer(
                     animate = false,
                 )
             }
+            val a11yDescription1 = stringResource(R.string.home_close_full_screen_image)
             IconButton(
                 onClick = onDismiss,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(8.dp)
-                    .semantics { contentDescription = "Close full-screen image" },
+                    .semantics { contentDescription = a11yDescription1 },
             ) {
                 Icon(Icons.Outlined.Close, contentDescription = null, tint = Color.White)
             }
             Text(
-                text = "Pinch or double-tap to zoom · Swipe down to close",
+                text = stringResource(R.string.home_pinch_or_double_tap_to),
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(horizontal = 20.dp, vertical = 24.dp),

@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.home
 
+import androidx.compose.ui.res.stringResource
+import com.tbtechs.focusflow.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -49,6 +51,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.tbtechs.focusflow.ui.common.priorityLabel
 import com.tbtechs.focusflow.ui.theme.scaledSp
 import com.tbtechs.focusflow.data.model.Task
 import com.tbtechs.focusflow.ui.common.taskTimeDisplay
@@ -152,7 +155,7 @@ fun TaskCard(
                             .padding(horizontal = 6.dp, vertical = 2.dp),
                     ) {
                         Text(
-                            text = task.priority.replaceFirstChar(Char::titlecase),
+                            text = priorityLabel(task.priority),
                             fontSize = 11.scaledSp,
                             fontWeight = FontWeight.SemiBold,
                             color = priorityColor(task.priority),
@@ -162,11 +165,12 @@ fun TaskCard(
 
                 if (task.subtasks.isNotEmpty()) {
                     val doneCount = task.subtasks.count { it.done }
+                    val a11yDescription0 = stringResource(R.string.home_of_subtasks_done, doneCount, task.subtasks.size)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .semantics(mergeDescendants = true) {
-                                contentDescription = "$doneCount of ${task.subtasks.size} subtasks done"
+                                contentDescription = a11yDescription0
                                 progressBarRangeInfo = ProgressBarRangeInfo(
                                     current = doneCount.toFloat(),
                                     range = 0f..task.subtasks.size.toFloat(),
@@ -239,7 +243,7 @@ fun TaskCard(
                             modifier = Modifier.size(14.dp),
                         )
                         Text(
-                            text = if (skipped) "Skipped" else "Completed",
+                            text = stringResource(if (skipped) R.string.home_skipped else R.string.home_completed),
                             fontSize = 12.scaledSp,
                             fontWeight = FontWeight.SemiBold,
                             color = statusColor,
@@ -264,9 +268,9 @@ fun TaskCard(
                     }
                     Text(
                         text = if (isActive || task.hasStartedAt(nowMs)) {
-                            task.timeRemainingLabel(nowMs)
+                            task.timeRemainingLabel(nowMs, androidx.compose.ui.platform.LocalContext.current.resources)
                         } else {
-                            task.timeUntilStartLabel(nowMs)
+                            task.timeUntilStartLabel(nowMs, androidx.compose.ui.platform.LocalContext.current.resources)
                         },
                         fontSize = 11.scaledSp,
                         fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
@@ -283,20 +287,20 @@ fun TaskCard(
                     if (isActive) {
                         TaskCardAction(
                             imageVector = Icons.Outlined.Check,
-                            contentDescription = "Complete task",
+                            contentDescription = stringResource(R.string.home_complete_task),
                             tint = completeGreen,
                             onClick = { onComplete(task.id) },
                         )
                         TaskCardAction(
                             imageVector = Icons.Outlined.Alarm,
-                            contentDescription = "Extend task",
+                            contentDescription = stringResource(R.string.home_extend_task),
                             tint = extendAmber,
                             onClick = { onExtend(task) },
                         )
                     } else {
                         TaskCardAction(
                             imageVector = Icons.Outlined.SkipNext,
-                            contentDescription = "Skip task",
+                            contentDescription = stringResource(R.string.home_skip_task_2),
                             tint = DarkTextSecondary,
                             onClick = { onSkip(task.id) },
                         )
@@ -370,14 +374,14 @@ internal fun Int.asDurationLabel(): String = when {
     else -> "${this / 60}h ${this % 60}m"
 }
 
-private fun Task.timeRemainingLabel(nowMs: Long): String = runCatching {
+private fun Task.timeRemainingLabel(nowMs: Long, res: android.content.res.Resources): String = runCatching {
     val endMs = Instant.parse(endTime).toEpochMilli()
     val display = taskTimeDisplay(endMs, nowMs)
     when {
-        display.justEnded -> "Just ended"
-        display.overdueMinutes != null -> "Overdue by ${display.overdueMinutes}m"
-        display.secondsRemaining != null -> "${display.secondsRemaining}s remaining"
-        else -> "${(endMs - nowMs) / 60_000L}m remaining"
+        display.justEnded -> res.getString(R.string.home_just_ended)
+        display.overdueMinutes != null -> res.getString(R.string.home_overdue_by, display.overdueMinutes)
+        display.secondsRemaining != null -> res.getString(R.string.home_seconds_remaining, display.secondsRemaining)
+        else -> res.getString(R.string.home_minutes_remaining, (endMs - nowMs) / 60_000L)
     }
 }.getOrDefault("")
 
@@ -387,12 +391,12 @@ private fun Task.progressAt(nowMs: Long): Float = runCatching {
     if (end <= start) 0f else ((nowMs - start).toFloat() / (end - start)).coerceIn(0f, 1f)
 }.getOrDefault(0f)
 
-private fun Task.timeUntilStartLabel(nowMs: Long): String = runCatching {
+private fun Task.timeUntilStartLabel(nowMs: Long, res: android.content.res.Resources): String = runCatching {
     val minutes = Duration.ofMillis(Instant.parse(startTime).toEpochMilli() - nowMs).toMinutes()
     when {
-        minutes <= 0 -> "Starting now"
-        minutes < 60 -> "Starts in ${minutes}m"
-        else -> "Starts in ${minutes / 60}h ${minutes % 60}m"
+        minutes <= 0 -> res.getString(R.string.home_starting_now)
+        minutes < 60 -> res.getString(R.string.home_starts_in_minutes, minutes)
+        else -> res.getString(R.string.home_starts_in_hours_minutes, minutes / 60, minutes % 60)
     }
 }.getOrDefault("")
 

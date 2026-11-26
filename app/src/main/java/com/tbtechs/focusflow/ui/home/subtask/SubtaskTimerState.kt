@@ -1,14 +1,23 @@
 package com.tbtechs.focusflow.ui.home.subtask
 
-internal enum class SubtaskTimerMode(val label: String) {
-    REST("Rest"),
-    DURATION("Duration"),
+/** Which kind of timer is running. The words shown for it come from string resources, not from here. */
+internal enum class SubtaskTimerMode {
+    REST,
+    DURATION,
 }
+
+/** What happened to a timer. The screen turns this into a sentence in the current language. */
+internal enum class SubtaskTimerEvent { STARTED, FINISHED, STOPPED }
+
+internal data class SubtaskTimerAnnouncement(
+    val mode: SubtaskTimerMode,
+    val event: SubtaskTimerEvent,
+)
 
 internal data class SubtaskTimerState(
     val mode: SubtaskTimerMode? = null,
     val remainingSeconds: Int = 0,
-    val announcement: String = "",
+    val announcement: SubtaskTimerAnnouncement? = null,
 ) {
     val isRunning: Boolean
         get() = mode != null && remainingSeconds > 0
@@ -18,7 +27,7 @@ internal data class SubtaskTimerState(
         return SubtaskTimerState(
             mode = mode,
             remainingSeconds = seconds,
-            announcement = "${mode.label} timer started.",
+            announcement = SubtaskTimerAnnouncement(mode, SubtaskTimerEvent.STARTED),
         )
     }
 
@@ -34,7 +43,7 @@ internal data class SubtaskTimerState(
                 state = copy(
                     mode = null,
                     remainingSeconds = 0,
-                    announcement = "${currentMode.label} timer finished.",
+                    announcement = SubtaskTimerAnnouncement(currentMode, SubtaskTimerEvent.FINISHED),
                 ),
                 finished = true,
             )
@@ -51,7 +60,7 @@ internal data class SubtaskTimerState(
         return copy(
             mode = null,
             remainingSeconds = 0,
-            announcement = "${currentMode.label} timer stopped.",
+            announcement = SubtaskTimerAnnouncement(currentMode, SubtaskTimerEvent.STOPPED),
         )
     }
 }

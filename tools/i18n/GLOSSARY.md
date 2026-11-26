@@ -17,3 +17,9 @@ Keep the same word for the same thing across the whole app. These match the tran
 
 The product name FocusFlow is never translated. Use Android placeholders exactly as in English
 (%1$s, %1$d) and keep them. Write a literal % as %%. Keep the tone short and plain.
+
+Brand-style feature names stay in English everywhere (for example "Nuclear Mode"); words that are only
+labels (Focus Mode, Pomodoro Mode, Allowed apps) are translated.
+
+Text that is data, not words: `*date_pattern*` keys are java.time patterns. Translators adapt the order
+and quote any literal text in single quotes (for example `M'月'd'日'`); the unit test builds every pattern.

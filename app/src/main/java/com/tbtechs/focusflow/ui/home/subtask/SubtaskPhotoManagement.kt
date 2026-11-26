@@ -14,10 +14,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.tbtechs.focusflow.R
 import com.tbtechs.focusflow.data.model.PhotoSlot
 import com.tbtechs.focusflow.data.model.Subtask
 import com.tbtechs.focusflow.data.model.SubtaskImage
@@ -38,8 +40,9 @@ internal fun Subtask.slotAt(target: SubtaskPhotoTarget): PhotoSlot? = when (targ
     is SubtaskPhotoTarget.Step -> steps.getOrNull(target.index)?.photo
 }
 
+@Composable
 internal fun PhotoSlot.neededText(): String =
-    "Photo needed: " + (brief ?: alt ?: "see this item")
+    stringResource(R.string.photo_mgmt_needed, brief ?: alt ?: stringResource(R.string.photo_mgmt_see_item))
 
 internal fun Subtask.withPhoto(
     target: SubtaskPhotoTarget,
@@ -69,7 +72,7 @@ internal fun SubtaskPhotoManagementDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Manage photos", fontSize = 20.scaledSp, fontWeight = FontWeight.Bold) },
+        title = { Text(stringResource(R.string.photo_mgmt_title), fontSize = 20.scaledSp, fontWeight = FontWeight.Bold) },
         text = {
             Column(
                 modifier = Modifier
@@ -79,11 +82,11 @@ internal fun SubtaskPhotoManagementDialog(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Text(
-                    "Photos stay on this device. Choose an image for the item or any step.",
+                    stringResource(R.string.photo_mgmt_intro),
                     fontSize = 13.scaledSp,
                 )
                 PhotoTargetRow(
-                    label = "Item photo",
+                    label = stringResource(R.string.photo_mgmt_item_photo),
                     target = SubtaskPhotoTarget.Item,
                     hasPhoto = subtask.image != null,
                     neededText = subtask.photo?.neededText(),
@@ -94,7 +97,7 @@ internal fun SubtaskPhotoManagementDialog(
                 subtask.steps.forEachIndexed { index, step ->
                     HorizontalDivider()
                     PhotoTargetRow(
-                        label = step.title?.takeIf(String::isNotBlank) ?: "Step ${index + 1}",
+                        label = step.title?.takeIf(String::isNotBlank) ?: stringResource(R.string.photo_mgmt_step_n, index + 1),
                         target = SubtaskPhotoTarget.Step(index),
                         hasPhoto = step.image != null,
                         neededText = step.photo?.neededText(),
@@ -107,7 +110,7 @@ internal fun SubtaskPhotoManagementDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss, enabled = !busy) {
-                Text("Done", fontSize = 14.scaledSp)
+                Text(stringResource(R.string.photo_mgmt_done), fontSize = 14.scaledSp)
             }
         },
     )
@@ -123,13 +126,16 @@ private fun PhotoTargetRow(
     onChoosePhoto: (SubtaskPhotoTarget) -> Unit,
     onRemovePhoto: (SubtaskPhotoTarget) -> Unit,
 ) {
+    val replaceDescription = stringResource(R.string.photo_mgmt_replace_for, label)
+    val addDescription = stringResource(R.string.photo_mgmt_add_for, label)
+    val removeDescription = stringResource(R.string.photo_mgmt_remove_for, label)
     Column(
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         Text(label, fontSize = 14.scaledSp, fontWeight = FontWeight.SemiBold)
         Text(
-            text = if (hasPhoto) "Photo attached" else neededText ?: "No photo",
+            text = if (hasPhoto) stringResource(R.string.photo_mgmt_attached) else neededText ?: stringResource(R.string.photo_mgmt_none),
             fontSize = 12.scaledSp,
         )
         Row {
@@ -137,18 +143,18 @@ private fun PhotoTargetRow(
                 onClick = { onChoosePhoto(target) },
                 enabled = !busy,
                 modifier = Modifier.semantics {
-                    contentDescription = "${if (hasPhoto) "Replace" else "Add"} photo for $label"
+                    contentDescription = if (hasPhoto) replaceDescription else addDescription
                 },
             ) {
-                Text(if (hasPhoto) "Replace" else "Add", fontSize = 13.scaledSp)
+                Text(stringResource(if (hasPhoto) R.string.photo_mgmt_replace else R.string.photo_mgmt_add), fontSize = 13.scaledSp)
             }
             if (hasPhoto) {
                 TextButton(
                     onClick = { onRemovePhoto(target) },
                     enabled = !busy,
-                    modifier = Modifier.semantics { contentDescription = "Remove photo from $label" },
+                    modifier = Modifier.semantics { contentDescription = removeDescription },
                 ) {
-                    Text("Remove", fontSize = 13.scaledSp)
+                    Text(stringResource(R.string.photo_mgmt_remove), fontSize = 13.scaledSp)
                 }
             }
         }

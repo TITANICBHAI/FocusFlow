@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.home.subtask
 
+import androidx.compose.ui.res.stringResource
+import com.tbtechs.focusflow.R
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -91,7 +93,7 @@ internal fun SubtaskProgressSection(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "$completedCount of ${task.subtasks.size} done",
+                text = stringResource(R.string.home_of_done, completedCount, task.subtasks.size),
                 modifier = Modifier.weight(1f),
                 color = RefText,
                 fontSize = 15.scaledSp,
@@ -104,7 +106,7 @@ internal fun SubtaskProgressSection(
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.MoreVert,
-                        contentDescription = "Subtask options",
+                        contentDescription = stringResource(R.string.home_subtask_options),
                         tint = RefSecondary,
                     )
                 }
@@ -113,7 +115,7 @@ internal fun SubtaskProgressSection(
                     onDismissRequest = { menuExpanded = false },
                 ) {
                     DropdownMenuItem(
-                        text = { Text("Reset progress", fontSize = 14.scaledSp) },
+                        text = { Text(stringResource(R.string.home_reset_progress), fontSize = 14.scaledSp) },
                         onClick = {
                             menuExpanded = false
                             confirmReset = true
@@ -122,12 +124,13 @@ internal fun SubtaskProgressSection(
                 }
             }
         }
+        val progressDescription = stringResource(R.string.home_of_subtasks_done, completedCount, task.subtasks.size)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(8.dp)
                 .semantics(mergeDescendants = true) {
-                    stateDescription = "$completedCount of ${task.subtasks.size} subtasks done"
+                    stateDescription = progressDescription
                 },
             horizontalArrangement = Arrangement.spacedBy(3.dp),
         ) {
@@ -168,19 +171,19 @@ internal fun SubtaskProgressSection(
     if (confirmReset) {
         AlertDialog(
             onDismissRequest = { confirmReset = false },
-            title = { Text("Reset subtask progress", fontWeight = FontWeight.Bold) },
-            text = { Text("This will clear all completed subtasks and set progress.") },
+            title = { Text(stringResource(R.string.home_reset_subtask_progress), fontWeight = FontWeight.Bold) },
+            text = { Text(stringResource(R.string.home_this_will_clear_all_completed)) },
             confirmButton = {
                 TextButton(
                     onClick = {
                         confirmReset = false
                         onReset()
                     },
-                ) { Text("Reset", color = BrandPrimary) }
+                ) { Text(stringResource(R.string.home_reset), color = BrandPrimary) }
             },
             dismissButton = {
                 TextButton(onClick = { confirmReset = false }) {
-                    Text("Cancel", color = RefSecondary)
+                    Text(stringResource(R.string.home_cancel), color = RefSecondary)
                 }
             },
         )
@@ -287,6 +290,7 @@ private fun SubtaskCheckControl(
     onToggle: (Boolean) -> Unit,
 ) {
     val haptics = LocalHapticFeedback.current
+    val doneDescription = stringResource(if (subtask.done) R.string.home_completed else R.string.home_not_completed)
     val scale by animateFloatAsState(
         targetValue = if (subtask.done) 1f else 0.88f,
         animationSpec = if (animationsEnabled) spring(stiffness = 500f) else tween(0),
@@ -311,7 +315,7 @@ private fun SubtaskCheckControl(
                 },
             )
             .semantics {
-                stateDescription = if (subtask.done) "Completed" else "Not completed"
+                stateDescription = doneDescription
             },
         contentAlignment = Alignment.Center,
     ) {
@@ -376,14 +380,14 @@ internal fun AllSubtasksDoneBanner(onComplete: () -> Unit) {
         modifier = Modifier.fillMaxWidth(),
     ) {
         Text(
-            text = "All done — complete this task?",
+            text = stringResource(R.string.home_all_done_complete_this_task),
             color = RefText,
             fontSize = 14.scaledSp,
             fontWeight = FontWeight.SemiBold,
         )
         Spacer(Modifier.height(8.dp))
         FocusFlowPrimaryButton(
-            text = "Complete task",
+            text = stringResource(R.string.home_complete_task),
             onClick = onComplete,
             color = BrandPrimary,
         )

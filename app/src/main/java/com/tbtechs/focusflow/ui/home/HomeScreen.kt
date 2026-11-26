@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.home
 
+import androidx.compose.ui.res.stringResource
+import com.tbtechs.focusflow.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -175,8 +177,10 @@ fun HomeScreen(
                                 Text(
                                     text = selectedDate.format(
                                         DateTimeFormatter.ofPattern(
-                                            if (selectedDate.year == LocalDate.now().year) "EEEE, MMMM d"
-                                            else "EEE, MMM d, yyyy",
+                                            stringResource(
+                                                if (selectedDate.year == LocalDate.now().year) R.string.home_date_pattern_this_year
+                                                else R.string.home_date_pattern_other_year,
+                                            ),
                                         ),
                                     ),
                                     fontSize = 22.scaledSp,
@@ -189,7 +193,7 @@ fun HomeScreen(
                                 Icon(
                                     if (calendarOpen) Icons.Outlined.KeyboardArrowUp
                                     else Icons.Outlined.KeyboardArrowDown,
-                                    contentDescription = "Choose a date",
+                                    contentDescription = stringResource(R.string.home_choose_a_date),
                                     tint = RefText,
                                     modifier = Modifier.size(26.dp),
                                 )
@@ -204,11 +208,11 @@ fun HomeScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 text = if (dayTasks.isEmpty()) {
-                                    if (viewingToday) "No tasks today" else "No tasks on this day"
+                                    stringResource(if (viewingToday) R.string.home_no_tasks_today else R.string.home_no_tasks_on_this_day)
                                 } else {
                                     val completed = dayTasks.count { it.status == "completed" }
                                     val skipped = dayTasks.count { it.status == "skipped" }
-                                    "$completed/${dayTasks.size} tasks done · $skipped skipped"
+                                    stringResource(R.string.home_tasks_done_skipped, completed, dayTasks.size, skipped)
                                 },
                                 fontSize = 13.scaledSp,
                                 color = RefSecondary,
@@ -216,7 +220,7 @@ fun HomeScreen(
                             )
                             if (!viewingToday) {
                                 Text(
-                                    text = "Back to today",
+                                    text = stringResource(R.string.home_back_to_today),
                                     fontSize = 13.scaledSp,
                                     fontWeight = FontWeight.SemiBold,
                                     color = BrandPrimary,
@@ -238,7 +242,7 @@ fun HomeScreen(
                     shape = CircleShape,
                     elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp),
                 ) {
-                    Icon(Icons.Outlined.Add, contentDescription = "Add task", modifier = Modifier.size(28.dp))
+                    Icon(Icons.Outlined.Add, contentDescription = stringResource(R.string.home_add_task), modifier = Modifier.size(28.dp))
                 }
             },
         ) { innerPadding ->
@@ -413,8 +417,8 @@ fun HomeScreen(
         PinVerifyModal(
             visible = true,
             pinType = PinType.FOCUS,
-            title = "Delete Task",
-            description = "Enter your focus session password to delete this task.",
+            title = stringResource(R.string.home_delete_task_2),
+            description = stringResource(R.string.home_enter_your_focus_session_password),
             verify = settingsViewModel::verifyFocusPin,
             onVerified = {
                 taskViewModel.deleteTask(task.id, it)
@@ -430,18 +434,18 @@ fun HomeScreen(
             containerColor = DarkCard,
             titleContentColor = DarkTextPrimary,
             textContentColor = DarkTextSecondary,
-            title = { Text("Skip task?", fontWeight = FontWeight.Bold) },
-            text = { Text("Skip “${task.title}”?") },
+            title = { Text(stringResource(R.string.home_skip_task), fontWeight = FontWeight.Bold) },
+            text = { Text(stringResource(R.string.home_skip, task.title)) },
             confirmButton = {
                 Button(
                     onClick = { skipAndMaybeStop(task); skipTask = null },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
              shape = RoundedCornerShape(14.dp),
-                ) { Text("Skip") }
+                ) { Text(stringResource(R.string.home_skip_2)) }
             },
             dismissButton = {
                 TextButton(onClick = { skipTask = null }) {
-                    Text("Cancel", color = DarkTextSecondary)
+                    Text(stringResource(R.string.home_cancel), color = DarkTextSecondary)
                 }
             },
         )
@@ -458,7 +462,7 @@ private fun LoadingSchedule() = Column(
 ) {
     CircularProgressIndicator(color = BrandPrimary)
     Spacer(Modifier.height(16.dp))
-    Text("Loading your schedule…", fontSize = 16.scaledSp, color = DarkTextSecondary)
+    Text(stringResource(R.string.home_loading_your_schedule), fontSize = 16.scaledSp, color = DarkTextSecondary)
 }
 
 @Composable
@@ -478,14 +482,14 @@ private fun DatabaseUnavailable(onRetry: () -> Unit) = Column(
     )
     Spacer(Modifier.height(12.dp))
     Text(
-        "Your schedule is unavailable",
+        stringResource(R.string.home_schedule_unavailable),
         fontSize = 20.scaledSp,
         fontWeight = FontWeight.Bold,
         color = DarkTextPrimary,
     )
     Spacer(Modifier.height(6.dp))
     Text(
-        "Your tasks are safe. FocusFlow could not open its local database.",
+        stringResource(R.string.home_schedule_unavailable_body),
         fontSize = 14.scaledSp,
         color = DarkTextSecondary,
     )
@@ -495,7 +499,7 @@ private fun DatabaseUnavailable(onRetry: () -> Unit) = Column(
         colors = ButtonDefaults.buttonColors(containerColor = BrandPrimary),
         shape = RoundedCornerShape(8.dp),
     ) {
-        Text("Retry")
+        Text(stringResource(R.string.home_retry))
     }
 }
 
@@ -522,14 +526,14 @@ private fun EmptySchedule(
         )
         Spacer(Modifier.height(8.dp))
         Text(
-            if (viewingToday) "No tasks scheduled for today" else "No tasks scheduled for this day",
+            stringResource(if (viewingToday) R.string.home_empty_today else R.string.home_empty_day),
             fontSize = 18.scaledSp,
             fontWeight = FontWeight.SemiBold,
             color = RefSecondary,
         )
         Spacer(Modifier.height(4.dp))
         Text(
-            if (viewingToday) "Tap + to add your first task" else "Tap + to plan something for this day",
+            stringResource(if (viewingToday) R.string.home_empty_today_hint else R.string.home_empty_day_hint),
             fontSize = 13.scaledSp,
             color = RefMuted,
         )

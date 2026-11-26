@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.home.subtask
 
+import androidx.compose.ui.res.stringResource
+import com.tbtechs.focusflow.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -83,9 +85,11 @@ internal fun SubtaskAuthoringDialog(
                 .navigationBarsPadding(),
         ) {
             AuthoringHeader(
-                title = if (editingSubtask == null) "Manage subtasks" else {
-                    if (editingId == null) "Add subtask" else "Edit subtask"
-                },
+                title = stringResource(
+                    if (editingSubtask == null) R.string.home_manage_subtasks
+                    else if (editingId == null) R.string.home_add_subtask
+                    else R.string.home_edit_subtask,
+                ),
                 onCancel = {
                     if (editingSubtask != null) {
                         editingSubtask = null
@@ -94,7 +98,7 @@ internal fun SubtaskAuthoringDialog(
                         onDismiss()
                     }
                 },
-                cancelLabel = if (editingSubtask == null) "Cancel" else "Back",
+                cancelLabel = stringResource(if (editingSubtask == null) R.string.home_cancel else R.string.home_back),
             )
 
             val currentEditor = editingSubtask
@@ -135,7 +139,7 @@ internal fun SubtaskAuthoringDialog(
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     Text(
-                        text = "Changes stay in this draft until you save.",
+                        text = stringResource(R.string.home_changes_stay_in_this_draft),
                         color = RefSecondary,
                         fontSize = 13.scaledSp,
                     )
@@ -150,7 +154,7 @@ internal fun SubtaskAuthoringDialog(
                         ) {
                             Icon(Icons.Outlined.Add, contentDescription = null)
                             Spacer(Modifier.width(6.dp))
-                            Text("Add")
+                            Text(stringResource(R.string.home_add))
                         }
                         OutlinedButton(
                             onClick = {
@@ -161,11 +165,11 @@ internal fun SubtaskAuthoringDialog(
                                 availableTasks.any { it.id != task.id && it.subtasks.isNotEmpty() },
                             modifier = Modifier.weight(1f),
                         ) {
-                            Text("Copy from task")
+                            Text(stringResource(R.string.home_copy_from_task))
                         }
                     }
                     Text(
-                        text = "${subtasks.size} of ${SubtaskLimits.MAX_SUBTASKS} subtasks",
+                        text = stringResource(R.string.home_of_subtasks, subtasks.size, SubtaskLimits.MAX_SUBTASKS),
                         color = RefSecondary,
                         fontSize = 12.scaledSp,
                     )
@@ -204,7 +208,7 @@ internal fun SubtaskAuthoringDialog(
                         },
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Text("Save subtasks")
+                        Text(stringResource(R.string.home_save_subtasks))
                     }
                 }
             }
@@ -214,18 +218,18 @@ internal fun SubtaskAuthoringDialog(
     deleteTarget?.let { target ->
         AlertDialog(
             onDismissRequest = { deleteTarget = null },
-            title = { Text("Delete subtask?") },
-            text = { Text("“${target.title}” and its steps will be removed when you save this list.") },
+            title = { Text(stringResource(R.string.home_delete_subtask)) },
+            text = { Text(stringResource(R.string.home_and_its_steps_will_be, target.title)) },
             confirmButton = {
                 TextButton(
                     onClick = {
                         subtasks = subtasks.filterNot { it.id == target.id }
                         deleteTarget = null
                     },
-                ) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+                ) { Text(stringResource(R.string.home_delete), color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
-                TextButton(onClick = { deleteTarget = null }) { Text("Cancel") }
+                TextButton(onClick = { deleteTarget = null }) { Text(stringResource(R.string.home_cancel)) }
             },
         )
     }
@@ -239,14 +243,14 @@ internal fun SubtaskAuthoringDialog(
             },
             title = {
                 Text(
-                    duplicateSource?.let { "Copy from ${it.title}" } ?: "Choose a task",
+                    duplicateSource?.let { stringResource(R.string.home_copy_from, it.title) } ?: stringResource(R.string.home_choose_a_task),
                     fontWeight = FontWeight.Bold,
                 )
             },
             text = {
                 if (duplicateSource == null) {
                     if (sources.isEmpty()) {
-                        Text("No other tasks have subtasks to copy.")
+                        Text(stringResource(R.string.home_no_other_tasks_have_subtasks))
                     } else {
                         LazyColumn(
                             modifier = Modifier
@@ -262,7 +266,7 @@ internal fun SubtaskAuthoringDialog(
                                     Column(modifier = Modifier.fillMaxWidth()) {
                                         Text(source.title, color = RefText, fontWeight = FontWeight.SemiBold)
                                         Text(
-                                            "${source.subtasks.size} subtasks",
+                                            stringResource(R.string.home_n_subtasks, source.subtasks.size),
                                             color = RefSecondary,
                                             fontSize = 12.scaledSp,
                                         )
@@ -315,7 +319,7 @@ internal fun SubtaskAuthoringDialog(
                         else duplicatePickerOpen = false
                     },
                 ) {
-                    Text(if (duplicateSource == null) "Cancel" else "Back")
+                    Text(stringResource(if (duplicateSource == null) R.string.home_cancel else R.string.home_back))
                 }
             },
             dismissButton = {
@@ -325,7 +329,7 @@ internal fun SubtaskAuthoringDialog(
                             duplicatePickerOpen = false
                             duplicateSource = null
                         },
-                    ) { Text("Cancel") }
+                    ) { Text(stringResource(R.string.home_cancel)) }
                 }
             },
         )
@@ -367,10 +371,10 @@ private fun AuthoringEmptyState(modifier: Modifier = Modifier) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Text("No subtasks yet", color = RefText, fontWeight = FontWeight.SemiBold)
+        Text(stringResource(R.string.home_no_subtasks_yet), color = RefText, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(5.dp))
         Text(
-            "Add items to break this task into smaller steps.",
+            stringResource(R.string.home_add_items_hint),
             color = RefSecondary,
             fontSize = 13.scaledSp,
         )
@@ -405,28 +409,28 @@ private fun SubtaskAuthoringRow(
                     Text(it, color = RefSecondary, fontSize = 12.scaledSp)
                 }
                 Text(
-                    text = "${subtask.steps.size} steps",
+                    text = stringResource(R.string.home_steps, subtask.steps.size),
                     color = RefSecondary,
                     fontSize = 11.scaledSp,
                 )
             }
             IconButton(onClick = { onMove(-1) }, enabled = index > 0, modifier = Modifier.size(40.dp)) {
-                Icon(Icons.Outlined.KeyboardArrowUp, contentDescription = "Move ${subtask.title} up")
+                Icon(Icons.Outlined.KeyboardArrowUp, contentDescription = stringResource(R.string.home_move_up, subtask.title))
             }
             IconButton(onClick = { onMove(1) }, enabled = index < total - 1, modifier = Modifier.size(40.dp)) {
-                Icon(Icons.Outlined.KeyboardArrowDown, contentDescription = "Move ${subtask.title} down")
+                Icon(Icons.Outlined.KeyboardArrowDown, contentDescription = stringResource(R.string.home_move_down, subtask.title))
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             OutlinedButton(onClick = onEdit, modifier = Modifier.weight(1f)) {
                 Icon(Icons.Outlined.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(4.dp))
-                Text("Edit")
+                Text(stringResource(R.string.home_edit))
             }
             OutlinedButton(onClick = onDelete, modifier = Modifier.weight(1f)) {
                 Icon(Icons.Outlined.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(4.dp))
-                Text("Delete")
+                Text(stringResource(R.string.home_delete))
             }
         }
     }

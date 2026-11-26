@@ -10,7 +10,7 @@ class SubtaskTimerStateTest {
     fun countdownUsesExplicitTicksAndFinishesAtZero() {
         var state = SubtaskTimerState().start(SubtaskTimerMode.REST, seconds = 2)
         assertEquals(2, state.remainingSeconds)
-        assertEquals("Rest timer started.", state.announcement)
+        assertEquals(SubtaskTimerAnnouncement(SubtaskTimerMode.REST, SubtaskTimerEvent.STARTED), state.announcement)
 
         val firstTick = state.tick()
         state = firstTick.state
@@ -23,7 +23,7 @@ class SubtaskTimerStateTest {
         assertTrue(finalTick.finished)
         assertFalse(state.isRunning)
         assertEquals(0, state.remainingSeconds)
-        assertEquals("Rest timer finished.", state.announcement)
+        assertEquals(SubtaskTimerAnnouncement(SubtaskTimerMode.REST, SubtaskTimerEvent.FINISHED), state.announcement)
 
         assertFalse(state.tick().finished)
     }
@@ -36,7 +36,7 @@ class SubtaskTimerStateTest {
 
         assertFalse(stopped.isRunning)
         assertEquals(0, stopped.remainingSeconds)
-        assertEquals("Duration timer stopped.", stopped.announcement)
+        assertEquals(SubtaskTimerAnnouncement(SubtaskTimerMode.DURATION, SubtaskTimerEvent.STOPPED), stopped.announcement)
         assertFalse(stopped.tick().finished)
     }
 }

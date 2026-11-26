@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.home.subtask
 
+import androidx.compose.ui.res.stringResource
+import com.tbtechs.focusflow.R
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -331,7 +333,7 @@ internal fun SubtaskDetailScreen(
             onDismissRequest = { menuExpanded = false },
         ) {
             DropdownMenuItem(
-                text = { Text("Reset this item", fontSize = 14.scaledSp) },
+                text = { Text(stringResource(R.string.home_reset_this_item), fontSize = 14.scaledSp) },
                 onClick = {
                     menuExpanded = false
                     confirmReset = true
@@ -342,19 +344,19 @@ internal fun SubtaskDetailScreen(
     if (confirmReset) {
         AlertDialog(
             onDismissRequest = { confirmReset = false },
-            title = { Text("Reset this item", fontWeight = FontWeight.Bold) },
-            text = { Text("Clear this subtask’s completion and set progress?") },
+            title = { Text(stringResource(R.string.home_reset_this_item), fontWeight = FontWeight.Bold) },
+            text = { Text(stringResource(R.string.home_clear_this_subtask_s_completion)) },
             confirmButton = {
                 TextButton(
                     onClick = {
                         confirmReset = false
                         if (isSetGoal) onSetSetsDone(0) else onSetDone(false)
                     },
-                ) { Text("Reset", color = BrandPrimary) }
+                ) { Text(stringResource(R.string.home_reset), color = BrandPrimary) }
             },
             dismissButton = {
                 TextButton(onClick = { confirmReset = false }) {
-                    Text("Cancel", color = RefSecondary)
+                    Text(stringResource(R.string.home_cancel), color = RefSecondary)
                 }
             },
         )
@@ -394,16 +396,17 @@ private fun SubtaskDetailTopBar(
             .padding(horizontal = 8.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        val a11yDescription0 = stringResource(R.string.home_back_to_task_details)
         IconButton(
             onClick = onBack,
             modifier = Modifier.size(48.dp).semantics {
-                contentDescription = "Back to task details"
+                contentDescription = a11yDescription0
             },
         ) {
             Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = null, tint = RefText)
         }
         Text(
-            text = "Item $itemNumber of $total",
+            text = stringResource(R.string.home_item_of, itemNumber, total),
             modifier = Modifier.weight(1f),
             color = RefSecondary,
             fontSize = 14.scaledSp,
@@ -414,11 +417,11 @@ private fun SubtaskDetailTopBar(
                 onClick = { menuExpanded = true },
                 modifier = Modifier.size(48.dp),
             ) {
-                Icon(Icons.Outlined.MoreVert, contentDescription = "Subtask options", tint = RefSecondary)
+                Icon(Icons.Outlined.MoreVert, contentDescription = stringResource(R.string.home_subtask_options), tint = RefSecondary)
             }
             DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
                 DropdownMenuItem(
-                    text = { Text("Manage photos", fontSize = 14.scaledSp) },
+                    text = { Text(stringResource(R.string.home_manage_photos), fontSize = 14.scaledSp) },
                     enabled = canManagePhotos,
                     onClick = {
                         menuExpanded = false
@@ -426,7 +429,7 @@ private fun SubtaskDetailTopBar(
                     },
                 )
                 DropdownMenuItem(
-                    text = { Text("Reset this item", fontSize = 14.scaledSp) },
+                    text = { Text(stringResource(R.string.home_reset_this_item), fontSize = 14.scaledSp) },
                     onClick = {
                         menuExpanded = false
                         onReset()
@@ -481,14 +484,14 @@ private fun SubtaskHero(
             }
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
-                    text = if (mode == SubtaskLayoutMode.STEPS) "Step ${index + 1}" else "Item ${index + 1}",
+                    text = if (mode == SubtaskLayoutMode.STEPS) stringResource(R.string.home_step_n, index + 1) else stringResource(R.string.home_item_n, index + 1),
                     color = RefSecondary,
                     fontSize = 13.scaledSp,
                     fontWeight = FontWeight.SemiBold,
                 )
                 subtask.photo?.let { slot ->
                     Text(
-                        text = "Photo needed: " + (slot.brief ?: slot.alt ?: "see this item"),
+                        text = slot.neededText(),
                         color = RefSecondary,
                         fontSize = 12.scaledSp,
                         maxLines = 3,
@@ -517,11 +520,12 @@ private fun SubtaskHero(
                     val imageDescription = image.alt?.takeIf(String::isNotBlank)
                             ?: subtask.steps[pages[page].stepIndex].title
                             ?: subtask.title
+                    val a11yDescription1 = stringResource(R.string.home_open_full_screen_image, imageDescription)
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
                             .semantics(mergeDescendants = true) {
-                                contentDescription = "Open full-screen image: $imageDescription"
+                                contentDescription = a11yDescription1
                             }
                             .clickable(role = Role.Button) { onOpenImage(image) },
                     ) {
@@ -552,11 +556,12 @@ private fun SubtaskHero(
             }
             staticImage != null -> {
                 val imageDescription = staticImage.alt?.takeIf(String::isNotBlank) ?: subtask.title
+                val a11yDescription2 = stringResource(R.string.home_open_full_screen_image, imageDescription)
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .semantics(mergeDescendants = true) {
-                            contentDescription = "Open full-screen image: $imageDescription"
+                            contentDescription = a11yDescription2
                         }
                         .clickable(role = Role.Button) { onOpenImage(staticImage) },
                 ) {
@@ -644,7 +649,7 @@ private fun SubtaskDetailContent(
             if (formatted != null) {
                 FocusFlowInternalCard(radius = 16.dp, contentPadding = 14.dp) {
                     Text(
-                        text = "Goal",
+                        text = stringResource(R.string.home_goal),
                         color = RefSecondary,
                         fontSize = 12.scaledSp,
                         fontWeight = FontWeight.SemiBold,
@@ -699,7 +704,7 @@ private fun SubtaskDetailContent(
         subtask.explanation?.takeIf(String::isNotBlank)?.let { explanation ->
             Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
                 Text(
-                    text = "About this item",
+                    text = stringResource(R.string.home_about_this_item),
                     color = RefText,
                     fontSize = 16.scaledSp,
                     fontWeight = FontWeight.SemiBold,
@@ -710,7 +715,7 @@ private fun SubtaskDetailContent(
 
         if (subtask.steps.isNotEmpty()) {
             Column {
-                Text("Steps", color = RefText, fontSize = 16.scaledSp, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.home_steps_2), color = RefText, fontSize = 16.scaledSp, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(10.dp))
                 subtask.steps.forEachIndexed { stepIndex, step ->
                     val selected = activeStepIndex == stepIndex
@@ -779,13 +784,14 @@ private fun SubtaskDetailContent(
                         step.image?.let { image ->
                             Spacer(Modifier.width(8.dp))
                             val density = LocalDensity.current
+                            val a11yDescription3 = stringResource(R.string.home_open_full_screen_image_for, stepIndex + 1)
                             Box(
                                 modifier = Modifier
                                     .width(96.dp)
                                     .height(72.dp)
                                     .clip(RoundedCornerShape(9.dp))
                                     .semantics(mergeDescendants = true) {
-                                        contentDescription = "Open full-screen image for Step ${stepIndex + 1}"
+                                        contentDescription = a11yDescription3
                                     }
                                     .clickable(role = Role.Button) {
                                         onStepSelected(stepIndex)
@@ -797,7 +803,7 @@ private fun SubtaskDetailContent(
                                     imageStore = imageStore,
                                     contentDescription = image.alt?.takeIf(String::isNotBlank)
                                         ?: step.title
-                                        ?: "Step ${stepIndex + 1} image",
+                                        ?: stringResource(R.string.home_step_image_n, stepIndex + 1),
                                     targetWidthPx = with(density) { 96.dp.roundToPx() },
                                     modifier = Modifier.fillMaxSize(),
                                     animate = animationsEnabled,
@@ -825,7 +831,7 @@ private fun SubtaskDetailContent(
                     modifier = Modifier.defaultMinSize(minHeight = 48.dp),
                 ) {
                     Text(
-                        text = if (cuesExpanded) "Hide tips and watch-outs" else "Tips and watch-outs",
+                        text = stringResource(if (cuesExpanded) R.string.home_hide_cues else R.string.home_show_cues),
                         modifier = Modifier.weight(1f),
                         color = RefText,
                         fontSize = 15.scaledSp,
@@ -840,11 +846,11 @@ private fun SubtaskDetailContent(
                 if (cuesExpanded) {
                     FocusFlowInternalCard(radius = 14.dp, contentPadding = 12.dp) {
                         if (subtask.tips.isNotEmpty()) {
-                            Text("Tips", color = RefText, fontSize = 14.scaledSp, fontWeight = FontWeight.SemiBold)
+                            Text(stringResource(R.string.home_tips), color = RefText, fontSize = 14.scaledSp, fontWeight = FontWeight.SemiBold)
                             subtask.tips.forEach { BulletText(it) }
                         }
                         if (subtask.avoid.isNotEmpty()) {
-                            Text("Watch out for", color = RefText, fontSize = 14.scaledSp, fontWeight = FontWeight.SemiBold)
+                            Text(stringResource(R.string.home_watch_out_for), color = RefText, fontSize = 14.scaledSp, fontWeight = FontWeight.SemiBold)
                             subtask.avoid.forEach { BulletText(it) }
                         }
                     }
@@ -876,7 +882,7 @@ private fun SetProgressTracker(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
-            text = "Sets · tap the next set to mark it, or the last completed set to undo",
+            text = stringResource(R.string.home_sets_tap_the_next_set),
             color = RefSecondary,
             fontSize = 12.scaledSp,
             lineHeight = 17.scaledSp,
@@ -888,9 +894,10 @@ private fun SetProgressTracker(
             repeat(total) { setIndex ->
                 val isDone = setIndex < completed
                 val canToggle = setIndex == completed || setIndex == completed - 1
-                val label = when {
-                    isDone -> "Set ${setIndex + 1}, completed"
-                    else -> "Set ${setIndex + 1}, not completed"
+                val label = if (isDone) {
+                    stringResource(R.string.home_set_completed, setIndex + 1)
+                } else {
+                    stringResource(R.string.home_set_not_completed, setIndex + 1)
                 }
                 Box(
                     modifier = Modifier
@@ -927,7 +934,7 @@ private fun SetProgressTracker(
             }
         }
         Text(
-            text = "$completed of $total sets",
+            text = stringResource(R.string.home_of_sets, completed, total),
             color = RefMuted,
             fontSize = 12.scaledSp,
         )
@@ -994,11 +1001,12 @@ private fun SubtaskBottomBar(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        val a11yDescription4 = stringResource(R.string.home_previous_subtask)
         IconButton(
             onClick = onPrevious,
             enabled = index > 0,
             modifier = Modifier.size(48.dp).semantics {
-                contentDescription = "Previous subtask"
+                contentDescription = a11yDescription4
             },
         ) {
             Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = null)
@@ -1013,17 +1021,18 @@ private fun SubtaskBottomBar(
             ),
         ) {
             Text(
-                text = if (subtask.done) "Undo done" else "Mark done",
+                text = stringResource(if (subtask.done) R.string.home_undo_done else R.string.home_mark_done),
                 fontSize = 14.scaledSp,
                 fontWeight = FontWeight.SemiBold,
             )
         }
         Spacer(Modifier.weight(1f))
+        val a11yDescription5 = stringResource(R.string.home_next_subtask)
         IconButton(
             onClick = onNext,
             enabled = index < total - 1,
             modifier = Modifier.size(48.dp).semantics {
-                contentDescription = "Next subtask"
+                contentDescription = a11yDescription5
             },
         ) {
             Icon(Icons.AutoMirrored.Outlined.ArrowForward, contentDescription = null)

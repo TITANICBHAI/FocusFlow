@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.home
 
+import androidx.compose.ui.res.stringResource
+import com.tbtechs.focusflow.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -91,7 +93,7 @@ internal fun FocusFlowInternalHeader(
         ) {
             Icon(
                 imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
-                contentDescription = "Back",
+                contentDescription = stringResource(R.string.home_back),
                 tint = RefText,
                 modifier = Modifier.size(22.dp),
             )
@@ -270,7 +272,7 @@ internal fun FocusFlowModalField(
                 if (secure && onToggleVisibility != null) {
                     Icon(
                         imageVector = if (passwordVisible) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
-                        contentDescription = if (passwordVisible) "Hide password" else "Show password",
+                        contentDescription = stringResource(if (passwordVisible) R.string.home_hide_password else R.string.home_show_password),
                         tint = RefSecondary,
                         modifier = Modifier
                             .size(20.dp)

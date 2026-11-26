@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.home
 
+import androidx.compose.ui.res.stringResource
+import com.tbtechs.focusflow.R
 import android.provider.Settings
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.EnterTransition
@@ -63,6 +65,8 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.tbtechs.focusflow.ui.common.priorityLabel
+import com.tbtechs.focusflow.ui.common.statusLabel
 import com.tbtechs.focusflow.ui.theme.scaledSp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -253,7 +257,7 @@ fun TaskDetailModal(
                 ) {
                     Icon(
                         Icons.Outlined.Close,
-                        contentDescription = "Close",
+                        contentDescription = stringResource(R.string.home_close),
                         tint = RefSecondary,
                         modifier = Modifier.size(22.dp),
                     )
@@ -309,9 +313,9 @@ fun TaskDetailModal(
                         modifier = Modifier.size(18.dp),
                     )
                     Spacer(Modifier.width(8.dp))
-                    Text(if (task.subtasks.isEmpty()) "Add subtasks" else "Edit subtasks")
+                    Text(stringResource(if (task.subtasks.isEmpty()) R.string.home_add_subtasks else R.string.home_edit_subtasks))
                 }
-                ReferenceSectionLabel("SCHEDULE")
+                ReferenceSectionLabel(stringResource(R.string.home_label_schedule))
                 Text(
                     "${task.startTime.asLocalTime()} – ${task.endTime.asLocalTime()}",
                     fontSize = 15.scaledSp,
@@ -319,21 +323,21 @@ fun TaskDetailModal(
                     color = RefText,
                 )
                 Text(
-                    task.startTime.asLocalDate(),
+                    task.startTime.asLocalDate(stringResource(R.string.home_date_pattern_this_year)),
                     fontSize = 15.scaledSp,
                     color = RefSecondary,
                 )
 
-                ReferenceSectionLabel("PRIORITY")
+                ReferenceSectionLabel(stringResource(R.string.home_label_priority))
                 Text(
-                    task.priority.replaceFirstChar(Char::titlecase),
+                    priorityLabel(task.priority),
                     fontSize = 15.scaledSp,
                     fontWeight = FontWeight.SemiBold,
                     color = priorityColor(task.priority),
                 )
 
                 if (task.tags.isNotEmpty()) {
-                    ReferenceSectionLabel("TAGS")
+                    ReferenceSectionLabel(stringResource(R.string.home_label_tags))
                     Text(
                         task.tags.joinToString(" ") { "#$it" },
                         fontSize = 15.scaledSp,
@@ -342,9 +346,9 @@ fun TaskDetailModal(
                     )
                 }
 
-                ReferenceSectionLabel("STATUS")
+                ReferenceSectionLabel(stringResource(R.string.home_label_status))
                 Text(
-                    task.status.replaceFirstChar(Char::titlecase),
+                    statusLabel(task.status),
                     fontSize = 15.scaledSp,
                     fontWeight = FontWeight.SemiBold,
                     color = when (task.status.lowercase()) {
@@ -355,7 +359,7 @@ fun TaskDetailModal(
                 )
 
                 task.description?.takeIf { it.isNotBlank() }?.let { notes ->
-                    ReferenceSectionLabel("NOTES")
+                    ReferenceSectionLabel(stringResource(R.string.home_label_notes))
                     Text(
                         notes,
                         fontSize = 15.scaledSp,
@@ -374,9 +378,9 @@ fun TaskDetailModal(
                             .padding(horizontal = 12.dp, vertical = 12.dp),
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Outlined.Shield, contentDescription = "Start focus", tint = BrandPrimary, modifier = Modifier.size(22.dp))
+                            Icon(Icons.Outlined.Shield, contentDescription = stringResource(R.string.home_start_focus), tint = BrandPrimary, modifier = Modifier.size(22.dp))
                             Spacer(Modifier.width(8.dp))
-                            Text("Start Focus", fontSize = 15.scaledSp, fontWeight = FontWeight.SemiBold, color = RefText)
+                            Text(stringResource(R.string.home_start_focus_2), fontSize = 15.scaledSp, fontWeight = FontWeight.SemiBold, color = RefText)
                         }
                     }
                 }
@@ -391,11 +395,11 @@ fun TaskDetailModal(
                     .padding(horizontal = 12.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly,
             ) {
-                ReferenceTaskAction(Icons.Outlined.Edit, "Edit", RefBlue, onEdit)
+                ReferenceTaskAction(Icons.Outlined.Edit, stringResource(R.string.home_edit), RefBlue, onEdit)
                 if (canAct) {
-                    ReferenceTaskAction(Icons.Outlined.Check, "Complete", RefGreen, onComplete)
-                    ReferenceTaskAction(Icons.Outlined.Close, "Skip", RefMuted, onSkip)
-                    ReferenceTaskAction(Icons.Outlined.Alarm, "Extend", RefAmber, onExtend)
+                    ReferenceTaskAction(Icons.Outlined.Check, stringResource(R.string.home_complete), RefGreen, onComplete)
+                    ReferenceTaskAction(Icons.Outlined.Close, stringResource(R.string.home_skip_2), RefMuted, onSkip)
+                    ReferenceTaskAction(Icons.Outlined.Alarm, stringResource(R.string.home_extend), RefAmber, onExtend)
                 }
             }
                 }
@@ -416,6 +420,6 @@ fun TaskDetailModal(
     }
 }
 
-private fun String.asLocalDate(): String = runCatching {
-    Instant.parse(this).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("EEEE, MMMM d"))
+private fun String.asLocalDate(pattern: String): String = runCatching {
+    Instant.parse(this).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern(pattern))
 }.getOrDefault(this)

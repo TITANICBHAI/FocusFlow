@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.home
 
+import androidx.compose.ui.res.stringResource
+import com.tbtechs.focusflow.R
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -26,7 +28,7 @@ internal fun AllowedAppsDialog(
     val repository = remember { InstalledAppsRepository(context) }
     AppPickerSheet(
         visible = true,
-        title = "Allowed apps",
+        title = stringResource(R.string.home_allowed_apps),
         initialSelected = value.split(",").map(String::trim).filter(String::isNotBlank),
         presets = presets,
         installedAppsRepository = repository,

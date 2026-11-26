@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.home
 
+import androidx.compose.ui.res.stringResource
+import com.tbtechs.focusflow.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -35,8 +37,8 @@ import com.tbtechs.focusflow.data.model.Task
 fun TimelineView(tasks: List<Task>, onTaskClick: (Task) -> Unit, modifier: Modifier = Modifier) {
     if (tasks.isEmpty()) {
         Column(modifier = modifier.fillMaxWidth()) {
-            Text("Nothing on today’s timeline", fontSize = 15.scaledSp, color = RefText)
-            Text("Add a task to see it here.", fontSize = 11.scaledSp, color = RefSecondary)
+            Text(stringResource(R.string.home_nothing_on_today_s_timeline), fontSize = 15.scaledSp, color = RefText)
+            Text(stringResource(R.string.home_add_a_task_to_see), fontSize = 11.scaledSp, color = RefSecondary)
         }
     } else {
         LazyColumn(modifier = modifier) {
@@ -68,7 +70,7 @@ fun TimelineView(tasks: List<Task>, onTaskClick: (Task) -> Unit, modifier: Modif
                     }
                     Icon(
                         Icons.Outlined.ChevronRight,
-                        contentDescription = "Open task",
+                        contentDescription = stringResource(R.string.home_open_task),
                         tint = RefMuted,
                         modifier = Modifier.size(18.dp),
                     )

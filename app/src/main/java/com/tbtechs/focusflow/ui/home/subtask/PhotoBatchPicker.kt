@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.home.subtask
 
+import androidx.compose.ui.res.stringResource
+import com.tbtechs.focusflow.R
 import android.graphics.BitmapFactory
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -78,7 +80,7 @@ internal fun rememberBatchPhotoPicker(
     ) { uris ->
         val store = imageStore
         if (uris.isEmpty() || store == null) return@rememberLauncherForActivityResult
-        Toast.makeText(context, "Reading pictures…", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, context.getString(R.string.photo_batch_reading), Toast.LENGTH_SHORT).show()
         scope.launch {
             val outcome = withContext(Dispatchers.IO) {
                 val ids = mutableListOf<String>()
@@ -86,18 +88,24 @@ internal fun rememberBatchPhotoPicker(
                 uris.forEachIndexed { index, uri ->
                     val result = runCatching {
                         val input = context.contentResolver.openInputStream(uri)
-                            ?: error("The selected photo could not be opened.")
+                            ?: error(context.getString(R.string.photo_batch_cannot_open))
                         input.use { store.ingest(it).getOrThrow() }
                     }
                     result.onSuccess { ids += it }
-                    result.onFailure { failures += "Picture ${index + 1}: ${it.message ?: "could not be read"}" }
+                    result.onFailure {
+                        failures += context.getString(
+                            R.string.photo_batch_picture_failed,
+                            index + 1,
+                            it.message ?: context.getString(R.string.photo_batch_could_not_read),
+                        )
+                    }
                 }
                 BatchOutcome(ids, failures)
             }
             if (outcome.assetIds.isEmpty()) {
                 Toast.makeText(
                     context,
-                    outcome.failures.firstOrNull() ?: "None of those pictures could be read.",
+                    outcome.failures.firstOrNull() ?: context.getString(R.string.photo_batch_none_read),
                     Toast.LENGTH_LONG,
                 ).show()
             } else {
@@ -152,7 +160,7 @@ private fun PhotoBatchReviewDialog(
 
     AlertDialog(
         onDismissRequest = onCancel,
-        title = { Text("Match pictures to slots", fontWeight = FontWeight.Bold) },
+        title = { Text(stringResource(R.string.home_match_pictures_to_slots), fontWeight = FontWeight.Bold) },
         text = {
             LazyColumn(
                 modifier = Modifier.heightIn(max = 440.dp),
@@ -160,7 +168,7 @@ private fun PhotoBatchReviewDialog(
             ) {
                 item {
                     Text(
-                        "Pictures fill the empty slots in this order. Move a picture up or down, or remove it, to change where it goes.",
+                        stringResource(R.string.photo_batch_intro),
                         fontSize = 13.sp,
                     )
                 }
@@ -168,8 +176,8 @@ private fun PhotoBatchReviewDialog(
                     item {
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text(
-                                if (outcome.failures.size == 1) "1 picture could not be added:"
-                                else "${outcome.failures.size} pictures could not be added:",
+                                if (outcome.failures.size == 1) stringResource(R.string.photo_batch_failed_one)
+                                else stringResource(R.string.photo_batch_failed_many, outcome.failures.size),
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = Color(0xFFEF4444),
@@ -195,7 +203,7 @@ private fun PhotoBatchReviewDialog(
                                 overflow = TextOverflow.Ellipsis,
                             )
                             Text(
-                                text = if (assetId != null) "Picture ${index + 1}" else "No picture",
+                                text = if (assetId != null) stringResource(R.string.photo_batch_picture_n, index + 1) else stringResource(R.string.photo_batch_no_picture),
                                 fontSize = 11.sp,
                             )
                         }
@@ -213,8 +221,8 @@ private fun PhotoBatchReviewDialog(
                     item {
                         val extra = ordered.size - slots.size
                         Text(
-                            if (extra == 1) "1 extra picture has no empty slot and will be skipped."
-                            else "$extra extra pictures have no empty slot and will be skipped.",
+                            if (extra == 1) stringResource(R.string.photo_batch_extra_one)
+                            else stringResource(R.string.photo_batch_extra_many, extra),
                             fontSize = 12.sp,
                         )
                     }
@@ -226,10 +234,10 @@ private fun PhotoBatchReviewDialog(
                 onClick = { onConfirm(ordered.take(slots.size).toList()) },
                 enabled = usable > 0,
             ) {
-                Text(if (usable == 1) "Attach 1 picture" else "Attach $usable pictures")
+                Text(if (usable == 1) stringResource(R.string.photo_batch_attach_one) else stringResource(R.string.photo_batch_attach_many, usable))
             }
         },
-        dismissButton = { TextButton(onClick = onCancel) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onCancel) { Text(stringResource(R.string.home_cancel)) } },
     )
 }
 

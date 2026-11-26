@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.home.subtask
 
+import androidx.compose.ui.res.stringResource
+import com.tbtechs.focusflow.R
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -57,18 +59,18 @@ internal fun SubtaskPhotoAttachment(
             scope.launch {
                 busy = true
                 try {
-                    val store = requireNotNull(imageStore) { "Image storage is unavailable." }
+                    val store = requireNotNull(imageStore) { context.getString(R.string.photo_attach_storage_unavailable) }
                     val assetId = withContext(Dispatchers.IO) {
                         val input = context.contentResolver.openInputStream(uri)
-                            ?: error("The selected photo could not be opened.")
+                            ?: error(context.getString(R.string.photo_batch_cannot_open))
                         input.use { store.ingest(it).getOrThrow() }
                     }
                     val currentSubtask = task.subtasks.firstOrNull { it.id == subtask.id }
-                        ?: error("This subtask is no longer available.")
+                        ?: error(context.getString(R.string.photo_attach_subtask_gone))
                     val previousImage = currentSubtask.photoAt(target)
                     val defaultAlt = when (target) {
-                        SubtaskPhotoTarget.Item -> "Attached item photo"
-                        is SubtaskPhotoTarget.Step -> "Step ${target.index + 1} photo"
+                        SubtaskPhotoTarget.Item -> context.getString(R.string.photo_attach_alt_item)
+                        is SubtaskPhotoTarget.Step -> context.getString(R.string.photo_attach_alt_step, target.index + 1)
                     }
                     val slot = currentSubtask.slotAt(target)
                     val attachedImage = SubtaskImage(
@@ -91,7 +93,7 @@ internal fun SubtaskPhotoAttachment(
                     throw exception
                 } catch (exception: Exception) {
                     errorMessage = exception.message?.take(300)
-                        ?: "The photo could not be attached. Try another image."
+                        ?: context.getString(R.string.photo_attach_failed)
                 } finally {
                     busy = false
                 }
@@ -130,10 +132,10 @@ internal fun SubtaskPhotoAttachment(
         val label = target.labelFor(subtask)
         AlertDialog(
             onDismissRequest = { replacementTarget = null },
-            title = { Text("Replace photo?", fontSize = 20.scaledSp, fontWeight = FontWeight.Bold) },
+            title = { Text(stringResource(R.string.home_replace_photo), fontSize = 20.scaledSp, fontWeight = FontWeight.Bold) },
             text = {
                 Text(
-                    "Choose a new photo to replace the existing photo for $label.",
+                    stringResource(R.string.photo_attach_replace_body, label),
                     fontSize = 14.scaledSp,
                 )
             },
@@ -143,11 +145,11 @@ internal fun SubtaskPhotoAttachment(
                         replacementTarget = null
                         launchPicker(target)
                     },
-                ) { Text("Choose photo", fontSize = 14.scaledSp) }
+                ) { Text(stringResource(R.string.home_choose_photo), fontSize = 14.scaledSp) }
             },
             dismissButton = {
                 TextButton(onClick = { replacementTarget = null }) {
-                    Text("Cancel", fontSize = 14.scaledSp)
+                    Text(stringResource(R.string.home_cancel), fontSize = 14.scaledSp)
                 }
             },
         )
@@ -157,10 +159,10 @@ internal fun SubtaskPhotoAttachment(
         val label = target.labelFor(subtask)
         AlertDialog(
             onDismissRequest = { removalTarget = null },
-            title = { Text("Remove photo?", fontSize = 20.scaledSp, fontWeight = FontWeight.Bold) },
+            title = { Text(stringResource(R.string.home_remove_photo), fontSize = 20.scaledSp, fontWeight = FontWeight.Bold) },
             text = {
                 Text(
-                    "Remove the photo from $label? This does not change its text or progress.",
+                    stringResource(R.string.photo_attach_remove_body, label),
                     fontSize = 14.scaledSp,
                 )
             },
@@ -175,11 +177,11 @@ internal fun SubtaskPhotoAttachment(
                         removalTarget = null
                         onDismiss()
                     },
-                ) { Text("Remove", fontSize = 14.scaledSp) }
+                ) { Text(stringResource(R.string.home_remove), fontSize = 14.scaledSp) }
             },
             dismissButton = {
                 TextButton(onClick = { removalTarget = null }) {
-                    Text("Cancel", fontSize = 14.scaledSp)
+                    Text(stringResource(R.string.home_cancel), fontSize = 14.scaledSp)
                 }
             },
         )
@@ -188,20 +190,21 @@ internal fun SubtaskPhotoAttachment(
     errorMessage?.let { message ->
         AlertDialog(
             onDismissRequest = { errorMessage = null },
-            title = { Text("Photo not attached", fontSize = 20.scaledSp, fontWeight = FontWeight.Bold) },
+            title = { Text(stringResource(R.string.home_photo_not_attached), fontSize = 20.scaledSp, fontWeight = FontWeight.Bold) },
             text = { Text(message, fontSize = 14.scaledSp) },
             confirmButton = {
                 TextButton(onClick = { errorMessage = null }) {
-                    Text("OK", fontSize = 14.scaledSp)
+                    Text(stringResource(R.string.home_ok), fontSize = 14.scaledSp)
                 }
             },
         )
     }
 }
 
+@Composable
 private fun SubtaskPhotoTarget.labelFor(subtask: Subtask): String = when (this) {
-    SubtaskPhotoTarget.Item -> "this item"
+    SubtaskPhotoTarget.Item -> stringResource(R.string.photo_attach_target_item)
     is SubtaskPhotoTarget.Step -> subtask.steps.getOrNull(index)?.title
         ?.takeIf(String::isNotBlank)
-        ?: "step ${index + 1}"
+        ?: stringResource(R.string.photo_attach_target_step, index + 1)
 }

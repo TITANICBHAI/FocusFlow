@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.home
 
+import androidx.compose.ui.res.stringResource
+import com.tbtechs.focusflow.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -66,6 +68,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.tbtechs.focusflow.ui.common.priorityLabel
 import com.tbtechs.focusflow.ui.theme.scaledSp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -140,13 +143,19 @@ fun QuickAddModal(
     val globalAllowedCount = settings.allowedFocusPackages.size
     val allowedAppsLabel = if (useGlobalApps) {
         if (globalAllowedCount == 0) {
-            "Using global setting (all apps allowed)"
+            stringResource(R.string.home_global_setting_all)
+        } else if (globalAllowedCount == 1) {
+            stringResource(R.string.home_global_setting_one)
         } else {
-            "Using global setting ($globalAllowedCount app${if (globalAllowedCount == 1) "" else "s"})"
+            stringResource(R.string.home_global_setting_many, globalAllowedCount)
         }
     } else {
         val count = allowedPackages.toPackageList().size
-        if (count == 0) "All apps allowed" else "$count app${if (count == 1) "" else "s"} allowed"
+        when (count) {
+            0 -> stringResource(R.string.home_apps_all_allowed)
+            1 -> stringResource(R.string.home_apps_one_allowed)
+            else -> stringResource(R.string.home_apps_many_allowed, count)
+        }
     }
 
     fun saveTask() {
@@ -219,13 +228,13 @@ fun QuickAddModal(
                 ) {
                     Icon(
                         Icons.Outlined.Close,
-                        contentDescription = "Close",
+                        contentDescription = stringResource(R.string.home_close),
                         tint = RefSecondary,
                         modifier = Modifier.size(24.dp),
                     )
                 }
                 Text(
-                    "New Task",
+                    stringResource(R.string.home_new_task),
                     modifier = Modifier.weight(1f),
                     textAlign = TextAlign.Center,
                     fontSize = 20.scaledSp,
@@ -241,7 +250,7 @@ fun QuickAddModal(
                         vertical = 8.dp,
                     ),
                 ) {
-                    Text("Save", fontSize = 14.scaledSp, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.home_save), fontSize = 14.scaledSp, fontWeight = FontWeight.Bold)
                 }
             }
 
@@ -251,19 +260,19 @@ fun QuickAddModal(
                     .padding(horizontal = 20.dp, vertical = 14.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-            ReferenceSectionLabel("Title")
-            HomeTextField(title, { title = it }, "Title")
-            ReferenceSectionLabel("Notes (optional)")
+            ReferenceSectionLabel(stringResource(R.string.home_title))
+            HomeTextField(title, { title = it }, stringResource(R.string.home_title))
+            ReferenceSectionLabel(stringResource(R.string.home_notes_optional))
             HomeTextField(
                 notes,
                 { notes = it },
-                "Notes (optional)",
+                stringResource(R.string.home_notes_optional),
                 singleLine = false,
                  multilineMinHeight = 96.dp,
             )
 
             // Date & Time pickers
-            ReferenceSectionLabel("Start")
+            ReferenceSectionLabel(stringResource(R.string.home_start))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -283,9 +292,9 @@ fun QuickAddModal(
                             Spacer(Modifier.width(6.dp))
                             Text(
                                 when (parsedDate) {
-                                    LocalDate.now() -> "Today"
-                                    LocalDate.now().plusDays(1) -> "Tomorrow"
-                                    else -> parsedDate.format(DateTimeFormatter.ofPattern("EEE, MMM d"))
+                                    LocalDate.now() -> stringResource(R.string.home_today)
+                                    LocalDate.now().plusDays(1) -> stringResource(R.string.home_tomorrow)
+                                    else -> parsedDate.format(DateTimeFormatter.ofPattern(stringResource(R.string.home_date_pattern_short)))
                                 },
                                 fontSize = 15.scaledSp,
                                 color = RefText,
@@ -293,7 +302,7 @@ fun QuickAddModal(
                             )
                             Icon(
                                 if (dateMenuOpen) Icons.Outlined.KeyboardArrowUp else Icons.Outlined.KeyboardArrowDown,
-                                contentDescription = "Choose a date",
+                                contentDescription = stringResource(R.string.home_choose_a_date),
                                 tint = RefText,
                                 modifier = Modifier.size(20.dp),
                             )
@@ -304,21 +313,21 @@ fun QuickAddModal(
                         onDismissRequest = { dateMenuOpen = false },
                     ) {
                         DropdownMenuItem(
-                            text = { Text("Today") },
+                            text = { Text(stringResource(R.string.home_today)) },
                             onClick = {
                                 date = LocalDate.now().toString()
                                 dateMenuOpen = false
                             },
                         )
                         DropdownMenuItem(
-                            text = { Text("Tomorrow") },
+                            text = { Text(stringResource(R.string.home_tomorrow)) },
                             onClick = {
                                 date = LocalDate.now().plusDays(1).toString()
                                 dateMenuOpen = false
                             },
                         )
                         DropdownMenuItem(
-                            text = { Text("Choose from calendar…") },
+                            text = { Text(stringResource(R.string.home_choose_from_calendar)) },
                             onClick = {
                                 dateMenuOpen = false
                                 showDatePicker = true
@@ -351,19 +360,25 @@ fun QuickAddModal(
 
             // Duration section
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                ReferenceSectionLabel("Duration: ${if (customDuration) customDurationValue.ifBlank { "—" } else duration.asDurationLabel()}")
+                ReferenceSectionLabel(
+                    stringResource(
+                        R.string.home_duration_value,
+                        if (customDuration) customDurationValue.ifBlank { "—" } else duration.asDurationLabel(),
+                    ),
+                )
                 FlowRow(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    (durationOptions.map(Int::asDurationLabel) + "Custom").forEach { choice ->
-                        val isSelected = if (customDuration) choice == "Custom" else duration.asDurationLabel() == choice
+                    val customLabel = stringResource(R.string.home_custom)
+                    (durationOptions.map(Int::asDurationLabel) + customLabel).forEach { choice ->
+                        val isSelected = if (customDuration) choice == customLabel else duration.asDurationLabel() == choice
                         ReferencePill(
                             text = choice,
                             selected = isSelected,
                             onClick = {
-                                customDuration = choice == "Custom"
+                                customDuration = choice == customLabel
                                 if (!customDuration) duration = durationOptions.first { it.asDurationLabel() == choice }
                             },
                         )
@@ -371,17 +386,17 @@ fun QuickAddModal(
                 }
                 if (customDuration) {
                     Spacer(Modifier.height(4.dp))
-                    HomeTextField(customDurationValue, { customDurationValue = it }, "Custom duration (minutes)")
+                    HomeTextField(customDurationValue, { customDurationValue = it }, stringResource(R.string.home_custom_duration_minutes))
                 }
             }
 
             // Pomodoro toggle
             ReferenceToggleCard(
-                title = "Pomodoro Mode",
+                title = stringResource(R.string.home_pomodoro_mode),
                 description = if (settings.pomodoroEnabled) {
-                    "On — ${settings.pomodoroWorkMinutes}m work / ${settings.pomodoroBreakMinutes}m break"
+                    stringResource(R.string.home_pomodoro_on, settings.pomodoroWorkMinutes, settings.pomodoroBreakMinutes)
                 } else {
-                    "Off — one continuous focus session"
+                    stringResource(R.string.home_pomodoro_off)
                 },
                 checked = settings.pomodoroEnabled,
                 onCheckedChange = { enabled ->
@@ -391,7 +406,7 @@ fun QuickAddModal(
 
             // Priority section
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                ReferenceSectionLabel("Priority")
+                ReferenceSectionLabel(stringResource(R.string.home_priority))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -399,7 +414,7 @@ fun QuickAddModal(
                     priorityOptions.forEach { opt ->
                         val isSelected = priority.lowercase() == opt
                         ReferencePill(
-                            text = opt.replaceFirstChar(Char::titlecase),
+                            text = priorityLabel(opt),
                             selected = isSelected,
                             modifier = Modifier.weight(1f),
                             fontSize = 12.scaledSp,
@@ -413,7 +428,7 @@ fun QuickAddModal(
 
             // Color section
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                ReferenceSectionLabel("Color")
+                ReferenceSectionLabel(stringResource(R.string.home_color))
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -441,16 +456,16 @@ fun QuickAddModal(
 
             // Focus Mode
             ReferenceToggleCard(
-                title = "Focus Mode",
-                description = "Block distractions during this task",
+                title = stringResource(R.string.home_focus_mode),
+                description = stringResource(R.string.home_block_distractions_during_this_task),
                 checked = focusMode,
                 onCheckedChange = { focusMode = it },
             )
 
             if (focusMode) {
                 ReferenceToggleCard(
-                    title = "Use Global Allowed List",
-                    description = "Use the allowed apps list configured in Settings",
+                    title = stringResource(R.string.home_use_global_allowed_list),
+                    description = stringResource(R.string.home_use_the_allowed_apps_list),
                     checked = useGlobalApps,
                     onCheckedChange = { useGlobalApps = it },
                 )
@@ -471,10 +486,10 @@ fun QuickAddModal(
                             Icon(Icons.Outlined.Shield, contentDescription = null, tint = BrandPrimary, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(10.dp))
                             Column(modifier = Modifier.weight(1f)) {
-                                Text("Allowed Apps", fontSize = 14.scaledSp, fontWeight = FontWeight.SemiBold, color = DarkTextPrimary)
+                                Text(stringResource(R.string.home_allowed_apps_2), fontSize = 14.scaledSp, fontWeight = FontWeight.SemiBold, color = DarkTextPrimary)
                                 Text(allowedAppsLabel, fontSize = 12.scaledSp, color = DarkTextSecondary)
                             }
-                            Text("Edit", fontSize = 13.scaledSp, color = BrandPrimary, fontWeight = FontWeight.SemiBold)
+                            Text(stringResource(R.string.home_edit), fontSize = 13.scaledSp, color = BrandPrimary, fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }
@@ -482,7 +497,7 @@ fun QuickAddModal(
 
             if (showError) {
                 Text(
-                    "Enter a title and a valid date, time, and duration.",
+                    stringResource(R.string.home_enter_a_title_and_a_valid),
                     color = MaterialTheme.colorScheme.error,
                     fontSize = 13.scaledSp,
                 )
@@ -516,7 +531,7 @@ fun QuickAddModal(
             containerColor = DarkCard,
             titleContentColor = DarkTextPrimary,
             textContentColor = DarkTextSecondary,
-            title = { Text("Select start time", fontWeight = FontWeight.Bold) },
+            title = { Text(stringResource(R.string.home_select_start_time), fontWeight = FontWeight.Bold) },
             text = {
                 TimePicker(
                     state = pickerState,
@@ -551,7 +566,7 @@ fun QuickAddModal(
                     onClick = { showTimePicker = false },
                     shape = RoundedCornerShape(14.dp),
                     modifier = Modifier.defaultMinSize(minHeight = 44.dp),
-                ) { Text("Cancel", color = DarkTextSecondary) }
+                ) { Text(stringResource(R.string.home_cancel), color = DarkTextSecondary) }
             },
         )
     }

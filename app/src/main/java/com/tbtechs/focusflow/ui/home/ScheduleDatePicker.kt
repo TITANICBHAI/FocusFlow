@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.home
 
+import androidx.compose.ui.res.stringResource
+import com.tbtechs.focusflow.R
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DatePicker
@@ -84,11 +86,11 @@ internal fun ScheduleDatePickerDialog(
             Row {
                 if (showTodayButton) {
                     TextButton(onClick = { onPick(LocalDate.now()) }, shape = RoundedCornerShape(14.dp)) {
-                        Text("Today", color = BrandPrimary)
+                        Text(stringResource(R.string.home_today), color = BrandPrimary)
                     }
                 }
                 TextButton(onClick = onDismiss, shape = RoundedCornerShape(14.dp)) {
-                    Text("Cancel", color = DarkTextSecondary)
+                    Text(stringResource(R.string.home_cancel), color = DarkTextSecondary)
                 }
             }
         },

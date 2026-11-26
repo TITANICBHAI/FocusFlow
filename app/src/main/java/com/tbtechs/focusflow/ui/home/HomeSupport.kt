@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.home
 
+import androidx.compose.ui.res.stringResource
+import com.tbtechs.focusflow.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -116,7 +118,7 @@ internal fun ActiveTaskBanner(
                         .padding(horizontal = 8.dp, vertical = 3.dp),
                 ) {
                     Text(
-                        if (isRunning) "NOW" else "TIME'S UP",
+                        stringResource(if (isRunning) R.string.home_badge_now else R.string.home_badge_times_up),
                         fontSize = 10.scaledSp,
                         fontWeight = FontWeight.Bold,
                         color = foregroundColor,
@@ -143,8 +145,8 @@ internal fun ActiveTaskBanner(
                     )
                 }
                 Text(
-                    if (isRunning) "Until ${task.endTime.asLocalTime()}"
-                    else "Ended ${task.endTime.asLocalTime()} · pick one",
+                    if (isRunning) stringResource(R.string.home_until_time, task.endTime.asLocalTime())
+                    else stringResource(R.string.home_ended_pick_one, task.endTime.asLocalTime()),
                     fontSize = 12.scaledSp,
                     color = foregroundColor.copy(alpha = 0.88f),
                     maxLines = 1,
@@ -166,7 +168,7 @@ internal fun ActiveTaskBanner(
                     ) {
                         Icon(
                             Icons.Outlined.Check,
-                            contentDescription = "Complete",
+                            contentDescription = stringResource(R.string.home_complete),
                             tint = foregroundColor,
                             modifier = Modifier.size(14.dp),
                         )
@@ -185,7 +187,7 @@ internal fun ActiveTaskBanner(
                     ) {
                         Icon(
                             Icons.Outlined.Add,
-                            contentDescription = "Extend",
+                            contentDescription = stringResource(R.string.home_extend),
                             tint = foregroundColor,
                             modifier = Modifier.size(14.dp),
                         )
@@ -205,7 +207,7 @@ internal fun ActiveTaskBanner(
                         ) {
                             Icon(
                                 Icons.Outlined.Close,
-                                contentDescription = "Skip",
+                                contentDescription = stringResource(R.string.home_skip_2),
                                 tint = foregroundColor,
                                 modifier = Modifier.size(14.dp),
                             )
@@ -225,7 +227,7 @@ internal fun ActiveTaskBanner(
                         ) {
                             Icon(
                                 Icons.Outlined.Shield,
-                                contentDescription = "Start focus",
+                                contentDescription = stringResource(R.string.home_start_focus),
                                 tint = foregroundColor,
                                 modifier = Modifier.size(14.dp),
                             )
@@ -246,6 +248,7 @@ internal fun TaskTagsEditor(
     onTagsChange: (List<String>) -> Unit,
 ) {
     var tagError by remember(tags) { mutableStateOf<String?>(null) }
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     fun addDraftTags() {
         try {
@@ -253,12 +256,18 @@ internal fun TaskTagsEditor(
             onDraftChange("")
             tagError = null
         } catch (error: IllegalArgumentException) {
-            tagError = error.message ?: "This tag cannot be added."
+            tagError = when {
+                error is TagLimitException && error.kind == TagLimitException.Kind.TAG_TOO_LONG ->
+                    context.getString(R.string.home_error_tag_too_long, error.limit)
+                error is TagLimitException ->
+                    context.getString(R.string.home_error_too_many_tags, error.limit)
+                else -> error.message ?: context.getString(R.string.home_error_tag_invalid)
+            }
         }
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        ReferenceSectionLabel("Tags")
+        ReferenceSectionLabel(stringResource(R.string.home_tags))
         if (tags.isNotEmpty()) {
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -279,16 +288,28 @@ internal fun TaskTagsEditor(
                 onDraftChange(it)
                 tagError = null
             },
-            label = "Add a tag",
+            label = stringResource(R.string.home_add_a_tag),
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(onDone = { addDraftTags() }),
         )
         Text(
-            tagError ?: "Press return to add. Separate multiple tags with commas.",
+            tagError ?: stringResource(R.string.home_tags_hint),
             fontSize = 12.scaledSp,
             color = if (tagError == null) RefSecondary else MaterialTheme.colorScheme.error,
         )
     }
+}
+
+/**
+ * Thrown when a tag breaks a limit. The English [message] is for logs and tests; the screen shows
+ * the same sentence from string resources in the person's language.
+ */
+internal class TagLimitException(
+    val kind: Kind,
+    val limit: Int,
+    message: String,
+) : IllegalArgumentException(message) {
+    enum class Kind { TAG_TOO_LONG, TOO_MANY_TAGS }
 }
 
 internal fun addTaskTagsFromDraft(tags: List<String>, draft: String): List<String> {
@@ -299,11 +320,19 @@ internal fun addTaskTagsFromDraft(tags: List<String>, draft: String): List<Strin
     val updated = tags.toMutableList()
     candidates.forEach { candidate ->
         if (updated.none { it.equals(candidate, ignoreCase = true) }) {
-            require(candidate.length <= BackupJsonLimits.MAX_TAG_CHARS) {
-                "Tags must be ${BackupJsonLimits.MAX_TAG_CHARS} characters or fewer."
+            if (candidate.length > BackupJsonLimits.MAX_TAG_CHARS) {
+                throw TagLimitException(
+                    TagLimitException.Kind.TAG_TOO_LONG,
+                    BackupJsonLimits.MAX_TAG_CHARS,
+                    "Tags must be ${BackupJsonLimits.MAX_TAG_CHARS} characters or fewer.",
+                )
             }
-            require(updated.size < BackupJsonLimits.MAX_TAGS_PER_TASK) {
-                "A task can have at most ${BackupJsonLimits.MAX_TAGS_PER_TASK} tags."
+            if (updated.size >= BackupJsonLimits.MAX_TAGS_PER_TASK) {
+                throw TagLimitException(
+                    TagLimitException.Kind.TOO_MANY_TAGS,
+                    BackupJsonLimits.MAX_TAGS_PER_TASK,
+                    "A task can have at most ${BackupJsonLimits.MAX_TAGS_PER_TASK} tags.",
+                )
             }
             updated += candidate
         }
@@ -318,6 +347,7 @@ internal fun TaskTagChip(
     onRemove: (() -> Unit)? = null,
 ) {
     val shape = RoundedCornerShape(8.dp)
+    val removeLabel = stringResource(R.string.home_remove_tag, tag)
     val trailingSurface = if (MaterialTheme.colorScheme.background.luminance() > 0.5f) {
         Color(0xFFC7D2FE)
     } else {
@@ -333,7 +363,7 @@ internal fun TaskTagChip(
                     Modifier
                 } else {
                     Modifier.clickable(
-                        onClickLabel = "Remove tag $tag",
+                        onClickLabel = removeLabel,
                         onClick = onRemove,
                     )
                 },
@@ -403,13 +433,13 @@ internal fun ExtendTaskDialog(task: Task, onDismiss: () -> Unit, onExtend: (Int)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Outlined.Alarm, contentDescription = null, tint = BrandPrimary, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Extend ${task.title}", fontWeight = FontWeight.Bold, fontSize = 17.scaledSp)
+                Text(stringResource(R.string.home_extend_2, task.title), fontWeight = FontWeight.Bold, fontSize = 17.scaledSp)
             }
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    "Select or enter extra minutes for this task.",
+                    stringResource(R.string.home_extend_hint),
                     fontSize = 13.scaledSp,
                     color = DarkTextSecondary,
                 )
@@ -437,7 +467,7 @@ internal fun ExtendTaskDialog(task: Task, onDismiss: () -> Unit, onExtend: (Int)
                         }
                     }
                 }
-                HomeTextField(value = minutes, onValueChange = { minutes = it }, label = "Custom Minutes")
+                HomeTextField(value = minutes, onValueChange = { minutes = it }, label = stringResource(R.string.home_custom_minutes))
             }
         },
         confirmButton = {
@@ -447,7 +477,7 @@ internal fun ExtendTaskDialog(task: Task, onDismiss: () -> Unit, onExtend: (Int)
                 shape = MaterialTheme.shapes.small,
                 modifier = Modifier.defaultMinSize(minHeight = 44.dp),
             ) {
-                Text("Extend")
+                Text(stringResource(R.string.home_extend))
             }
         },
         dismissButton = {
@@ -456,7 +486,7 @@ internal fun ExtendTaskDialog(task: Task, onDismiss: () -> Unit, onExtend: (Int)
                 shape = MaterialTheme.shapes.small,
                 modifier = Modifier.defaultMinSize(minHeight = 44.dp),
             ) {
-                Text("Cancel", color = DarkTextSecondary)
+                Text(stringResource(R.string.home_cancel), color = DarkTextSecondary)
             }
         },
     )

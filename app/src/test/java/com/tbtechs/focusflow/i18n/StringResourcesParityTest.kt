@@ -68,6 +68,21 @@ class StringResourcesParityTest {
     }
 
     @Test
+    fun datePatternsAreValidInEveryLanguage() {
+        // Keys named *date_pattern* are java.time patterns, not text: a bad letter would crash the screen.
+        val date = java.time.LocalDate.of(2026, 11, 25)
+        (listOf("") + languages).forEach { lang ->
+            val dir = File(res, if (lang.isEmpty()) "values" else "values-$lang")
+            val patterns = read(dir).filterKeys { "date_pattern" in it }
+            assertTrue("values$lang has no date patterns", patterns.isNotEmpty())
+            patterns.forEach { (key, value) ->
+                val text = java.time.format.DateTimeFormatter.ofPattern(value.first, java.util.Locale.forLanguageTag(lang.ifEmpty { "en" })).format(date)
+                assertTrue("values-$lang/$key produced blank text", text.isNotBlank())
+            }
+        }
+    }
+
+    @Test
     fun localeConfigListsEveryTranslatedLanguage() {
         val text = File(res, "xml/locales_config.xml").readText()
         (languages + "en").forEach { assertTrue("locales_config lacks $it", text.contains("android:name=\"$it\"")) }

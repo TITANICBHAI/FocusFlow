@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.data.images
 
+import androidx.annotation.StringRes
+import com.tbtechs.focusflow.R
 import com.tbtechs.focusflow.data.model.PhotoLinkCheck
 import com.tbtechs.focusflow.data.model.PhotoLinkPolicy
 import com.tbtechs.focusflow.data.model.SubtaskLimits
@@ -31,19 +33,22 @@ interface HttpReply : Closeable {
     fun body(): InputStream
 }
 
-enum class PhotoDownloadFailure(val userMessage: String) {
-    INVALID_LINK("This is not a plain https link to a public website."),
-    UNSAFE_ADDRESS("This link points to a private or local network address, so FocusFlow will not open it."),
-    DNS_FAILED("The website could not be found. Check your connection."),
-    TOO_MANY_REDIRECTS("The link redirected too many times."),
-    BAD_REDIRECT("The link redirected somewhere that is not allowed."),
-    HTTP_ERROR("The website did not return a picture."),
-    NOT_AN_IMAGE("This is not a direct picture link. It must lead straight to a JPEG, PNG or WebP file."),
-    TOO_LARGE("The picture is larger than 6 MiB."),
-    TIMED_OUT("The website took too long to answer."),
-    NETWORK_ERROR("The connection failed."),
-    CANCELLED("Cancelled."),
-    UNREADABLE("FocusFlow could not read that picture."),
+/**
+ * [userMessage] is the English text for logs and tests; screens show [messageRes] in the person's language.
+ */
+enum class PhotoDownloadFailure(val userMessage: String, @StringRes val messageRes: Int) {
+    INVALID_LINK("This is not a plain https link to a public website.", R.string.photo_fail_invalid_link),
+    UNSAFE_ADDRESS("This link points to a private or local network address, so FocusFlow will not open it.", R.string.photo_fail_unsafe_address),
+    DNS_FAILED("The website could not be found. Check your connection.", R.string.photo_fail_dns_failed),
+    TOO_MANY_REDIRECTS("The link redirected too many times.", R.string.photo_fail_too_many_redirects),
+    BAD_REDIRECT("The link redirected somewhere that is not allowed.", R.string.photo_fail_bad_redirect),
+    HTTP_ERROR("The website did not return a picture.", R.string.photo_fail_http_error),
+    NOT_AN_IMAGE("This is not a direct picture link. It must lead straight to a JPEG, PNG or WebP file.", R.string.photo_fail_not_an_image),
+    TOO_LARGE("The picture is larger than 6 MiB.", R.string.photo_fail_too_large),
+    TIMED_OUT("The website took too long to answer.", R.string.photo_fail_timed_out),
+    NETWORK_ERROR("The connection failed.", R.string.photo_fail_network_error),
+    CANCELLED("Cancelled.", R.string.photo_fail_cancelled),
+    UNREADABLE("FocusFlow could not read that picture.", R.string.photo_fail_unreadable),
 }
 
 sealed interface PhotoDownloadResult {
