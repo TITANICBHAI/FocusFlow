@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.stats.phone
 
+import androidx.compose.ui.res.stringResource
+import com.tbtechs.focusflow.R
 import androidx.compose.foundation.clickable
 import com.tbtechs.focusflow.ui.theme.scaledSp
 import androidx.compose.foundation.layout.Arrangement
@@ -62,13 +64,13 @@ internal fun ExtraHabitsTab(
 private fun NoticedCard(state: PhoneInsightsUiState) {
     var showAll by remember { mutableStateOf(false) }
     var openId by remember { mutableStateOf<String?>(null) }
-    ExtraCard("What we noticed") {
+    ExtraCard(stringResource(R.string.stats_what_we_noticed)) {
         val result = (state as? PhoneInsightsUiState.Loaded)?.result
         when (result) {
-            null -> PhoneMutedNote("Looking at your habits…")
+            null -> PhoneMutedNote(stringResource(R.string.stats_looking_at_your_habits))
             is PhoneInsightsResult.Building -> PhoneMutedNote(buildingMessage(result.completeDays))
             is PhoneInsightsResult.Failed -> PhoneMutedNote(INSIGHTS_FAILED)
-            PhoneInsightsResult.PermissionNeeded -> PhoneMutedNote("Allow usage access to see this.")
+            PhoneInsightsResult.PermissionNeeded -> PhoneMutedNote(stringResource(R.string.stats_allow_usage_access_to_see))
             is PhoneInsightsResult.Ready -> {
                 val items = result.insights.filter { it.kind != InsightKind.DATA_NOTE }
                 if (items.isEmpty()) {
@@ -82,7 +84,7 @@ private fun NoticedCard(state: PhoneInsightsUiState) {
                     }
                     if (items.size > INSIGHTS_PREVIEW) {
                         TextButton(onClick = { showAll = !showAll }) {
-                            Text(if (showAll) "Show less" else "Show all ${items.size}")
+                            Text(if (showAll) stringResource(R.string.stats_show_less) else stringResource(R.string.stats_show_all_n, items.size))
                         }
                     }
                 }
@@ -101,7 +103,7 @@ private fun InsightLine(insight: PhoneInsight, expanded: Boolean, onToggle: () -
     Row(
         Modifier
             .fillMaxWidth()
-            .clickable(onClickLabel = if (expanded) "Collapse" else "Expand", role = Role.Button, onClick = onToggle)
+            .clickable(onClickLabel = stringResource(if (expanded) R.string.settings_collapse else R.string.settings_expand), role = Role.Button, onClick = onToggle)
             .padding(vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
@@ -118,36 +120,36 @@ private fun PhoneUseCard(report: PhoneReport, window: String) {
     val b = report.behaviour
     val single = isSingleDay(window)
     val unlockHero = unlocksHero(b, window)
-    ExtraCard("Phone use") {
+    ExtraCard(stringResource(R.string.stats_phone_use)) {
         if (b.daysWithData <= 0 && b.unlocks <= 0 && b.wakes <= 0) {
-            PhoneMutedNote("No phone activity for this period yet.")
+            PhoneMutedNote(stringResource(R.string.stats_no_phone_activity_yet))
             return@ExtraCard
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (unlockHero != null) {
-                PhoneHabitTile(unlockHero.value, if (b.unlockSignalAvailable) "Unlocks" else "Wake-ups", StatsBlue, Modifier.weight(1f))
+                PhoneHabitTile(unlockHero.value, stringResource(if (b.unlockSignalAvailable) R.string.stats_unlocks else R.string.stats_wakeups), StatsBlue, Modifier.weight(1f))
             }
             b.quickCheckSharePercent?.let {
-                PhoneHabitTile(PhoneText.percent(it), "Quick checks", SunAmber, Modifier.weight(1f))
+                PhoneHabitTile(PhoneText.percent(it), stringResource(R.string.stats_quick_checks), SunAmber, Modifier.weight(1f))
             }
             if (b.longestSessionMs > 0L) {
-                PhoneHabitTile(PhoneText.duration(b.longestSessionMs), "Longest session", StatsGreen, Modifier.weight(1f))
+                PhoneHabitTile(PhoneText.duration(b.longestSessionMs), stringResource(R.string.stats_longest_session), StatsGreen, Modifier.weight(1f))
             }
         }
         val byHour = if (b.unlockSignalAvailable) b.unlocksByHour else b.wakesByHour
         HourBars(
             values = byHour.map { it.toFloat() },
-            contentDescription = "Bar chart of ${if (b.unlockSignalAvailable) "unlocks" else "wake-ups"} for each hour of the day",
+            contentDescription = stringResource(if (b.unlockSignalAvailable) R.string.stats_bar_chart_unlocks else R.string.stats_bar_chart_wakeups),
             highlightIndex = busiestHour(byHour),
             height = 64.dp,
         )
         val firstApps = topFirstAppRows(report)
         if (firstApps.isNotEmpty()) {
-            PhoneSectionTitle("First app you open", Modifier.padding(top = 4.dp))
+            PhoneSectionTitle(stringResource(R.string.stats_first_app_you_open), Modifier.padding(top = 4.dp))
             firstApps.forEach { ShareRow(it.title, it.subtitle, it.fraction, it.trailing) }
         }
         if (!single && b.avgGapBetweenUnlocksMs != null) {
-            PhoneMutedNote("About ${PhoneText.duration(b.avgGapBetweenUnlocksMs)} between unlocks")
+            PhoneMutedNote(stringResource(R.string.stats_about_between_unlocks, PhoneText.duration(b.avgGapBetweenUnlocksMs)))
         }
     }
 }
@@ -168,12 +170,12 @@ private fun TimeOfDayCard(report: PhoneReport, window: String) {
     val days = report.screenTime.days
     val weekday = showWeekdayChart(days)
     if (rows.isEmpty() && !weekday) return
-    ExtraCard("Time of day") {
+    ExtraCard(stringResource(R.string.stats_time_of_day)) {
         rows.forEach { ShareRow(it.title, it.subtitle, it.fraction, it.trailing) }
         if (weekday) {
             val avgs = weekdayAverages(days)
-            PhoneSectionTitle("By weekday", Modifier.padding(top = 4.dp))
-            DayBars(points = weekdayBarPoints(avgs), contentDescription = "Average screen time for each day of the week", height = 72.dp)
+            PhoneSectionTitle(stringResource(R.string.stats_by_weekday), Modifier.padding(top = 4.dp))
+            DayBars(points = weekdayBarPoints(avgs), contentDescription = stringResource(R.string.stats_average_screen_time_for_each), height = 72.dp)
             weekdayCaption(avgs)?.let { PhoneMutedNote(it) }
         }
     }
@@ -183,11 +185,11 @@ private fun TimeOfDayCard(report: PhoneReport, window: String) {
 private fun DistractionCard(report: PhoneReport, window: String, onBlockApp: (String?) -> Unit) {
     val d = report.distraction
     if (d.distractionMs <= 0L && d.apps.isEmpty()) return
-    ExtraCard("Distraction") {
+    ExtraCard(stringResource(R.string.stats_distraction)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            PhoneHabitTile(PhoneText.duration(d.distractionMs), if (isSingleDay(window)) "In distracting apps" else "In distracting apps", StatsRed, Modifier.weight(1f))
-            d.sharePercent?.let { PhoneHabitTile(PhoneText.percent(it), "Of your app time", SunAmber, Modifier.weight(1f)) }
-            d.peakHour?.let { PhoneHabitTile(PhoneText.hour(it), "Peak hour", StatsBlue, Modifier.weight(1f)) }
+            PhoneHabitTile(PhoneText.duration(d.distractionMs), stringResource(R.string.stats_in_distracting_apps), StatsRed, Modifier.weight(1f))
+            d.sharePercent?.let { PhoneHabitTile(PhoneText.percent(it), stringResource(R.string.stats_of_your_app_time), SunAmber, Modifier.weight(1f)) }
+            d.peakHour?.let { PhoneHabitTile(PhoneText.hour(it), stringResource(R.string.stats_peak_hour), StatsBlue, Modifier.weight(1f)) }
         }
         distractionChangeText(d)?.let { PhoneMutedNote(it) }
         d.apps.take(3).forEach { app ->
@@ -200,16 +202,16 @@ private fun DistractionCard(report: PhoneReport, window: String, onBlockApp: (St
         }
         HourBars(
             values = d.byHourMs.map { it.toFloat() },
-            contentDescription = "Bar chart of time in distracting apps for each hour of the day",
+            contentDescription = stringResource(R.string.stats_bar_chart_of_time_in),
             highlightIndex = d.peakHour,
             height = 56.dp,
         )
         if (d.reflexApps.isNotEmpty()) {
-            PhoneSectionTitle("Opened on reflex", Modifier.padding(top = 4.dp))
+            PhoneSectionTitle(stringResource(R.string.stats_opened_on_reflex), Modifier.padding(top = 4.dp))
             d.reflexApps.take(3).forEach { app ->
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     PhoneListRow(app.appName, reflexSubtitle(app), Modifier.weight(1f))
-                    TextButton(onClick = { onBlockApp(app.packageName) }) { Text("Block") }
+                    TextButton(onClick = { onBlockApp(app.packageName) }) { Text(stringResource(R.string.stats_block)) }
                 }
             }
         }
@@ -219,16 +221,16 @@ private fun DistractionCard(report: PhoneReport, window: String, onBlockApp: (St
 @Composable
 private fun FocusCard(report: PhoneReport) {
     val f = report.focus
-    ExtraCard("Focus") {
+    ExtraCard(stringResource(R.string.stats_focus)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            PhoneHabitTile(PhoneText.duration(f.focusMs), "Focus time", StatsGreen, Modifier.weight(1f))
-            heldRatePercent(f)?.let { PhoneHabitTile(PhoneText.percent(it), "Sessions held", StatsBlue, Modifier.weight(1f)) }
-            PhoneHabitTile(f.blockedAttempts.toString(), "Blocked attempts", SunAmber, Modifier.weight(1f))
+            PhoneHabitTile(PhoneText.duration(f.focusMs), stringResource(R.string.stats_focus_time), StatsGreen, Modifier.weight(1f))
+            heldRatePercent(f)?.let { PhoneHabitTile(PhoneText.percent(it), stringResource(R.string.stats_sessions_held), StatsBlue, Modifier.weight(1f)) }
+            PhoneHabitTile(f.blockedAttempts.toString(), stringResource(R.string.stats_blocked_attempts), SunAmber, Modifier.weight(1f))
         }
         if (f.blockedByHour.any { it > 0 }) {
             HourBars(
                 values = f.blockedByHour.map { it.toFloat() },
-                contentDescription = "Bar chart of blocked attempts for each hour of the day",
+                contentDescription = stringResource(R.string.stats_bar_chart_of_blocked_attempts),
                 highlightIndex = f.blockedPeakHour,
                 height = 56.dp,
             )

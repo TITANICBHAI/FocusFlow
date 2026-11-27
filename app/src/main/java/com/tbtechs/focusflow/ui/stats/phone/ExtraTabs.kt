@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.stats.phone
 
+import androidx.compose.ui.res.stringResource
+import com.tbtechs.focusflow.R
 import androidx.compose.foundation.background
 import com.tbtechs.focusflow.ui.theme.scaledSp
 import androidx.compose.foundation.layout.Box
@@ -50,7 +52,7 @@ internal fun ExtraHeader(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back to Stats", tint = DarkTextPrimary)
+                Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = stringResource(R.string.stats_back_to_stats), tint = DarkTextPrimary)
             }
             Text(
                 "Extra",
@@ -62,7 +64,7 @@ internal fun ExtraHeader(
             WindowMenu(window, onSelectWindow)
         }
         StatsFlatTabs(
-            labels = ExtraTab.entries.map { it.label },
+            labels = ExtraTab.entries.map { extraTabLabel(it) },
             selectedIndex = selectedTab.ordinal,
             onSelect = { onSelectTab(ExtraTab.entries[it]) },
         )
@@ -72,15 +74,15 @@ internal fun ExtraHeader(
 @Composable
 private fun WindowMenu(window: String, onSelect: (String) -> Unit) {
     var open by remember { mutableStateOf(false) }
-    val label = PHONE_WINDOW_OPTIONS.firstOrNull { it.first == window }?.second ?: PHONE_WINDOW_OPTIONS.first().second
+    val label = phoneWindowLabel(window)
     Box {
         TextButton(onClick = { open = true }) {
             Text(label, color = DarkTextPrimary, fontWeight = FontWeight.SemiBold)
-            Icon(Icons.Outlined.KeyboardArrowDown, contentDescription = "Change period", tint = DarkTextMuted)
+            Icon(Icons.Outlined.KeyboardArrowDown, contentDescription = stringResource(R.string.stats_change_period), tint = DarkTextMuted)
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            PHONE_WINDOW_OPTIONS.forEach { (option, optionLabel) ->
-                DropdownMenuItem(text = { Text(optionLabel) }, onClick = { open = false; onSelect(option) })
+            PHONE_WINDOW_OPTIONS.forEach { (option, _) ->
+                DropdownMenuItem(text = { Text(phoneWindowLabel(option)) }, onClick = { open = false; onSelect(option) })
             }
         }
     }

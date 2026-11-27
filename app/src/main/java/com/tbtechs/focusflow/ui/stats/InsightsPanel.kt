@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.stats
 
+import androidx.compose.ui.res.stringResource
+import com.tbtechs.focusflow.R
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material3.Card
@@ -22,7 +24,7 @@ fun InsightsPanel(tasks: List<Task>, previousTasks: List<Task> = emptyList()) {
     val trendPoints = ((completionRate(tasks) - completionRate(previousTasks)) * 100).toInt()
     Card {
         Column {
-            Text("At a glance", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.stats_at_a_glance), style = MaterialTheme.typography.titleMedium)
             InsightPanelRow("Sharpest hour", bestHour?.let(::hourLabel) ?: "Not enough data")
             InsightPanelRow("Best day", strongestDay?.dayOfWeek?.name?.lowercase()?.replaceFirstChar(Char::titlecase) ?: "Not enough data")
             InsightPanelRow("Completion trend", if (previousTasks.isEmpty()) "No prior week" else "${if (trendPoints > 0) "↑" else if (trendPoints < 0) "↓" else "→"} ${kotlin.math.abs(trendPoints)}% vs last week")

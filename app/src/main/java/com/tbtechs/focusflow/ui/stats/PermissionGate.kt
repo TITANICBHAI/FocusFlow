@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.stats
 
+import androidx.compose.ui.res.stringResource
+import com.tbtechs.focusflow.R
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -26,10 +28,10 @@ fun PermissionGate(onOpenUsageAccessSettings: () -> Unit) = Column(
     horizontalAlignment = Alignment.CenterHorizontally,
 ) {
     Icon(Icons.Outlined.PhoneAndroid, null, tint = MaterialTheme.colorScheme.tertiary)
-    Text("Unlock the 3-Month view", style = MaterialTheme.typography.headlineSmall)
-    Text("This screen uses Android UsageStats to show phone behaviour patterns. The data stays on this device.")
+    Text(stringResource(R.string.stats_unlock_the_3_month_view), style = MaterialTheme.typography.headlineSmall)
+    Text(stringResource(R.string.stats_this_screen_uses_android_usagestats))
     Button(onClick = onOpenUsageAccessSettings) {
         Icon(Icons.Outlined.Settings, null)
-        Text("Grant Usage Access")
+        Text(stringResource(R.string.stats_grant_usage_access))
     }
 }

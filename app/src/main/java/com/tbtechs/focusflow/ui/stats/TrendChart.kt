@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.stats
 
+import androidx.compose.ui.res.stringResource
+import com.tbtechs.focusflow.R
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -26,8 +28,8 @@ import java.util.Locale
 @Composable
 fun TrendChart(snapshot: AnalyticsSnapshot) = StatsCard {
     Column(modifier = Modifier.padding(12.dp)) {
-        Text("COMPLETION OVER 12 WEEKS", fontSize = 11.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
-        Text("The line is the pattern. The cards above explain it.")
+        Text(stringResource(R.string.stats_completion_over_12_weeks), fontSize = 11.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+        Text(stringResource(R.string.stats_the_line_is_the_pattern))
         val points = snapshot.trends?.weekByWeek.orEmpty()
         val chartPoints = points.filter { it.hasData }
         if (chartPoints.isEmpty()) {
@@ -117,7 +119,10 @@ fun TrendChart(snapshot: AnalyticsSnapshot) = StatsCard {
                 }
             }
         }
-        Text("${snapshot.trends?.weeksWithData ?: 0} weeks with data", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(stringResource(
+            if ((snapshot.trends?.weeksWithData ?: 0) == 1) R.string.stats_weeks_with_data_one else R.string.stats_weeks_with_data_many,
+            snapshot.trends?.weeksWithData ?: 0,
+        ), color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

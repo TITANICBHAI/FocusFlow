@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.stats.phone
 
+import androidx.compose.ui.res.stringResource
+import com.tbtechs.focusflow.R
 import android.app.Activity
 import com.tbtechs.focusflow.ui.theme.scaledSp
 import android.content.ActivityNotFoundException
@@ -59,15 +61,16 @@ private fun PhoneHabitsCard(report: PhoneReport, window: String, onOpenHabits: (
     val hero = screenTimeHero(screen, window)
     val unlocks = unlocksHero(report.behaviour, window)
     val context = LocalContext.current
+    val habitsDescription = stringResource(R.string.stats_phone_habits_screen_time, hero.value)
 
     StatsCard {
         Column(
-            Modifier.padding(16.dp).semantics { contentDescription = "Phone habits: screen time ${hero.value}" },
+            Modifier.padding(16.dp).semantics { contentDescription = habitsDescription },
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Phone habits", modifier = Modifier.weight(1f), fontSize = 16.scaledSp, fontWeight = FontWeight.ExtraBold)
-                TextButton(onClick = { shareText(context, shareSummaryText(report, window)) }) { Text("Share") }
+                Text(stringResource(R.string.stats_phone_habits), modifier = Modifier.weight(1f), fontSize = 16.scaledSp, fontWeight = FontWeight.ExtraBold)
+                TextButton(onClick = { shareText(context, shareSummaryText(report, window)) }) { Text(stringResource(R.string.stats_share)) }
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 PhoneHabitTile(hero.value, if (single) "Screen on" else "Screen on a day", StatsBlue, Modifier.weight(1f))
@@ -81,7 +84,7 @@ private fun PhoneHabitsCard(report: PhoneReport, window: String, onOpenHabits: (
             if (single) {
                 HourBars(
                     values = screen.screenOnByHourAvgMs.map { it.toFloat() },
-                    contentDescription = "Bar chart of screen-on time for each hour of the day",
+                    contentDescription = stringResource(R.string.stats_bar_chart_of_screen_on),
                     highlightIndex = screen.peakHour,
                     height = 56.dp,
                 )
@@ -89,11 +92,11 @@ private fun PhoneHabitsCard(report: PhoneReport, window: String, onOpenHabits: (
                 val shown = screen.days.takeLast(30)
                 DayBars(
                     points = toDayBarPoints(shown, screen.highest?.date),
-                    contentDescription = "Bar chart of screen time for each of the last ${shown.size} days",
+                    contentDescription = stringResource(R.string.stats_bar_chart_of_screen_time, shown.size),
                     height = 56.dp,
                 )
             }
-            TextButton(onClick = onOpenHabits, modifier = Modifier.fillMaxWidth()) { Text("See your habits  →") }
+            TextButton(onClick = onOpenHabits, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.stats_see_your_habits)) }
         }
     }
 }

@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.stats
 
+import androidx.compose.ui.res.stringResource
+import com.tbtechs.focusflow.R
 import androidx.compose.foundation.background
 import com.tbtechs.focusflow.ui.theme.scaledSp
 import androidx.compose.foundation.horizontalScroll
@@ -110,7 +112,7 @@ fun StatsInsightsExperience(
                     IconButton(onClick = onReport) {
                         Icon(
                             imageVector = Icons.Outlined.ArrowBack,
-                            contentDescription = "Back to Report",
+                            contentDescription = stringResource(R.string.stats_back_to_report),
                             tint = DarkTextPrimary,
                         )
                     }
@@ -202,7 +204,7 @@ fun StatsInsightsExperience(
                                         TaskSummary(loaded)
                                         TaskResultList(
                                             loaded,
-                                            title = "TODAY'S TASKS",
+                                            title = stringResource(R.string.stats_today_s_tasks),
                                             emptyMessage = "No tasks were recorded today.",
                                         )
                                     }
@@ -285,14 +287,14 @@ private fun AnalyticsWindowTabs(
 @Composable
 private fun LoadingStats() = Column(modifier = androidx.compose.ui.Modifier.fillMaxSize()) {
     CircularProgressIndicator()
-    Text("Reading your local history…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Text(stringResource(R.string.stats_reading_your_local_history), color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
 @Composable
 private fun ErrorStats(onRetry: () -> Unit) = Column(modifier = androidx.compose.ui.Modifier.fillMaxSize()) {
-    Text("Stats unavailable", style = MaterialTheme.typography.headlineSmall)
-    Text("FocusFlow could not read this period. Return to the view to try again.")
-    androidx.compose.material3.Button(onClick = onRetry) { Text("Try again") }
+    Text(stringResource(R.string.stats_stats_unavailable), style = MaterialTheme.typography.headlineSmall)
+    Text(stringResource(R.string.stats_focusflow_could_not_read_this))
+    androidx.compose.material3.Button(onClick = onRetry) { Text(stringResource(R.string.stats_try_again)) }
 }
 
 private fun windowSubtitle(window: AnalyticsWindow): String = when (window) {

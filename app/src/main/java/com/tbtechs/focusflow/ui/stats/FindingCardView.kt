@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.stats
 
+import androidx.compose.ui.res.stringResource
+import com.tbtechs.focusflow.R
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -45,7 +47,7 @@ fun FindingCardView(
     pendingLimit?.let { action ->
         AlertDialog(
             onDismissRequest = { pendingLimit = null },
-            title = { Text("Set a daily limit?", fontSize = 18.sp, fontWeight = FontWeight.Bold) },
+            title = { Text(stringResource(R.string.stats_set_a_daily_limit), fontSize = 18.sp, fontWeight = FontWeight.Bold) },
             text = {
                 Text(
                     "${finding.subjectAppName ?: "This app"} will be blocked for the rest of the day " +
@@ -62,10 +64,10 @@ fun FindingCardView(
                         onSetLimit(action.packageName, action.minutes ?: 0)
                         pendingLimit = null
                     },
-                ) { Text("Set limit") }
+                ) { Text(stringResource(R.string.stats_set_limit)) }
             },
             dismissButton = {
-                TextButton(onClick = { pendingLimit = null }) { Text("Cancel") }
+                TextButton(onClick = { pendingLimit = null }) { Text(stringResource(R.string.home_cancel)) }
             },
         )
     }
@@ -138,12 +140,12 @@ fun FindingCardView(
                     TextButton(
                         onClick = { onIntentional(finding.id, finding.evidenceFingerprint) },
                     ) {
-                        Text("I chose this", fontSize = 13.sp, color = DarkTextSecondary)
+                        Text(stringResource(R.string.stats_i_chose_this), fontSize = 13.sp, color = DarkTextSecondary)
                     }
                     TextButton(
                         onClick = { onAware(finding.id, finding.evidenceFingerprint) },
                     ) {
-                        Text("I didn't know", fontSize = 13.sp, color = BrandPrimary)
+                        Text(stringResource(R.string.stats_i_didn_t_know), fontSize = 13.sp, color = BrandPrimary)
                     }
                 }
             }

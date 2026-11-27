@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.stats
 
+import androidx.compose.ui.res.stringResource
+import com.tbtechs.focusflow.R
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,6 +26,6 @@ fun UnavailableGate() = Column(
     horizontalAlignment = Alignment.CenterHorizontally,
 ) {
     Icon(Icons.Outlined.PhoneAndroid, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-    Text("3-Month view unavailable", style = MaterialTheme.typography.headlineSmall)
-    Text("This build cannot read Android hourly UsageStats yet. Use a FocusFlow Android build with UsageStats support to unlock phone behaviour patterns.")
+    Text(stringResource(R.string.stats_3_month_view_unavailable), style = MaterialTheme.typography.headlineSmall)
+    Text(stringResource(R.string.stats_this_build_cannot_read_android))
 }

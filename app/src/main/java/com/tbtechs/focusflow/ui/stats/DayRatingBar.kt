@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.stats
 
+import androidx.compose.ui.res.stringResource
+import com.tbtechs.focusflow.R
 import androidx.compose.animation.AnimatedVisibility
 import com.tbtechs.focusflow.ui.theme.scaledSp
 import androidx.compose.animation.expandVertically
@@ -223,7 +225,7 @@ fun DayRatingBar(
                     ) {
                         if (ratableDates.isEmpty()) {
                             DropdownMenuItem(
-                                text = { Text("No other days yet", fontSize = 13.scaledSp) },
+                                text = { Text(stringResource(R.string.stats_no_other_days_yet), fontSize = 13.scaledSp) },
                                 onClick = { dateMenuOpen = false },
                             )
                         } else {
@@ -271,7 +273,7 @@ fun DayRatingBar(
                         color = DarkTextSecondary,
                     )
                     TextButton(onClick = { isEditing = true }) {
-                        Text("Edit rating")
+                        Text(stringResource(R.string.stats_edit_rating))
                     }
                 }
             } else {
@@ -314,7 +316,7 @@ fun DayRatingBar(
                 ) {
                     Column {
                         Spacer(Modifier.height(10.dp))
-                        Text("Any context? (optional)", fontSize = 12.scaledSp, color = DarkTextSecondary)
+                        Text(stringResource(R.string.stats_any_context_optional), fontSize = 12.scaledSp, color = DarkTextSecondary)
                         Spacer(Modifier.height(4.dp))
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             listOf(
@@ -433,7 +435,7 @@ fun DayRatingBar(
                                 onClick = { isEditing = false },
                                 modifier = Modifier.fillMaxWidth(),
                             ) {
-                                Text("Done")
+                                Text(stringResource(R.string.photo_mgmt_done))
                             }
                         }
                         if (saveMessage.isNotBlank()) {
@@ -453,8 +455,8 @@ fun DayRatingBar(
     pendingDate?.let { targetDate ->
         AlertDialog(
             onDismissRequest = { pendingDate = null },
-            title = { Text("Discard unsaved rating?") },
-            text = { Text("Your rating, context, tags, and note have not been saved.") },
+            title = { Text(stringResource(R.string.stats_discard_unsaved_rating)) },
+            text = { Text(stringResource(R.string.stats_your_rating_context_tags_and)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -462,12 +464,12 @@ fun DayRatingBar(
                         onSelectDate(targetDate)
                     },
                 ) {
-                    Text("Discard & change date")
+                    Text(stringResource(R.string.stats_discard_change_date))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { pendingDate = null }) {
-                    Text("Keep editing")
+                    Text(stringResource(R.string.stats_keep_editing))
                 }
             },
         )

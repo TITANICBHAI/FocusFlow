@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.stats
 
+import androidx.compose.ui.res.stringResource
+import com.tbtechs.focusflow.R
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -178,7 +180,7 @@ fun ReportScreen(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(loadError ?: "Could not load this report.")
                         Button(onClick = { scope.launch { reloadReport() } }) {
-                            Text("Try again")
+                            Text(stringResource(R.string.stats_try_again))
                         }
                     }
                 }
@@ -191,12 +193,12 @@ fun ReportScreen(
                 ) {
                     item {
                         Card {
-                            Text("THE TAKEAWAY", style = MaterialTheme.typography.labelLarge)
+                            Text(stringResource(R.string.stats_the_takeaway), style = MaterialTheme.typography.labelLarge)
                             Text(reportHeadline(reportTasks, baseline), style = MaterialTheme.typography.headlineSmall)
                             Text(if (reportTasks.isEmpty()) "Not enough variation to call out a pattern — steady as it goes." else "Your report is based entirely on this device’s local task history.")
                         }
                         Card {
-                            Text("Summary", style = MaterialTheme.typography.titleMedium)
+                            Text(stringResource(R.string.stats_summary), style = MaterialTheme.typography.titleMedium)
                             Row {
                                 ReportStat(reportTasks.size.toString(), "tasks")
                                 if (reportType == ReportType.Week) {
@@ -213,19 +215,19 @@ fun ReportScreen(
                             }
                         }
                         Card {
-                            Text("Your note", style = MaterialTheme.typography.titleMedium)
-                            Text("Optional. Saved when you leave the field.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(stringResource(R.string.stats_your_note), style = MaterialTheme.typography.titleMedium)
+                            Text(stringResource(R.string.stats_optional_saved_when_you_leave), color = MaterialTheme.colorScheme.onSurfaceVariant)
                             OutlinedTextField(
                                 value = note,
                                 onValueChange = { note = it },
-                                label = { Text("What do you want to remember?") },
+                                label = { Text(stringResource(R.string.stats_what_do_you_want_to)) },
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .onFocusChanged { state -> if (!state.isFocused) saveNote() },
                             )
                         }
                         Card {
-                            Text("Task timeline", style = MaterialTheme.typography.titleMedium)
+                            Text(stringResource(R.string.stats_task_timeline), style = MaterialTheme.typography.titleMedium)
                             reportDays(range.first, range.second, reportTasks).forEach { (date, dayTasks) ->
                                 if (reportType == ReportType.Week) {
                                     val completedMinutes = dayTasks
@@ -237,10 +239,10 @@ fun ReportScreen(
                                             "${completedMinutes}m focus",
                                     )
                                     weekNotes[date.toString()]?.let {
-                                        Text("Note: $it", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text(stringResource(R.string.stats_note, it), color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
                                 }
-                                if (dayTasks.isEmpty()) Text("No tasks scheduled.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                if (dayTasks.isEmpty()) Text(stringResource(R.string.stats_no_tasks_scheduled), color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 else dayTasks.forEach { TaskTimelineRow(it) }
                             }
                         }

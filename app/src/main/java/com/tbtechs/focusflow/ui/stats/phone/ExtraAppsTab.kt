@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.stats.phone
 
+import androidx.compose.ui.res.stringResource
+import com.tbtechs.focusflow.R
 import androidx.compose.foundation.clickable
 import com.tbtechs.focusflow.ui.theme.scaledSp
 import androidx.compose.foundation.layout.Arrangement
@@ -42,14 +44,14 @@ internal fun ExtraAppsTab(report: PhoneReport, onBlockApp: (String?) -> Unit, mo
     ExtraTabList(modifier) {
         item {
             TextButton(onClick = { sort = AppSort.entries[(sort.ordinal + 1) % AppSort.entries.size] }) {
-                Text("Sort: ${sort.label}")
+                Text(stringResource(R.string.stats_sort, appSortLabel(sort)))
             }
         }
 
         if (section.apps.isEmpty()) {
-            item { ExtraCard("Apps") { PhoneMutedNote("No app usage recorded for this period.") } }
+            item { ExtraCard(stringResource(R.string.stats_apps)) { PhoneMutedNote(stringResource(R.string.stats_no_app_usage_recorded)) } }
         } else {
-            item { PhoneSectionTitle("Apps") }
+            item { PhoneSectionTitle(stringResource(R.string.stats_apps)) }
             items(visible, key = { it.packageName }) { app ->
                 AppCard(
                     app = app,
@@ -61,16 +63,16 @@ internal fun ExtraAppsTab(report: PhoneReport, onBlockApp: (String?) -> Unit, mo
             }
             if (sorted.size > visible.size) {
                 item {
-                    TextButton(onClick = { showAll = true }) { Text("Show more") }
+                    TextButton(onClick = { showAll = true }) { Text(stringResource(R.string.stats_show_more)) }
                 }
             }
 
             if (section.categories.isNotEmpty()) {
                 item {
-                    ExtraCard("Categories") {
+                    ExtraCard(stringResource(R.string.stats_categories)) {
                         section.categories.forEach { c ->
                             ShareRow(
-                                title = c.category.label,
+                                title = usageCategoryLabel(c.category),
                                 subtitle = PhoneText.duration(c.totalMs),
                                 fraction = (c.sharePercent / 100.0).toFloat().coerceIn(0f, 1f),
                                 trailing = PhoneText.percent(Math.round(c.sharePercent).toInt()),
@@ -83,10 +85,10 @@ internal fun ExtraAppsTab(report: PhoneReport, onBlockApp: (String?) -> Unit, mo
             val periods = section.periods.filter { it.totalMs > 0L }
             if (periods.isNotEmpty()) {
                 item {
-                    ExtraCard("Time of day") {
+                    ExtraCard(stringResource(R.string.stats_time_of_day)) {
                         periods.forEach { p ->
                             ShareRow(
-                                title = p.period.label,
+                                title = phonePeriodLabel(p.period),
                                 subtitle = p.topApps.firstOrNull()?.appName,
                                 fraction = (p.sharePercent / 100.0).toFloat().coerceIn(0f, 1f),
                                 trailing = PhoneText.percent(Math.round(p.sharePercent).toInt()),
@@ -101,38 +103,39 @@ internal fun ExtraAppsTab(report: PhoneReport, onBlockApp: (String?) -> Unit, mo
 
 @Composable
 private fun AppCard(app: AppUsageRow, isExpanded: Boolean, report: PhoneReport, onBlockApp: (String?) -> Unit, onToggle: () -> Unit) {
+    val expandedStateText = stringResource(if (isExpanded) R.string.settings_expanded else R.string.settings_collapsed)
     StatsCard {
         Column(
             Modifier
-                .clickable(onClickLabel = if (isExpanded) "Collapse details" else "Show details", role = Role.Button, onClick = onToggle)
-                .semantics { stateDescription = if (isExpanded) "Expanded" else "Collapsed" }
+                .clickable(onClickLabel = stringResource(if (isExpanded) R.string.stats_collapse_details else R.string.stats_show_details), role = Role.Button, onClick = onToggle)
+                .semantics { stateDescription = expandedStateText }
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Text(app.appName, fontSize = 16.scaledSp, fontWeight = FontWeight.SemiBold)
-            Text(app.category.label, fontSize = 12.scaledSp, color = DarkTextMuted)
+            Text(usageCategoryLabel(app.category), fontSize = 12.scaledSp, color = DarkTextMuted)
             Text(appRowSummary(app), fontSize = 13.scaledSp)
             trendText(app)?.let { Text(it, fontSize = 12.scaledSp, color = DarkTextMuted) }
 
             if (isExpanded) {
-                PhoneSectionTitle("Session length", Modifier.padding(top = 8.dp))
+                PhoneSectionTitle(stringResource(R.string.stats_session_length), Modifier.padding(top = 8.dp))
                 BucketBars(
                     counts = app.sessionBucketCounts,
                     labels = PhoneBuckets.LABELS,
-                    contentDescription = "Number of sessions of ${app.appName} by length",
+                    contentDescription = stringResource(R.string.stats_number_of_sessions_of_by, app.appName),
                 )
-                PhoneSectionTitle("Time of day (minutes)", Modifier.padding(top = 8.dp))
+                PhoneSectionTitle(stringResource(R.string.stats_time_of_day_minutes), Modifier.padding(top = 8.dp))
                 BucketBars(
                     counts = periodMinutes(app),
-                    labels = periodBarLabels(),
-                    contentDescription = "Minutes of ${app.appName} by time of day",
+                    labels = phonePeriodLabels(),
+                    contentDescription = stringResource(R.string.stats_minutes_of_by_time_of, app.appName),
                 )
                 val daily = appDailyPoints(app, report.screenTime.days)
                 if (daily.isNotEmpty()) {
-                    PhoneSectionTitle("Last days", Modifier.padding(top = 8.dp))
-                    DayBars(points = daily, contentDescription = "Daily time in ${app.appName} over the last ${daily.size} days")
+                    PhoneSectionTitle(stringResource(R.string.stats_last_days)), Modifier.padding(top = 8.dp))
+                    DayBars(points = daily, contentDescription = stringResource(R.string.stats_daily_time_in_over_the, app.appName, daily.size))
                 }
-                TextButton(onClick = { onBlockApp(app.packageName) }) { Text("Block this app") }
+                TextButton(onClick = { onBlockApp(app.packageName) }) { Text(stringResource(R.string.stats_block_this_app)) }
             }
         }
     }

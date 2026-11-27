@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.stats
 
+import androidx.compose.ui.res.stringResource
+import com.tbtechs.focusflow.R
 import androidx.compose.foundation.background
 import com.tbtechs.focusflow.ui.theme.scaledSp
 import androidx.compose.foundation.border
@@ -254,7 +256,7 @@ private fun StatsHeader(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text("Stats", fontSize = 28.scaledSp, fontWeight = FontWeight.Bold, color = DarkTextPrimary)
+            Text(stringResource(R.string.tab_stats), fontSize = 28.scaledSp, fontWeight = FontWeight.Bold, color = DarkTextPrimary)
             Text(
                 statsSubtitle(window, weekViewMode, weekStartDay),
                 fontSize = 13.scaledSp,
@@ -276,7 +278,7 @@ private fun ExtraButton(onClick: () -> Unit) {
     ) {
         Icon(Icons.Outlined.Analytics, contentDescription = null)
         Spacer(Modifier.width(8.dp))
-        Text("Extra · apps, habits & nudges")
+        Text(stringResource(R.string.stats_extra_apps_habits_nudges))
     }
 }
 
@@ -319,7 +321,7 @@ private fun WeekModeMenu(
         ) {
             Icon(
                 Icons.Outlined.MoreVert,
-                contentDescription = "Choose week range",
+                contentDescription = stringResource(R.string.stats_choose_week_range),
                 tint = DarkTextSecondary,
             )
         }
@@ -328,7 +330,7 @@ private fun WeekModeMenu(
             onDismissRequest = { expanded = false },
         ) {
             DropdownMenuItem(
-                text = { Text("Last 7 days") },
+                text = { Text(stringResource(R.string.stats_last_7_days)) },
                 onClick = {
                     expanded = false
                     onSelect(WEEK_MODE_DYNAMIC)
@@ -366,7 +368,7 @@ private fun TodayReport(snapshot: AnalyticsSnapshot) {
             fontWeight = FontWeight.Bold,
             color = BrandPrimary,
         )
-        Text("focus time today", color = DarkTextSecondary)
+        Text(stringResource(R.string.stats_focus_time_today), color = DarkTextSecondary)
         Spacer(Modifier.height(16.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             StatTile("${snapshot.sessions.total}", "Sessions", BrandPrimary)
@@ -382,7 +384,7 @@ private fun TodayReport(snapshot: AnalyticsSnapshot) {
 private fun YesterdayReport(snapshot: AnalyticsSnapshot) {
     ArchivedCard {
         Icon(Icons.Outlined.CalendarMonth, null, tint = BrandPrimary, modifier = Modifier.size(26.dp))
-        Text("Yesterday's report", fontSize = 20.scaledSp, fontWeight = FontWeight.Bold, color = DarkTextPrimary)
+        Text(stringResource(R.string.stats_yesterday_s_report), fontSize = 20.scaledSp, fontWeight = FontWeight.Bold, color = DarkTextPrimary)
         Text(
             "${snapshot.tasks.completed} of ${snapshot.tasks.total} tasks completed",
             color = DarkTextSecondary,
@@ -466,7 +468,7 @@ private fun AllTimeReport(snapshot: AnalyticsSnapshot, lifetime: LifetimeStats?)
             fontWeight = FontWeight.Bold,
             color = BrandPrimary,
         )
-        Text("total focus time", color = DarkTextSecondary)
+        Text(stringResource(R.string.stats_total_focus_time), color = DarkTextSecondary)
         Spacer(Modifier.height(16.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             StatTile("${lifetime?.completedTasks ?: snapshot.tasks.completed}", "Tasks", Color(0xFF55C98A))
@@ -478,7 +480,7 @@ private fun AllTimeReport(snapshot: AnalyticsSnapshot, lifetime: LifetimeStats?)
 
 @Composable
 private fun TaskBreakdown(snapshot: AnalyticsSnapshot) {
-    Text("Task breakdown", fontSize = 13.scaledSp, fontWeight = FontWeight.SemiBold, color = DarkTextPrimary)
+    Text(stringResource(R.string.stats_task_breakdown), fontSize = 13.scaledSp, fontWeight = FontWeight.SemiBold, color = DarkTextPrimary)
     BreakdownRow("Completed", snapshot.tasks.completed, Color(0xFF55C98A), snapshot.tasks.total)
     BreakdownRow("Remaining", (snapshot.tasks.total - snapshot.tasks.completed - snapshot.tasks.skipped - snapshot.tasks.missed).coerceAtLeast(0), BrandPrimary, snapshot.tasks.total)
     BreakdownRow("Skipped", snapshot.tasks.skipped, DarkTextMuted, snapshot.tasks.total)
@@ -559,7 +561,7 @@ private fun UsageAccessCard(
         Row(verticalAlignment = Alignment.Top) {
             Icon(Icons.Outlined.Settings, null, tint = BrandPrimary, modifier = Modifier.size(21.dp))
             Column(modifier = Modifier.weight(1f).padding(start = 10.dp)) {
-                Text("Connect device usage", fontWeight = FontWeight.SemiBold, color = DarkTextPrimary)
+                Text(stringResource(R.string.stats_connect_device_usage), fontWeight = FontWeight.SemiBold, color = DarkTextPrimary)
                 Text(
                     "Allow Usage Access to see phone time and habits. Focus stats work without it.",
                     fontSize = 12.scaledSp,
@@ -572,7 +574,7 @@ private fun UsageAccessCard(
                 contentPadding = PaddingValues(horizontal = 10.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = BrandPrimary),
             ) {
-                Text("Open", fontSize = 12.scaledSp)
+                Text(stringResource(R.string.stats_open), fontSize = 12.scaledSp)
             }
         }
     }
@@ -724,7 +726,7 @@ private fun DeviceUsageCard(
                     color = DarkTextPrimary,
                     modifier = Modifier.weight(1f),
                 )
-                Text("minutes · launches", fontSize = 12.scaledSp, color = DarkTextMuted)
+                Text(stringResource(R.string.stats_minutes_launches), fontSize = 12.scaledSp, color = DarkTextMuted)
             }
             val maxMinutes = usage.apps.firstOrNull()?.minutes?.coerceAtLeast(1.0) ?: 1.0
             usage.apps.take(5).forEachIndexed { index, app ->
@@ -957,7 +959,7 @@ private fun BlockingReport(
     ArchivedCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Outlined.Security, null, tint = SunAmber, modifier = Modifier.size(22.dp))
-            Text("Blocked attempts", modifier = Modifier.padding(start = 8.dp), fontWeight = FontWeight.SemiBold, color = DarkTextPrimary)
+            Text(stringResource(R.string.stats_blocked_attempts), modifier = Modifier.padding(start = 8.dp), fontWeight = FontWeight.SemiBold, color = DarkTextPrimary)
         }
         Text(
             "${snapshot.blocking.totalAttempts} app opening${if (snapshot.blocking.totalAttempts == 1) "" else "s"} intercepted in this period.",
@@ -982,7 +984,7 @@ private fun BlockingReport(
                         .padding(vertical = 4.dp),
                 ) {
                     Text(app.appName, color = DarkTextPrimary, fontWeight = FontWeight.Medium)
-                    Text("${app.count} attempts", fontSize = 11.scaledSp, color = DarkTextSecondary)
+                    Text(stringResource(if (app.count == 1) R.string.stats_attempts_one else R.string.stats_attempts_many, app.count), fontSize = 11.scaledSp, color = DarkTextSecondary)
                 }
             }
         }
@@ -990,7 +992,7 @@ private fun BlockingReport(
             onClick = onOpenActiveBlocks,
             modifier = Modifier.padding(top = 10.dp),
         ) {
-            Text("Open active blocks")
+            Text(stringResource(R.string.stats_open_active_blocks))
         }
     }
 }
@@ -1027,7 +1029,7 @@ private fun StatsLoadingState() {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             CircularProgressIndicator(color = BrandPrimary)
             Spacer(Modifier.height(14.dp))
-            Text("Reading your local history…", color = DarkTextSecondary)
+            Text(stringResource(R.string.stats_reading_your_local_history), color = DarkTextSecondary)
         }
     }
 }
@@ -1040,13 +1042,13 @@ private fun StatsErrorState(onRetry: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Icon(Icons.Outlined.Analytics, null, tint = DarkTextMuted, modifier = Modifier.size(42.dp))
-            Text("Stats unavailable", fontSize = 20.scaledSp, color = DarkTextPrimary)
+            Text(stringResource(R.string.stats_stats_unavailable), fontSize = 20.scaledSp, color = DarkTextPrimary)
             Text(
                 "FocusFlow could not read this period. Try again without leaving the tab.",
                 color = DarkTextSecondary,
             )
             Button(onClick = onRetry, modifier = Modifier.padding(top = 12.dp)) {
-                Text("Try again")
+                Text(stringResource(R.string.stats_try_again))
             }
         }
     }
@@ -1057,13 +1059,13 @@ private fun StatsPermissionState(onOpenUsageAccessSettings: () -> Unit) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         ArchivedCard {
             Icon(Icons.Outlined.Settings, null, tint = BrandPrimary, modifier = Modifier.size(28.dp))
-            Text("Connect device usage", fontSize = 20.scaledSp, fontWeight = FontWeight.Bold, color = DarkTextPrimary)
+            Text(stringResource(R.string.stats_connect_device_usage), fontSize = 20.scaledSp, fontWeight = FontWeight.Bold, color = DarkTextPrimary)
             Text(
                 "This report needs Android Usage Access to read phone behaviour. Nothing leaves the device.",
                 color = DarkTextSecondary,
             )
             Button(onClick = onOpenUsageAccessSettings, modifier = Modifier.padding(top = 12.dp)) {
-                Text("Grant Usage Access")
+                Text(stringResource(R.string.stats_grant_usage_access))
             }
         }
     }

@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.stats
 
+import androidx.compose.ui.res.stringResource
+import com.tbtechs.focusflow.R
 import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -79,7 +81,7 @@ internal fun ReflexAppCard(
             modifier = Modifier.padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text("YOU SAID YOU OPEN THIS WITHOUT DECIDING", style = MaterialTheme.typography.labelLarge)
+            Text(stringResource(R.string.stats_you_said_you_open_this), style = MaterialTheme.typography.labelLarge)
             Text(app.appName, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Text(
                 "If opening it is a reflex, a short block gives you a pause before you do.",
@@ -92,9 +94,9 @@ internal fun ReflexAppCard(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Button(onClick = { onBlock(app.packageName) }, modifier = Modifier.weight(1f)) {
-                    Text("Block ${app.appName} now", fontSize = 13.sp, maxLines = 1)
+                    Text(stringResource(R.string.stats_block_now, app.appName), fontSize = 13.sp, maxLines = 1)
                 }
-                TextButton(onClick = onDismiss) { Text("Not now", fontSize = 13.sp) }
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.stats_not_now), fontSize = 13.sp) }
             }
         }
     }

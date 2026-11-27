@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.stats
 
+import androidx.compose.ui.res.stringResource
+import com.tbtechs.focusflow.R
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -199,7 +201,7 @@ fun ColdStartSheet(
                         onClick = { advance() },
                         enabled = !isSubmitting,
                     ) {
-                        Text("Next", color = BrandPrimary)
+                        Text(stringResource(R.string.stats_next), color = BrandPrimary)
                     }
                 } else {
                     Button(

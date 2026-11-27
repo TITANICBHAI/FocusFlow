@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.stats
 
+import androidx.compose.ui.res.stringResource
+import com.tbtechs.focusflow.R
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -39,8 +41,8 @@ fun PhoneUsageSummary(
     onQuickBlock: (String?) -> Unit = {},
 ) = StatsCard {
     Column(modifier = androidx.compose.ui.Modifier.padding(12.dp)) {
-        Text("ANDROID USAGESTATS", style = MaterialTheme.typography.labelLarge)
-        Text("ON DEVICE", color = MaterialTheme.colorScheme.secondary, style = MaterialTheme.typography.labelSmall)
+        Text(stringResource(R.string.stats_android_usagestats), style = MaterialTheme.typography.labelLarge)
+        Text(stringResource(R.string.stats_on_device), color = MaterialTheme.colorScheme.secondary, style = MaterialTheme.typography.labelSmall)
         val usage = snapshot.phoneUsage
         if (usage == null) {
             val usageUnavailable = snapshot.sourceHealth?.usageSummary?.let { it != SOURCE_LOADED } == true
@@ -137,7 +139,7 @@ private fun HourlyUsageBars(byHour: Map<Int, Double>) {
             .fillMaxWidth()
             .padding(top = 14.dp),
     ) {
-        Text("Observed time by hour", fontSize = 12.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, color = DarkTextPrimary)
+        Text(stringResource(R.string.stats_observed_time_by_hour), fontSize = 12.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, color = DarkTextPrimary)
         Row(
             modifier = Modifier
                 .fillMaxWidth()

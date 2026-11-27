@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.stats
 
+import androidx.compose.ui.res.stringResource
+import com.tbtechs.focusflow.R
 import androidx.compose.foundation.layout.Arrangement
 import com.tbtechs.focusflow.ui.theme.scaledSp
 import androidx.compose.foundation.layout.Column
@@ -125,7 +127,7 @@ internal fun StatsReadinessSection() {
             modifier = Modifier.padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Text("TURN THESE ON", style = MaterialTheme.typography.labelLarge)
+            Text(stringResource(R.string.stats_turn_these_on), style = MaterialTheme.typography.labelLarge)
             items.forEach { item ->
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(item.title, fontSize = 14.scaledSp, fontWeight = FontWeight.Bold)

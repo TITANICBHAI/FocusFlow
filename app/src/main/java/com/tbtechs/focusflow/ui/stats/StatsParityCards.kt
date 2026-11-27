@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.stats
 
+import androidx.compose.ui.res.stringResource
+import com.tbtechs.focusflow.R
 import androidx.compose.foundation.background
 import com.tbtechs.focusflow.ui.theme.scaledSp
 import androidx.compose.foundation.clickable
@@ -207,7 +209,7 @@ fun TemptationStats(
                     Icon(Icons.Outlined.Block, null, tint = MaterialTheme.colorScheme.tertiary)
                 }
                 Column {
-                    Text("DISTRACTION PATTERNS", style = MaterialTheme.typography.labelLarge)
+                    Text(stringResource(R.string.stats_distraction_patterns), style = MaterialTheme.typography.labelLarge)
                     Text(
                         "Blocked-app attempts in this period",
                         style = MaterialTheme.typography.bodySmall,
@@ -246,7 +248,7 @@ fun TemptationStats(
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.tertiary,
                         )
-                        Text("blocked attempts", style = MaterialTheme.typography.bodySmall)
+                        Text(stringResource(R.string.stats_blocked_attempts_2), style = MaterialTheme.typography.bodySmall)
                     }
                     blocking.peakHour?.let {
                         Column(horizontalAlignment = Alignment.End) {
@@ -327,7 +329,7 @@ fun AllTimeStats(
                     Icon(Icons.Outlined.Timeline, null, tint = MaterialTheme.colorScheme.primary)
                 }
                 Column {
-                    Text("ALL-TIME PROGRESS", style = MaterialTheme.typography.labelLarge)
+                    Text(stringResource(R.string.stats_all_time_progress), style = MaterialTheme.typography.labelLarge)
                     Text(
                         "Your long-term focus record",
                         style = MaterialTheme.typography.bodySmall,

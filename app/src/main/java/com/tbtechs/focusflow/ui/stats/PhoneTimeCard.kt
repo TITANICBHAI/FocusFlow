@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.stats
 
+import androidx.compose.ui.res.stringResource
+import com.tbtechs.focusflow.R
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -47,7 +49,7 @@ internal fun PhoneTimeCard(
             modifier = Modifier.padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Text("WHERE YOUR PHONE TIME WENT", style = MaterialTheme.typography.labelLarge)
+            Text(stringResource(R.string.stats_where_your_phone_time_went), style = MaterialTheme.typography.labelLarge)
             Text(
                 buildString {
                     append(minutesLabel(total))
@@ -73,7 +75,7 @@ internal fun PhoneTimeCard(
                     val packageName = app.packageName
                     if (packageName != null) {
                         TextButton(onClick = { onBlockApp(packageName) }) {
-                            Text("Block", fontSize = 13.sp)
+                            Text(stringResource(R.string.stats_block), fontSize = 13.sp)
                         }
                     }
                 }

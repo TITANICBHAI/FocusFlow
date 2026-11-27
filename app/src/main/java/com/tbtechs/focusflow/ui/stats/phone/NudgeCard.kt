@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.stats.phone
 
+import androidx.compose.ui.res.stringResource
+import com.tbtechs.focusflow.R
 import android.content.Context
 import com.tbtechs.focusflow.ui.theme.scaledSp
 import android.content.Intent
@@ -90,8 +92,8 @@ internal fun NudgeCard(modifier: Modifier = Modifier, promoOnly: Boolean = false
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Icon(Icons.Outlined.NotificationsActive, null, tint = StatsBlue, modifier = Modifier.size(24.dp))
                 Column(Modifier.weight(1f)) {
-                    Text("Nudges", fontSize = 16.scaledSp, fontWeight = FontWeight.ExtraBold)
-                    Text("A heads-up before the hours you slip", fontSize = 12.scaledSp, color = DarkTextMuted)
+                    Text(stringResource(R.string.stats_nudges), fontSize = 16.scaledSp, fontWeight = FontWeight.ExtraBold)
+                    Text(stringResource(R.string.stats_a_heads_up_before_the), fontSize = 12.scaledSp, color = DarkTextMuted)
                 }
                 Switch(checked = enabled, onCheckedChange = toggle, colors = focusSwitchColors(StatsBlue))
             }
@@ -121,7 +123,7 @@ internal fun NudgeCard(modifier: Modifier = Modifier, promoOnly: Boolean = false
                     TextButton(
                         onClick = { openNotificationSettings(context) },
                         modifier = Modifier.fillMaxWidth(),
-                    ) { Text("Notifications are off — allow them") }
+                    ) { Text(stringResource(R.string.stats_notifications_are_off_allow_them)) }
                 }
             }
         }

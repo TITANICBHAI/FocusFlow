@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.stats
 
+import androidx.compose.ui.res.stringResource
+import com.tbtechs.focusflow.R
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -55,7 +57,7 @@ fun FindingsSection(
     if (dayCount < 14) {
         StatsCard {
             Column(modifier = Modifier.padding(12.dp)) {
-                Text("Building your baseline", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.stats_building_your_baseline), fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(4.dp))
                 Text(
                     "Behavioural findings appear after 14 days of history.",
@@ -103,7 +105,7 @@ fun FindingsSection(
     if (activeFindings.isEmpty() && pendingQuestion == null) {
         StatsCard {
             Column(modifier = Modifier.padding(12.dp)) {
-                Text("Nothing to flag", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.stats_nothing_to_flag), fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(4.dp))
                 Text(
                     "No unusual patterns detected. Nothing to report.",

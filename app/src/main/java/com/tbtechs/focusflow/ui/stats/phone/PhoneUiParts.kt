@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.stats.phone
 
+import androidx.compose.ui.res.stringResource
+import com.tbtechs.focusflow.R
 import androidx.compose.foundation.background
 import com.tbtechs.focusflow.ui.theme.scaledSp
 import androidx.compose.foundation.layout.Arrangement
@@ -87,12 +89,12 @@ internal fun PhoneStateMessage(
         ) {
             CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
             Spacer(Modifier.width(10.dp))
-            Text("Loading phone habits…", fontSize = 13.scaledSp, color = DarkTextMuted)
+            Text(stringResource(R.string.stats_loading_phone_habits), fontSize = 13.scaledSp, color = DarkTextMuted)
         }
         PhoneReportUiState.PermissionNeeded -> StatsCard(modifier) {
             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Usage access is needed to analyse phone habits.", fontSize = 14.scaledSp)
-                Button(onClick = onOpenUsageAccessSettings) { Text("Open settings") }
+                Text(stringResource(R.string.stats_usage_access_is_needed_to), fontSize = 14.scaledSp)
+                Button(onClick = onOpenUsageAccessSettings) { Text(stringResource(R.string.settings_open_settings)) }
             }
         }
         PhoneReportUiState.NoData -> StatsCard(modifier) {
