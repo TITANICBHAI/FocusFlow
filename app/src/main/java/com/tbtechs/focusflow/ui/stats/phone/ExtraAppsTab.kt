@@ -132,7 +132,7 @@ private fun AppCard(app: AppUsageRow, isExpanded: Boolean, report: PhoneReport, 
                 )
                 val daily = appDailyPoints(app, report.screenTime.days)
                 if (daily.isNotEmpty()) {
-                    PhoneSectionTitle(stringResource(R.string.stats_last_days)), Modifier.padding(top = 8.dp))
+                    PhoneSectionTitle(stringResource(R.string.stats_last_days), Modifier.padding(top = 8.dp))
                     DayBars(points = daily, contentDescription = stringResource(R.string.stats_daily_time_in_over_the, app.appName, daily.size))
                 }
                 TextButton(onClick = { onBlockApp(app.packageName) }) { Text(stringResource(R.string.stats_block_this_app)) }
