@@ -23,7 +23,7 @@ import kotlinx.coroutines.withTimeoutOrNull
  *   Skip    — skips the current task
  *
  * NOTE: the live notification's buttons now open MainActivity directly
- * (TaskActionIntents), because Android 12+ blocks starting an activity from a
+ * (TaskActionIntents), because Android 12+ can block starting an activity from a
  * receiver fired by a notification action. This receiver remains only for
  * PendingIntents that an older build already posted; its launch step below is
  * subject to that restriction.

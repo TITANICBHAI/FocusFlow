@@ -6,13 +6,13 @@ import com.tbtechs.focusflow.enforcement.NetworkBlockerVpnService
 import com.tbtechs.focusflow.enforcement.DayRatingNotificationScheduler
 import com.tbtechs.focusflow.enforcement.VpnPolicyBoundaryScheduler
 import com.tbtechs.focusflow.enforcement.VpnPolicyCoordinator
+import com.tbtechs.focusflow.data.repository.StartupLogger
 
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.os.UserManager
-import android.util.Log
 
 /**
  * BootReceiver
@@ -155,16 +155,21 @@ class BootReceiver : BroadcastReceiver() {
         }
     }
 
-    // Android 12+ can refuse a foreground-service start from a receiver (for example
-    // USER_UNLOCKED or an OEM quick-boot broadcast that has no background-start
-    // exemption). An uncaught throw here would crash the app at boot, so log it and
-    // carry on: the alarms, VPN recovery and watchdog above are already armed, and the
-    // service is started again when the user opens the app.
+    // Android 12+ can refuse a foreground-service start from a receiver, for example from
+    // USER_UNLOCKED or an OEM quick-boot broadcast that has no background-start exemption.
+    // An uncaught throw here would crash the app at boot. The refusal is written to the
+    // in-app diagnostics log instead, and the service is not retried from here because the
+    // platform would refuse again. The alarms, VPN recovery and watchdog above are already
+    // armed, and MainActivity.onStart() calls ensureRunning() the next time the app opens.
     private fun startService(context: Context, intent: Intent) {
         try {
             context.startForegroundService(intent)
         } catch (e: Exception) {
-            Log.w(TAG, "Boot recovery could not start ForegroundTaskService: ${e.javaClass.simpleName}", e)
+            StartupLogger.error(
+                TAG,
+                "Boot recovery could not start ForegroundTaskService (${e.javaClass.simpleName})",
+                e,
+            )
         }
     }
 

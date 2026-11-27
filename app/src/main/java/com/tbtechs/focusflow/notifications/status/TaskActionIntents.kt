@@ -9,9 +9,10 @@ import com.tbtechs.focusflow.enforcement.receivers.NotificationActionReceiver
 
 /**
  * Notification action buttons open [MainActivity] directly. Since Android 12 an app
- * cannot start an activity from a broadcast receiver that a notification action fired
- * (the "notification trampoline" rule), so the old broadcast-then-launch route was
- * silently blocked. [MainActivity] stores the action and replays it through the task
+ * should start an activity from a broadcast receiver that a notification action fired
+ * (the "notification trampoline" rule), and the platform can block that launch. An
+ * activity PendingIntent sent by the system from a notification tap is allowed on every
+ * supported version. [MainActivity] stores the action and replays it through the task
  * view model once the database is ready.
  */
 object TaskActionIntents {
