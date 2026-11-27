@@ -172,10 +172,16 @@
         <service
             android:name=".enforcement.NetworkBlockerVpnService"
             android:exported="false"
+            android:foregroundServiceType="specialUse"
             android:permission="android.permission.BIND_VPN_SERVICE">
             <intent-filter>
                 <action android:name="android.net.VpnService" />
             </intent-filter>
+            <!-- Android 14+ refuses startForeground() without a declared type. There is no
+                 dedicated VPN type; the permission is already declared above. -->
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="network_blocking_vpn" />
         </service>
 
         <receiver
