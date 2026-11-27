@@ -91,6 +91,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         StartupLogger.info("MainActivity", "Main activity created")
         requestedRoute = routeFromIntent(intent)
+        // A recreated activity (rotation, process restore) still holds the intent that
+        // first launched it, so only a fresh launch may queue a notification action.
+        if (savedInstanceState == null) queueNotificationAction(intent)
         focusDayRating = intent?.action == LauncherActivity.ACTION_OPEN_DAY_RATING
         if (focusDayRating) {
             dayRatingRequestNonce = savedInstanceState
@@ -119,11 +122,39 @@ class MainActivity : ComponentActivity() {
         StartupLogger.info("MainActivity", "Main activity received a new intent")
         setIntent(intent)
         requestedRoute = routeFromIntent(intent)
+        queueNotificationAction(intent)
         focusDayRating = intent.action == LauncherActivity.ACTION_OPEN_DAY_RATING
         if (focusDayRating) {
             dayRatingRequestNonce++
         }
         notificationEventNonce++
+    }
+
+    /**
+     * Stores a Done / +15m / +30m / Skip tap from the task notification so the Compose
+     * effect in [FocusFlowRoot] can replay it once the database is ready. The action is
+     * removed from the activity's intent afterwards so it cannot run twice.
+     */
+    private fun queueNotificationAction(launchIntent: Intent?) {
+        val action = launchIntent?.action ?: return
+        if (action != NotificationActionReceiver.ACTION_COMPLETE &&
+            action != NotificationActionReceiver.ACTION_EXTEND &&
+            action != NotificationActionReceiver.ACTION_SKIP
+        ) return
+        setIntent(Intent(launchIntent).apply { this.action = null })
+        // Relaunching from the recents list replays the original intent, which is not a new tap.
+        if (launchIntent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0) return
+        val taskId = launchIntent.getStringExtra(NotificationActionReceiver.EXTRA_TASK_ID)
+        if (taskId.isNullOrBlank()) return
+        getSharedPreferences(AppBlockerAccessibilityService.PREFS_NAME, MODE_PRIVATE).edit()
+            .putString(NotificationActionReceiver.PREF_PENDING_ACTION, action)
+            .putString(NotificationActionReceiver.PREF_PENDING_TASK_ID, taskId)
+            .putInt(
+                NotificationActionReceiver.PREF_PENDING_MINUTES,
+                launchIntent.getIntExtra(NotificationActionReceiver.EXTRA_MINUTES, 15),
+            )
+            .putLong(NotificationActionReceiver.PREF_PENDING_TIME_MS, System.currentTimeMillis())
+            .apply()
     }
 
     private fun onDayRatingRequestHandled(requestNonce: Int) {
@@ -396,8 +427,8 @@ private fun FocusFlowRoot(
         }
     }
 
-    // NotificationActionReceiver persists actions before launching this
-    // activity, so notification actions survive a cold process start.
+    // MainActivity.queueNotificationAction persists the tapped notification
+    // action, so it survives a cold process start until the database is ready.
     LaunchedEffect(isDbReady, notificationEventNonce) {
         if (!isDbReady) return@LaunchedEffect
         val prefs = context.getSharedPreferences(

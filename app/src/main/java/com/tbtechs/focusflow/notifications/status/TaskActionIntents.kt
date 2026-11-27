@@ -4,8 +4,16 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import com.tbtechs.focusflow.MainActivity
 import com.tbtechs.focusflow.enforcement.receivers.NotificationActionReceiver
 
+/**
+ * Notification action buttons open [MainActivity] directly. Since Android 12 an app
+ * cannot start an activity from a broadcast receiver that a notification action fired
+ * (the "notification trampoline" rule), so the old broadcast-then-launch route was
+ * silently blocked. [MainActivity] stores the action and replays it through the task
+ * view model once the database is ready.
+ */
 object TaskActionIntents {
     fun pendingIntent(
         context: Context,
@@ -18,7 +26,8 @@ object TaskActionIntents {
             StatusCardAction.EXTEND_30 -> NotificationActionReceiver.ACTION_EXTEND
             StatusCardAction.SKIP -> NotificationActionReceiver.ACTION_SKIP
         }
-        val intent = Intent(context, NotificationActionReceiver::class.java).apply {
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
             this.action = receiverAction
             data = Uri.parse(
                 "focusflow-internal://live-task/" +
@@ -27,7 +36,7 @@ object TaskActionIntents {
             putExtra(NotificationActionReceiver.EXTRA_TASK_ID, taskId)
             action.minutes?.let { putExtra(NotificationActionReceiver.EXTRA_MINUTES, it) }
         }
-        return PendingIntent.getBroadcast(
+        return PendingIntent.getActivity(
             context,
             action.requestCode,
             intent,

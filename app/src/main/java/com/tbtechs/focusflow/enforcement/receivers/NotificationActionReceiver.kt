@@ -22,6 +22,12 @@ import kotlinx.coroutines.withTimeoutOrNull
  *   +30m    — extends the task by 30 minutes
  *   Skip    — skips the current task
  *
+ * NOTE: the live notification's buttons now open MainActivity directly
+ * (TaskActionIntents), because Android 12+ blocks starting an activity from a
+ * receiver fired by a notification action. This receiver remains only for
+ * PendingIntents that an older build already posted; its launch step below is
+ * subject to that restriction.
+ *
  * Flow:
  *   User taps action → PendingIntent fires this receiver → receiver:
  *     1. Writes a "pending_notif_action" entry to SharedPrefs as a fallback
