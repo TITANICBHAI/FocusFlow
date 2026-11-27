@@ -85,8 +85,8 @@ fun PermissionCard(
     val (icon, iconBg, iconTint) = when (permission.id) {
         PermissionId.NOTIFICATIONS -> Triple(
             Icons.Outlined.Notifications,
-            if (status == PermissionStatus.GRANTED) StatusReadyBg else MaterialTheme.colorScheme.surfaceVariant,
-            if (status == PermissionStatus.GRANTED) StatusReadyText else Color(0xFF34D399),
+            if (status == PermissionStatus.GRANTED) StatusReadyBg else StatusNotSetUpBg,
+            if (status == PermissionStatus.GRANTED) StatusReadyText else StatusNotSetUpText,
         )
         PermissionId.BATTERY -> Triple(
             Icons.Outlined.BatteryChargingFull,
