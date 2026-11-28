@@ -112,7 +112,8 @@ fun ReportScreen(
             note = loaded.savedNote
             savedNote = loaded.savedNote
         }.onFailure { failure ->
-            loadError = failure.message ?: "Could not load this report."
+            // The detail is not shown (it is a system message in English); the screen shows its own text.
+            loadError = failure.message ?: ""
         }
         loading = false
     }
@@ -152,14 +153,19 @@ fun ReportScreen(
             savedNote = trimmed
         }
     }
-    val title = if (reportType == ReportType.Week) "${range.first.format(DateTimeFormatter.ofPattern("MMM d"))} – ${range.second.format(DateTimeFormatter.ofPattern("MMM d, uuuu"))}" else referenceDate.format(DateTimeFormatter.ofPattern("EEEE, MMMM d, uuuu"))
+    val title = if (reportType == ReportType.Week) {
+        "${statsDate(range.first, R.string.stats_date_pattern_month_day)} – ${statsDate(range.second, R.string.stats_date_pattern_month_day_year)}"
+    } else {
+        statsDate(referenceDate, R.string.stats_date_pattern_full)
+    }
+    val locale = statsLocale()
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Column { Text(if (reportType == ReportType.Week) "WEEKLY REPORT" else "DAILY REPORT", style = MaterialTheme.typography.labelLarge); Text(title) } },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, "Go back") } },
+                title = { Column { Text(stringResource(if (reportType == ReportType.Week) R.string.stats_report_weekly else R.string.stats_report_daily).uppercase(), style = MaterialTheme.typography.labelLarge); Text(title) } },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, stringResource(R.string.go_back)) } },
             )
         },
     ) { padding ->
@@ -178,7 +184,7 @@ fun ReportScreen(
                     contentAlignment = Alignment.Center,
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(loadError ?: "Could not load this report.")
+                        Text(stringResource(R.string.stats_report_load_failed))
                         Button(onClick = { scope.launch { reloadReport() } }) {
                             Text(stringResource(R.string.stats_try_again))
                         }
@@ -195,22 +201,22 @@ fun ReportScreen(
                         Card {
                             Text(stringResource(R.string.stats_the_takeaway), style = MaterialTheme.typography.labelLarge)
                             Text(reportHeadline(reportTasks, baseline), style = MaterialTheme.typography.headlineSmall)
-                            Text(if (reportTasks.isEmpty()) "Not enough variation to call out a pattern — steady as it goes." else "Your report is based entirely on this device’s local task history.")
+                            Text(stringResource(if (reportTasks.isEmpty()) R.string.stats_report_no_pattern else R.string.stats_report_local_history))
                         }
                         Card {
                             Text(stringResource(R.string.stats_summary), style = MaterialTheme.typography.titleMedium)
                             Row {
-                                ReportStat(reportTasks.size.toString(), "tasks")
+                                ReportStat(reportTasks.size.toString(), stringResource(R.string.stats_report_tasks))
                                 if (reportType == ReportType.Week) {
-                                    ReportStat("$completion%", "complete")
-                                    ReportStat("${focusMinutes}m", "focus")
+                                    ReportStat("$completion%", stringResource(R.string.stats_report_complete))
+                                    ReportStat(statsDuration(focusMinutes), stringResource(R.string.stats_report_focus))
                                     bestDay?.let {
-                                        ReportStat(it.format(DateTimeFormatter.ofPattern("EEE")), "best day")
+                                        ReportStat(it.format(DateTimeFormatter.ofPattern("EEE", locale)), stringResource(R.string.stats_report_best_day))
                                     }
                                 } else {
-                                    ReportStat(completed.size.toString(), "done")
-                                    ReportStat(skipped.size.toString(), "skipped")
-                                    ReportStat("${focusMinutes}m", "focus")
+                                    ReportStat(completed.size.toString(), stringResource(R.string.stats_report_done))
+                                    ReportStat(skipped.size.toString(), stringResource(R.string.stats_report_skipped))
+                                    ReportStat(statsDuration(focusMinutes), stringResource(R.string.stats_report_focus))
                                 }
                             }
                         }
@@ -234,9 +240,13 @@ fun ReportScreen(
                                         .filter { it.status == "completed" && it.focusMode }
                                         .sumOf(Task::durationMinutes)
                                     Text(
-                                        "${date.format(DateTimeFormatter.ofPattern("EEE, MMM d"))} · " +
-                                            "${dayTasks.count { it.status == "completed" }}/${dayTasks.size} complete · " +
-                                            "${completedMinutes}m focus",
+                                        stringResource(
+                                            R.string.stats_report_day_summary,
+                                            statsDate(date, R.string.home_date_pattern_short),
+                                            dayTasks.count { it.status == "completed" },
+                                            dayTasks.size,
+                                            statsDuration(completedMinutes),
+                                        ),
                                     )
                                     weekNotes[date.toString()]?.let {
                                         Text(stringResource(R.string.stats_note, it), color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -265,9 +275,9 @@ private fun TaskTimelineRow(task: Task) = Row(modifier = androidx.compose.ui.Mod
     Text(if (task.status == "completed") "✓" else if (task.status == "skipped") "—" else "○")
     Column(modifier = androidx.compose.ui.Modifier.weight(1f)) {
         Text(task.title)
-        Text("${task.reportTime()} · ${task.durationMinutes}m", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("${task.reportTime(statsLocale())} · ${statsDuration(task.durationMinutes)}", color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
-    Text(task.status.replaceFirstChar { it.titlecase() })
+    Text(taskStatusLabel(task.status))
 }
 
 private fun reportRange(type: ReportType, anchor: LocalDate): Pair<LocalDate, LocalDate> = if (type == ReportType.Day) anchor to anchor else {
@@ -284,10 +294,26 @@ private fun Task.startsIn(start: LocalDate, end: LocalDate): Boolean = runCatchi
     date in start..end
 }.getOrDefault(false)
 
-private fun Task.reportTime(): String = runCatching { Instant.parse(startTime).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("h:mm a")) }.getOrDefault(startTime)
+private fun Task.reportTime(locale: java.util.Locale): String = runCatching {
+    Instant.parse(startTime).atZone(ZoneId.systemDefault())
+        .format(DateTimeFormatter.ofLocalizedTime(java.time.format.FormatStyle.SHORT).withLocale(locale))
+}.getOrDefault(startTime)
 
-private fun reportHeadline(tasks: List<Task>, previous: List<Task>): String = when {
-    tasks.isEmpty() -> "No activity in this period"
-    tasks.count { it.status == "completed" } > previous.count { it.status == "completed" } -> "You finished more than in the comparison period"
-    else -> "A clear record of this period"
+/** Task status codes are stored in English; only the label the person reads is translated. */
+@Composable
+private fun taskStatusLabel(status: String): String = when (status) {
+    "pending" -> stringResource(R.string.task_status_pending)
+    "active" -> stringResource(R.string.task_status_active)
+    "completed" -> stringResource(R.string.task_status_completed)
+    "skipped" -> stringResource(R.string.task_status_skipped)
+    else -> status.replaceFirstChar { it.titlecase() }
 }
+
+@Composable
+private fun reportHeadline(tasks: List<Task>, previous: List<Task>): String = stringResource(
+    when {
+        tasks.isEmpty() -> R.string.stats_report_headline_none
+        tasks.count { it.status == "completed" } > previous.count { it.status == "completed" } -> R.string.stats_report_headline_more
+        else -> R.string.stats_report_headline_default
+    },
+)

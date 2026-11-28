@@ -34,7 +34,7 @@ fun TrendChart(snapshot: AnalyticsSnapshot) = StatsCard {
         val chartPoints = points.filter { it.hasData }
         if (chartPoints.isEmpty()) {
             Text(
-                "No weekly completion data yet. Finish a few tasks to see the trend.",
+                stringResource(R.string.stats_trend_no_data),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         } else {
@@ -108,9 +108,9 @@ fun TrendChart(snapshot: AnalyticsSnapshot) = StatsCard {
                         horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
                         val labels = listOfNotNull(
-                            points.firstOrNull()?.weekStart?.let(::weekLabel),
-                            points.getOrNull(points.lastIndex / 2)?.weekStart?.let(::weekLabel),
-                            points.lastOrNull()?.weekStart?.let(::weekLabel),
+                            points.firstOrNull()?.weekStart?.let { weekLabel(it) },
+                            points.getOrNull(points.lastIndex / 2)?.weekStart?.let { weekLabel(it) },
+                            points.lastOrNull()?.weekStart?.let { weekLabel(it) },
                         ).distinct()
                         labels.forEach { label ->
                             Text(label, style = MaterialTheme.typography.labelSmall)
@@ -126,7 +126,8 @@ fun TrendChart(snapshot: AnalyticsSnapshot) = StatsCard {
     }
 }
 
-private fun weekLabel(value: String): String =
-    runCatching {
-        LocalDate.parse(value).format(DateTimeFormatter.ofPattern("MMM d", Locale.getDefault()))
-    }.getOrDefault(value.take(10))
+@Composable
+private fun weekLabel(value: String): String {
+    val date = runCatching { LocalDate.parse(value) }.getOrNull() ?: return value.take(10)
+    return statsDate(date, R.string.stats_date_pattern_month_day)
+}

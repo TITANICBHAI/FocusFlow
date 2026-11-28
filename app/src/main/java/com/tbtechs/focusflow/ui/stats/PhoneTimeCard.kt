@@ -19,17 +19,9 @@ import androidx.compose.ui.unit.sp
 import com.tbtechs.focusflow.analytics.AnalyticsSnapshot
 import kotlin.math.roundToInt
 
-/** "1h 20m" / "45m". */
-internal fun minutesLabel(minutes: Double): String {
-    val total = minutes.roundToInt().coerceAtLeast(0)
-    val hours = total / 60
-    val rest = total % 60
-    return when {
-        hours == 0 -> "${rest}m"
-        rest == 0 -> "${hours}h"
-        else -> "${hours}h ${rest}m"
-    }
-}
+/** "1h 20m" / "45m", written the way the current language writes it. */
+@Composable
+internal fun minutesLabel(minutes: Double): String = statsDuration(minutes.roundToInt().coerceAtLeast(0))
 
 /**
  * The usage-first part of Stats: where the phone time actually went in this period, with a
@@ -50,11 +42,13 @@ internal fun PhoneTimeCard(
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Text(stringResource(R.string.stats_where_your_phone_time_went), style = MaterialTheme.typography.labelLarge)
+            val totalLabel = minutesLabel(total)
+            val peakLabel = statsHourLabel(usage.peakHour)
             Text(
-                buildString {
-                    append(minutesLabel(total))
-                    append(" in total")
-                    if (usage.peakHour != null) append(" · busiest around ${hourLabel(usage.peakHour)}")
+                if (peakLabel != null) {
+                    stringResource(R.string.stats_phone_in_total_busiest, totalLabel, peakLabel)
+                } else {
+                    stringResource(R.string.stats_phone_in_total, totalLabel)
                 },
                 fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

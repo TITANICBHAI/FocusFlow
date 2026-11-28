@@ -48,27 +48,25 @@ fun PhoneUsageSummary(
             val usageUnavailable = snapshot.sourceHealth?.usageSummary?.let { it != SOURCE_LOADED } == true
             Text(
                 if (usageUnavailable) {
-                    "Usage data unavailable. Grant Usage Access or try again."
+                    stringResource(R.string.stats_phone_unavailable)
                 } else {
-                    "Android returned no phone-use history for this period."
+                    stringResource(R.string.stats_phone_no_history)
                 },
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         else {
             val minutes = usage.byHour.values.sum().roundToInt()
-            Text(formatUsageMinutes(minutes), style = MaterialTheme.typography.headlineSmall, color = Color(0xFF63A7FF))
+            Text(statsDuration(minutes), style = MaterialTheme.typography.headlineSmall, color = Color(0xFF63A7FF))
             Text(
-                "Android app foreground time — FocusFlow home-screen time excluded",
+                stringResource(R.string.stats_phone_foreground_note),
                 style = MaterialTheme.typography.bodySmall,
                 color = DarkTextMuted,
             )
-            Text(
-                buildString {
-                    append(if (usage.peakHour == null) "No hourly peak was recorded." else "Heaviest use is around ${hourLabel(usage.peakHour)}.")
-                    usage.heaviestApp?.let { append(" ${it.appName} was the most-used app.") }
-                },
-            )
+            val peakLabel = statsHourLabel(usage.peakHour)
+            val peakText = if (peakLabel == null) stringResource(R.string.stats_phone_no_peak) else stringResource(R.string.stats_phone_peak, peakLabel)
+            val heaviestText = usage.heaviestApp?.let { stringResource(R.string.stats_phone_most_used, it.appName) }
+            Text(listOfNotNull(peakText, heaviestText).joinToString(" "))
             UsageComparison(
                 observedMinutes = minutes,
                 focusMinutes = snapshot.sessions.totalFocusMinutes.roundToInt(),
@@ -77,12 +75,12 @@ fun PhoneUsageSummary(
             HourlyUsageBars(usage.byHour)
             if (usage.apps.isNotEmpty()) {
                 Text(
-                    "Top apps by observed time",
+                    stringResource(R.string.stats_phone_top_apps),
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.padding(top = 14.dp),
                 )
                 Text(
-                    "minutes",
+                    stringResource(R.string.stats_phone_minutes_axis),
                     style = MaterialTheme.typography.labelSmall,
                     color = DarkTextMuted,
                     modifier = Modifier.padding(top = 2.dp),
@@ -117,9 +115,9 @@ private fun UsageComparison(
             .padding(vertical = 10.dp),
         horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceEvenly,
     ) {
-        UsageMetric(formatUsageMinutes(focusMinutes), "Focus time", BrandPrimary)
-        UsageMetric(ratio?.let { "$it%" } ?: "—", "Focus / observed", if (ratio != null) StatusReady else DarkTextMuted)
-        UsageMetric(blockedAttempts.toString(), "Blocked attempts", if (blockedAttempts > 0) SunAmber else StatusReady)
+        UsageMetric(statsDuration(focusMinutes), stringResource(R.string.stats_phone_focus_time), BrandPrimary)
+        UsageMetric(ratio?.let { "$it%" } ?: "—", stringResource(R.string.stats_phone_focus_vs_observed), if (ratio != null) StatusReady else DarkTextMuted)
+        UsageMetric(blockedAttempts.toString(), stringResource(R.string.stats_phone_blocked_attempts), if (blockedAttempts > 0) SunAmber else StatusReady)
     }
 }
 
@@ -212,19 +210,8 @@ private fun UsageAppRow(
             }
         }
         Spacer(Modifier.width(8.dp))
-        Text("${app.minutes.roundToInt()}m", fontSize = 12.sp, color = DarkTextPrimary)
+        Text(statsDuration(app.minutes.roundToInt()), fontSize = 12.sp, color = DarkTextPrimary)
     }
 }
 
-private fun formatUsageMinutes(minutes: Int): String = when {
-    minutes < 60 -> "${minutes}m"
-    minutes % 60 == 0 -> "${minutes / 60}h"
-    else -> "${minutes / 60}h ${minutes % 60}m"
-}
 
-/** Plain analytics formatter: 14 becomes "2pm". */
-fun hourLabel(hour: Int?): String {
-    if (hour == null || hour !in 0..23) return "that hour"
-    val normalized = hour % 12
-    return "${if (normalized == 0) 12 else normalized}${if (hour < 12) "am" else "pm"}"
-}

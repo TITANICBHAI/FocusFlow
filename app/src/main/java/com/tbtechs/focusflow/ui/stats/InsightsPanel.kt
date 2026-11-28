@@ -25,9 +25,24 @@ fun InsightsPanel(tasks: List<Task>, previousTasks: List<Task> = emptyList()) {
     Card {
         Column {
             Text(stringResource(R.string.stats_at_a_glance), style = MaterialTheme.typography.titleMedium)
-            InsightPanelRow("Sharpest hour", bestHour?.let(::hourLabel) ?: "Not enough data")
-            InsightPanelRow("Best day", strongestDay?.dayOfWeek?.name?.lowercase()?.replaceFirstChar(Char::titlecase) ?: "Not enough data")
-            InsightPanelRow("Completion trend", if (previousTasks.isEmpty()) "No prior week" else "${if (trendPoints > 0) "↑" else if (trendPoints < 0) "↓" else "→"} ${kotlin.math.abs(trendPoints)}% vs last week")
+            val notEnoughData = stringResource(R.string.stats_insight_not_enough_data)
+            InsightPanelRow(stringResource(R.string.stats_insight_sharpest_hour), statsHourLabel(bestHour) ?: notEnoughData)
+            InsightPanelRow(
+                stringResource(R.string.stats_insight_best_day),
+                strongestDay?.dayOfWeek?.getDisplayName(java.time.format.TextStyle.FULL, statsLocale()) ?: notEnoughData,
+            )
+            InsightPanelRow(
+                stringResource(R.string.stats_insight_completion_trend),
+                if (previousTasks.isEmpty()) {
+                    stringResource(R.string.stats_insight_no_prior_week)
+                } else {
+                    stringResource(
+                        R.string.stats_insight_vs_last_week,
+                        if (trendPoints > 0) "↑" else if (trendPoints < 0) "↓" else "→",
+                        kotlin.math.abs(trendPoints),
+                    )
+                },
+            )
         }
     }
 }

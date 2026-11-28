@@ -66,14 +66,14 @@ fun FocusTimeHero(snapshot: AnalyticsSnapshot) {
                 }
                 Column {
                     Text(
-                        "FOCUS TIME",
+                        stringResource(R.string.stats_phone_focus_time).uppercase(),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.scaledSp,
                     )
                     Text(
-                        formatMinutes(minutes),
+                        statsDuration(minutes),
                         style = MaterialTheme.typography.headlineLarge,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
@@ -83,10 +83,10 @@ fun FocusTimeHero(snapshot: AnalyticsSnapshot) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                StatValue("${snapshot.sessions.total}", "sessions", Modifier.weight(1f), MaterialTheme.colorScheme.primary)
-                StatValue("${snapshot.sessions.cleanCount}", "clean", Modifier.weight(1f), MaterialTheme.colorScheme.secondary)
-                StatValue("${snapshot.sessions.avgDurationMinutes.roundToInt()}m", "average", Modifier.weight(1f), MaterialTheme.colorScheme.tertiary)
-                StatValue("${snapshot.tasks.completed}/${snapshot.tasks.total}", "tasks done", Modifier.weight(1f), MaterialTheme.colorScheme.primary)
+                StatValue("${snapshot.sessions.total}", stringResource(R.string.stats_pc_sessions), Modifier.weight(1f), MaterialTheme.colorScheme.primary)
+                StatValue("${snapshot.sessions.cleanCount}", stringResource(R.string.stats_pc_clean), Modifier.weight(1f), MaterialTheme.colorScheme.secondary)
+                StatValue(statsDuration(snapshot.sessions.avgDurationMinutes.roundToInt()), stringResource(R.string.stats_pc_average), Modifier.weight(1f), MaterialTheme.colorScheme.tertiary)
+                StatValue("${snapshot.tasks.completed}/${snapshot.tasks.total}", stringResource(R.string.stats_pc_tasks_done), Modifier.weight(1f), MaterialTheme.colorScheme.primary)
             }
         }
     }
@@ -94,7 +94,9 @@ fun FocusTimeHero(snapshot: AnalyticsSnapshot) {
 
 @Composable
 fun ProductivityHeatmap(snapshot: AnalyticsSnapshot) {
-    val days = listOf("S", "M", "T", "W", "T", "F", "S")
+    // Sunday first, matching the day index used by byDayOfWeek; initials come from the current language.
+    val locale = statsLocale()
+    val days = (0..6).map { java.time.DayOfWeek.SUNDAY.plus(it.toLong()).getDisplayName(java.time.format.TextStyle.NARROW, locale) }
     StatsCard {
         Column(modifier = Modifier.padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -115,14 +117,14 @@ fun ProductivityHeatmap(snapshot: AnalyticsSnapshot) {
                 Spacer(Modifier.width(8.dp))
                 Column {
                     Text(
-                        if (snapshot.window == ANALYTICS_ALL_TIME) "LIFETIME WEEKDAY PATTERN" else "WEEKLY ACTIVITY",
+                        stringResource(if (snapshot.window == ANALYTICS_ALL_TIME) R.string.stats_pc_lifetime_weekday_pattern else R.string.stats_pc_weekly_activity).uppercase(),
                         style = MaterialTheme.typography.labelLarge,
                     )
                     Text(
                         if (snapshot.window == ANALYTICS_ALL_TIME) {
-                            "Task completion across each weekday"
+                            stringResource(R.string.stats_pc_completion_by_weekday)
                         } else {
-                            "${snapshot.tasks.completed} of ${snapshot.tasks.total} tasks completed"
+                            stringResource(R.string.stats_pc_tasks_completed_of, snapshot.tasks.completed, snapshot.tasks.total)
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -176,7 +178,7 @@ fun ProductivityHeatmap(snapshot: AnalyticsSnapshot) {
             }
             Spacer(Modifier.height(8.dp))
             Text(
-                "Scheduled tasks by local day. Brighter cells mean a higher completion rate.",
+                stringResource(R.string.stats_pc_heatmap_legend),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -211,7 +213,7 @@ fun TemptationStats(
                 Column {
                     Text(stringResource(R.string.stats_distraction_patterns), style = MaterialTheme.typography.labelLarge)
                     Text(
-                        "Blocked-app attempts in this period",
+                        stringResource(R.string.stats_pc_blocked_attempts_period),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -226,7 +228,7 @@ fun TemptationStats(
                         .padding(13.dp),
                 ) {
                     Text(
-                        "No blocked-app attempts were recorded. Your protection stayed quiet this period.",
+                        stringResource(R.string.stats_pc_no_attempts),
                         color = MaterialTheme.colorScheme.secondary,
                         style = MaterialTheme.typography.bodyMedium,
                     )
@@ -253,13 +255,13 @@ fun TemptationStats(
                     blocking.peakHour?.let {
                         Column(horizontalAlignment = Alignment.End) {
                             Text(
-                                "PEAK WINDOW",
+                                stringResource(R.string.stats_pc_peak_window).uppercase(),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontWeight = FontWeight.Bold,
                             )
                             Text(
-                                hourLabel(it),
+                                statsHourLabel(it).orEmpty(),
                                 style = MaterialTheme.typography.titleMedium,
                                 color = MaterialTheme.colorScheme.tertiary,
                             )
@@ -283,7 +285,7 @@ fun TemptationStats(
                             Column {
                                 Text(app.appName, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
                                 Text(
-                                    "Tap to quick block",
+                                    stringResource(R.string.stats_pc_tap_to_quick_block),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
@@ -331,7 +333,7 @@ fun AllTimeStats(
                 Column {
                     Text(stringResource(R.string.stats_all_time_progress), style = MaterialTheme.typography.labelLarge)
                     Text(
-                        "Your long-term focus record",
+                        stringResource(R.string.stats_pc_long_term_record),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -342,26 +344,26 @@ fun AllTimeStats(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 StatValue(
-                    formatMinutes((lifetime?.totalFocusMinutes ?: snapshot.sessions.totalFocusMinutes).roundToInt()),
-                    "focus",
+                    statsDuration((lifetime?.totalFocusMinutes ?: snapshot.sessions.totalFocusMinutes).roundToInt()),
+                    stringResource(R.string.stats_report_focus),
                     Modifier.weight(1f),
                     MaterialTheme.colorScheme.primary,
                 )
                 StatValue(
                     "${lifetime?.completedTasks ?: snapshot.tasks.completed}",
-                    "tasks",
+                    stringResource(R.string.stats_report_tasks),
                     Modifier.weight(1f),
                     MaterialTheme.colorScheme.secondary,
                 )
                 StatValue(
                     "${lifetime?.totalSessions ?: snapshot.sessions.total}",
-                    "sessions",
+                    stringResource(R.string.stats_pc_sessions),
                     Modifier.weight(1f),
                     MaterialTheme.colorScheme.tertiary,
                 )
                 StatValue(
-                    "${lifetime?.currentStreakDays ?: 0}d",
-                    "streak",
+                    stringResource(R.string.stats_pc_days, lifetime?.currentStreakDays ?: 0),
+                    stringResource(R.string.stats_pc_streak),
                     Modifier.weight(1f),
                     MaterialTheme.colorScheme.primary,
                 )
@@ -387,10 +389,4 @@ private fun StatValue(
         Text(value, fontSize = 16.scaledSp, fontWeight = FontWeight.Bold, color = valueColor)
         Text(label, fontSize = 10.scaledSp, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
-}
-
-private fun formatMinutes(minutes: Int): String = when {
-    minutes < 60 -> "${minutes}m"
-    minutes % 60 == 0 -> "${minutes / 60}h"
-    else -> "${minutes / 60}h ${minutes % 60}m"
 }

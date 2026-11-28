@@ -31,9 +31,10 @@ class StatsReadinessTest {
     }
 
     @Test
-    fun minutesAreWrittenCompactly() {
-        assertEquals("45m", minutesLabel(45.0))
-        assertEquals("2h", minutesLabel(120.0))
-        assertEquals("1h 20m", minutesLabel(80.4))
+    fun durationsPickMinutesHoursOrBoth() {
+        assertEquals(DurationShape.MINUTES, durationShape(45))
+        assertEquals(DurationShape.HOURS, durationShape(120))
+        assertEquals(DurationShape.HOURS_MINUTES, durationShape(80))
+        assertEquals(DurationShape.MINUTES, durationShape(0))
     }
 }
