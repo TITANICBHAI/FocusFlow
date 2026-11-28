@@ -787,5 +787,17 @@
  "stats_skip": "Omitir",
  "stats_cold_submit_no_answer": "Enviar sin responder",
  "stats_cold_submit_answers": "Enviar respuestas",
- "stats_cold_save_failed": "No se pudieron guardar tus respuestas. Inténtalo de nuevo."
+ "stats_cold_save_failed": "No se pudieron guardar tus respuestas. Inténtalo de nuevo.",
+ "stats_saved_on_device": "Guardado en este dispositivo",
+ "stats_save_failed_storage": "No se pudo guardar. Comprueba el almacenamiento e inténtalo de nuevo.",
+ "stats_how_was_it": "¿Cómo fue?",
+ "stats_ctx_rest_day": "Día de descanso",
+ "stats_ctx_sick": "Enfermo",
+ "stats_ctx_travel": "Viaje",
+ "stats_ctx_holiday": "Festivo",
+ "stats_ctx_off_schedule": "Fuera de horario",
+ "stats_anything_else_optional": "¿Algo más? (opcional)",
+ "stats_saving": "Guardando…",
+ "stats_saved": "Guardado",
+ "stats_save_rating": "Guardar valoración"
 }

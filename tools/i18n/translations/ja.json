@@ -787,5 +787,17 @@
  "stats_skip": "スキップ",
  "stats_cold_submit_no_answer": "回答せずに送信",
  "stats_cold_submit_answers": "回答を送信",
- "stats_cold_save_failed": "回答を保存できませんでした。もう一度お試しください。"
+ "stats_cold_save_failed": "回答を保存できませんでした。もう一度お試しください。",
+ "stats_saved_on_device": "この端末に保存しました",
+ "stats_save_failed_storage": "保存できませんでした。ストレージを確認して、もう一度お試しください。",
+ "stats_how_was_it": "どうでしたか？",
+ "stats_ctx_rest_day": "休息日",
+ "stats_ctx_sick": "体調不良",
+ "stats_ctx_travel": "旅行",
+ "stats_ctx_holiday": "休日",
+ "stats_ctx_off_schedule": "予定外",
+ "stats_anything_else_optional": "ほかにありますか？（任意）",
+ "stats_saving": "保存中…",
+ "stats_saved": "保存済み",
+ "stats_save_rating": "評価を保存"
 }

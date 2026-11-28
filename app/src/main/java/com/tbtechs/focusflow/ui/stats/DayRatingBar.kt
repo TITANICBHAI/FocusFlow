@@ -104,8 +104,9 @@ fun DayRatingBar(
     var isSaving by remember(selectedDate) { mutableStateOf(false) }
     var isEditing by remember(selectedDate) { mutableStateOf(currentRating == null) }
     var saveFailed by remember(selectedDate) { mutableStateOf(false) }
-    var saveMessage by remember(selectedDate) {
-        mutableStateOf(if (currentRating != null) "Saved on this device" else "")
+    // Resource id of the message under the rating, or null when there is none.
+    var saveMessageRes by remember(selectedDate) {
+        mutableStateOf<Int?>(if (currentRating != null) R.string.stats_saved_on_device else null)
     }
     var pendingDate by remember { mutableStateOf<String?>(null) }
     val wordTags = remember(selectedDate) {
@@ -126,7 +127,7 @@ fun DayRatingBar(
         editorDirty = true
         isEditing = true
         saveFailed = false
-        saveMessage = ""
+        saveMessageRes = null
     }
 
     fun save() {
@@ -154,10 +155,10 @@ fun DayRatingBar(
                 editorDirty = false
                 isEditing = false
                 saveFailed = false
-                saveMessage = "Saved on this device"
+                saveMessageRes = R.string.stats_saved_on_device
             } else {
                 saveFailed = true
-                saveMessage = "Could not save. Check storage and try again."
+                saveMessageRes = R.string.stats_save_failed_storage
             }
         }
     }
@@ -173,7 +174,7 @@ fun DayRatingBar(
         appTags.clear()
         appTags.addAll(decodeStorageList(currentRating?.appTags))
         saveFailed = false
-        saveMessage = if (currentRating != null) "Saved on this device" else ""
+        saveMessageRes = if (currentRating != null) R.string.stats_saved_on_device else null
     }
     LaunchedEffect(selectedDate) {
         onLoadChips(selectedDate)
@@ -254,7 +255,7 @@ fun DayRatingBar(
                     }
                 }
                 Text(
-                    text = tappedRating?.let { "$it/10" } ?: "How was it?",
+                    text = tappedRating?.let { "$it/10" } ?: stringResource(R.string.stats_how_was_it),
                     fontSize = 13.scaledSp,
                     color = DarkTextSecondary,
                 )
@@ -268,7 +269,7 @@ fun DayRatingBar(
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Text(
-                        saveMessage.ifBlank { "Saved on this device" },
+                        stringResource(saveMessageRes ?: R.string.stats_saved_on_device),
                         fontSize = 12.scaledSp,
                         color = DarkTextSecondary,
                     )
@@ -320,11 +321,11 @@ fun DayRatingBar(
                         Spacer(Modifier.height(4.dp))
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             listOf(
-                                "Rest day" to "rest_day",
-                                "Sick" to "sick",
-                                "Travel" to "travel",
-                                "Holiday" to "holiday",
-                                "Off schedule" to "off_schedule",
+                                stringResource(R.string.stats_ctx_rest_day) to "rest_day",
+                                stringResource(R.string.stats_ctx_sick) to "sick",
+                                stringResource(R.string.stats_ctx_travel) to "travel",
+                                stringResource(R.string.stats_ctx_holiday) to "holiday",
+                                stringResource(R.string.stats_ctx_off_schedule) to "off_schedule",
                             ).forEach { (label, tag) ->
                                 val selected = contextTag == tag
                                 Box(
@@ -400,7 +401,7 @@ fun DayRatingBar(
                             },
                             placeholder = {
                                 Text(
-                                    "Anything else? (optional)",
+                                    stringResource(R.string.stats_anything_else_optional),
                                     fontSize = 13.scaledSp,
                                     color = DarkTextSecondary,
                                 )
@@ -424,9 +425,9 @@ fun DayRatingBar(
                         ) {
                             Text(
                                 when {
-                                    isSaving -> "Saving…"
-                                    !editorDirty -> "Saved"
-                                    else -> "Save rating"
+                                    isSaving -> stringResource(R.string.stats_saving)
+                                    !editorDirty -> stringResource(R.string.stats_saved)
+                                    else -> stringResource(R.string.stats_save_rating)
                                 },
                             )
                         }
@@ -438,9 +439,9 @@ fun DayRatingBar(
                                 Text(stringResource(R.string.photo_mgmt_done))
                             }
                         }
-                        if (saveMessage.isNotBlank()) {
+                        saveMessageRes?.let { messageRes ->
                             Text(
-                                saveMessage,
+                                stringResource(messageRes),
                                 fontSize = 12.scaledSp,
                                 color = if (saveFailed) MaterialTheme.colorScheme.error
                                 else DarkTextSecondary,
@@ -476,12 +477,13 @@ fun DayRatingBar(
     }
 }
 
+@Composable
 private fun friendlyDate(dateString: String): String {
     val today = LocalDate.now()
     val date = runCatching { LocalDate.parse(dateString) }.getOrNull() ?: return dateString
     return when (date) {
-        today -> "Today"
-        today.minusDays(1) -> "Yesterday"
+        today -> stringResource(R.string.stats_window_today)
+        today.minusDays(1) -> stringResource(R.string.stats_window_yesterday)
         else -> "${date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())} ${date.dayOfMonth}"
     }
 }

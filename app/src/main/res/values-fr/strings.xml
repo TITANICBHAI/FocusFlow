@@ -789,4 +789,16 @@
     <string name="stats_cold_submit_no_answer">Envoyer sans réponse</string>
     <string name="stats_cold_submit_answers">Envoyer les réponses</string>
     <string name="stats_cold_save_failed">Impossible d’enregistrer vos réponses. Veuillez réessayer.</string>
+    <string name="stats_saved_on_device">Enregistré sur cet appareil</string>
+    <string name="stats_save_failed_storage">Échec de l’enregistrement. Vérifiez l’espace de stockage et réessayez.</string>
+    <string name="stats_how_was_it">Comment était-ce ?</string>
+    <string name="stats_ctx_rest_day">Jour de repos</string>
+    <string name="stats_ctx_sick">Malade</string>
+    <string name="stats_ctx_travel">Voyage</string>
+    <string name="stats_ctx_holiday">Jour férié</string>
+    <string name="stats_ctx_off_schedule">Hors planning</string>
+    <string name="stats_anything_else_optional">Autre chose ? (facultatif)</string>
+    <string name="stats_saving">Enregistrement…</string>
+    <string name="stats_saved">Enregistré</string>
+    <string name="stats_save_rating">Enregistrer la note</string>
 </resources>

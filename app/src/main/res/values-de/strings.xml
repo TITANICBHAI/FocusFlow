@@ -789,4 +789,16 @@
     <string name="stats_cold_submit_no_answer">Ohne Antwort senden</string>
     <string name="stats_cold_submit_answers">Antworten senden</string>
     <string name="stats_cold_save_failed">Deine Antworten konnten nicht gespeichert werden. Bitte versuche es erneut.</string>
+    <string name="stats_saved_on_device">Auf diesem Gerät gespeichert</string>
+    <string name="stats_save_failed_storage">Speichern fehlgeschlagen. Prüfe den Speicher und versuche es erneut.</string>
+    <string name="stats_how_was_it">Wie war der Tag?</string>
+    <string name="stats_ctx_rest_day">Ruhetag</string>
+    <string name="stats_ctx_sick">Krank</string>
+    <string name="stats_ctx_travel">Reise</string>
+    <string name="stats_ctx_holiday">Feiertag</string>
+    <string name="stats_ctx_off_schedule">Außerplanmäßig</string>
+    <string name="stats_anything_else_optional">Noch etwas? (optional)</string>
+    <string name="stats_saving">Wird gespeichert…</string>
+    <string name="stats_saved">Gespeichert</string>
+    <string name="stats_save_rating">Bewertung speichern</string>
 </resources>

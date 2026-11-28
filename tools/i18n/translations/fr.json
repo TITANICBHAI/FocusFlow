@@ -787,5 +787,17 @@
  "stats_skip": "Passer",
  "stats_cold_submit_no_answer": "Envoyer sans réponse",
  "stats_cold_submit_answers": "Envoyer les réponses",
- "stats_cold_save_failed": "Impossible d’enregistrer vos réponses. Veuillez réessayer."
+ "stats_cold_save_failed": "Impossible d’enregistrer vos réponses. Veuillez réessayer.",
+ "stats_saved_on_device": "Enregistré sur cet appareil",
+ "stats_save_failed_storage": "Échec de l’enregistrement. Vérifiez l’espace de stockage et réessayez.",
+ "stats_how_was_it": "Comment était-ce ?",
+ "stats_ctx_rest_day": "Jour de repos",
+ "stats_ctx_sick": "Malade",
+ "stats_ctx_travel": "Voyage",
+ "stats_ctx_holiday": "Jour férié",
+ "stats_ctx_off_schedule": "Hors planning",
+ "stats_anything_else_optional": "Autre chose ? (facultatif)",
+ "stats_saving": "Enregistrement…",
+ "stats_saved": "Enregistré",
+ "stats_save_rating": "Enregistrer la note"
 }

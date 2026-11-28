@@ -787,5 +787,17 @@
  "stats_skip": "跳过",
  "stats_cold_submit_no_answer": "不回答直接提交",
  "stats_cold_submit_answers": "提交回答",
- "stats_cold_save_failed": "无法保存你的回答，请重试。"
+ "stats_cold_save_failed": "无法保存你的回答，请重试。",
+ "stats_saved_on_device": "已保存在此设备上",
+ "stats_save_failed_storage": "无法保存。请检查存储空间后重试。",
+ "stats_how_was_it": "感觉如何？",
+ "stats_ctx_rest_day": "休息日",
+ "stats_ctx_sick": "生病",
+ "stats_ctx_travel": "出行",
+ "stats_ctx_holiday": "假日",
+ "stats_ctx_off_schedule": "打乱日程",
+ "stats_anything_else_optional": "还有别的吗？（可选）",
+ "stats_saving": "正在保存…",
+ "stats_saved": "已保存",
+ "stats_save_rating": "保存评分"
 }

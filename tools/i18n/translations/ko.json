@@ -787,5 +787,17 @@
  "stats_skip": "건너뛰기",
  "stats_cold_submit_no_answer": "답변 없이 제출",
  "stats_cold_submit_answers": "답변 제출",
- "stats_cold_save_failed": "답변을 저장하지 못했습니다. 다시 시도해 주세요."
+ "stats_cold_save_failed": "답변을 저장하지 못했습니다. 다시 시도해 주세요.",
+ "stats_saved_on_device": "이 기기에 저장됨",
+ "stats_save_failed_storage": "저장하지 못했습니다. 저장 공간을 확인하고 다시 시도해 주세요.",
+ "stats_how_was_it": "어땠나요?",
+ "stats_ctx_rest_day": "휴식일",
+ "stats_ctx_sick": "아픔",
+ "stats_ctx_travel": "여행",
+ "stats_ctx_holiday": "휴일",
+ "stats_ctx_off_schedule": "일정 외",
+ "stats_anything_else_optional": "더 하실 말씀이 있나요? (선택)",
+ "stats_saving": "저장 중…",
+ "stats_saved": "저장됨",
+ "stats_save_rating": "평가 저장"
 }
