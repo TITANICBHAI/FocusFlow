@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.stats
 
+import com.tbtechs.focusflow.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -73,13 +75,13 @@ fun AchievementRow(
                 }
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        "MILESTONES",
+                        stringResource(R.string.stats_ach_milestones).uppercase(),
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 0.7.sp,
                     )
                     Text(
-                        "$earnedCount of ${catalog.size} unlocked",
+                        stringResource(R.string.stats_ach_unlocked_count, earnedCount, catalog.size),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -168,14 +170,14 @@ private fun AchievementTile(
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    if (hiddenLocked) "Hidden milestone" else definition.title,
+                    if (hiddenLocked) stringResource(R.string.stats_ach_hidden_milestone) else achievementTitle(definition),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    if (hiddenLocked) "Secret" else categoryLabel(definition.category),
+                    if (hiddenLocked) stringResource(R.string.stats_ach_secret) else categoryLabel(definition.category),
                     color = accent,
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.SemiBold,
@@ -184,9 +186,8 @@ private fun AchievementTile(
         }
         Text(
             when {
-                hiddenLocked -> "Keep building good habits to reveal this one."
-                earned -> definition.description
-                else -> definition.description
+                hiddenLocked -> stringResource(R.string.stats_ach_hidden_hint)
+                else -> achievementDescription(definition)
             },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -196,7 +197,7 @@ private fun AchievementTile(
         )
         when {
             earned -> Text(
-                if (isNew) "NEWLY UNLOCKED" else "UNLOCKED",
+                stringResource(if (isNew) R.string.stats_ach_newly_unlocked else R.string.stats_ach_unlocked).uppercase(),
                 color = accent,
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.Bold,
@@ -240,6 +241,7 @@ private data class AchievementMeter(
     val label: String,
 )
 
+@Composable
 private fun progressFor(
     id: String,
     snapshot: AnalyticsSnapshot,
@@ -253,7 +255,7 @@ private fun progressFor(
     return when (id) {
         "RESISTANCE_10_CLEAN_SESSIONS" -> AchievementMeter(
             (cleanSessions / 10f).coerceIn(0f, 1f),
-            "$cleanSessions/10 clean sessions",
+            stringResource(R.string.stats_ach_meter_clean_sessions, cleanSessions),
         )
         "HONEST_ESTIMATOR" -> {
             val averageError = errors.map { abs(it) }.average().takeIf { errors.isNotEmpty() }
@@ -263,15 +265,16 @@ private fun progressFor(
             } ?: 0.0
             AchievementMeter(
                 minOf(sampleProgress, accuracyProgress).toFloat(),
-                "${errors.size}/5 estimates · avg ${averageError?.roundToInt() ?: "—"}m (goal ≤15m)",
+                if (averageError != null) stringResource(R.string.stats_ach_meter_estimates, errors.size, averageError.roundToInt())
+                else stringResource(R.string.stats_ach_meter_estimates_none, errors.size),
             )
         }
         "PRESENCE_7_DAYS" -> {
             val days = snapshot.tasks.byDayOfWeek.values.count { it.total > 0 }
             if (snapshot.window == ANALYTICS_WEEK) {
-                AchievementMeter((days / 7f).coerceIn(0f, 1f), "$days/7 days with scheduled work")
+                AchievementMeter((days / 7f).coerceIn(0f, 1f), stringResource(R.string.stats_ach_meter_days_scheduled, days))
             } else {
-                AchievementMeter(0f, "Open Week to track this milestone")
+                AchievementMeter(0f, stringResource(R.string.stats_ach_meter_open_week))
             }
         }
         "PATTERN_BREAKER" -> {
@@ -283,34 +286,34 @@ private fun progressFor(
             } ?: 0.0
             AchievementMeter(
                 minOf(countProgress, balanceProgress.toFloat()),
-                "$attempts/10 attempts · top app ${share?.let { "${(it * 100).roundToInt()}%" } ?: "—"} (goal <50%)",
+                stringResource(R.string.stats_ach_meter_attempts, attempts, share?.let { "${(it * 100).roundToInt()}%" } ?: "—"),
             )
         }
         "QUIET_WIN" -> AchievementMeter(
             (focusMinutes / 60.0).toFloat().coerceIn(0f, 1f),
-            "${focusMinutes.roundToInt()}/60 lifetime min · also needs a clean, attempt-free period",
+            stringResource(R.string.stats_ach_meter_lifetime_min, focusMinutes.roundToInt()),
         )
         "IRON_SESSION" -> AchievementMeter(
             if (snapshot.sessions.cleanCount > 0) 1f else 0f,
-            "${snapshot.sessions.cleanCount} clean sessions in this period · need 1",
+            stringResource(R.string.stats_ach_meter_clean_period, snapshot.sessions.cleanCount),
         )
         "THREE_WEEKS" -> AchievementMeter(
             (currentStreak / 21f).coerceIn(0f, 1f),
-            "$currentStreak/21 day streak",
+            stringResource(R.string.stats_ach_meter_streak, currentStreak),
         )
         "LONG_GAME" -> {
             val earlyFinishes = errors.count { it <= -30.0 }
             AchievementMeter(
                 (earlyFinishes / 3f).coerceIn(0f, 1f),
-                "$earlyFinishes/3 tasks finished 30+ min early",
+                stringResource(R.string.stats_ach_meter_early, earlyFinishes),
             )
         }
         "BACK_AGAIN" -> {
             val gapDays = sessionGapDays(lifetime, snapshot)
             AchievementMeter(
                 ((gapDays ?: 0.0) / 6.0).toFloat().coerceIn(0f, 1f),
-                gapDays?.let { "${it.roundToInt()}/6 days away · target is over 5 days" }
-                    ?: "Complete a focus session to start tracking",
+                gapDays?.let { stringResource(R.string.stats_ach_meter_away, it.roundToInt()) }
+                    ?: stringResource(R.string.stats_ach_meter_start_tracking),
             )
         }
         "RESET" -> {
@@ -319,10 +322,10 @@ private fun progressFor(
             val taskProgress = if (snapshot.tasks.completed > 0) 1.0 else 0.0
             AchievementMeter(
                 ((daysProgress + taskProgress) / 2.0).toFloat(),
-                "${gapDays?.roundToInt() ?: 0}/6 days away · ${if (taskProgress > 0) 1 else 0}/1 task this period",
+                stringResource(R.string.stats_ach_meter_reset, gapDays?.roundToInt() ?: 0, if (taskProgress > 0) 1 else 0),
             )
         }
-        else -> AchievementMeter(0f, "Keep going to make progress")
+        else -> AchievementMeter(0f, stringResource(R.string.stats_ach_meter_keep_going))
     }
 }
 
@@ -342,9 +345,13 @@ private fun categoryAccent(category: String): Color = when (category) {
     else -> Color(0xFFDB8BFF)
 }
 
+@Composable
 private fun categoryLabel(category: String): String = when (category) {
-    "pattern_breaking" -> "Pattern breaking"
-    "hidden" -> "Hidden"
+    "resistance" -> stringResource(R.string.stats_ach_cat_resistance)
+    "honesty" -> stringResource(R.string.stats_ach_cat_honesty)
+    "presence" -> stringResource(R.string.stats_ach_cat_presence)
+    "pattern_breaking" -> stringResource(R.string.stats_ach_cat_pattern_breaking)
+    "hidden" -> stringResource(R.string.stats_ach_cat_hidden)
     else -> category.replaceFirstChar { it.uppercase() }
 }
 

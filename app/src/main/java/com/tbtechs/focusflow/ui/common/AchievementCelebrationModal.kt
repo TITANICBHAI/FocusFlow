@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.common
 
+import com.tbtechs.focusflow.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -38,6 +40,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.tbtechs.focusflow.analytics.AchievementDefinition
+import com.tbtechs.focusflow.ui.stats.achievementDescription
+import com.tbtechs.focusflow.ui.stats.achievementTitle
 
 @Composable
 fun AchievementCelebrationModal(
@@ -111,12 +115,12 @@ fun AchievementCelebrationModal(
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     SpacerIcon()
                     Text(
-                        "Achievement unlocked",
+                        stringResource(R.string.stats_ach_unlocked_title),
                         style = MaterialTheme.typography.titleMedium,
                         modifier = Modifier.weight(1f),
                     )
                     IconButton(onClick = onDismiss) {
-                        Icon(Icons.Outlined.Close, contentDescription = "Close")
+                        Icon(Icons.Outlined.Close, contentDescription = stringResource(R.string.home_close))
                     }
                 }
                 Box(
@@ -138,17 +142,17 @@ fun AchievementCelebrationModal(
                     }
                 }
                 Text(
-                    achievement.title,
+                    achievementTitle(achievement),
                     style = MaterialTheme.typography.headlineSmall,
                     modifier = Modifier.graphicsLayer { alpha = textAlpha },
                 )
                 Text(
-                    achievement.description,
+                    achievementDescription(achievement),
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.graphicsLayer { alpha = textAlpha },
                 )
                 Button(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
-                    Text("Keep going")
+                    Text(stringResource(R.string.stats_ach_keep_going))
                 }
             }
         }
