@@ -28,7 +28,7 @@ class FindingActionsTest {
     fun appFindingsOfferToBlockThatApp() {
         val actions = findingActions(finding("LATE_NIGHT_USE", "com.feed", "Feed"))
         assertEquals(1, actions.size)
-        assertEquals("Block Feed now", actions[0].label)
+        assertEquals("Feed", actions[0].appName)
         assertEquals("com.feed", actions[0].packageName)
     }
 
@@ -47,7 +47,7 @@ class FindingActionsTest {
         assertEquals(FindingActionKind.BLOCK_NOW, actions[0].kind)
         assertEquals(FindingActionKind.SET_LIMIT, actions[1].kind)
         assertEquals(90, actions[1].minutes)
-        assertEquals("Limit Video to 90 min a day", actions[1].label)
+        assertEquals("Video", actions[1].appName)
     }
 
     @Test

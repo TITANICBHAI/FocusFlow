@@ -48,7 +48,7 @@ fun FindingsSection(
     onSetLimit: (String, Int) -> Unit = { _, _ -> },
 ) {
     Text(
-        "FINDINGS",
+        stringResource(R.string.stats_findings_header),
         style = MaterialTheme.typography.labelLarge,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
@@ -60,13 +60,13 @@ fun FindingsSection(
                 Text(stringResource(R.string.stats_building_your_baseline), fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "Behavioural findings appear after 14 days of history.",
+                    stringResource(R.string.stats_findings_after_14_days),
                     fontSize = 13.sp,
                     color = DarkTextSecondary,
                 )
                 Spacer(Modifier.height(8.dp))
-                BaselineRow("Days of history", dayCount, 14)
-                BaselineRow("Days rated (optional)", ratingCount, 7)
+                BaselineRow(stringResource(R.string.stats_days_of_history), dayCount, 14)
+                BaselineRow(stringResource(R.string.stats_days_rated_optional), ratingCount, 7)
             }
         }
         Spacer(Modifier.height(12.dp))
@@ -108,7 +108,7 @@ fun FindingsSection(
                 Text(stringResource(R.string.stats_nothing_to_flag), fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "No unusual patterns detected. Nothing to report.",
+                    stringResource(R.string.stats_no_unusual_patterns),
                     fontSize = 13.sp,
                     color = DarkTextSecondary,
                 )
@@ -154,9 +154,9 @@ private fun ClarifyingQuestionCard(
             )
             Spacer(Modifier.height(8.dp))
             listOf(
-                "yes_intentional" to "Yes, I chose to",
-                "not_really" to "Not really",
-                "skipped" to "Skip this question",
+                "yes_intentional" to stringResource(R.string.stats_answer_yes_chose),
+                "not_really" to stringResource(R.string.stats_answer_not_really),
+                "skipped" to stringResource(R.string.stats_answer_skip_question),
             ).forEach { (value, label) ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -191,12 +191,12 @@ private fun ClarifyingQuestionCard(
                 enabled = selectedResponse != null && !isSubmitting,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text(if (isSubmitting) "Submitting…" else "Submit response")
+                Text(stringResource(if (isSubmitting) R.string.stats_submitting else R.string.stats_submit_response))
             }
             if (submitError) {
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "Could not save your response. Please try again.",
+                    stringResource(R.string.stats_response_save_failed),
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.error,
                 )
@@ -205,20 +205,21 @@ private fun ClarifyingQuestionCard(
     }
 }
 
+@Composable
 private fun renderQuestion(question: ClarifyingQuestionEntity): String {
     val context = runCatching {
         Json.parseToJsonElement(question.contextJson) as? JsonObject
     }.getOrNull()
-    val appName = context?.get("appName")?.jsonPrimitive?.content ?: "that app"
-    val date = context?.get("date")?.jsonPrimitive?.content ?: "that day"
+    val appName = context?.get("appName")?.jsonPrimitive?.content ?: stringResource(R.string.stats_that_app)
+    val date = context?.get("date")?.jsonPrimitive?.content ?: stringResource(R.string.stats_that_day)
     val rating = context?.get("rating")?.jsonPrimitive?.content ?: ""
     return when (question.questionType) {
         "morning_high_rating" ->
-            "You rated $date a $rating, but $appName was the first thing you opened that morning. Was that intentional?"
+            stringResource(R.string.stats_question_morning_high_rating, date, rating, appName)
         "productive_high_usage" ->
-            "On your best-rated days, $appName use was above your average. Does using it fit into days that go well?"
+            stringResource(R.string.stats_question_productive_high_usage, appName)
         "skip_despite_completion" ->
-            "You completed most tasks on $date but rated it $rating. What made it feel off?"
+            stringResource(R.string.stats_question_skip_despite_completion, date, rating)
         else -> question.contextJson
     }
 }

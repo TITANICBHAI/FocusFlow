@@ -50,10 +50,11 @@ fun FindingCardView(
             title = { Text(stringResource(R.string.stats_set_a_daily_limit), fontSize = 18.sp, fontWeight = FontWeight.Bold) },
             text = {
                 Text(
-                    "${finding.subjectAppName ?: "This app"} will be blocked for the rest of the day " +
-                        "once you pass ${action.minutes ?: 0} min. You can change or remove the " +
-                        "limit in Settings. While a Focus session has no allowed-apps list, only " +
-                        "apps that have a daily allowance can be opened.",
+                    stringResource(
+                        R.string.stats_limit_dialog_body,
+                        finding.subjectAppName ?: stringResource(R.string.stats_this_app_cap),
+                        action.minutes ?: 0,
+                    ),
                     fontSize = 14.sp,
                 )
             },
@@ -122,14 +123,14 @@ fun FindingCardView(
                         },
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Text(action.label, fontSize = 13.sp)
+                        Text(findingActionLabel(action), fontSize = 13.sp)
                     }
                 } else {
                     OutlinedButton(
                         onClick = { pendingLimit = action },
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Text(action.label, fontSize = 13.sp)
+                        Text(findingActionLabel(action), fontSize = 13.sp)
                     }
                 }
             }
@@ -153,9 +154,19 @@ fun FindingCardView(
     }
 }
 
+@Composable
+private fun findingActionLabel(action: FindingAction): String {
+    val name = action.appName ?: stringResource(R.string.stats_this_app)
+    return when (action.kind) {
+        FindingActionKind.BLOCK_NOW -> stringResource(R.string.stats_block_app_now, name)
+        FindingActionKind.SET_LIMIT -> stringResource(R.string.stats_limit_app_to_minutes, name, action.minutes ?: 0)
+    }
+}
+
+@Composable
 private fun findingCategoryLabel(finding: FindingEntity): String = when {
-    finding.detectionType == "ALLOWANCE_SUGGESTION" -> "BASED ON YOUR DATA"
+    finding.detectionType == "ALLOWANCE_SUGGESTION" -> stringResource(R.string.stats_finding_based_on_data)
     finding.detectionType in APP_FINDING_TYPES && finding.subjectAppName != null ->
-        "ABOUT ${finding.subjectAppName.uppercase()}"
-    else -> "pattern"
+        stringResource(R.string.stats_finding_about_app, finding.subjectAppName.uppercase())
+    else -> stringResource(R.string.stats_finding_pattern)
 }

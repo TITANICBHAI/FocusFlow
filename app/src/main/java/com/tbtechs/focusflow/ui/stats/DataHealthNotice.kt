@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.stats
 
+import com.tbtechs.focusflow.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -29,10 +31,10 @@ fun DataHealthNotice(snapshot: AnalyticsSnapshot) {
             Icon(Icons.Outlined.Info, null, tint = MaterialTheme.colorScheme.tertiary)
             Text(
                 when {
-                    stale -> "This view is stale. Return to it to refresh your local history."
-                    snapshot.sourceHealth?.let { listOf(it.tasks, it.sessions, it.estimationErrors, it.tasksByHour, it.weeklyRates, it.temptations, it.usageSummary, it.usageHourly).filterNotNull().any { source -> source == "unavailable" } } == true -> "Some local data sources are unavailable, so related insights are omitted."
-                    hasUsageGaps -> "Device usage has ${coverage!!.completeDays} complete, ${coverage.partialDays} partial, and ${coverage.missingDays} missing days in this view."
-                    else -> "Some local data could not be read, so related insights are omitted."
+                    stale -> stringResource(R.string.stats_health_stale)
+                    snapshot.sourceHealth?.let { listOf(it.tasks, it.sessions, it.estimationErrors, it.tasksByHour, it.weeklyRates, it.temptations, it.usageSummary, it.usageHourly).filterNotNull().any { source -> source == "unavailable" } } == true -> stringResource(R.string.stats_health_unavailable)
+                    hasUsageGaps -> stringResource(R.string.stats_health_usage_gaps, coverage!!.completeDays, coverage.partialDays, coverage.missingDays)
+                    else -> stringResource(R.string.stats_health_unreadable)
                 },
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

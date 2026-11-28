@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.stats
 
+import com.tbtechs.focusflow.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -22,8 +24,8 @@ import com.tbtechs.focusflow.analytics.AnalyticsSnapshot
 @Composable
 fun TaskResultList(
     snapshot: AnalyticsSnapshot,
-    title: String = "YESTERDAY'S TASKS",
-    emptyMessage: String = "No tasks were recorded yesterday.",
+    title: String = stringResource(R.string.stats_yesterdays_tasks),
+    emptyMessage: String = stringResource(R.string.stats_no_tasks_yesterday),
 ) = StatsCard {
     Column(
         modifier = Modifier.padding(16.dp),
@@ -51,10 +53,10 @@ fun TaskResultList(
         }
         rows.forEach { row ->
             val (label, accent) = when (row.status) {
-                "completed" -> "Done" to MaterialTheme.colorScheme.secondary
-                "skipped" -> "Skipped" to MaterialTheme.colorScheme.tertiary
-                "overdue" -> "Missed" to MaterialTheme.colorScheme.error
-                else -> "Not done" to MaterialTheme.colorScheme.onSurfaceVariant
+                "completed" -> stringResource(R.string.stats_task_done) to MaterialTheme.colorScheme.secondary
+                "skipped" -> stringResource(R.string.stats_task_skipped) to MaterialTheme.colorScheme.tertiary
+                "overdue" -> stringResource(R.string.stats_task_missed) to MaterialTheme.colorScheme.error
+                else -> stringResource(R.string.stats_task_not_done) to MaterialTheme.colorScheme.onSurfaceVariant
             }
             Row(
                 modifier = Modifier

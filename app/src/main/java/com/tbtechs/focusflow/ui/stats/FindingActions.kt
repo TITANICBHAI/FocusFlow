@@ -7,7 +7,7 @@ internal enum class FindingActionKind { BLOCK_NOW, SET_LIMIT }
 /** One thing the person can do about a finding: block the app now, or cap its daily time. */
 internal data class FindingAction(
     val kind: FindingActionKind,
-    val label: String,
+    val appName: String?,
     val packageName: String,
     val minutes: Int? = null,
 )
@@ -42,16 +42,16 @@ internal fun findingActions(finding: FindingEntity): List<FindingAction> {
     if (finding.detectionType == "ENTRY_APP" && !finding.evidenceJson.contains("\"blockable\":true")) {
         return emptyList()
     }
-    val name = finding.subjectAppName?.takeIf { it.isNotBlank() } ?: "this app"
+    val name = finding.subjectAppName?.takeIf { it.isNotBlank() }
     val actions = mutableListOf(
-        FindingAction(FindingActionKind.BLOCK_NOW, "Block $name now", packageName),
+        FindingAction(FindingActionKind.BLOCK_NOW, name, packageName),
     )
     if (finding.detectionType in LIMIT_FINDING_TYPES) {
         val minutes = SUGGESTED_MINUTES.find(finding.evidenceJson)?.groupValues?.get(1)?.toIntOrNull()
         if (minutes != null && minutes in 5..600) {
             actions += FindingAction(
                 kind = FindingActionKind.SET_LIMIT,
-                label = "Limit $name to $minutes min a day",
+                appName = name,
                 packageName = packageName,
                 minutes = minutes,
             )

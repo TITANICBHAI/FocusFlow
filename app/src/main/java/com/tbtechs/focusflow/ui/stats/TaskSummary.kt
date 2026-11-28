@@ -1,5 +1,7 @@
 package com.tbtechs.focusflow.ui.stats
 
+import com.tbtechs.focusflow.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -26,14 +28,14 @@ fun TaskSummary(snapshot: AnalyticsSnapshot) = StatsCard {
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(
-                "TASK OUTCOMES",
+                stringResource(R.string.stats_task_outcomes),
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary,
                 letterSpacing = 0.8.sp,
             )
             Text(
-                "${snapshot.tasks.total} scheduled in this period",
+                stringResource(R.string.stats_task_scheduled_in_period, snapshot.tasks.total),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -42,13 +44,13 @@ fun TaskSummary(snapshot: AnalyticsSnapshot) = StatsCard {
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Metric("Done", snapshot.tasks.completed, MaterialTheme.colorScheme.secondary, Modifier.weight(1f))
-            Metric("Skipped", snapshot.tasks.skipped, MaterialTheme.colorScheme.tertiary, Modifier.weight(1f))
-            Metric("Missed", snapshot.tasks.missed, MaterialTheme.colorScheme.error, Modifier.weight(1f))
+            Metric(stringResource(R.string.stats_task_done), snapshot.tasks.completed, MaterialTheme.colorScheme.secondary, Modifier.weight(1f))
+            Metric(stringResource(R.string.stats_task_skipped), snapshot.tasks.skipped, MaterialTheme.colorScheme.tertiary, Modifier.weight(1f))
+            Metric(stringResource(R.string.stats_task_missed), snapshot.tasks.missed, MaterialTheme.colorScheme.error, Modifier.weight(1f))
         }
         if (snapshot.tasks.total == 0) {
             Text(
-                "No tasks were recorded in this period.",
+                stringResource(R.string.stats_task_none_in_period),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }

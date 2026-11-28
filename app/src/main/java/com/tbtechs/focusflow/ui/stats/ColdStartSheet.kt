@@ -43,22 +43,33 @@ import kotlinx.coroutines.CancellationException
 private val COLD_START_QUESTIONS = listOf(
     Triple(
         "reflex_app",
-        "Which app do you find yourself opening without deciding to?",
-        "Name an app, or skip if nothing comes to mind.",
+        R.string.stats_cold_q_reflex,
+        R.string.stats_cold_h_reflex,
     ),
     Triple(
         "bad_day_meaning",
-        "What usually makes a day feel like it went badly?",
-        "A few words is enough.",
+        R.string.stats_cold_q_bad_day,
+        R.string.stats_cold_h_bad_day,
     ),
     Triple(
         "morning_phone",
-        "Do you check your phone before doing anything else in the morning?",
-        "No wrong answer.",
+        R.string.stats_cold_q_morning,
+        R.string.stats_cold_h_morning,
     ),
 )
 
+// The English words are the stored answer values; only the label on screen is translated.
 private val MORNING_OPTIONS = listOf("Almost always", "Sometimes", "Rarely", "No")
+
+@Composable
+private fun morningOptionLabel(option: String): String = stringResource(
+    when (option) {
+        "Almost always" -> R.string.stats_morning_almost_always
+        "Sometimes" -> R.string.stats_morning_sometimes
+        "Rarely" -> R.string.stats_morning_rarely
+        else -> R.string.stats_morning_no
+    },
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -137,9 +148,9 @@ fun ColdStartSheet(
             Spacer(Modifier.height(16.dp))
 
             val (_, question, hint) = COLD_START_QUESTIONS[step]
-            Text(question, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(question), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(4.dp))
-            Text(hint, fontSize = 13.sp, color = DarkTextSecondary)
+            Text(stringResource(hint), fontSize = 13.sp, color = DarkTextSecondary)
             Spacer(Modifier.height(16.dp))
 
             if (step == 2) {
@@ -150,7 +161,7 @@ fun ColdStartSheet(
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Text(
-                            option,
+                            morningOptionLabel(option),
                             fontSize = 14.sp,
                             color = if (answer == option) BrandPrimary
                             else MaterialTheme.colorScheme.onSurface,
@@ -163,7 +174,7 @@ fun ColdStartSheet(
                     onValueChange = { answer = it },
                     placeholder = {
                         Text(
-                            if (step == 0) "e.g. Instagram, TikTok…" else "Your answer",
+                            stringResource(if (step == 0) R.string.stats_cold_placeholder_app else R.string.stats_cold_placeholder_answer),
                             fontSize = 13.sp,
                             color = DarkTextSecondary,
                         )
@@ -191,7 +202,7 @@ fun ColdStartSheet(
                     enabled = !isSubmitting,
                 ) {
                     Text(
-                        if (step < COLD_START_QUESTIONS.lastIndex) "Skip" else "Submit without answer",
+                        stringResource(if (step < COLD_START_QUESTIONS.lastIndex) R.string.stats_skip else R.string.stats_cold_submit_no_answer),
                         color = DarkTextSecondary,
                     )
                 }
@@ -208,14 +219,14 @@ fun ColdStartSheet(
                         onClick = { submit() },
                         enabled = !isSubmitting,
                     ) {
-                        Text(if (isSubmitting) "Submitting…" else "Submit answers")
+                        Text(stringResource(if (isSubmitting) R.string.stats_submitting else R.string.stats_cold_submit_answers))
                     }
                 }
             }
             if (submitError) {
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "Could not save your answers. Please try again.",
+                    stringResource(R.string.stats_cold_save_failed),
                     color = MaterialTheme.colorScheme.error,
                     fontSize = 13.sp,
                 )

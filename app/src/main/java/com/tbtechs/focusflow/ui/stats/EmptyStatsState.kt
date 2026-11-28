@@ -22,11 +22,11 @@ fun EmptyStatsState(window: AnalyticsWindow) = StatsCard {
     Column(modifier = androidx.compose.ui.Modifier.padding(12.dp)) {
         Icon(Icons.Outlined.Analytics, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         val title = when (window) {
-            ANALYTICS_YESTERDAY -> "Nothing recorded yesterday"
-            ANALYTICS_TODAY -> "Nothing recorded today"
-            ANALYTICS_ALL_TIME -> "No activity recorded yet"
-            ANALYTICS_THREE_MONTHS -> "No activity recorded in the last 3 months"
-            else -> "No activity recorded this week"
+            ANALYTICS_YESTERDAY -> stringResource(R.string.stats_empty_yesterday)
+            ANALYTICS_TODAY -> stringResource(R.string.stats_empty_today)
+            ANALYTICS_ALL_TIME -> stringResource(R.string.stats_empty_all_time)
+            ANALYTICS_THREE_MONTHS -> stringResource(R.string.stats_empty_three_months)
+            else -> stringResource(R.string.stats_empty_week)
         }
         Text(title, style = MaterialTheme.typography.titleMedium)
         Text(stringResource(R.string.stats_insights_will_appear_here_once), color = MaterialTheme.colorScheme.onSurfaceVariant)
