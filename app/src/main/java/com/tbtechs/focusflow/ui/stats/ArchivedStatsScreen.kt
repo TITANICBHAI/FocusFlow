@@ -288,10 +288,10 @@ private fun StatsFilterRow(
     onSelect: (String) -> Unit,
 ) {
     val filters = listOf(
-        ANALYTICS_TODAY to "Today",
-        ANALYTICS_YESTERDAY to "Yesterday",
-        ANALYTICS_WEEK to "Week",
-        ANALYTICS_ALL_TIME to "All Time",
+        ANALYTICS_TODAY to stringResource(R.string.stats_window_today),
+        ANALYTICS_YESTERDAY to stringResource(R.string.stats_window_yesterday),
+        ANALYTICS_WEEK to stringResource(R.string.stats_window_week),
+        ANALYTICS_ALL_TIME to stringResource(R.string.stats_window_all_time),
     )
     Column(
         modifier = Modifier
@@ -363,7 +363,7 @@ private fun TodayReport(snapshot: AnalyticsSnapshot) {
     ArchivedCard {
         Icon(Icons.Outlined.Timer, null, tint = BrandPrimary, modifier = Modifier.size(28.dp))
         Text(
-            formatStatsMinutes(focusMinutes),
+            statsDuration(focusMinutes),
             fontSize = 32.scaledSp,
             fontWeight = FontWeight.Bold,
             color = BrandPrimary,
@@ -371,9 +371,9 @@ private fun TodayReport(snapshot: AnalyticsSnapshot) {
         Text(stringResource(R.string.stats_focus_time_today), color = DarkTextSecondary)
         Spacer(Modifier.height(16.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            StatTile("${snapshot.sessions.total}", "Sessions", BrandPrimary)
-            StatTile("${snapshot.tasks.completed}", "Done", Color(0xFF55C98A))
-            StatTile("${snapshot.blocking.totalAttempts}", "Blocked", SunAmber)
+            StatTile("${snapshot.sessions.total}", stringResource(R.string.stats_tile_sessions), BrandPrimary)
+            StatTile("${snapshot.tasks.completed}", stringResource(R.string.stats_tile_done), Color(0xFF55C98A))
+            StatTile("${snapshot.blocking.totalAttempts}", stringResource(R.string.stats_tile_blocked), SunAmber)
         }
         Spacer(Modifier.height(16.dp))
         TaskBreakdown(snapshot)
@@ -386,7 +386,7 @@ private fun YesterdayReport(snapshot: AnalyticsSnapshot) {
         Icon(Icons.Outlined.CalendarMonth, null, tint = BrandPrimary, modifier = Modifier.size(26.dp))
         Text(stringResource(R.string.stats_yesterday_s_report), fontSize = 20.scaledSp, fontWeight = FontWeight.Bold, color = DarkTextPrimary)
         Text(
-            "${snapshot.tasks.completed} of ${snapshot.tasks.total} tasks completed",
+            stringResource(R.string.stats_pc_tasks_completed_of, snapshot.tasks.completed, snapshot.tasks.total),
             color = DarkTextSecondary,
         )
         Spacer(Modifier.height(14.dp))
@@ -429,7 +429,7 @@ private fun WeekReport(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    if (weekViewMode == WEEK_MODE_DYNAMIC) "Last 7 days" else "${weekRangeLabel(weekStartDay)} report",
+                    if (weekViewMode == WEEK_MODE_DYNAMIC) stringResource(R.string.stats_last_7_days) else stringResource(R.string.stats_week_report, weekRangeLabel(weekStartDay)),
                     fontSize = 20.scaledSp,
                     fontWeight = FontWeight.Bold,
                     color = DarkTextPrimary,
@@ -444,16 +444,16 @@ private fun WeekReport(
             }
         }
         Text(
-            "${snapshot.tasks.completed} of ${snapshot.tasks.total} tasks completed",
+            stringResource(R.string.stats_pc_tasks_completed_of, snapshot.tasks.completed, snapshot.tasks.total),
             color = DarkTextSecondary,
         )
         Spacer(Modifier.height(14.dp))
         WeekCompletionBars(snapshot, snapshot.range.startISO)
         Spacer(Modifier.height(14.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            StatTile("${snapshot.sessions.totalFocusMinutes.roundToInt()}m", "Focus", BrandPrimary)
-            StatTile("${snapshot.sessions.cleanCount}", "Clean", Color(0xFF55C98A))
-            StatTile("${snapshot.blocking.totalAttempts}", "Blocked", SunAmber)
+            StatTile(statsDuration(snapshot.sessions.totalFocusMinutes.roundToInt()), stringResource(R.string.stats_focus), BrandPrimary)
+            StatTile("${snapshot.sessions.cleanCount}", stringResource(R.string.stats_tile_clean), Color(0xFF55C98A))
+            StatTile("${snapshot.blocking.totalAttempts}", stringResource(R.string.stats_tile_blocked), SunAmber)
         }
     }
 }
@@ -463,7 +463,7 @@ private fun AllTimeReport(snapshot: AnalyticsSnapshot, lifetime: LifetimeStats?)
     ArchivedCard {
         Icon(Icons.Outlined.HourglassEmpty, null, tint = BrandPrimary, modifier = Modifier.size(27.dp))
         Text(
-            formatStatsMinutes((lifetime?.totalFocusMinutes ?: snapshot.sessions.totalFocusMinutes).roundToInt()),
+            statsDuration((lifetime?.totalFocusMinutes ?: snapshot.sessions.totalFocusMinutes).roundToInt()),
             fontSize = 32.scaledSp,
             fontWeight = FontWeight.Bold,
             color = BrandPrimary,
@@ -471,9 +471,9 @@ private fun AllTimeReport(snapshot: AnalyticsSnapshot, lifetime: LifetimeStats?)
         Text(stringResource(R.string.stats_total_focus_time), color = DarkTextSecondary)
         Spacer(Modifier.height(16.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            StatTile("${lifetime?.completedTasks ?: snapshot.tasks.completed}", "Tasks", Color(0xFF55C98A))
-            StatTile("${lifetime?.totalSessions ?: snapshot.sessions.total}", "Sessions", BrandPrimary)
-            StatTile("${lifetime?.currentStreakDays ?: 0}d", "Streak", SunAmber)
+            StatTile("${lifetime?.completedTasks ?: snapshot.tasks.completed}", stringResource(R.string.stats_tile_tasks), Color(0xFF55C98A))
+            StatTile("${lifetime?.totalSessions ?: snapshot.sessions.total}", stringResource(R.string.stats_tile_sessions), BrandPrimary)
+            StatTile(stringResource(R.string.stats_pc_days, lifetime?.currentStreakDays ?: 0), stringResource(R.string.stats_tile_streak), SunAmber)
         }
     }
 }
@@ -481,10 +481,10 @@ private fun AllTimeReport(snapshot: AnalyticsSnapshot, lifetime: LifetimeStats?)
 @Composable
 private fun TaskBreakdown(snapshot: AnalyticsSnapshot) {
     Text(stringResource(R.string.stats_task_breakdown), fontSize = 13.scaledSp, fontWeight = FontWeight.SemiBold, color = DarkTextPrimary)
-    BreakdownRow("Completed", snapshot.tasks.completed, Color(0xFF55C98A), snapshot.tasks.total)
-    BreakdownRow("Remaining", (snapshot.tasks.total - snapshot.tasks.completed - snapshot.tasks.skipped - snapshot.tasks.missed).coerceAtLeast(0), BrandPrimary, snapshot.tasks.total)
-    BreakdownRow("Skipped", snapshot.tasks.skipped, DarkTextMuted, snapshot.tasks.total)
-    BreakdownRow("Missed", snapshot.tasks.missed, Color(0xFFE06B6B), snapshot.tasks.total)
+    BreakdownRow(stringResource(R.string.task_status_completed), snapshot.tasks.completed, Color(0xFF55C98A), snapshot.tasks.total)
+    BreakdownRow(stringResource(R.string.stats_bd_remaining), (snapshot.tasks.total - snapshot.tasks.completed - snapshot.tasks.skipped - snapshot.tasks.missed).coerceAtLeast(0), BrandPrimary, snapshot.tasks.total)
+    BreakdownRow(stringResource(R.string.task_status_skipped), snapshot.tasks.skipped, DarkTextMuted, snapshot.tasks.total)
+    BreakdownRow(stringResource(R.string.stats_task_missed), snapshot.tasks.missed, Color(0xFFE06B6B), snapshot.tasks.total)
 }
 
 @Composable
@@ -542,7 +542,7 @@ private fun WeekCompletionBars(snapshot: AnalyticsSnapshot, rangeStartISO: Strin
                 )
                 Spacer(Modifier.height(5.dp))
                 Text(
-                    date.format(DateTimeFormatter.ofPattern("M/d", Locale.getDefault())),
+                    statsDate(date, R.string.stats_date_pattern_numeric_month_day),
                     fontSize = 10.scaledSp,
                     color = DarkTextSecondary,
                 )
@@ -563,7 +563,7 @@ private fun UsageAccessCard(
             Column(modifier = Modifier.weight(1f).padding(start = 10.dp)) {
                 Text(stringResource(R.string.stats_connect_device_usage), fontWeight = FontWeight.SemiBold, color = DarkTextPrimary)
                 Text(
-                    "Allow Usage Access to see phone time and habits. Focus stats work without it.",
+                    stringResource(R.string.stats_usage_access_hint),
                     fontSize = 12.scaledSp,
                     lineHeight = 17.scaledSp,
                     color = DarkTextSecondary,
@@ -612,7 +612,7 @@ private fun DeviceUsageCard(
                 modifier = Modifier.size(21.dp),
             )
             Text(
-                "Observed Device Time",
+                stringResource(R.string.stats_observed_device_time),
                 modifier = Modifier.padding(start = 8.dp),
                 fontSize = 16.scaledSp,
                 fontWeight = FontWeight.ExtraBold,
@@ -644,14 +644,14 @@ private fun DeviceUsageCard(
                 Text(
                     if (window == ANALYTICS_WEEK) {
                         if (weekViewMode == WEEK_MODE_DYNAMIC) {
-                            "Dynamic"
+                            stringResource(R.string.stats_chip_dynamic)
                         } else {
                             weekRangeLabel(weekStartDay)
                         }
                     } else if (window == ANALYTICS_TODAY) {
-                        "Live"
+                        stringResource(R.string.stats_chip_live)
                     } else {
-                        "On device"
+                        stringResource(R.string.stats_chip_on_device)
                     },
                     fontSize = 11.scaledSp,
                     fontWeight = FontWeight.Bold,
@@ -660,14 +660,14 @@ private fun DeviceUsageCard(
             }
         }
         Text(
-            formatStatsMinutes(shownMinutes),
+            statsDuration(shownMinutes),
             modifier = Modifier.padding(top = 12.dp),
             fontSize = 44.scaledSp,
             fontWeight = FontWeight.ExtraBold,
             color = Color(0xFF63A7FF),
         )
         Text(
-            "Time spent in apps · FocusFlow home screen not counted",
+            stringResource(R.string.stats_time_in_apps_note),
             fontSize = 12.scaledSp,
             color = DarkTextSecondary,
         )
@@ -686,16 +686,16 @@ private fun DeviceUsageCard(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceEvenly,
         ) {
-            UsageMetric(formatStatsMinutes(focusMinutesByDayOfWeek.values.sum().roundToInt()), "Focus time", BrandPrimary)
+            UsageMetric(statsDuration(focusMinutesByDayOfWeek.values.sum().roundToInt()), stringResource(R.string.stats_phone_focus_time), BrandPrimary)
             Box(Modifier.width(1.dp).height(44.dp).background(DarkBorder))
             val ratio = if (totalMinutes > 0) {
                 (focusMinutesByDayOfWeek.values.sum() * 100 / totalMinutes).roundToInt()
             } else {
                 0
             }
-            UsageMetric(if (totalMinutes > 0) "$ratio%" else "0%", "Focus / observed", if (ratio > 0) Color(0xFF55C98A) else DarkTextMuted)
+            UsageMetric(if (totalMinutes > 0) "$ratio%" else "0%", stringResource(R.string.stats_phone_focus_vs_observed), if (ratio > 0) Color(0xFF55C98A) else DarkTextMuted)
             Box(Modifier.width(1.dp).height(44.dp).background(DarkBorder))
-            UsageMetric(blockedAttempts.toString(), "Blocked attempts", Color(0xFF55C98A))
+            UsageMetric(blockedAttempts.toString(), stringResource(R.string.stats_phone_blocked_attempts), Color(0xFF55C98A))
         }
         Box(
             modifier = Modifier
@@ -720,7 +720,7 @@ private fun DeviceUsageCard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    "Top apps by observed time",
+                    stringResource(R.string.stats_phone_top_apps),
                     fontSize = 15.scaledSp,
                     fontWeight = FontWeight.ExtraBold,
                     color = DarkTextPrimary,
@@ -823,7 +823,7 @@ private fun UsageAppRow(
         }
         Spacer(Modifier.width(8.dp))
         Text(
-            "${app.minutes.roundToInt()}m · ${app.launchCount}",
+            "${statsDuration(app.minutes.roundToInt())} · ${app.launchCount}",
             fontSize = 12.scaledSp,
             fontWeight = FontWeight.Bold,
             color = DarkTextPrimary,
@@ -858,7 +858,7 @@ private fun WeeklyObservationChart(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(
-            "WEEKLY OBSERVATION",
+            stringResource(R.string.stats_weekly_observation).uppercase(),
             fontSize = 12.scaledSp,
             fontWeight = FontWeight.Bold,
             letterSpacing = 1.scaledSp,
@@ -895,7 +895,7 @@ private fun WeeklyObservationChart(
                         )
                     }
                     Text(
-                        date.format(DateTimeFormatter.ofPattern("M/d", Locale.getDefault())),
+                        statsDate(date, R.string.stats_date_pattern_numeric_month_day),
                         fontSize = 10.scaledSp,
                         color = DarkTextMuted,
                     )
@@ -906,9 +906,9 @@ private fun WeeklyObservationChart(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.Center,
         ) {
-            UsageLegend(Color(0xFF63A7FF), "Observed device time")
+            UsageLegend(Color(0xFF63A7FF), stringResource(R.string.stats_observed_device_time))
             Spacer(Modifier.width(16.dp))
-            UsageLegend(BrandPrimary, "Focus time")
+            UsageLegend(BrandPrimary, stringResource(R.string.stats_phone_focus_time))
         }
     }
 }
@@ -962,7 +962,7 @@ private fun BlockingReport(
             Text(stringResource(R.string.stats_blocked_attempts), modifier = Modifier.padding(start = 8.dp), fontWeight = FontWeight.SemiBold, color = DarkTextPrimary)
         }
         Text(
-            "${snapshot.blocking.totalAttempts} app opening${if (snapshot.blocking.totalAttempts == 1) "" else "s"} intercepted in this period.",
+            stringResource(if (snapshot.blocking.totalAttempts == 1) R.string.stats_intercepted_one else R.string.stats_intercepted_many, snapshot.blocking.totalAttempts),
             modifier = Modifier.padding(top = 6.dp),
             color = DarkTextSecondary,
         )
@@ -1044,7 +1044,7 @@ private fun StatsErrorState(onRetry: () -> Unit) {
             Icon(Icons.Outlined.Analytics, null, tint = DarkTextMuted, modifier = Modifier.size(42.dp))
             Text(stringResource(R.string.stats_stats_unavailable), fontSize = 20.scaledSp, color = DarkTextPrimary)
             Text(
-                "FocusFlow could not read this period. Try again without leaving the tab.",
+                stringResource(R.string.stats_read_failed_hint),
                 color = DarkTextSecondary,
             )
             Button(onClick = onRetry, modifier = Modifier.padding(top = 12.dp)) {
@@ -1061,7 +1061,7 @@ private fun StatsPermissionState(onOpenUsageAccessSettings: () -> Unit) {
             Icon(Icons.Outlined.Settings, null, tint = BrandPrimary, modifier = Modifier.size(28.dp))
             Text(stringResource(R.string.stats_connect_device_usage), fontSize = 20.scaledSp, fontWeight = FontWeight.Bold, color = DarkTextPrimary)
             Text(
-                "This report needs Android Usage Access to read phone behaviour. Nothing leaves the device.",
+                stringResource(R.string.stats_permission_hint),
                 color = DarkTextSecondary,
             )
             Button(onClick = onOpenUsageAccessSettings, modifier = Modifier.padding(top = 12.dp)) {
@@ -1077,48 +1077,46 @@ private fun StatsEmptyState(window: String) {
         ArchivedCard {
             Icon(Icons.Outlined.Analytics, null, tint = DarkTextMuted, modifier = Modifier.size(38.dp))
             Text(
-                if (window == ANALYTICS_YESTERDAY) "Nothing recorded yesterday" else "No activity recorded yet",
+                stringResource(if (window == ANALYTICS_YESTERDAY) R.string.stats_empty_yesterday else R.string.stats_empty_none),
                 fontSize = 20.scaledSp,
                 fontWeight = FontWeight.Bold,
                 color = DarkTextPrimary,
             )
             Text(
-                "Insights will appear here once FocusFlow has a task, session, or blocked-app attempt to read.",
+                stringResource(R.string.stats_empty_hint),
                 color = DarkTextSecondary,
             )
         }
     }
 }
 
+@Composable
 private fun statsSubtitle(window: String, weekViewMode: String, weekStartDay: Int): String = when (window) {
-    ANALYTICS_YESTERDAY -> "The day that just ended"
+    ANALYTICS_YESTERDAY -> stringResource(R.string.stats_sub_yesterday)
     ANALYTICS_WEEK -> if (weekViewMode == WEEK_MODE_DYNAMIC) {
-        "The last 7 days, including today"
+        stringResource(R.string.stats_sub_last_7_days)
     } else {
-        "${weekRangeLabel(weekStartDay)} calendar week"
+        stringResource(R.string.stats_sub_calendar_week, weekRangeLabel(weekStartDay))
     }
-    ANALYTICS_ALL_TIME -> "The record you are building"
-    else -> "Your focus so far today"
+    ANALYTICS_ALL_TIME -> stringResource(R.string.stats_sub_all_time)
+    else -> stringResource(R.string.stats_sub_today)
 }
 
-private fun formatStatsMinutes(minutes: Int): String {
-    if (minutes <= 0) return "0m"
-    val hours = minutes / 60
-    val remaining = minutes % 60
-    return if (hours > 0) "${hours}h ${remaining}m" else "${remaining}m"
-}
-
-private val WEEKDAY_SHORT = listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
-
+/** "Sun–Sat" for a week that starts on Sunday (0), in the current language. */
+@Composable
 private fun weekRangeLabel(startDay: Int): String {
+    val locale = statsLocale()
     val start = startDay.coerceIn(0, 6)
     val end = (start + 6) % 7
-    return "${WEEKDAY_SHORT[start]}–${WEEKDAY_SHORT[end]}"
+    fun day(index: Int) = java.time.DayOfWeek.SUNDAY.plus(index.toLong()).getDisplayName(java.time.format.TextStyle.SHORT, locale)
+    return "${day(start)}–${day(end)}"
 }
 
+/** Task result codes are stored in English; only the label the person reads is translated. */
+@Composable
 private fun statusLabel(status: String): String = when (status) {
-    "completed" -> "Done"
-    "skipped" -> "Skipped"
-    "overdue" -> "Missed"
-    else -> "Not completed"
+    "completed" -> stringResource(R.string.stats_task_done)
+    "skipped" -> stringResource(R.string.stats_task_skipped)
+    "overdue" -> stringResource(R.string.stats_task_missed)
+    else -> stringResource(R.string.stats_status_not_completed)
 }
